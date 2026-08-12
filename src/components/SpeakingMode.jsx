@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { speak, normalize } from "../lib/speech.js";
+import { transcribeBlob, isRecordingSupported } from "../lib/whisperSpeech.js";
 
 const GREETING = {
   image: "",
@@ -13,8 +14,11 @@ export default function SpeakingMode({ lesson, onFinish }) {
   const [heard, setHeard] = useState("");
   const [result, setResult] = useState({ text: "", ok: null });
   const [recording, setRecording] = useState(false);
+  const [busy, setBusy] = useState(false);
   const [answered, setAnswered] = useState(false);
-  const recognitionRef = useRef(null);
+  const mediaRecorderRef = useRef(null);
+  const chunksRef = useRef([]);
+  const streamRef = useRef(null);
 
   const step = queue[index];
   const isLast = index === queue.length - 1;
@@ -26,61 +30,76 @@ export default function SpeakingMode({ lesson, onFinish }) {
     speak(step.question);
   }, [index]);
 
-  function startHold(e) {
+  async function startHold(e) {
     e.preventDefault();
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      setResult({ text: "Trình duyệt không hỗ trợ nhận diện giọng nói. Hãy dùng Chrome.", ok: false });
+    if (busy || recording) return;
+    if (!isRecordingSupported()) {
+      setResult({ text: "Trình duyệt không hỗ trợ ghi âm.", ok: false });
       return;
     }
-    if (recognitionRef.current) return;
 
-    const recognition = new SpeechRecognition();
-    recognitionRef.current = recognition;
-    recognition.lang = "en-US";
-    recognition.interimResults = false;
-    recognition.maxAlternatives = 1;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+      const mimeType = MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "";
+      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      mediaRecorderRef.current = recorder;
+      chunksRef.current = [];
 
-    setRecording(true);
-    setHeard("");
-    setResult({ text: "", ok: null });
+      recorder.ondataavailable = ev => {
+        if (ev.data.size > 0) chunksRef.current.push(ev.data);
+      };
 
-    recognition.start();
+      recorder.onstop = async () => {
+        streamRef.current?.getTracks().forEach(track => track.stop());
+        streamRef.current = null;
+        setRecording(false);
 
-    recognition.onresult = event => {
-      const said = event.results[0][0].transcript;
-      setHeard(`Bạn nói: "${said}"`);
+        const blob = new Blob(chunksRef.current, { type: mimeType || "audio/webm" });
+        if (blob.size < 500) return; // ghi âm quá ngắn, bỏ qua
 
-      const keywords = step.answer_keywords
-        ? step.answer_keywords.split(",").map(k => normalize(k)).filter(Boolean)
-        : [];
+        setBusy(true);
+        setResult({ text: "Đang nhận diện...", ok: null });
+        try {
+          const said = await transcribeBlob(blob);
+          setHeard(`Bạn nói: "${said}"`);
 
-      if (keywords.length === 0) {
-        setResult({ text: "👍 Cảm ơn bạn đã trả lời!", ok: true });
-      } else {
-        const saidNorm = normalize(said);
-        const ok = keywords.some(k => saidNorm.includes(k));
-        setResult({
-          text: ok ? "✅ Đúng rồi, giỏi quá!" : "❌ Chưa đúng, thử lại nhé!",
-          ok,
-        });
-      }
-      setAnswered(true);
-    };
+          const keywords = step.answer_keywords
+            ? step.answer_keywords.split(",").map(k => normalize(k)).filter(Boolean)
+            : [];
 
-    recognition.onerror = event => {
-      setResult({ text: `Không nghe rõ, hãy thử lại (${event.error})`, ok: false });
-    };
+          if (keywords.length === 0) {
+            setResult({ text: "👍 Cảm ơn bạn đã trả lời!", ok: true });
+          } else {
+            const saidNorm = normalize(said);
+            const ok = keywords.some(k => saidNorm.includes(k));
+            setResult({
+              text: ok ? "✅ Đúng rồi, giỏi quá!" : "❌ Chưa đúng, thử lại nhé!",
+              ok,
+            });
+          }
+          setAnswered(true);
+        } catch {
+          setResult({ text: "Không nhận diện được, hãy thử lại.", ok: false });
+        } finally {
+          setBusy(false);
+        }
+      };
 
-    recognition.onend = () => {
-      setRecording(false);
-      recognitionRef.current = null;
-    };
+      setRecording(true);
+      setHeard("");
+      setResult({ text: "", ok: null });
+      recorder.start();
+    } catch {
+      setResult({ text: "Không dùng được micro. Kiểm tra quyền truy cập micro.", ok: false });
+    }
   }
 
   function stopHold(e) {
     e.preventDefault();
-    if (recognitionRef.current) recognitionRef.current.stop();
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      mediaRecorderRef.current.stop();
+    }
   }
 
   function handleNext() {
@@ -107,6 +126,7 @@ export default function SpeakingMode({ lesson, onFinish }) {
       <button
         className={`mic-btn${recording ? " recording" : ""}`}
         title="Bấm giữ để nói"
+        disabled={busy}
         onMouseDown={startHold}
         onMouseUp={stopHold}
         onMouseLeave={stopHold}

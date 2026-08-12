@@ -2,6 +2,7 @@ import { useState } from "react";
 import { YLE_SERIES } from "../lib/yleData.js";
 import ListeningMode from "../components/ListeningMode.jsx";
 import SpeakingMode from "../components/SpeakingMode.jsx";
+import Part1Mode from "../components/Part1Mode.jsx";
 
 const TYPES = [
   { key: "listening", label: "Listening", desc: "Xem video và luyện nghe" },
@@ -12,6 +13,12 @@ export default function LessonsPage() {
   const [series, setSeries] = useState(null);
   const [level, setLevel] = useState(null);
   const [type, setType] = useState(null);
+  const [part1Done, setPart1Done] = useState(false);
+
+  function openType(t, l) {
+    setType(t);
+    setPart1Done(!l.speakingPart1);
+  }
 
   return (
     <section className="section narrow">
@@ -71,7 +78,7 @@ export default function LessonsPage() {
               <button
                 key={t.key}
                 className="feature-card feature-card-btn"
-                onClick={() => setType(t.key)}
+                onClick={() => openType(t.key, level)}
               >
                 <span className="feature-dot" style={{ background: series.color }} />
                 <h3>{t.label}</h3>
@@ -91,7 +98,10 @@ export default function LessonsPage() {
             {series.title} {level.number} – {type === "listening" ? "Listening" : "Speaking"}
           </h1>
           {type === "listening" && <ListeningMode listening={level.listening} />}
-          {type === "speaking" && (
+          {type === "speaking" && !part1Done && (
+            <Part1Mode steps={level.speakingPart1} onFinish={() => setPart1Done(true)} />
+          )}
+          {type === "speaking" && part1Done && (
             <SpeakingMode
               lesson={{ speaking: level.speaking }}
               onFinish={() => setType(null)}

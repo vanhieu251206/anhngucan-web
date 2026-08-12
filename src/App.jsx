@@ -1,6 +1,7 @@
 import { useState } from "react";
 import Header from "./components/Header.jsx";
 import Footer from "./components/Footer.jsx";
+import ModelPreloader from "./components/ModelPreloader.jsx";
 import HomePage from "./pages/HomePage.jsx";
 import LessonsPage from "./pages/LessonsPage.jsx";
 import AboutPage from "./pages/AboutPage.jsx";
@@ -21,6 +22,7 @@ export default function App() {
       </main>
 
       <Footer onNavigate={setPage} />
+      <ModelPreloader />
     </>
   );
 }

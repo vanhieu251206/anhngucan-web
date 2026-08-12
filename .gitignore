@@ -15,6 +15,11 @@ dist-ssr
 # Sách giáo trình gốc (có bản quyền, chỉ dùng tham khảo nội bộ, không đẩy lên repo)
 Input/
 
+# Thư mục staging: người dùng thả dữ liệu bài học thô (ảnh cắt từ sách...) vào đây,
+# Claude copy sang đúng nơi trong project (public/assets/img/..., yleData.js...) rồi dùng.
+# Không đẩy lên repo vì có thể chứa ảnh cắt từ sách có bản quyền.
+Bài học/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
