@@ -19,22 +19,34 @@ Xây dựng một ứng dụng học tiếng Anh dạng **speaking** cho học s
 - **CHỐT (2026-08-12): Deploy online, KHÔNG chạy local nữa.** Website host trên **GitHub Pages** (miễn phí). Học sinh truy cập qua URL, không cần tải/cài gì.
 - **CHỐT (2026-08-12): Dữ liệu bài học lấy từ Google Sheets**, KHÔNG nhúng cứng vào file JS nữa. Lý do: sẽ có rất nhiều bài học, và cần người không biết code (admin/giáo viên) thêm bài mới chỉ bằng cách nhập liệu vào Sheet — không phải sửa code, không phải deploy lại. Xem chi tiết cơ chế ở mục 4 và 7.
 
-## 3. Cấu trúc thư mục
+## 3. Cấu trúc thư mục (React + Vite)
 ```
 App Hoc Tieng Anh/
-├── CLAUDE.md              # file này
-├── index.html             # trang chính: màn hình loading → chọn bài học → chọn chế độ (vocab/dragdrop/speaking)
-├── style.css               # giao diện, theme màu cam-xanh trẻ em
-├── config.js                # chứa SHEET_ID của Google Sheet nguồn dữ liệu
-├── app.js                   # toàn bộ logic UI 3 chế độ + Web Speech API
-├── js/
-│   └── sheet-loader.js     # đọc dữ liệu từ Google Sheets qua API gviz (fetch, không cần backend)
-├── data/
-│   └── lesson1.sample.js   # mẫu cấu trúc dữ liệu cũ (KHÔNG còn dùng, chỉ để tham khảo format khi tạo Sheet)
-└── assets/
-    ├── img/                 # ảnh minh họa từ vựng (chair.png, table.png, ...) — CHƯA có ảnh thật
-    └── audio/               # (dự phòng, hiện dùng speechSynthesis phát âm thay vì file audio)
+├── CLAUDE.md                   # file này
+├── package.json                 # scripts: npm run dev / npm run build / npm run preview
+├── vite.config.js                # base: './' để build chạy đúng dù deploy ở subpath nào của GitHub Pages
+├── index.html                    # HTML gốc, chỉ chứa <div id="root"> + nạp src/main.jsx
+├── src/
+│   ├── main.jsx                  # điểm khởi chạy React
+│   ├── App.jsx                   # luồng chính: loading → chọn bài học → chọn chế độ → hiển thị mode
+│   ├── index.css                 # giao diện, theme màu cam-xanh trẻ em (chuyển từ style.css cũ)
+│   ├── config.js                  # chứa SHEET_ID của Google Sheet nguồn dữ liệu
+│   ├── lib/
+│   │   ├── sheetLoader.js        # đọc dữ liệu từ Google Sheets qua API gviz (fetch, không cần backend)
+│   │   └── speech.js              # helper dùng chung: speak() (TTS), normalize() (so khớp từ khóa)
+│   └── components/
+│       ├── VocabMode.jsx          # chế độ thẻ từ vựng
+│       ├── DragDropMode.jsx       # chế độ kéo thả
+│       └── SpeakingMode.jsx       # chế độ luyện nói (hội thoại tuần tự, bấm giữ mic)
+└── public/
+    └── assets/
+        ├── img/                   # ảnh minh họa từ vựng (chair.png, table.png, ...) — CHƯA có ảnh thật
+        └── audio/                 # (dự phòng, hiện dùng speechSynthesis phát âm thay vì file audio)
 ```
+
+**Lưu ý:** `Input/` (chứa sách giáo trình PDF gốc, có bản quyền) đã được thêm vào `.gitignore` — KHÔNG đẩy lên GitHub, chỉ dùng tham khảo nội bộ khi soạn dữ liệu Sheet.
+
+**Chạy thử cục bộ:** `npm install` rồi `npm run dev` (mở `http://localhost:5173`). Build ra file tĩnh để deploy: `npm run build` (kết quả nằm ở thư mục `dist/`, không commit vào Git).
 
 ## 4. Cách thêm bài học mới (KHÔNG cần code)
 Dữ liệu bài học nằm trong 1 Google Sheet dùng chung, gồm 4 tab (tên tab phải đúng chính xác):
@@ -54,18 +66,20 @@ Dữ liệu bài học nằm trong 1 Google Sheet dùng chung, gồm 4 tab (tên
 - **Chỉ nên đưa vào Sheet các câu có đáp án tương đối cố định** (kiểu "What's this?", "What colour...?", "How many...?", "What's ... doing?") — lấy từ Part 2 và câu đầu Part 3 của đề thi mẫu. Không đưa các câu hỏi sở thích cá nhân hoàn toàn tự do (What's your favourite...? Who do you play with?...) vì không có cách chấm đúng/sai hợp lý.
 
 - Thêm bài học mới = thêm 1 dòng vào tab `Lessons` (đặt `lesson_id` mới, vd `2`) + thêm các dòng tương ứng vào `Vocab`/`DragDrop`/`Speaking` có cùng `lesson_id` đó.
-- Cột `image` ghi đường dẫn ảnh, vd `assets/img/chair.png` — ảnh cần được đưa vào thư mục `assets/img/` của repo (upload lên GitHub) thì mới hiển thị được.
+- Cột `image` ghi đường dẫn ảnh, vd `assets/img/chair.png` — ảnh cần được đưa vào thư mục `public/assets/img/` của repo (upload lên GitHub) thì mới hiển thị được.
 - **Không cần sửa code, không cần deploy lại** — trang tự đọc Sheet mới nhất mỗi lần tải.
 - Sheet phải để chế độ chia sẻ **"Anyone with the link" (Người có link đều xem được)** thì web mới đọc được qua API công khai (gviz), không cần thêm nhóm hay API key trả phí nào.
-- `config.js` phải được set đúng `SHEET_ID` (lấy từ URL của Sheet) — mới nạp dữ liệu chính xác.
+- `src/config.js` phải được set đúng `SHEET_ID` (lấy từ URL của Sheet) — mới nạp dữ liệu chính xác.
 
 ## 5. Trạng thái hiện tại (2026-08-12)
-- Đã dựng xong khung 3 chế độ chơi (vocab/dragdrop/speaking) + màn hình chọn bài học nhiều bài.
-- **`config.js` còn để `SHEET_ID` placeholder** — cần người dùng tạo Google Sheet thật theo cấu trúc ở mục 4, dán ID vào, rồi mới chạy được.
-- Chưa deploy lên GitHub Pages — cần tạo repo GitHub, push code, bật GitHub Pages trong Settings > Pages.
-- **Còn thiếu ảnh minh họa thật** trong `assets/img/` — hiện các thẻ/ô kéo thả sẽ ẩn ảnh nếu file không tồn tại (`onerror` ẩn ảnh, không vỡ giao diện).
+- Đã migrate xong từ HTML/CSS/JS thuần sang **React + Vite** (build đã test thành công, dev server chạy ổn ở `localhost:5173`).
+- Đã dựng xong khung 3 chế độ chơi (vocab/dragdrop/speaking) + màn hình chọn bài học nhiều bài, dùng component React.
+- **`src/config.js` còn để `SHEET_ID` placeholder** — cần người dùng tạo Google Sheet thật theo cấu trúc ở mục 4, dán ID vào, rồi mới chạy được (hiện app sẽ dừng ở màn hình lỗi tải dữ liệu, đúng như thiết kế).
+- Chưa deploy lên GitHub Pages — cần tạo repo GitHub, push code, bật GitHub Pages trong Settings > Pages (build ra `dist/` trước khi deploy, hoặc dùng GitHub Actions tự build — cần thống nhất cách nào khi tới bước deploy thật).
+- **Còn thiếu ảnh minh họa thật** trong `public/assets/img/` — hiện các thẻ/ô kéo thả sẽ ẩn ảnh nếu file không tồn tại (`onerror` ẩn ảnh, không vỡ giao diện).
 - **Sẽ KHÔNG đóng gói thành .exe hay app gì cả** — xem mục 2, đã chốt lần cuối là chỉ làm website.
 - Chưa kiểm tra/tối ưu responsive cho mobile/tablet — cần làm để đạt mục tiêu "dùng tốt trên mọi thiết bị".
+- Repo Git đã khởi tạo (`git init`), có 1 commit mốc lưu bản HTML/CSS/JS thuần trước khi migrate sang React (có thể xem lại lịch sử nếu cần đối chiếu).
 
 ## 6. Không tự ý làm gì khi chưa hỏi
 - Khi đổi cấu trúc cột trong Sheet hoặc đổi nguồn dữ liệu nên xác nhận với người dùng trước.
@@ -76,12 +90,14 @@ Dữ liệu bài học nằm trong 1 Google Sheet dùng chung, gồm 4 tab (tên
 ## 7. Hướng dẫn thiết lập (làm 1 lần)
 **A. Tạo Google Sheet:**
 1. Tạo 1 Google Sheet mới, tạo đúng 4 tab tên: `Lessons`, `Vocab`, `DragDrop`, `Speaking` với các cột như mục 4.
-2. Nhập thử 1 bài học (copy nội dung từ `data/lesson1.sample.js` sang đúng cột).
+2. Nhập thử 1 bài học.
 3. Chia sẻ Sheet ở chế độ "Anyone with the link" → Viewer.
-4. Copy Sheet ID từ URL, dán vào `config.js` (`SHEET_ID`).
+4. Copy Sheet ID từ URL, dán vào `src/config.js` (`SHEET_ID`).
 
 **B. Deploy GitHub Pages:**
-1. Tạo repo GitHub mới (public), push toàn bộ thư mục dự án lên.
-2. Vào Settings → Pages → chọn branch `main`, thư mục `/ (root)` → Save.
+1. Tạo repo GitHub mới (public), push toàn bộ thư mục dự án lên (trừ `node_modules`, `dist`, `Input` — đã có trong `.gitignore`).
+2. Vì đây là project React (cần build), có 2 cách bật GitHub Pages:
+   - **Cách đơn giản:** chạy `npm run build` cục bộ, rồi push riêng thư mục `dist/` lên nhánh `gh-pages` (dùng gói `gh-pages` hoặc thao tác thủ công), rồi chọn nhánh đó trong Settings → Pages.
+   - **Cách tự động (khuyến nghị về sau):** dùng GitHub Actions để tự `npm run build` và deploy mỗi khi push — cần thiết lập file workflow riêng, sẽ làm khi tới bước deploy thật.
 3. Sau vài phút, GitHub cấp URL dạng `https://<username>.github.io/<ten-repo>/` — đây là link học sinh dùng để truy cập.
-4. Mỗi khi thêm ảnh minh họa mới vào `assets/img/`, cần commit + push lại (vì ảnh là file tĩnh, không đọc qua Sheet được).
+4. Mỗi khi thêm ảnh minh họa mới vào `public/assets/img/`, cần build lại + deploy lại (vì ảnh là file tĩnh, không đọc qua Sheet được).

@@ -1,8 +1,10 @@
+import { SHEET_ID } from "../config.js";
+
 // Đọc dữ liệu từ Google Sheets công khai qua API gviz (miễn phí, không cần backend).
 // Mỗi tab trong Sheet trả về mảng object, key = tiêu đề cột ở hàng đầu tiên.
 
 function gvizUrl(sheetName) {
-  return `https://docs.google.com/spreadsheets/d/${CONFIG.SHEET_ID}/gviz/tq?headers=1&tqx=out:json&sheet=${encodeURIComponent(sheetName)}`;
+  return `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?headers=1&tqx=out:json&sheet=${encodeURIComponent(sheetName)}`;
 }
 
 async function fetchSheetTab(sheetName) {
@@ -25,12 +27,12 @@ async function fetchSheetTab(sheetName) {
 }
 
 // Nạp toàn bộ dữ liệu từ 4 tab: Lessons, Vocab, DragDrop, Speaking
-async function loadAllLessons() {
+export async function loadAllLessons() {
   const [lessonsRows, vocabRows, dragdropRows, speakingRows] = await Promise.all([
     fetchSheetTab("Lessons"),
     fetchSheetTab("Vocab"),
     fetchSheetTab("DragDrop"),
-    fetchSheetTab("Speaking")
+    fetchSheetTab("Speaking"),
   ]);
 
   return lessonsRows
@@ -50,7 +52,7 @@ async function loadAllLessons() {
         .map(s => ({
           image: s.image,
           question: s.question,
-          answer_keywords: s.answer_keywords
-        }))
+          answer_keywords: s.answer_keywords,
+        })),
     }));
 }
