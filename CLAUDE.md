@@ -3,10 +3,13 @@
 > Đây là dự án **ứng dụng web/app học tiếng Anh**, đặt tại `D:\App Hoc Tieng Anh`, TÁCH BIỆT hoàn toàn khỏi dự án làm video/truyện tranh ở `D:\Project Tiếng Anh\` (không dùng chung cấu trúc, không dùng chung CLAUDE.md của dự án đó). Đọc file này trước khi làm việc trong thư mục này.
 
 ## 1. Mục tiêu dự án
-Xây dựng một ứng dụng học tiếng Anh dạng **speaking** cho học sinh nhỏ tuổi, chứa các bài tập lấy nội dung từ sách giáo trình, gồm 3 dạng bài:
-1. **Kéo thả đồ vật đơn giản** — kéo hình vào đúng ô tên gọi.
-2. **Thẻ từ vựng (flashcard)** — bấm thẻ để xem nghĩa + nghe phát âm.
-3. **Luyện nói** — học sinh đọc câu tiếng Anh theo kịch bản có sẵn của bài học, app chấm đúng/sai bằng nhận diện giọng nói (so khớp text, KHÔNG chấm ngữ điệu/độ chuẩn phát âm sâu).
+Xây dựng một ứng dụng học tiếng Anh cho học sinh nhỏ tuổi, nội dung bám sát 3 bộ đề luyện thi **Cambridge YLE**: **Starters, Movers, Flyers**. Mỗi bộ có **4 cấp độ**, mỗi cấp độ gồm **2 dạng bài**:
+1. **Listening** — nhúng video nghe có sẵn (không tự lưu trữ file video/audio, xem mục 2 về lý do).
+2. **Speaking** — học sinh đọc câu tiếng Anh theo kịch bản của cấp độ đó, app chấm đúng/sai bằng nhận diện giọng nói (so khớp text, KHÔNG chấm ngữ điệu/độ chuẩn phát âm sâu).
+
+**CHỐT (2026-08-12): Đã bỏ 2 dạng bài cũ "Kéo thả đồ vật" và "Thẻ từ vựng (flashcard)" theo chủ đề** (đồ vật/con vật/màu sắc) — component `VocabMode.jsx`, `DragDropMode.jsx` đã bị xoá. Cấu trúc nội dung giờ xoay quanh Starters/Movers/Flyers × 4 cấp × Listening/Speaking, không phải bài học theo chủ đề tự do nữa.
+
+**Về bản quyền:** Sách giáo trình gốc (PDF trong `Input/`) và audio đi kèm có bản quyền — KHÔNG host trực tiếp file audio/video gốc của nhà xuất bản lên web public. Với Listening: dùng video nhúng qua YouTube ở chế độ **Không công khai (Unlisted)** thay vì Google Drive (Drive dễ bị chặn vượt quota băng thông khi nhiều người xem cùng lúc) và thay vì tự host file. Với nội dung câu hỏi Speaking: chỉ lấy phần **text** (câu hỏi mẫu dạng "What's this?", "What colour...?"...) để soạn kịch bản luyện nói, không phát lại audio gốc của sách.
 
 ## 2. Ràng buộc kỹ thuật đã chốt với người dùng
 - **Không tốn phí duy trì.** Không dùng backend/server trả phí, không dùng API AI trả phí theo lượng dùng.
@@ -28,20 +31,28 @@ App Hoc Tieng Anh/
 ├── index.html                    # HTML gốc, chỉ chứa <div id="root"> + nạp src/main.jsx
 ├── src/
 │   ├── main.jsx                  # điểm khởi chạy React
-│   ├── App.jsx                   # luồng chính: loading → chọn bài học → chọn chế độ → hiển thị mode
-│   ├── index.css                 # giao diện, theme màu cam-xanh trẻ em (chuyển từ style.css cũ)
-│   ├── config.js                  # chứa SHEET_ID của Google Sheet nguồn dữ liệu
+│   ├── App.jsx                   # router đơn giản theo state: home / lessons / about / contact
+│   ├── index.css                 # giao diện, theme màu cam-xanh trẻ em, font Baloo 2 + Nunito
+│   ├── config.js                  # chứa SHEET_ID của Google Sheet nguồn dữ liệu (chưa dùng lại — xem mục 4)
 │   ├── lib/
-│   │   ├── sheetLoader.js        # đọc dữ liệu từ Google Sheets qua API gviz (fetch, không cần backend)
+│   │   ├── sheetLoader.js        # đọc dữ liệu từ Google Sheets qua API gviz — ĐANG THEO SCHEMA CŨ, cần viết lại theo mục 4 trước khi dùng
+│   │   ├── yleData.js             # dữ liệu MẪU (mock) 3 bộ Starters/Movers/Flyers × 4 cấp, dùng tạm cho tới khi có Sheet thật
+│   │   ├── mockData.js            # dữ liệu mẫu cho trang chủ (feature, testimonial)
 │   │   └── speech.js              # helper dùng chung: speak() (TTS), normalize() (so khớp từ khóa)
-│   └── components/
-│       ├── VocabMode.jsx          # chế độ thẻ từ vựng
-│       ├── DragDropMode.jsx       # chế độ kéo thả
-│       └── SpeakingMode.jsx       # chế độ luyện nói (hội thoại tuần tự, bấm giữ mic)
+│   ├── components/
+│   │   ├── Header.jsx             # logo + top nav (Trang chủ/Bài học/Giới thiệu/Liên hệ)
+│   │   ├── Footer.jsx
+│   │   ├── Logo.jsx                # logo SVG "Anh Ngữ C.A.N"
+│   │   ├── ListeningMode.jsx      # nhúng video YouTube (nocookie) theo cấp độ
+│   │   └── SpeakingMode.jsx       # chế độ luyện nói (hội thoại tuần tự, bấm giữ mic)
+│   └── pages/
+│       ├── HomePage.jsx
+│       ├── LessonsPage.jsx        # luồng: chọn bộ đề → chọn cấp → chọn Listening/Speaking → nội dung
+│       ├── AboutPage.jsx
+│       └── ContactPage.jsx
 └── public/
     └── assets/
-        ├── img/                   # ảnh minh họa từ vựng (chair.png, table.png, ...) — CHƯA có ảnh thật
-        └── audio/                 # (dự phòng, hiện dùng speechSynthesis phát âm thay vì file audio)
+        └── img/                   # ảnh minh họa (hiện chưa dùng, dữ liệu mẫu dùng avatar SVG sinh động)
 ```
 
 **Lưu ý:** `Input/` (chứa sách giáo trình PDF gốc, có bản quyền) đã được thêm vào `.gitignore` — KHÔNG đẩy lên GitHub, chỉ dùng tham khảo nội bộ khi soạn dữ liệu Sheet.
@@ -49,37 +60,35 @@ App Hoc Tieng Anh/
 **Chạy thử cục bộ:** `npm install` rồi `npm run dev` (mở `http://localhost:5173`). Build ra file tĩnh để deploy: `npm run build` (kết quả nằm ở thư mục `dist/`, không commit vào Git).
 
 ## 4. Cách thêm bài học mới (KHÔNG cần code)
-Dữ liệu bài học nằm trong 1 Google Sheet dùng chung, gồm 4 tab (tên tab phải đúng chính xác):
+**CHỐT (2026-08-12): Schema Sheet cũ (`Lessons`/`Vocab`/`DragDrop`/`Speaking`) đã lỗi thời**, không còn khớp với cấu trúc nội dung Starters/Movers/Flyers × 4 cấp × Listening/Speaking (xem mục 1). `sheetLoader.js` hiện vẫn đọc theo schema cũ và **CHƯA được viết lại** — trang Bài học (`LessonsPage.jsx`) hiện tại dùng dữ liệu mẫu cố định trong `src/lib/yleData.js`, không đọc Sheet.
 
-| Tab | Cột bắt buộc |
+**Đề xuất schema mới (CHƯA CHỐT — cần xác nhận với người dùng trước khi triển khai thật):**
+
+| Tab | Cột đề xuất |
 |---|---|
-| `Lessons` | `lesson_id`, `title`, `order` |
-| `Vocab` | `lesson_id`, `word`, `meaning`, `image` |
-| `DragDrop` | `lesson_id`, `item`, `target`, `image` |
-| `Speaking` | `lesson_id`, `order`, `image`, `question`, `answer_keywords` |
+| `Series` | `series_id` (starters/movers/flyers), `title`, `order` |
+| `Levels` | `level_id`, `series_id`, `number` (1-4) |
+| `Listening` | `level_id`, `video_id` (YouTube video ID, Unlisted), `title` |
+| `Speaking` | `level_id`, `order`, `image`, `question`, `answer_keywords` |
 
-**Chi tiết tab `Speaking` (dựa theo định dạng thi thật Cambridge YLE Starters, xem `Input/Starters_1.pdf`):**
-- Mỗi dòng là 1 câu hỏi trong luồng hội thoại tuần tự (giống thi nói thật): app tự đọc `question` bằng giọng nói (TTS) như giám khảo hỏi, kèm ảnh `image` (Scene picture hoặc Object card) nếu có, học sinh **bấm giữ mic để trả lời**, thả ra để chấm.
-- `answer_keywords`: các từ được chấp nhận là đúng, cách nhau bằng dấu phẩy (vd `phoning, talking`). Chấm đúng nếu câu nói **chứa** 1 trong các từ khóa (không cần khớp cả câu).
-- **Để trống `answer_keywords`** nếu là câu hỏi mở/tự do (không có đáp án đúng cố định) — app sẽ không chấm đúng/sai, chỉ ghi nhận đã trả lời.
-- App tự thêm 1 câu chào mở đầu cố định ("Hello! What's your name?", không cần đưa vào Sheet) trước khi vào các câu hỏi của bài, để mô phỏng đúng phần mở đầu bài thi thật.
-- **Chỉ nên đưa vào Sheet các câu có đáp án tương đối cố định** (kiểu "What's this?", "What colour...?", "How many...?", "What's ... doing?") — lấy từ Part 2 và câu đầu Part 3 của đề thi mẫu. Không đưa các câu hỏi sở thích cá nhân hoàn toàn tự do (What's your favourite...? Who do you play with?...) vì không có cách chấm đúng/sai hợp lý.
+Nguyên tắc cho tab `Speaking` giữ như cũ (dựa theo định dạng thi thật Cambridge YLE, xem `Input/`):
+- Mỗi dòng là 1 câu hỏi trong luồng hội thoại tuần tự; app đọc `question` bằng TTS, học sinh bấm giữ mic để trả lời.
+- `answer_keywords` cách nhau bằng dấu phẩy, để trống nếu là câu hỏi mở không có đáp án cố định.
+- App tự thêm câu chào mở đầu cố định trước khi vào các câu hỏi của cấp độ đó.
+- Chỉ đưa vào Sheet các câu có đáp án tương đối cố định (What's this? / What colour...? / How many...?), không đưa câu hỏi sở thích cá nhân hoàn toàn tự do.
 
-- Thêm bài học mới = thêm 1 dòng vào tab `Lessons` (đặt `lesson_id` mới, vd `2`) + thêm các dòng tương ứng vào `Vocab`/`DragDrop`/`Speaking` có cùng `lesson_id` đó.
-- Cột `image` ghi đường dẫn ảnh, vd `assets/img/chair.png` — ảnh cần được đưa vào thư mục `public/assets/img/` của repo (upload lên GitHub) thì mới hiển thị được.
-- **Không cần sửa code, không cần deploy lại** — trang tự đọc Sheet mới nhất mỗi lần tải.
-- Sheet phải để chế độ chia sẻ **"Anyone with the link" (Người có link đều xem được)** thì web mới đọc được qua API công khai (gviz), không cần thêm nhóm hay API key trả phí nào.
-- `src/config.js` phải được set đúng `SHEET_ID` (lấy từ URL của Sheet) — mới nạp dữ liệu chính xác.
+Cột `video_id` chỉ cần phần ID trong link YouTube (vd link `https://youtu.be/M7lc1UVf-VE` → `video_id = M7lc1UVf-VE`), video nên để chế độ **Không công khai (Unlisted)**, không dùng Google Drive (xem mục 2).
+
+**Việc còn lại trước khi dùng Sheet thật:** viết lại `sheetLoader.js` theo schema trên và nối vào `LessonsPage.jsx` thay cho `yleData.js` — sẽ làm khi người dùng xác nhận schema và tạo Sheet thật.
 
 ## 5. Trạng thái hiện tại (2026-08-12)
-- Đã migrate xong từ HTML/CSS/JS thuần sang **React + Vite** (build đã test thành công, dev server chạy ổn ở `localhost:5173`).
-- Đã dựng xong khung 3 chế độ chơi (vocab/dragdrop/speaking) + màn hình chọn bài học nhiều bài, dùng component React.
-- **`src/config.js` còn để `SHEET_ID` placeholder** — cần người dùng tạo Google Sheet thật theo cấu trúc ở mục 4, dán ID vào, rồi mới chạy được (hiện app sẽ dừng ở màn hình lỗi tải dữ liệu, đúng như thiết kế).
-- Chưa deploy lên GitHub Pages — cần tạo repo GitHub, push code, bật GitHub Pages trong Settings > Pages (build ra `dist/` trước khi deploy, hoặc dùng GitHub Actions tự build — cần thống nhất cách nào khi tới bước deploy thật).
-- **Còn thiếu ảnh minh họa thật** trong `public/assets/img/` — hiện các thẻ/ô kéo thả sẽ ẩn ảnh nếu file không tồn tại (`onerror` ẩn ảnh, không vỡ giao diện).
+- Đã migrate xong từ HTML/CSS/JS thuần sang **React + Vite**, build test thành công.
+- Đã redesign toàn bộ frontend: thương hiệu "Anh Ngữ C.A.N" (logo SVG), top nav (Trang chủ/Bài học/Giới thiệu/Liên hệ), theme màu cam san hô + font Baloo 2/Nunito, responsive (nav gập hamburger dưới 768px).
+- **Cấu trúc nội dung đã đổi:** trang Bài học giờ đi theo luồng chọn bộ đề (Starters/Movers/Flyers) → chọn cấp (1-4) → Listening (nhúng video) hoặc Speaking (luyện nói tương tác, tái dùng `SpeakingMode.jsx` cũ). 2 dạng bài cũ (kéo thả, flashcard theo chủ đề) đã bị loại bỏ.
+- **Toàn bộ nội dung hiện là dữ liệu mẫu** (`src/lib/yleData.js`, `src/lib/mockData.js`) — video Listening là video mẫu chưa phải nội dung thật, câu hỏi Speaking cũng là mẫu. `sheetLoader.js` và `src/config.js` (`SHEET_ID` placeholder) hiện **chưa được nối lại** vì schema Sheet cũ đã lỗi thời (xem mục 4) — cần chốt schema mới với người dùng rồi mới viết lại loader.
+- Chưa deploy lên GitHub Pages — cần tạo repo GitHub, push code, bật GitHub Pages trong Settings > Pages (build ra `dist/` trước khi deploy, hoặc dùng GitHub Actions tự build — cần thống nhất cách nào khi tới bước deploy thật). *(Ghi chú: repo `anhngucan-web` trên GitHub đã được force-push code hiện tại, nhưng GitHub Pages chưa được bật.)*
 - **Sẽ KHÔNG đóng gói thành .exe hay app gì cả** — xem mục 2, đã chốt lần cuối là chỉ làm website.
-- Chưa kiểm tra/tối ưu responsive cho mobile/tablet — cần làm để đạt mục tiêu "dùng tốt trên mọi thiết bị".
-- Repo Git đã khởi tạo (`git init`), có 1 commit mốc lưu bản HTML/CSS/JS thuần trước khi migrate sang React (có thể xem lại lịch sử nếu cần đối chiếu).
+- Repo Git đã khởi tạo (`git init`), có commit mốc lưu bản HTML/CSS/JS thuần trước khi migrate sang React (có thể xem lại lịch sử nếu cần đối chiếu).
 
 ## 6. Không tự ý làm gì khi chưa hỏi
 - Khi đổi cấu trúc cột trong Sheet hoặc đổi nguồn dữ liệu nên xác nhận với người dùng trước.
@@ -88,11 +97,7 @@ Dữ liệu bài học nằm trong 1 Google Sheet dùng chung, gồm 4 tab (tên
 - **Không tự ý đổi framework khác** (đã chốt React + Vite) trừ khi người dùng chủ động yêu cầu.
 
 ## 7. Hướng dẫn thiết lập (làm 1 lần)
-**A. Tạo Google Sheet:**
-1. Tạo 1 Google Sheet mới, tạo đúng 4 tab tên: `Lessons`, `Vocab`, `DragDrop`, `Speaking` với các cột như mục 4.
-2. Nhập thử 1 bài học.
-3. Chia sẻ Sheet ở chế độ "Anyone with the link" → Viewer.
-4. Copy Sheet ID từ URL, dán vào `src/config.js` (`SHEET_ID`).
+**A. Tạo Google Sheet:** *(TẠM HOÃN — schema ở mục 4 chưa chốt. Khi chốt xong, tạo Sheet theo 4 tab đề xuất ở mục 4, chia sẻ "Anyone with the link" → Viewer, dán Sheet ID vào `src/config.js`, rồi viết lại `sheetLoader.js`.)*
 
 **B. Deploy GitHub Pages:**
 1. Tạo repo GitHub mới (public), push toàn bộ thư mục dự án lên (trừ `node_modules`, `dist`, `Input` — đã có trong `.gitignore`).
