@@ -40,7 +40,9 @@ export const YLE_SERIES = [
 // Speaking Part 1 — dữ liệu THẬT lấy từ Starters_1.pdf (Answer Booklet) + STARTER 1 (sách màu).pdf, Test 1.
 // Quy trình soạn: xem docs/quy-trinh/scene-data/ (thư mục làm việc: Bài học/starters-1-test1-part1/)
 // Ảnh: cắt thật từ sách màu (trang 46 scene, trang 47 object cards), toạ độ target đo trực tiếp trên ảnh thật.
-const P1_IMG = "/assets/img/speaking/starters/1/test1/part1";
+// Dùng import.meta.env.BASE_URL (khớp `base` trong vite.config.js) thay vì "/assets/..." tuyệt đối,
+// vì GitHub Pages phục vụ ở subpath (vd /anhngucan-web/) — đường dẫn tuyệt đối từ gốc domain sẽ sai.
+const P1_IMG = `${import.meta.env.BASE_URL}assets/img/speaking/starters/1/test1/part1`;
 const STARTERS_1_TEST1_PART1 = [
   {
     type: "scene-click",
