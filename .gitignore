@@ -20,6 +20,10 @@ Input/
 # Không đẩy lên repo vì có thể chứa ảnh cắt từ sách có bản quyền.
 Bài học/
 
+# Ghi chú quy trình làm việc nội bộ (soạn bài, chia scene...) — chỉ hỗ trợ chuẩn bị dữ liệu,
+# không thuộc sản phẩm deploy, không đẩy lên repo.
+docs/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
