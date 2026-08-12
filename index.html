@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>App Học Tiếng Anh</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>📚 Học Tiếng Anh cùng Cô Cần</h1>
+    <nav id="lesson-nav"></nav>
+  </header>
+
+  <main id="app">
+    <section id="loading">
+      <p>⏳ Đang tải bài học...</p>
+    </section>
+
+    <section id="load-error" class="hidden">
+      <p>❌ Không tải được bài học. Kiểm tra kết nối mạng hoặc cấu hình Sheet.</p>
+      <p class="error-detail"></p>
+    </section>
+
+    <section id="lesson-menu" class="hidden"></section>
+
+    <section id="menu" class="hidden">
+      <h2>Chọn bài tập</h2>
+      <div class="menu-cards">
+        <button class="menu-card" data-mode="vocab">🃏 Thẻ từ vựng</button>
+        <button class="menu-card" data-mode="dragdrop">🖐️ Kéo thả đồ vật</button>
+        <button class="menu-card" data-mode="speaking">🎤 Luyện nói</button>
+      </div>
+      <button id="back-to-lessons" class="back-btn">⬅ Chọn bài khác</button>
+    </section>
+
+    <section id="vocab-mode" class="mode hidden">
+      <h2>Thẻ từ vựng</h2>
+      <div id="vocab-cards" class="cards"></div>
+      <button class="back-btn">⬅ Quay lại</button>
+    </section>
+
+    <section id="dragdrop-mode" class="mode hidden">
+      <h2>Kéo đồ vật vào đúng ô</h2>
+      <div id="dragdrop-items" class="dragdrop-row"></div>
+      <div id="dragdrop-targets" class="dragdrop-row"></div>
+      <p id="dragdrop-result"></p>
+      <button class="back-btn">⬅ Quay lại</button>
+    </section>
+
+    <section id="speaking-mode" class="mode hidden">
+      <h2>Luyện nói - Đọc đúng câu</h2>
+      <div id="speaking-box"></div>
+      <button class="back-btn">⬅ Quay lại</button>
+    </section>
+  </main>
+
+  <script src="config.js"></script>
+  <script src="js/sheet-loader.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
