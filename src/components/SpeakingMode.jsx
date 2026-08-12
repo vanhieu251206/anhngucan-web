@@ -2,14 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import { speak, normalize } from "../lib/speech.js";
 import { transcribeBlob, isRecordingSupported } from "../lib/whisperSpeech.js";
 
-const GREETING = {
-  image: "",
-  question: "Hello! What's your name?",
-  answer_keywords: "",
-};
-
 export default function SpeakingMode({ lesson, onFinish }) {
-  const queue = useRef([GREETING, ...lesson.speaking]).current;
+  // Chào hỏi đã có sẵn ở Part 1 (SceneRunner, scene 1-2) — không lặp lại ở đây.
+  const queue = useRef(lesson.speaking).current;
   const [index, setIndex] = useState(0);
   const [heard, setHeard] = useState("");
   const [result, setResult] = useState({ text: "", ok: null });

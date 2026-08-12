@@ -2,7 +2,7 @@ import { useState } from "react";
 import { YLE_SERIES } from "../lib/yleData.js";
 import ListeningMode from "../components/ListeningMode.jsx";
 import SpeakingMode from "../components/SpeakingMode.jsx";
-import Part1Mode from "../components/Part1Mode.jsx";
+import SceneRunner from "../components/SceneRunner.jsx";
 
 const TYPES = [
   { key: "listening", label: "Listening", desc: "Xem video và luyện nghe" },
@@ -99,7 +99,7 @@ export default function LessonsPage() {
           </h1>
           {type === "listening" && <ListeningMode listening={level.listening} />}
           {type === "speaking" && !part1Done && (
-            <Part1Mode steps={level.speakingPart1} onFinish={() => setPart1Done(true)} />
+            <SceneRunner scenes={level.speakingPart1} onFinish={() => setPart1Done(true)} />
           )}
           {type === "speaking" && part1Done && (
             <SpeakingMode

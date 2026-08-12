@@ -31,10 +31,17 @@ async function blobToFloat32Audio(blob) {
 }
 
 export async function transcribeBlob(blob, onProgress) {
-  const transcriber = await loadTranscriber(onProgress);
-  const audio = await blobToFloat32Audio(blob);
-  const result = await transcriber(audio);
-  return (result.text || "").trim();
+  const work = (async () => {
+    const transcriber = await loadTranscriber(onProgress);
+    const audio = await blobToFloat32Audio(blob);
+    const result = await transcriber(audio);
+    return (result.text || "").trim();
+  })();
+
+  // An toàn: pipeline nhận diện/AudioContext đôi khi bị treo (đã gặp ở lần gọi thứ 2 trở đi
+  // trong cùng phiên) — không để nó chặn cả bài học, timeout thì coi như không nghe rõ.
+  const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error("transcribe-timeout")), 12000));
+  return Promise.race([work, timeout]);
 }
 
 export function isRecordingSupported() {
