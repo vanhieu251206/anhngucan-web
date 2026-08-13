@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { YLE_SERIES } from "../lib/yleData.js";
+import { stopCurrent } from "../lib/speech.js";
 import ListeningMode from "../components/ListeningMode.jsx";
-import SpeakingMode from "../components/SpeakingMode.jsx";
 import SceneRunner from "../components/SceneRunner.jsx";
 
 const TYPES = [
@@ -13,19 +13,10 @@ export default function LessonsPage() {
   const [series, setSeries] = useState(null);
   const [level, setLevel] = useState(null);
   const [type, setType] = useState(null);
-  const [part1Done, setPart1Done] = useState(false);
-
-  function openType(t, l) {
-    setType(t);
-    setPart1Done(!l.speakingPart1);
-  }
 
   return (
+    <>
     <section className="section narrow">
-      <p className="mock-banner">
-        Đang hiển thị dữ liệu mẫu (video và câu hỏi luyện nói là placeholder).
-      </p>
-
       {!series && (
         <>
           <h1 className="page-title">Chọn bộ đề</h1>
@@ -78,7 +69,7 @@ export default function LessonsPage() {
               <button
                 key={t.key}
                 className="feature-card feature-card-btn"
-                onClick={() => openType(t.key, level)}
+                onClick={() => setType(t.key)}
               >
                 <span className="feature-dot" style={{ background: series.color }} />
                 <h3>{t.label}</h3>
@@ -92,26 +83,49 @@ export default function LessonsPage() {
         </>
       )}
 
-      {series && level && type && (
+      {series && level && type === "listening" && (
         <>
-          <h1 className="page-title">
-            {series.title} {level.number} – {type === "listening" ? "Listening" : "Speaking"}
-          </h1>
-          {type === "listening" && <ListeningMode listening={level.listening} />}
-          {type === "speaking" && !part1Done && (
-            <SceneRunner scenes={level.speakingPart1} onFinish={() => setPart1Done(true)} />
-          )}
-          {type === "speaking" && part1Done && (
-            <SpeakingMode
-              lesson={{ speaking: level.speaking }}
-              onFinish={() => setType(null)}
-            />
-          )}
+          <h1 className="page-title">{series.title} {level.number} – Listening</h1>
+          <ListeningMode listening={level.listening} />
+          <button className="back-btn" onClick={() => setType(null)}>
+            ⬅ Quay lại
+          </button>
+        </>
+      )}
+
+      {series && level && type === "speaking" && !level.speakingPart1 && (
+        <>
+          <h1 className="page-title">{series.title} {level.number} – Speaking</h1>
+          <p className="mock-banner">Bài Speaking cấp độ này chưa có dữ liệu thật.</p>
           <button className="back-btn" onClick={() => setType(null)}>
             ⬅ Quay lại
           </button>
         </>
       )}
     </section>
+
+    {series && level && type === "speaking" && level.speakingPart1 && (
+      <div className="speaking-fullscreen">
+        <button
+          className="speaking-fullscreen-back"
+          onClick={() => {
+            stopCurrent();
+            setType(null);
+          }}
+        >
+          ⬅ Quay lại
+        </button>
+        <div className="speaking-fullscreen-body">
+          <SceneRunner
+            scenes={level.speakingPart1}
+            onFinish={() => {
+              stopCurrent();
+              setType(null);
+            }}
+          />
+        </div>
+      </div>
+    )}
+    </>
   );
 }

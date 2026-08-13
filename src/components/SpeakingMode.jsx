@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { speak, normalize } from "../lib/speech.js";
+import { playLine, normalize } from "../lib/speech.js";
 import { transcribeBlob, isRecordingSupported } from "../lib/whisperSpeech.js";
+
+const MIC_ICON = `${import.meta.env.BASE_URL}assets/img/icons/mic.png`;
 
 export default function SpeakingMode({ lesson, onFinish }) {
   // Chào hỏi đã có sẵn ở Part 1 (SceneRunner, scene 1-2) — không lặp lại ở đây.
@@ -22,7 +24,7 @@ export default function SpeakingMode({ lesson, onFinish }) {
     setHeard("");
     setResult({ text: "", ok: null });
     setAnswered(false);
-    speak(step.question);
+    playLine(step.question, { audioUrl: step.audioUrl });
   }, [index]);
 
   async function startHold(e) {
@@ -57,7 +59,6 @@ export default function SpeakingMode({ lesson, onFinish }) {
         setResult({ text: "Đang nhận diện...", ok: null });
         try {
           const said = await transcribeBlob(blob);
-          setHeard(`Bạn nói: "${said}"`);
 
           const keywords = step.answer_keywords
             ? step.answer_keywords.split(",").map(k => normalize(k)).filter(Boolean)
@@ -128,7 +129,7 @@ export default function SpeakingMode({ lesson, onFinish }) {
         onTouchStart={startHold}
         onTouchEnd={stopHold}
       >
-        🎤
+        <img src={MIC_ICON} alt="Bấm giữ để nói" />
       </button>
       <div className="heard-text">{heard}</div>
       <div className={result.ok === true ? "result-ok" : result.ok === false ? "result-bad" : ""}>

@@ -366,22 +366,111 @@ button { font-family: inherit; }
 .sentence-box {
   background: #fff; border-radius: var(--radius-card); padding: 28px; margin-bottom: 16px;
   box-shadow: var(--shadow-soft);
-  max-width: 480px; margin-left: auto; margin-right: auto;
+  max-width: 480px; width: 100%; margin-left: auto; margin-right: auto;
   text-align: center;
 }
-.speaking-progress { color: var(--color-muted); font-size: 0.9rem; margin-bottom: 8px; }
-.speaking-img { max-width: 100%; max-height: 220px; object-fit: contain; border-radius: 12px; margin-bottom: 12px; }
-.sentence-text { font-family: var(--font-display); font-size: 1.3rem; margin-bottom: 16px; }
+/* scene-body = nội dung chính (thoại giám khảo, ảnh/thẻ) — chiếm hết khoảng trống còn lại,
+   canh giữa theo chiều dọc. scene-foot = vùng điều khiển (mic/thẻ chọn/kéo-thả + kết quả) —
+   luôn neo dưới cùng, tách khỏi phần trên bằng đường kẻ, để mọi scene có cùng bố cục cân đối,
+   chỉ khác nhau thành phần bên trong. */
+.scene-body {
+  display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
+  gap: 16px; flex: 1; min-height: 0; padding-top: 6px;
+}
+/* Scene KHÔNG có ảnh/thẻ minh hoạ (chỉ có câu thoại, vd Chao-hoi/The-chon) — căn giữa câu hỏi
+   trong cả vùng trên, tránh khoảng trắng trống trải phía dưới do không có gì neo vào đó. */
+.scene-body-center { justify-content: center; padding-top: 0; }
+.scene-body-center .examiner-line .sentence-text { min-height: 0; }
+.scene-foot {
+  display: flex; flex-direction: column; align-items: center; gap: 12px;
+  flex-shrink: 0; width: 100%; margin-top: 18px; padding-top: 18px;
+  border-top: 1px solid #f1ebdd;
+}
+.speaking-progress {
+  color: var(--color-muted); font-size: 0.9rem; margin-bottom: 8px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+/* Nút Trước/Skip CHỈ dùng khi test bài — xoá đi khi bài đã hoàn thiện xong xuôi. */
+.dev-test-btns { display: flex; gap: 6px; }
+.dev-skip-btn {
+  background: #fff3e0; color: var(--color-primary); border: 1px dashed var(--color-primary);
+  border-radius: 999px; padding: 3px 10px; font-size: 0.75rem; font-weight: 700; cursor: pointer;
+}
+.dev-skip-btn:disabled { opacity: 0.4; cursor: default; }
+.speaking-img { max-width: 100%; max-height: 220px; object-fit: contain; border-radius: 12px; }
+
+/* Màn hình làm bài Speaking: chiếm trọn viewport, không có header/footer, không cuộn trang —
+   mọi thứ (ảnh, nút, chữ) tự co giãn vừa trong khung cố định này. */
+.speaking-fullscreen {
+  position: fixed; inset: 0; z-index: 1000;
+  background: var(--color-bg);
+  display: flex; flex-direction: column;
+}
+.speaking-fullscreen-back {
+  flex-shrink: 0; align-self: flex-start; margin: 12px 16px;
+  padding: 8px 18px; border: 2px solid #ece6da; border-radius: var(--radius-pill);
+  background: #fff; color: var(--color-ink); font-weight: 700; cursor: pointer;
+}
+.speaking-fullscreen-back:hover { border-color: var(--color-primary); color: var(--color-primary); }
+.speaking-fullscreen-body {
+  flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center;
+  padding: 0 16px 16px;
+}
+/* Card trắng kích thước CỐ ĐỊNH (không phình/co theo nội dung từng scene) — mỗi loại scene chỉ
+   sắp xếp lại thành phần bên trong (scene-body/scene-foot) sao cho cân đối, không đổi khung ngoài. */
+.speaking-fullscreen-body .sentence-box {
+  width: min(600px, 94vw); height: min(640px, 88vh);
+  display: flex; flex-direction: column; margin: 0; overflow: hidden;
+}
+.speaking-fullscreen-body .scene-body { overflow-y: auto; }
+.speaking-fullscreen-body .speaking-img {
+  max-width: 100%; max-height: 100%; object-fit: contain;
+}
+/* .part1-scene bọc cả ảnh Scene lẫn vùng click % toạ độ — dùng aspect-ratio (KHÔNG kèm max-height,
+   tổ hợp đó từng làm crash Chromium headless lúc test) để giữ ĐÚNG tỉ lệ ảnh thật (1200x896),
+   nếu không toạ độ % của vùng click sẽ lệch khỏi vị trí hiển thị thật. */
+.speaking-fullscreen-body .part1-scene {
+  width: 100%; aspect-ratio: 1200 / 896; margin: 0 auto;
+}
+.speaking-fullscreen-body .part1-scene-img { width: 100%; height: 100%; object-fit: contain; }
+.sentence-text { font-family: var(--font-display); font-size: 1.3rem; }
 .mic-btn {
-  background: var(--color-primary); color: #fff; border: none; border-radius: 50%;
-  width: 76px; height: 76px; font-size: 1.6rem; cursor: pointer;
+  background: #fff; color: #fff; border: 3px solid var(--color-primary); border-radius: 50%;
+  width: 78px; height: 78px; font-size: 1.6rem; cursor: pointer;
   touch-action: none; user-select: none;
   box-shadow: 0 8px 18px rgba(255, 122, 69, 0.4);
+  display: flex; align-items: center; justify-content: center; padding: 0;
+  margin: 0 auto; overflow: hidden;
 }
-.mic-btn.recording { background: var(--color-red); transform: scale(1.1); }
-.result-ok { color: var(--color-green); font-weight: 700; margin-top: 10px; }
-.result-bad { color: var(--color-red); font-weight: 700; margin-top: 10px; }
-.heard-text { color: var(--color-muted); font-style: italic; margin-top: 10px; }
+.mic-btn img {
+  display: block; width: 100%; height: 100%; object-fit: contain; object-position: center;
+  pointer-events: none; transform: scale(1.1);
+}
+
+/* Màn hình lớn: cho khung bài học to hơn hẳn, vẫn giữ tỉ lệ ảnh (object-fit: contain nên không méo). */
+@media (min-width: 900px) {
+  .narrow { max-width: 960px; }
+  .sentence-box { max-width: 720px; padding: 40px; }
+  .sentence-text, .examiner-line .sentence-text { font-size: 1.55rem; }
+  .speaking-img, .part1-scene-img { max-height: none; }
+  .mic-btn { width: 94px; height: 94px; }
+  .examiner-bee { width: 68px; height: 68px; }
+  .part1-option img { width: 100%; }
+}
+@media (min-width: 1280px) {
+  .narrow { max-width: 1080px; }
+  .sentence-box { max-width: 820px; }
+}
+
+/* Điện thoại dọc: cho khung chiếm gần hết bề ngang màn hình, vẫn giữ tỉ lệ ảnh. */
+@media (max-width: 480px) {
+  #app { padding: 0 12px; }
+  .sentence-box { padding: 20px 16px; }
+}
+.mic-btn.recording { border-color: var(--color-red); transform: scale(1.1); }
+.result-ok { color: var(--color-green); font-weight: 700; }
+.result-bad { color: var(--color-red); font-weight: 700; }
+.heard-text { color: var(--color-muted); font-style: italic; }
 .listening-box { max-width: 640px; margin: 0 auto; text-align: center; }
 .video-frame {
   position: relative;
@@ -401,18 +490,22 @@ button { font-family: inherit; }
 }
 .listening-title { color: var(--color-muted); margin-top: 12px; font-size: 0.95rem; }
 
+/* Dành sẵn chỗ đủ cho 2 dòng thoại (kể cả khi thực tế chỉ 1 dòng) — để tránh việc ảnh/thẻ bên
+   dưới bị xê dịch vị trí giữa các scene chỉ khác nhau độ dài câu thoại. */
 .examiner-line {
-  display: flex; align-items: center; gap: 12px; justify-content: center;
-  margin-bottom: 16px; text-align: left;
+  display: flex; align-items: center; gap: 12px; justify-content: center; text-align: left;
+  width: 100%;
 }
 .examiner-bee { width: 56px; height: 56px; object-fit: contain; flex-shrink: 0; }
-.examiner-line .sentence-text { margin-bottom: 0; }
+.examiner-line .sentence-text {
+  line-height: 1.3; min-height: 2.6em; display: flex; align-items: center;
+}
 .answer-template {
-  background: #fdf3e3; border: 2px dashed var(--color-yellow); border-radius: 12px;
-  padding: 10px 14px; margin-bottom: 14px; font-size: 1rem; color: var(--color-ink);
+  background: #fdf3e3; border: 2px solid #fbe3ae; border-radius: var(--radius-pill);
+  padding: 8px 18px; font-size: 0.95rem; color: var(--color-ink);
 }
 .drag-card {
-  width: 90px; height: 90px; object-fit: contain; margin: 10px auto 0; display: block;
+  width: 90px; height: 90px; object-fit: contain; display: block;
   cursor: grab; touch-action: none; border-radius: 12px;
   filter: drop-shadow(0 6px 10px rgba(43, 42, 40, 0.25));
 }
@@ -422,27 +515,55 @@ button { font-family: inherit; }
   filter: drop-shadow(0 4px 8px rgba(43, 42, 40, 0.3));
 }
 
-.part1-scene { position: relative; width: 100%; margin-bottom: 12px; border-radius: 12px; overflow: hidden; cursor: pointer; }
+.part1-scene { position: relative; width: 100%; border-radius: 12px; overflow: hidden; cursor: pointer; }
 .part1-scene-img { width: 100%; display: block; }
 .part1-hotspot {
   position: absolute; border: none; background: transparent;
   cursor: pointer; padding: 0; min-width: 48px; min-height: 48px;
 }
+/* Khung khoanh vùng gợi ý ở scene Huong-dan (narration) — chỉ để xem, không bấm được,
+   nhấp nháy nhẹ để thu hút sự chú ý của học sinh vào vật đang được nhắc tới. */
+.part1-highlight {
+  position: absolute; border: 3px dashed var(--color-primary); border-radius: 10px;
+  pointer-events: none; animation: highlight-pulse 1.2s ease-in-out infinite;
+}
+@keyframes highlight-pulse {
+  0%, 100% { opacity: 0.55; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.04); }
+}
 .part1-options {
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 14px; margin-bottom: 8px;
+  display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px;
+  width: 100%; max-width: 320px; margin: 0 auto;
 }
 .part1-option {
   display: flex; flex-direction: column; align-items: center; gap: 8px;
-  background: #fdf9ee; border: 2px solid #ece6da; border-radius: 16px; padding: 18px 10px;
+  background: none; border: none; padding: 0;
   cursor: pointer; font-family: var(--font-body); font-weight: 700; color: var(--color-ink);
   min-height: 96px; font-size: 1.05rem;
-  transition: transform 0.1s ease, border-color 0.15s ease, background 0.15s ease;
+  transition: transform 0.1s ease;
 }
-.part1-option:active { transform: scale(0.96); }
-.part1-option img { width: 76px; height: 76px; object-fit: contain; border-radius: 10px; }
+.part1-option:active { transform: scale(0.94); }
+.part1-option img {
+  width: 100%; aspect-ratio: 1 / 1; object-fit: contain; border-radius: 16px;
+  border: 3px solid transparent;
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+/* Đúng/sai: phóng to nhẹ + viền màu báo hiệu (xanh = đúng, đỏ = sai). */
+.part1-option.is-correct img {
+  transform: scale(1.08); border-color: var(--color-green);
+  box-shadow: 0 6px 14px rgba(76, 175, 125, 0.4);
+}
+.part1-option.is-wrong img {
+  transform: scale(1.04); border-color: var(--color-red);
+  box-shadow: 0 6px 14px rgba(239, 91, 91, 0.4);
+}
+/* Câu hỏi mic Yes/No xác nhận lại 1 thẻ object (vd "Is this the shell?") — chỉ hiện đúng 1 thẻ đó,
+   nguyên bản không khung, to hơn thẻ trong lưới 4 lựa chọn để học sinh nhìn rõ trước khi trả lời mic. */
+.part1-single-card {
+  display: block; width: 200px; max-width: 65%; aspect-ratio: 1 / 1; object-fit: contain;
+  border-radius: 16px; margin: 0 auto;
+}
 .part1-option-placeholder { font-size: 2.4rem; }
-.part1-option.is-correct { border-color: var(--color-green); background: #e3f7ea; }
-.part1-option.is-wrong { border-color: var(--color-red); background: #fdeaea; }
 .is-shake { animation: shake 0.4s; }
 @keyframes shake {
   10%, 90% { transform: translateX(-4px); }
@@ -450,7 +571,7 @@ button { font-family: inherit; }
   30%, 50%, 70% { transform: translateX(-8px); }
   40%, 60% { transform: translateX(8px); }
 }
-.result-hint { color: var(--color-muted); margin-top: 10px; font-style: italic; }
+.result-hint { color: var(--color-muted); font-style: italic; }
 
 .model-preload-card {
   position: fixed; right: 16px; bottom: 16px; z-index: 50;
