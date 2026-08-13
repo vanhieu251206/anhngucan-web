@@ -642,3 +642,24 @@ button { font-family: inherit; }
   .top-nav-link, .top-nav-cta { width: 100%; text-align: center; margin: 4px 0; }
   .menu-toggle { display: flex; }
 }
+
+/* ---------- Đăng nhập / khoá bài học bằng mật khẩu (LoginPage, SettingsPage, PasswordGate) ---------- */
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 360px;
+  margin-top: 24px;
+}
+.auth-input {
+  border: 2px solid #ece6da;
+  border-radius: var(--radius-pill);
+  padding: 12px 20px;
+  font-family: var(--font-body);
+  font-size: 1rem;
+}
+.auth-input:focus { outline: none; border-color: var(--color-primary); }
+.auth-error { color: var(--color-red, #e0503c); font-weight: 600; }
+.auth-success { color: var(--color-green, #3fa66a); font-weight: 600; }
+.auth-status { color: var(--color-primary); }
+.password-gate { text-align: left; }

@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# Cấu hình Firebase cục bộ (xem .env.example) — không commit, dùng GitHub Actions secrets khi deploy.
+.env
+
 # Sách giáo trình gốc (có bản quyền, chỉ dùng tham khảo nội bộ, không đẩy lên repo)
 Input/
 

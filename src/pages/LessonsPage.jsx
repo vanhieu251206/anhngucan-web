@@ -1,8 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { YLE_SERIES } from "../lib/yleData.js";
 import { stopCurrent } from "../lib/speech.js";
 import ListeningMode from "../components/ListeningMode.jsx";
 import SceneRunner from "../components/SceneRunner.jsx";
+import PasswordGate from "../components/PasswordGate.jsx";
+import { useAuth } from "../lib/authContext.jsx";
+import { isUnlockedInSession } from "../lib/lessonAccess.js";
 
 const TYPES = [
   { key: "listening", label: "Listening", desc: "Xem video và luyện nghe" },
@@ -13,6 +16,13 @@ export default function LessonsPage() {
   const [series, setSeries] = useState(null);
   const [level, setLevel] = useState(null);
   const [type, setType] = useState(null);
+  const { isStaff } = useAuth();
+  // Guest/học sinh: khoá nội dung thật (Listening/Speaking) sau 1 mật khẩu chung, xem
+  // PasswordGate.jsx + lib/lessonAccess.js. Admin/teacher tự động bỏ qua màn khoá.
+  const [unlocked, setUnlocked] = useState(() => isStaff || isUnlockedInSession());
+  useEffect(() => {
+    if (isStaff) setUnlocked(true);
+  }, [isStaff]);
 
   return (
     <>
@@ -83,7 +93,16 @@ export default function LessonsPage() {
         </>
       )}
 
-      {series && level && type === "listening" && (
+      {series && level && type === "listening" && !unlocked && (
+        <>
+          <PasswordGate onUnlock={() => setUnlocked(true)} />
+          <button className="back-btn" onClick={() => setType(null)}>
+            ⬅ Quay lại
+          </button>
+        </>
+      )}
+
+      {series && level && type === "listening" && unlocked && (
         <>
           <h1 className="page-title">{series.title} {level.number} – Listening</h1>
           <ListeningMode listening={level.listening} />
@@ -102,9 +121,18 @@ export default function LessonsPage() {
           </button>
         </>
       )}
+
+      {series && level && type === "speaking" && level.speakingPart1 && !unlocked && (
+        <>
+          <PasswordGate onUnlock={() => setUnlocked(true)} />
+          <button className="back-btn" onClick={() => setType(null)}>
+            ⬅ Quay lại
+          </button>
+        </>
+      )}
     </section>
 
-    {series && level && type === "speaking" && level.speakingPart1 && (
+    {series && level && type === "speaking" && level.speakingPart1 && unlocked && (
       <div className="speaking-fullscreen">
         <button
           className="speaking-fullscreen-back"

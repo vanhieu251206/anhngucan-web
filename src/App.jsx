@@ -6,9 +6,13 @@ import HomePage from "./pages/HomePage.jsx";
 import LessonsPage from "./pages/LessonsPage.jsx";
 import AboutPage from "./pages/AboutPage.jsx";
 import ContactPage from "./pages/ContactPage.jsx";
+import LoginPage from "./pages/LoginPage.jsx";
+import SettingsPage from "./pages/SettingsPage.jsx";
+import { useAuth } from "./lib/authContext.jsx";
 
 export default function App() {
   const [page, setPage] = useState("home");
+  const { isStaff } = useAuth();
 
   return (
     <>
@@ -19,6 +23,8 @@ export default function App() {
         {page === "lessons" && <LessonsPage />}
         {page === "about" && <AboutPage onNavigate={setPage} />}
         {page === "contact" && <ContactPage />}
+        {page === "login" && <LoginPage onNavigate={setPage} />}
+        {page === "settings" && isStaff && <SettingsPage />}
       </main>
 
       <Footer onNavigate={setPage} />
