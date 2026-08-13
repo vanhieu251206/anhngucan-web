@@ -53,3 +53,26 @@ export function playLine(text, { audioUrl, onEnd } = {}) {
 export function normalize(str) {
   return str.toLowerCase().replace(/[.,!?]/g, "").trim();
 }
+
+function levenshtein(a, b) {
+  const dp = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)]);
+  for (let j = 0; j <= b.length; j++) dp[0][j] = j;
+  for (let i = 1; i <= a.length; i++) {
+    for (let j = 1; j <= b.length; j++) {
+      dp[i][j] =
+        a[i - 1] === b[j - 1]
+          ? dp[i - 1][j - 1]
+          : 1 + Math.min(dp[i - 1][j - 1], dp[i - 1][j], dp[i][j - 1]);
+    }
+  }
+  return dp[a.length][b.length];
+}
+
+// Chấm "gần đúng": trẻ nhỏ phát âm chưa chuẩn + Whisper nhận diện sai lệch 1-2 ký tự là bình
+// thường (vd "yellow" nghe thành "yelo"/"jello") — so từng từ trong câu nói với từ khoá đáp án,
+// chấp nhận nếu đủ gần (ngưỡng nới theo độ dài từ khoá) thay vì phải khớp tuyệt đối.
+export function fuzzyIncludesWord(text, keyword) {
+  const words = text.split(/\s+/).filter(Boolean);
+  const threshold = keyword.length <= 4 ? 1 : keyword.length <= 7 ? 2 : 3;
+  return words.some(w => levenshtein(w, keyword) <= threshold);
+}

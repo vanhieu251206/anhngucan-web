@@ -426,12 +426,17 @@ button { font-family: inherit; }
 .speaking-fullscreen-body .speaking-img {
   max-width: 100%; max-height: 100%; object-fit: contain;
 }
-/* .part1-scene bọc cả ảnh Scene lẫn vùng click % toạ độ — dùng aspect-ratio (KHÔNG kèm max-height,
-   tổ hợp đó từng làm crash Chromium headless lúc test) để giữ ĐÚNG tỉ lệ ảnh thật (1200x896),
-   nếu không toạ độ % của vùng click sẽ lệch khỏi vị trí hiển thị thật. */
-.speaking-fullscreen-body .part1-scene {
-  width: 100%; aspect-ratio: 1200 / 896; margin: 0 auto;
+/* .part1-scene-stage chiếm hết khoảng trống linh hoạt còn lại trong scene-body (chiều rộng lẫn
+   chiều cao thật đang có) — .part1-scene bên trong được đo bằng JS (useFitBoxSize trong
+   SceneRunner.jsx) để LUÔN giữ đúng tỉ lệ ảnh thật (1200x896) vừa khít trong khoảng trống đó,
+   không tràn/không cần cuộn. KHÔNG dùng CSS aspect-ratio nữa (tổ hợp với flexbox khi thiếu chỗ
+   theo chiều dọc từng chỉ co height mà giữ nguyên width, làm ảnh bị bóp méo/lệch toạ độ % —
+   bug thật đã gặp, xem lịch sử B3-Code-scene.md). */
+.speaking-fullscreen-body .part1-scene-stage {
+  flex: 1; min-height: 0; width: 100%;
+  display: flex; align-items: center; justify-content: center; overflow: hidden;
 }
+.speaking-fullscreen-body .part1-scene { margin: 0 auto; flex-shrink: 0; }
 .speaking-fullscreen-body .part1-scene-img { width: 100%; height: 100%; object-fit: contain; }
 .sentence-text { font-family: var(--font-display); font-size: 1.3rem; }
 .mic-btn {
@@ -497,8 +502,13 @@ button { font-family: inherit; }
   width: 100%;
 }
 .examiner-bee { width: 56px; height: 56px; object-fit: contain; flex-shrink: 0; }
+/* max-width nhỏ hơn hẳn bề rộng khung — nếu để full width, câu thoại dài xuống 2 dòng sẽ chiếm
+   gần hết .examiner-line (width: 100%) khiến "justify-content: center" mất tác dụng thấy rõ,
+   cả khối ong+chữ bị dạt lệch trái thay vì nằm giữa (bug thật gặp ở scene 49/52 Part 4 —
+   "Now, *, do you live in a house or a flat/apartment?"/"Does your family live in your
+   house/flat/apartment?"). Giới hạn max-width để khối luôn hẹp hơn khung, canh giữa thấy rõ. */
 .examiner-line .sentence-text {
-  line-height: 1.3; min-height: 2.6em; display: flex; align-items: center;
+  line-height: 1.3; min-height: 2.6em; display: flex; align-items: center; max-width: 420px;
 }
 .answer-template {
   background: #fdf3e3; border: 2px solid #fbe3ae; border-radius: var(--radius-pill);
@@ -515,7 +525,12 @@ button { font-family: inherit; }
   filter: drop-shadow(0 4px 8px rgba(43, 42, 40, 0.3));
 }
 
-.part1-scene { position: relative; width: 100%; border-radius: 12px; overflow: hidden; cursor: pointer; }
+/* flex-shrink: 0 — BẮT BUỘC: nếu không, khi scene-body thiếu chỗ theo chiều dọc, flexbox sẽ ép
+   thấp chiều cao của khung này xuống dưới mức aspect-ratio yêu cầu (chỉ co height, giữ nguyên
+   width 100%), khiến object-fit: contain thu ảnh thật vào giữa và để trống 2 bên — làm toạ độ %
+   của highlight/hotspot lệch hẳn khỏi ảnh hiển thị thật. Có flex-shrink: 0, khung luôn giữ đúng
+   tỉ lệ 1200:896, nếu thiếu chỗ thì scene-body tự cuộn (đã có overflow-y: auto) thay vì bóp méo ảnh. */
+.part1-scene { position: relative; width: 100%; border-radius: 12px; overflow: hidden; cursor: pointer; flex-shrink: 0; }
 .part1-scene-img { width: 100%; display: block; }
 .part1-hotspot {
   position: absolute; border: none; background: transparent;

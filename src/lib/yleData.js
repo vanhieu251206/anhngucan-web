@@ -39,7 +39,8 @@ export const YLE_SERIES = [
 
 // Speaking Part 1 — dữ liệu THẬT lấy từ Starters_1.pdf (Answer Booklet) + STARTER 1 (sách màu).pdf, Test 1.
 // Quy trình soạn: xem docs/quy-trinh/ (B0 chia scene, B1 tạo ảnh, B2 đưa ảnh vào code, B3 code scene).
-// Nguồn scene: Bài học/starters-1-test1-part1/scene-list.md (11 scene, đủ từ đầu tới cuối Part 1).
+// Nguồn scene: Bài học/starters-1-test1-part1/scene-list.md (55 scene: Part 1 = scene 1-16,
+// Part 2 = scene 17-28, Part 3 = scene 29-48, Part 4 = scene 49-55).
 // Dùng import.meta.env.BASE_URL (khớp `base` trong vite.config.js) thay vì "/assets/..." tuyệt đối,
 // vì GitHub Pages phục vụ ở subpath (vd /anhngucan-web/) — đường dẫn tuyệt đối từ gốc domain sẽ sai.
 const P1_IMG = `${import.meta.env.BASE_URL}assets/img/speaking/starters/1/test1/part1`;
@@ -50,7 +51,18 @@ const CARD = {
   book: `${P1_IMG}/card-book.jpg`,
   pen: `${P1_IMG}/card-pen.jpg`,
   clock: `${P1_IMG}/card-clock.jpg`,
+  fish: `${P1_IMG}/card-fish.jpg`,
+  eyes: `${P1_IMG}/card-eyes.jpg`,
+  guitar: `${P1_IMG}/card-guitar.jpg`,
+  bear: `${P1_IMG}/card-bear.jpg`,
 };
+
+// Khung khoanh vùng cho các scene mic Part 2 (đo tạm bằng mắt trên scene.jpg, đơn vị %,
+// theo đúng cách dùng ở scene "Are these the oranges?" — cần xem lại trên web thật rồi chỉnh
+// cho khớp bằng image-map.net trước khi coi là chốt).
+const PINEAPPLE_HL = { x: 44, y: 23, w: 15, h: 13 };
+const WOMAN_HL = { x: 2.0, y: 33.0, w: 13.7, h: 66.1 }; // đo bằng image-map.net: coords="24,296,188,888"
+const FLOWERS_HL = { x: 79.75, y: 43.3, w: 17.67, h: 23.66 }; // đo bằng image-map.net: coords="957,388,1169,600"
 
 // Câu hỏi phụ (Back-up questions) giờ là SCENE RIÊNG, cùng loại tương tác với câu chính
 // (học sinh phải tương tác lại thật sự, không chỉ nghe rồi qua) — chốt 2026-08-13.
@@ -206,6 +218,370 @@ const STARTERS_1_TEST1_PART1 = [
     followupLine: "In front of the babies.",
     audioUrl: `${P1_AUDIO}/11-babies.mp3`,
     followupAudioUrl: `${P1_AUDIO}/11-followup.mp3`,
+  },
+
+  // --- Part 2 (dùng lại đúng scene.jpg của Part 1, không có Object cards) ---
+  // Nguồn: Bài học/starters-1-test1-part1/scene-list.md mục "Part 2" (scene 17-28).
+
+  // 17 — Cau-hoi-mic (câu chính) — highlight giống cách làm ở scene "Are these the oranges?" (Câu 9/16)
+  {
+    type: "mic",
+    examinerLine: "Now, *, what's this?",
+    sceneImage: SCENE,
+    highlight: PINEAPPLE_HL,
+    answerTemplate: "It's a ....",
+    expectedKeyword: "pineapple",
+    audioUrl: `${P1_AUDIO}/17-pineapple-what.mp3`,
+  },
+  // 18 — Cau-hoi-mic (câu hỏi phụ, scene riêng)
+  {
+    type: "mic",
+    examinerLine: "Is it a pineapple?",
+    sceneImage: SCENE,
+    highlight: PINEAPPLE_HL,
+    answerTemplate: "Yes, it is. / No, it isn't.",
+    expectedYesNo: "yes",
+    audioUrl: `${P1_AUDIO}/18-pineapple-confirm.mp3`,
+  },
+  // 19 — Cau-hoi-mic (câu chính)
+  {
+    type: "mic",
+    examinerLine: "What colour is it?",
+    sceneImage: SCENE,
+    highlight: PINEAPPLE_HL,
+    answerTemplate: "It's ....",
+    expectedKeyword: "yellow",
+    audioUrl: `${P1_AUDIO}/19-pineapple-colour.mp3`,
+  },
+  // 20 — Cau-hoi-mic (câu hỏi phụ, scene riêng — dạng lựa chọn 2 phương án, chấm theo từ khoá)
+  {
+    type: "mic",
+    examinerLine: "Is it white? Yellow?",
+    sceneImage: SCENE,
+    highlight: PINEAPPLE_HL,
+    answerTemplate: "It's ....",
+    expectedKeyword: "yellow",
+    audioUrl: `${P1_AUDIO}/20-pineapple-colour-confirm.mp3`,
+  },
+  // 21 — Cau-hoi-mic (câu chính)
+  {
+    type: "mic",
+    examinerLine: "How many pineapples are there?",
+    sceneImage: SCENE,
+    highlight: PINEAPPLE_HL,
+    answerTemplate: "There are ....",
+    expectedKeyword: "three",
+    audioUrl: `${P1_AUDIO}/21-pineapple-how-many.mp3`,
+  },
+  // 22 — Cau-hoi-mic (câu hỏi phụ, scene riêng — dạng lựa chọn 2 phương án, chấm theo từ khoá)
+  {
+    type: "mic",
+    examinerLine: "Are there two? Three?",
+    sceneImage: SCENE,
+    highlight: PINEAPPLE_HL,
+    answerTemplate: "There are ....",
+    expectedKeyword: "three",
+    audioUrl: `${P1_AUDIO}/22-pineapple-how-many-confirm.mp3`,
+  },
+  // 23 — Cau-hoi-mic (câu chính)
+  {
+    type: "mic",
+    examinerLine: "What's the woman doing?",
+    sceneImage: SCENE,
+    highlight: WOMAN_HL,
+    answerTemplate: "She's ....",
+    expectedKeyword: "phoning",
+    audioUrl: `${P1_AUDIO}/23-woman-doing.mp3`,
+  },
+  // 24 — Cau-hoi-mic (câu hỏi phụ, scene riêng)
+  {
+    type: "mic",
+    examinerLine: "Is she phoning?",
+    sceneImage: SCENE,
+    highlight: WOMAN_HL,
+    answerTemplate: "Yes, she is. / No, she isn't.",
+    expectedYesNo: "yes",
+    audioUrl: `${P1_AUDIO}/24-woman-confirm.mp3`,
+  },
+  // 25 — Cau-hoi-mic (câu chính, ý 1: màu sắc)
+  {
+    type: "mic",
+    examinerLine: "Tell me about the flowers.",
+    sceneImage: SCENE,
+    highlight: FLOWERS_HL,
+    answerTemplate: "They're ....",
+    expectedKeyword: "pink",
+    audioUrl: `${P1_AUDIO}/25-flowers-colour.mp3`,
+  },
+  // 26 — Cau-hoi-mic (câu hỏi phụ, scene riêng)
+  {
+    type: "mic",
+    examinerLine: "What colour are the flowers?",
+    sceneImage: SCENE,
+    highlight: FLOWERS_HL,
+    answerTemplate: "They're ....",
+    expectedKeyword: "pink",
+    audioUrl: `${P1_AUDIO}/26-flowers-colour-confirm.mp3`,
+  },
+  // 27 — Cau-hoi-mic (câu chính, ý 2: vị trí)
+  {
+    type: "mic",
+    examinerLine: "Tell me about the flowers.",
+    sceneImage: SCENE,
+    highlight: FLOWERS_HL,
+    answerTemplate: "They're on the ....",
+    expectedKeyword: "table",
+    audioUrl: `${P1_AUDIO}/27-flowers-location.mp3`,
+  },
+  // 28 — Cau-hoi-mic (câu hỏi phụ, scene riêng)
+  {
+    type: "mic",
+    examinerLine: "Where are they?",
+    sceneImage: SCENE,
+    highlight: FLOWERS_HL,
+    answerTemplate: "They're on the ....",
+    expectedKeyword: "table",
+    audioUrl: `${P1_AUDIO}/28-flowers-location-confirm.mp3`,
+  },
+
+  // --- Part 3 (4 Object card mới: fish, eyes, guitar, bear — không dùng lại scene.jpg/card Part 1) ---
+  // Nguồn: Bài học/starters-1-test1-part1/scene-list.md mục "Part 3" (scene 29-48).
+  // Câu hỏi mở cá nhân (breakfast/eye colour/nơi nghe nhạc/con vật yêu thích) KHÔNG dùng
+  // expectedKeyword — đáp án tuỳ từng học sinh, sách chỉ in ví dụ minh hoạ, không chấm đúng/sai.
+
+  // 29 — Cau-hoi-mic (câu chính, định danh)
+  {
+    type: "mic",
+    examinerLine: "What's this?",
+    card: { id: "fish", label: "fish", image: CARD.fish },
+    answerTemplate: "It's a ....",
+    expectedKeyword: "fish",
+    audioUrl: `${P1_AUDIO}/29-fish-what.mp3`,
+  },
+  // 30 — Cau-hoi-mic (câu hỏi phụ, scene riêng)
+  {
+    type: "mic",
+    examinerLine: "Is it a fish?",
+    card: { id: "fish", label: "fish", image: CARD.fish },
+    answerTemplate: "Yes, it is. / No, it isn't.",
+    expectedYesNo: "yes",
+    audioUrl: `${P1_AUDIO}/30-fish-confirm.mp3`,
+  },
+  // 31 — Cau-hoi-mic (câu hỏi cá nhân Yes/No)
+  {
+    type: "mic",
+    examinerLine: "Do you eat fish?",
+    card: { id: "fish", label: "fish", image: CARD.fish },
+    answerTemplate: "Yes, I do. / No, I don't.",
+    expectedYesNo: "either",
+    audioUrl: `${P1_AUDIO}/31-fish-eat.mp3`,
+  },
+  // 32 — Cau-hoi-mic (câu hỏi cá nhân mở, không chấm đúng/sai — chủ đề đã chuyển
+  // sang đồ ăn sáng nói chung, không còn nói về con cá nữa nên KHÔNG hiện lại card fish)
+  {
+    type: "mic",
+    examinerLine: "What do you eat for breakfast?",
+    answerTemplate: "I eat ....",
+    audioUrl: `${P1_AUDIO}/32-breakfast.mp3`,
+  },
+  // 33 — Cau-hoi-mic (câu hỏi phụ, scene riêng — cá nhân Yes/No, cùng chủ đề đồ ăn sáng)
+  {
+    type: "mic",
+    examinerLine: "Do you eat bread?",
+    answerTemplate: "Yes, I do. / No, I don't.",
+    expectedYesNo: "either",
+    audioUrl: `${P1_AUDIO}/33-breakfast-followup.mp3`,
+  },
+
+  // 34 — Cau-hoi-mic (câu chính, định danh)
+  {
+    type: "mic",
+    examinerLine: "What are these?",
+    card: { id: "eyes", label: "eyes", image: CARD.eyes },
+    answerTemplate: "They're ....",
+    expectedKeyword: "eyes",
+    audioUrl: `${P1_AUDIO}/34-eyes-what.mp3`,
+  },
+  // 35 — Cau-hoi-mic (câu hỏi phụ, scene riêng)
+  {
+    type: "mic",
+    examinerLine: "Are they eyes?",
+    card: { id: "eyes", label: "eyes", image: CARD.eyes },
+    answerTemplate: "Yes, they are. / No, they aren't.",
+    expectedYesNo: "yes",
+    audioUrl: `${P1_AUDIO}/35-eyes-confirm.mp3`,
+  },
+  // 36 — Cau-hoi-mic (câu hỏi cá nhân mở, không chấm đúng/sai)
+  {
+    type: "mic",
+    examinerLine: "What colour are your eyes?",
+    card: { id: "eyes", label: "eyes", image: CARD.eyes },
+    answerTemplate: "My eyes are ....",
+    audioUrl: `${P1_AUDIO}/36-eyes-colour.mp3`,
+  },
+  // 37 — Cau-hoi-mic (câu hỏi phụ, scene riêng — cá nhân Yes/No)
+  {
+    type: "mic",
+    examinerLine: "Are your eyes brown?",
+    card: { id: "eyes", label: "eyes", image: CARD.eyes },
+    answerTemplate: "Yes, they are. / No, they aren't.",
+    expectedYesNo: "either",
+    audioUrl: `${P1_AUDIO}/37-eyes-colour-followup.mp3`,
+  },
+  // 38 — Cau-hoi-mic (câu hỏi cá nhân Yes/No, không có back-up)
+  {
+    type: "mic",
+    examinerLine: "Do you wear glasses?",
+    card: { id: "eyes", label: "eyes", image: CARD.eyes },
+    answerTemplate: "Yes, I do. / No, I don't.",
+    expectedYesNo: "either",
+    audioUrl: `${P1_AUDIO}/38-glasses.mp3`,
+  },
+
+  // 39 — Cau-hoi-mic (câu chính, định danh)
+  {
+    type: "mic",
+    examinerLine: "What's this?",
+    card: { id: "guitar", label: "guitar", image: CARD.guitar },
+    answerTemplate: "It's a ....",
+    expectedKeyword: "guitar",
+    audioUrl: `${P1_AUDIO}/39-guitar-what.mp3`,
+  },
+  // 40 — Cau-hoi-mic (câu hỏi phụ, scene riêng)
+  {
+    type: "mic",
+    examinerLine: "Is it a guitar?",
+    card: { id: "guitar", label: "guitar", image: CARD.guitar },
+    answerTemplate: "Yes, it is. / No, it isn't.",
+    expectedYesNo: "yes",
+    audioUrl: `${P1_AUDIO}/40-guitar-confirm.mp3`,
+  },
+  // 41 — Cau-hoi-mic (câu hỏi cá nhân Yes/No, không có back-up)
+  {
+    type: "mic",
+    examinerLine: "Can you play the guitar?",
+    card: { id: "guitar", label: "guitar", image: CARD.guitar },
+    answerTemplate: "Yes, I can. / No, I can't.",
+    expectedYesNo: "either",
+    audioUrl: `${P1_AUDIO}/41-guitar-play.mp3`,
+  },
+  // 42 — Cau-hoi-mic (câu hỏi cá nhân mở, không chấm đúng/sai — hỏi NƠI nghe nhạc,
+  // không còn nói về cây guitar nữa nên KHÔNG hiện lại card guitar)
+  {
+    type: "mic",
+    examinerLine: "Where do you listen to music?",
+    answerTemplate: "I listen to music in my ....",
+    audioUrl: `${P1_AUDIO}/42-music-where.mp3`,
+  },
+  // 43 — Cau-hoi-mic (câu hỏi phụ, scene riêng — cá nhân Yes/No, cùng chủ đề nơi nghe nhạc)
+  {
+    type: "mic",
+    examinerLine: "Do you listen to music in your bedroom?",
+    answerTemplate: "Yes, I do. / No, I don't.",
+    expectedYesNo: "either",
+    audioUrl: `${P1_AUDIO}/43-music-where-followup.mp3`,
+  },
+
+  // 44 — Cau-hoi-mic (câu chính, định danh)
+  {
+    type: "mic",
+    examinerLine: "What's this?",
+    card: { id: "bear", label: "bear", image: CARD.bear },
+    answerTemplate: "It's a ....",
+    expectedKeyword: "bear",
+    audioUrl: `${P1_AUDIO}/44-bear-what.mp3`,
+  },
+  // 45 — Cau-hoi-mic (câu hỏi phụ, scene riêng)
+  {
+    type: "mic",
+    examinerLine: "Is it a bear?",
+    card: { id: "bear", label: "bear", image: CARD.bear },
+    answerTemplate: "Yes, it is. / No, it isn't.",
+    expectedYesNo: "yes",
+    audioUrl: `${P1_AUDIO}/45-bear-confirm.mp3`,
+  },
+  // 46 — Cau-hoi-mic (câu hỏi cá nhân Yes/No, không có back-up)
+  {
+    type: "mic",
+    examinerLine: "Do you like bears?",
+    card: { id: "bear", label: "bear", image: CARD.bear },
+    answerTemplate: "Yes, I do. / No, I don't.",
+    expectedYesNo: "either",
+    audioUrl: `${P1_AUDIO}/46-bear-like.mp3`,
+  },
+  // 47 — Cau-hoi-mic (câu hỏi cá nhân mở, không chấm đúng/sai — hỏi CON VẬT YÊU THÍCH
+  // nói chung, không còn nói riêng về con gấu nữa nên KHÔNG hiện lại card bear)
+  {
+    type: "mic",
+    examinerLine: "What's your favourite animal?",
+    answerTemplate: "My favourite animal is ....",
+    audioUrl: `${P1_AUDIO}/47-favourite-animal.mp3`,
+  },
+  // 48 — Cau-hoi-mic (câu hỏi phụ, scene riêng — hỏi về CON CHÓ, không phải con gấu, nên
+  // cũng không hiện card bear)
+  {
+    type: "mic",
+    examinerLine: "Do you like dogs?",
+    answerTemplate: "Yes, I do. / No, I don't.",
+    expectedYesNo: "either",
+    audioUrl: `${P1_AUDIO}/48-dogs.mp3`,
+  },
+
+  // --- Part 4 (không có ảnh/thẻ minh hoạ nào — chỉ hỏi cá nhân) ---
+  // Nguồn: Bài học/starters-1-test1-part1/scene-list.md mục "Part 4" (scene 49-55).
+
+  // 49 — Cau-hoi-mic (câu hỏi cá nhân mở, không chấm đúng/sai)
+  {
+    type: "mic",
+    examinerLine: "Now, *, do you live in a house or a flat/apartment?",
+    answerTemplate: "I live in a ....",
+    audioUrl: `${P1_AUDIO}/49-live-where.mp3`,
+  },
+  // 50 — Cau-hoi-mic (câu hỏi phụ, scene riêng — cá nhân Yes/No)
+  {
+    type: "mic",
+    examinerLine: "Do you live in a house?",
+    answerTemplate: "Yes, I do. / No, I don't.",
+    expectedYesNo: "either",
+    audioUrl: `${P1_AUDIO}/50-live-where-followup.mp3`,
+  },
+  // 51 — Cau-hoi-mic (câu hỏi cá nhân mở, không chấm đúng/sai)
+  {
+    type: "mic",
+    examinerLine: "Who lives in your house/flat/apartment?",
+    answerTemplate: "I live with ....",
+    audioUrl: `${P1_AUDIO}/51-live-who.mp3`,
+  },
+  // 52 — Cau-hoi-mic (câu hỏi phụ, scene riêng — cá nhân Yes/No)
+  {
+    type: "mic",
+    examinerLine: "Does your family live in your house/flat/apartment?",
+    answerTemplate: "Yes, they do. / No, they don't.",
+    expectedYesNo: "either",
+    audioUrl: `${P1_AUDIO}/52-live-who-followup.mp3`,
+  },
+  // 53 — Cau-hoi-mic (câu hỏi cá nhân mở, không chấm đúng/sai)
+  {
+    type: "mic",
+    examinerLine: "Is your bedroom big or small?",
+    answerTemplate: "My bedroom is ....",
+    audioUrl: `${P1_AUDIO}/53-bedroom-size.mp3`,
+  },
+  // 54 — Cau-hoi-mic (câu hỏi phụ, scene riêng — cá nhân Yes/No)
+  {
+    type: "mic",
+    examinerLine: "Is your bedroom big?",
+    answerTemplate: "Yes, it is. / No, it isn't.",
+    expectedYesNo: "either",
+    audioUrl: `${P1_AUDIO}/54-bedroom-size-followup.mp3`,
+  },
+  // 55 — Cau-hoi-mic (lời chào tạm biệt, kết thúc cả bài Speaking)
+  {
+    type: "mic",
+    examinerLine: "OK. Thank you, *. Goodbye.",
+    answerTemplate: "....",
+    expectedKeyword: "goodbye",
+    audioUrl: `${P1_AUDIO}/55-goodbye.mp3`,
   },
 ];
 

@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react";
-import { playLine, normalize, stopCurrent } from "../lib/speech.js";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { playLine, normalize, stopCurrent, fuzzyIncludesWord } from "../lib/speech.js";
 import { transcribeBlob, isRecordingSupported } from "../lib/whisperSpeech.js";
 
 const BEE = `${import.meta.env.BASE_URL}assets/img/mascot/bee.png`;
@@ -40,6 +40,57 @@ function ExaminerLine({ text }) {
   );
 }
 
+// Tính kích thước khung ảnh Scene theo ĐÚNG tỉ lệ gốc 1200:896, luôn vừa khít cả chiều rộng
+// lẫn chiều cao đang có (không tràn, không cần cuộn) — đo bằng ResizeObserver trên khung cha
+// (.part1-scene-stage) thay vì dùng CSS aspect-ratio, vì aspect-ratio kết hợp flexbox khi thiếu
+// chỗ theo chiều dọc từng chỉ co HEIGHT mà giữ nguyên width, làm ảnh bị bóp méo/lệch hẳn khỏi
+// toạ độ % của highlight/hotspot (bug đã gặp thật, xem lịch sử B3-Code-scene.md).
+const SCENE_RATIO = 1200 / 896;
+function useFitBoxSize(stageRef) {
+  const [size, setSize] = useState(null);
+  useLayoutEffect(() => {
+    const el = stageRef.current;
+    if (!el) return;
+    function measure() {
+      const w = el.clientWidth;
+      const h = el.clientHeight;
+      if (!w || !h) return;
+      let boxW = w;
+      let boxH = boxW / SCENE_RATIO;
+      if (boxH > h) {
+        boxH = h;
+        boxW = boxH * SCENE_RATIO;
+      }
+      setSize({ width: boxW, height: boxH });
+    }
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  return size;
+}
+
+// Khung bọc ảnh Scene, dùng chung cho MỌI scene có ảnh + toạ độ % bên trong (highlight/hotspot
+// click/kéo-thả) — luôn giữ đúng tỉ lệ 1200:896 nhờ useFitBoxSize, để toạ độ % không bao giờ lệch.
+function SceneStage({ extraClassName = "", onClick, innerRef, cursor, children }) {
+  const stageRef = useRef(null);
+  const size = useFitBoxSize(stageRef);
+  return (
+    <div ref={stageRef} className="part1-scene-stage">
+      <div
+        ref={innerRef}
+        className={`part1-scene${extraClassName ? ` ${extraClassName}` : ""}`}
+        style={{ ...(size ? { width: size.width, height: size.height } : undefined), cursor }}
+        onClick={onClick}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
 // Ảnh Scene + khung khoanh vùng gợi ý (không bấm được) — dùng chung cho Huong-dan và
 // câu hỏi mic Yes/No có chỉ vào 1 vật cụ thể trong ảnh (vd "Is this the monkey?").
 // scene.demoCard: dùng cho Huong-dan giám khảo LÀM MẪU đặt thẻ vào 1 vị trí (vd trước khi
@@ -56,7 +107,7 @@ function SceneImageWithHighlight({ scene }) {
     );
   }
   return (
-    <div className="part1-scene" style={{ cursor: "default" }}>
+    <SceneStage cursor="default">
       <img
         className="part1-scene-img"
         src={scene.sceneImage}
@@ -84,7 +135,7 @@ function SceneImageWithHighlight({ scene }) {
           }}
         />
       )}
-    </div>
+    </SceneStage>
   );
 }
 
@@ -233,13 +284,32 @@ function MicScene({ scene, onNext }) {
 
         // Câu hỏi Yes/No có đáp án xác định (expectedYesNo: "yes"|"no") → chấm đúng/sai thật,
         // sai thì cho thử lại. "either" (phụ thuộc thông tin cá nhân học sinh) → luôn chấp nhận.
+        // Chấp nhận thêm các cách nói tắt phổ biến (yeah/yep/uh-huh, nope/nah) — trẻ nhỏ ít khi
+        // nói "yes"/"no" chuẩn, Whisper cũng hay nhận nhầm các từ này.
         if (scene.expectedYesNo && scene.expectedYesNo !== "either") {
           const saidNorm = normalize(said);
-          const saidYes = /\byes\b/.test(saidNorm);
-          const saidNo = /\bno\b/.test(saidNorm);
+          const saidYes = /\b(yes|yeah|yep|yup|uh-?huh)\b/.test(saidNorm);
+          const saidNo = /\b(no|nope|nah)\b/.test(saidNorm);
           const ok =
             (scene.expectedYesNo === "yes" && saidYes && !saidNo) ||
             (scene.expectedYesNo === "no" && saidNo && !saidYes);
+          if (!ok) {
+            setResult(false);
+            const w = pickWrong();
+            setWrongPraise(w);
+            playLine(w.text, { audioUrl: w.audioUrl });
+            setPhase("ask");
+            return;
+          }
+          setResult(true);
+        }
+
+        // Câu hỏi mở có từ khoá đáp án cụ thể (expectedKeyword, vd "yellow"/"three") — chấm đúng
+        // khi lời nói có từ GẦN GIỐNG từ khoá đó (không cần khớp tuyệt đối, xem fuzzyIncludesWord),
+        // để không bắt lỗi oan khi Whisper nhận nhầm 1-2 ký tự do bé phát âm chưa chuẩn.
+        if (scene.expectedKeyword) {
+          const saidNorm = normalize(said);
+          const ok = fuzzyIncludesWord(saidNorm, scene.expectedKeyword);
           if (!ok) {
             setResult(false);
             const w = pickWrong();
@@ -345,7 +415,7 @@ function SceneClickScene({ scene, onNext }) {
     <>
       <div className="scene-body">
         <ExaminerLine text={scene.examinerLine} />
-        <div className={`part1-scene${wrong ? " is-shake" : ""}`} onClick={() => choose(false)}>
+        <SceneStage extraClassName={wrong ? "is-shake" : ""} onClick={() => choose(false)}>
           <img
             className="part1-scene-img"
             src={scene.sceneImage}
@@ -365,7 +435,7 @@ function SceneClickScene({ scene, onNext }) {
             }}
             aria-label={scene.target.label}
           />
-        </div>
+        </SceneStage>
       </div>
       <div className="scene-foot">
         <div className={correct ? "result-ok" : wrong ? "result-bad" : "result-hint"}>
@@ -521,7 +591,7 @@ function DragDropScene({ scene, onNext }) {
     <>
       <div className="scene-body">
         <ExaminerLine text={scene.examinerLine} />
-        <div className={`part1-scene${wrong ? " is-shake" : ""}`} ref={sceneRef}>
+        <SceneStage extraClassName={wrong ? "is-shake" : ""} innerRef={sceneRef}>
           <img
             className="part1-scene-img"
             src={scene.sceneImage}
@@ -537,7 +607,7 @@ function DragDropScene({ scene, onNext }) {
               }}
             />
           )}
-        </div>
+        </SceneStage>
       </div>
       <div className="scene-foot">
         {!correct && (
