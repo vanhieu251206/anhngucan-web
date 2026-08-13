@@ -8,11 +8,18 @@ import AboutPage from "./pages/AboutPage.jsx";
 import ContactPage from "./pages/ContactPage.jsx";
 import LoginPage from "./pages/LoginPage.jsx";
 import SettingsPage from "./pages/SettingsPage.jsx";
+import DashboardPage from "./pages/DashboardPage.jsx";
 import { useAuth } from "./lib/authContext.jsx";
 
 export default function App() {
   const [page, setPage] = useState("home");
   const { isStaff } = useAuth();
+
+  // Khu vực quản trị (dashboard) có layout TÁCH BIỆT hoàn toàn khỏi web công khai — không
+  // bọc Header/Footer, giống cách SceneRunner render fullscreen riêng trong LessonsPage.jsx.
+  if (page === "dashboard" && isStaff) {
+    return <DashboardPage onNavigate={setPage} />;
+  }
 
   return (
     <>

@@ -17,7 +17,7 @@ export default function LoginPage({ onNavigate }) {
     setLoading(true);
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      onNavigate("home");
+      onNavigate("dashboard");
     } catch {
       setError("Sai email hoặc mật khẩu. Thử lại nhé.");
     } finally {

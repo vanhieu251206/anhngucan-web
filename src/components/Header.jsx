@@ -44,6 +44,15 @@ export default function Header({ page, onNavigate }) {
 
           {isStaff && (
             <button
+              className={`top-nav-link${page === "dashboard" ? " active" : ""}`}
+              onClick={() => go("dashboard")}
+            >
+              Quản trị
+            </button>
+          )}
+
+          {isStaff && (
+            <button
               className={`top-nav-link${page === "settings" ? " active" : ""}`}
               onClick={() => go("settings")}
             >
