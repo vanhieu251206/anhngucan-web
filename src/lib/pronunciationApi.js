@@ -1,7 +1,7 @@
 // Gọi Cloudflare Worker (worker/) để chấm phát âm qua Azure AI Speech — Worker giữ key Azure
-// bí mật, trình duyệt không bao giờ thấy key. Đây là engine NÂNG CAO, không bắt buộc: nếu
-// VITE_WORKER_URL chưa cấu hình hoặc request lỗi, SceneRunner.jsx tự rơi về Whisper WASM
-// (whisperSpeech.js) — xem logic fallback ở nơi gọi.
+// bí mật, trình duyệt không bao giờ thấy key. Đây là engine nhận diện giọng nói DUY NHẤT của
+// app (không còn Whisper WASM fallback) — nếu VITE_WORKER_URL chưa cấu hình hoặc request lỗi,
+// nơi gọi báo lỗi rõ cho học sinh thay vì âm thầm rớt xuống engine khác.
 const WORKER_URL = import.meta.env.VITE_WORKER_URL;
 
 export async function assessPronunciation(blob, expectedText) {

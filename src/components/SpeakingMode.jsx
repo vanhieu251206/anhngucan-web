@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { playLine, normalize } from "../lib/speech.js";
-import { transcribeBlob, isRecordingSupported } from "../lib/whisperSpeech.js";
+import { playLine, normalize, isRecordingSupported } from "../lib/speech.js";
+import { assessPronunciation } from "../lib/pronunciationApi.js";
 
 const MIC_ICON = `${import.meta.env.BASE_URL}assets/img/icons/mic.png`;
 
@@ -58,7 +58,8 @@ export default function SpeakingMode({ lesson, onFinish }) {
         setBusy(true);
         setResult({ text: "Đang nhận diện...", ok: null });
         try {
-          const said = await transcribeBlob(blob);
+          const assessed = await assessPronunciation(blob, step.answer_keywords || "");
+          const said = assessed.text || "";
 
           const keywords = step.answer_keywords
             ? step.answer_keywords.split(",").map(k => normalize(k)).filter(Boolean)

@@ -3,6 +3,10 @@
 // tiếp cho cùng 1 câu mà không cái nào bị huỷ, tiếng bị đè lên nhau).
 let currentAudio = null;
 
+export function isRecordingSupported() {
+  return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder);
+}
+
 export function stopCurrent() {
   if (currentAudio) {
     // Đánh dấu instance này bị chủ động dừng (không phải lỗi file) — để play().catch() của

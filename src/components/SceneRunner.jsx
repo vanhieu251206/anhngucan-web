@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { playLine, normalize, stopCurrent, fuzzyIncludesWord } from "../lib/speech.js";
-import { transcribeBlob, isRecordingSupported } from "../lib/whisperSpeech.js";
+import { playLine, normalize, stopCurrent, fuzzyIncludesWord, isRecordingSupported } from "../lib/speech.js";
 import { assessPronunciation } from "../lib/pronunciationApi.js";
 import { ExaminerLine, SceneStage, MIC_ICON } from "./sceneVisuals.jsx";
 
@@ -30,10 +29,10 @@ function pickWrong() {
 }
 const NEXT_DELAY_MS = 1300;
 const NARRATION_PAUSE_MS = 3000;
-// Sai liên tục 3 lần ở BẤT KỲ loại scene nào (mic/scene-click/card-select/drag-drop) → tự hiện
+// Sai liên tục 2 lần ở BẤT KỲ loại scene nào (mic/scene-click/card-select/drag-drop) → tự hiện
 // đáp án đúng (không phát audio khen vì chưa làm đúng) rồi tự chuyển scene sau 1 khoảng nghỉ, để
 // học sinh không bị kẹt mãi ở 1 câu không làm được.
-const WRONG_LIMIT = 3;
+const WRONG_LIMIT = 2;
 const REVEAL_DELAY_MS = 3000;
 
 // Ảnh Scene + khung khoanh vùng gợi ý (không bấm được) — dùng chung cho Huong-dan và
@@ -259,20 +258,17 @@ function MicScene({ scene, onNext }) {
         }
         setPhase("busy");
         setHeard("");
-        // Ưu tiên chấm qua Azure Speech (Worker) khi có cấu hình — chính xác hơn Whisper, đặc
-        // biệt với giọng trẻ em. Không cấu hình Worker, hoặc Worker/Azure lỗi (offline, hết hạn
-        // mức free tier...) thì rơi về Whisper WASM chạy local như trước — không để học sinh bị
-        // kẹt vì lý do hạ tầng bên ngoài.
+        // Chấm qua Azure Speech (Worker) — không còn fallback Whisper WASM. Nếu Worker/Azure lỗi
+        // (offline, hết hạn mức free tier...) thì báo rõ cho học sinh thay vì âm thầm rớt xuống
+        // engine khác (đã bỏ theo yêu cầu người dùng).
         let said = "";
         try {
           const result = await assessPronunciation(blob, scene.expectedKeyword || scene.expectedYesNo || "");
           said = result.text || "";
         } catch {
-          try {
-            said = await transcribeBlob(blob);
-          } catch {
-            said = "";
-          }
+          setHeard("Không kết nối được dịch vụ nhận diện giọng nói. Thử lại sau nhé!");
+          setPhase("ask");
+          return;
         }
 
         // Câu hỏi Yes/No có đáp án xác định (expectedYesNo: "yes"|"no") → chấm đúng/sai thật,
@@ -590,8 +586,15 @@ function DragDropScene({ scene, onNext }) {
         const rect = container.getBoundingClientRect();
         const relX = ((p.clientX - rect.left) / rect.width) * 100;
         const relY = ((p.clientY - rect.top) / rect.height) * 100;
+        // Nới thêm biên dung sai quanh vùng đích (tính theo %) — trẻ nhỏ thả tay không chính xác
+        // tới từng pixel, vùng đích gốc quá khít khiến "kéo hoài không được" dù thả gần đúng chỗ.
+        const DROP_TOLERANCE = 4;
         const t = scene.target;
-        hit = relX >= t.x && relX <= t.x + t.w && relY >= t.y && relY <= t.y + t.h;
+        hit =
+          relX >= t.x - DROP_TOLERANCE &&
+          relX <= t.x + t.w + DROP_TOLERANCE &&
+          relY >= t.y - DROP_TOLERANCE &&
+          relY <= t.y + t.h + DROP_TOLERANCE;
       }
       if (hit) {
         setCorrect(true);

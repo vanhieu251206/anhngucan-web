@@ -2,12 +2,9 @@ import { useState } from "react";
 import Logo from "./Logo.jsx";
 import { useAuth } from "../lib/authContext.jsx";
 
-const NAV_ITEMS = [
-  { key: "home", label: "Trang chủ" },
-  { key: "lessons", label: "Bài học" },
-  { key: "about", label: "Giới thiệu" },
-  { key: "contact", label: "Liên hệ" },
-];
+// Menu chính chỉ còn "Trang chủ" (giống bố cục mẫu) — Bài học/Giới thiệu/Liên hệ
+// vẫn vào được qua nút "Học thử ngay" (→ lessons) và Footer ở các trang khác trang chủ.
+const NAV_ITEMS = [{ key: "home", label: "Trang chủ" }];
 
 export default function Header({ page, onNavigate }) {
   const [open, setOpen] = useState(false);
@@ -61,17 +58,17 @@ export default function Header({ page, onNavigate }) {
           )}
 
           {user ? (
-            <button className="top-nav-link auth-status" onClick={handleLogout} title={user.email}>
+            <button className="top-nav-login" onClick={handleLogout} title={user.email}>
               {role === "admin" ? "Admin" : "Giáo viên"} · Đăng xuất
             </button>
           ) : (
-            <button className="top-nav-link" onClick={() => go("login")}>
+            <button className="top-nav-login" onClick={() => go("login")}>
               Đăng nhập
             </button>
           )}
 
           <button className="top-nav-cta" onClick={() => go("lessons")}>
-            Học ngay
+            Học thử ngay
           </button>
         </nav>
 

@@ -56,6 +56,10 @@ const CARD = {
   guitar: `${P1_IMG}/card-guitar.jpg`,
   bear: `${P1_IMG}/card-bear.jpg`,
 };
+const SCENE_MUSIC = `${P1_IMG}/scene-nghe-nhac.jpg`;
+const SCENE_ANIMALS = `${P1_IMG}/scene-con-vat.jpg`;
+const SCENE_DOG = `${P1_IMG}/scene-cho.jpg`;
+const SCENE_BEDROOM = `${P1_IMG}/scene-phong-ngu.jpg`;
 
 // Khung khoanh vùng cho các scene mic Part 2 (đo tạm bằng mắt trên scene.jpg, đơn vị %,
 // theo đúng cách dùng ở scene "Are these the oranges?" — cần xem lại trên web thật rồi chỉnh
@@ -113,7 +117,7 @@ const STARTERS_1_TEST1_PART1 = [
     type: "narration",
     examinerLine: "Here's the lemonade.",
     sceneImage: SCENE,
-    highlight: { x: 41.79, y: 36.98, w: 8.28, h: 17.58 }, // đo lại 2026-08-15 trên scene.jpg 16:9, coords="575,284,689,419"
+    highlight: { x: 81.69, y: 76.43, w: 12.65, h: 18.62 }, // đo lại 2026-08-17 trên scene.jpg 16:9, coords="1124,587,1298,730"
     audioUrl: `${P1_AUDIO}/04-lemonade.mp3`,
   },
   // 5 — Canh-click (câu chính) (Câu 6/16)
@@ -267,7 +271,7 @@ const STARTERS_1_TEST1_PART1 = [
   // 20 — Cau-hoi-mic (câu hỏi phụ, scene riêng — dạng lựa chọn 2 phương án, chấm theo từ khoá)
   {
     type: "mic",
-    examinerLine: "Is it white? Yellow?",
+    examinerLine: "Is it white or yellow?",
     sceneImage: SCENE,
     highlight: PINEAPPLE_HL,
     answerTemplate: "It's ....",
@@ -481,6 +485,7 @@ const STARTERS_1_TEST1_PART1 = [
   {
     type: "mic",
     examinerLine: "Where do you listen to music?",
+    sceneImage: SCENE_MUSIC,
     answerTemplate: "I listen to music in my ....",
     audioUrl: `${P1_AUDIO}/42-music-where.mp3`,
   },
@@ -525,6 +530,7 @@ const STARTERS_1_TEST1_PART1 = [
   {
     type: "mic",
     examinerLine: "What's your favourite animal?",
+    sceneImage: SCENE_ANIMALS,
     answerTemplate: "My favourite animal is ....",
     audioUrl: `${P1_AUDIO}/47-favourite-animal.mp3`,
   },
@@ -533,6 +539,7 @@ const STARTERS_1_TEST1_PART1 = [
   {
     type: "mic",
     examinerLine: "Do you like dogs?",
+    sceneImage: SCENE_DOG,
     answerTemplate: "Yes, I do. / No, I don't.",
     expectedYesNo: "either",
     audioUrl: `${P1_AUDIO}/48-dogs.mp3`,
@@ -544,7 +551,7 @@ const STARTERS_1_TEST1_PART1 = [
   // 49 — Cau-hoi-mic (câu hỏi cá nhân mở, không chấm đúng/sai)
   {
     type: "mic",
-    examinerLine: "Now, *, do you live in a house or a flat?",
+    examinerLine: "Do you live in a house or a flat?",
     answerTemplate: "I live in a ....",
     audioUrl: `${P1_AUDIO}/49-live-where.mp3`,
   },
@@ -575,6 +582,7 @@ const STARTERS_1_TEST1_PART1 = [
   {
     type: "mic",
     examinerLine: "Is your bedroom big or small?",
+    sceneImage: SCENE_BEDROOM,
     answerTemplate: "My bedroom is ....",
     audioUrl: `${P1_AUDIO}/53-bedroom-size.mp3`,
   },
