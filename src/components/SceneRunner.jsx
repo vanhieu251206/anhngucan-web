@@ -1,9 +1,9 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { playLine, normalize, stopCurrent, fuzzyIncludesWord } from "../lib/speech.js";
 import { transcribeBlob, isRecordingSupported } from "../lib/whisperSpeech.js";
+import { assessPronunciation } from "../lib/pronunciationApi.js";
+import { ExaminerLine, SceneStage, MIC_ICON } from "./sceneVisuals.jsx";
 
-const BEE = `${import.meta.env.BASE_URL}assets/img/mascot/bee.png`;
-const MIC_ICON = `${import.meta.env.BASE_URL}assets/img/icons/mic.png`;
 // Lời khen dùng chung cho MỌI bài (không riêng lesson nào) — audio thật lấy từ
 // Bài học/_dung-chung/praises/voice.txt, KHÔNG có TTS trình duyệt dự phòng.
 const PRAISE_AUDIO = `${import.meta.env.BASE_URL}assets/audio/praises`;
@@ -30,66 +30,11 @@ function pickWrong() {
 }
 const NEXT_DELAY_MS = 1300;
 const NARRATION_PAUSE_MS = 3000;
-
-function ExaminerLine({ text }) {
-  return (
-    <div className="examiner-line">
-      <img className="examiner-bee" src={BEE} alt="Giám khảo" />
-      <div className="sentence-text">{text}</div>
-    </div>
-  );
-}
-
-// Tính kích thước khung ảnh Scene theo ĐÚNG tỉ lệ gốc 1200:896, luôn vừa khít cả chiều rộng
-// lẫn chiều cao đang có (không tràn, không cần cuộn) — đo bằng ResizeObserver trên khung cha
-// (.part1-scene-stage) thay vì dùng CSS aspect-ratio, vì aspect-ratio kết hợp flexbox khi thiếu
-// chỗ theo chiều dọc từng chỉ co HEIGHT mà giữ nguyên width, làm ảnh bị bóp méo/lệch hẳn khỏi
-// toạ độ % của highlight/hotspot (bug đã gặp thật, xem lịch sử B3-Code-scene.md).
-const SCENE_RATIO = 1200 / 896;
-function useFitBoxSize(stageRef) {
-  const [size, setSize] = useState(null);
-  useLayoutEffect(() => {
-    const el = stageRef.current;
-    if (!el) return;
-    function measure() {
-      const w = el.clientWidth;
-      const h = el.clientHeight;
-      if (!w || !h) return;
-      let boxW = w;
-      let boxH = boxW / SCENE_RATIO;
-      if (boxH > h) {
-        boxH = h;
-        boxW = boxH * SCENE_RATIO;
-      }
-      setSize({ width: boxW, height: boxH });
-    }
-    measure();
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    return () => ro.disconnect();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-  return size;
-}
-
-// Khung bọc ảnh Scene, dùng chung cho MỌI scene có ảnh + toạ độ % bên trong (highlight/hotspot
-// click/kéo-thả) — luôn giữ đúng tỉ lệ 1200:896 nhờ useFitBoxSize, để toạ độ % không bao giờ lệch.
-function SceneStage({ extraClassName = "", onClick, innerRef, cursor, children }) {
-  const stageRef = useRef(null);
-  const size = useFitBoxSize(stageRef);
-  return (
-    <div ref={stageRef} className="part1-scene-stage">
-      <div
-        ref={innerRef}
-        className={`part1-scene${extraClassName ? ` ${extraClassName}` : ""}`}
-        style={{ ...(size ? { width: size.width, height: size.height } : undefined), cursor }}
-        onClick={onClick}
-      >
-        {children}
-      </div>
-    </div>
-  );
-}
+// Sai liên tục 3 lần ở BẤT KỲ loại scene nào (mic/scene-click/card-select/drag-drop) → tự hiện
+// đáp án đúng (không phát audio khen vì chưa làm đúng) rồi tự chuyển scene sau 1 khoảng nghỉ, để
+// học sinh không bị kẹt mãi ở 1 câu không làm được.
+const WRONG_LIMIT = 3;
+const REVEAL_DELAY_MS = 3000;
 
 // Ảnh Scene + khung khoanh vùng gợi ý (không bấm được) — dùng chung cho Huong-dan và
 // câu hỏi mic Yes/No có chỉ vào 1 vật cụ thể trong ảnh (vd "Is this the monkey?").
@@ -97,15 +42,6 @@ function SceneStage({ extraClassName = "", onClick, innerRef, cursor, children }
 // yêu cầu học sinh tự kéo-thả) — hiện sẵn ảnh thẻ tại đúng vị trí target, không tương tác được.
 function SceneImageWithHighlight({ scene }) {
   if (!scene.sceneImage) return null;
-  if (!scene.highlight && !scene.demoCard) {
-    return (
-      <img
-        className="speaking-img"
-        src={scene.sceneImage}
-        onError={e => (e.currentTarget.style.display = "none")}
-      />
-    );
-  }
   return (
     <SceneStage cursor="default">
       <img
@@ -225,6 +161,34 @@ function NarrationScene({ scene, onNext }) {
   );
 }
 
+// Nhãn đáp án hiện ra khi sai đủ WRONG_LIMIT lần ở scene mic có đáp án xác định — scene mic
+// không có đáp án xác định (chào hỏi, "either"...) không bao giờ vào nhánh sai nên không cần nhãn.
+function micAnswerLabel(scene) {
+  if (scene.expectedYesNo && scene.expectedYesNo !== "either") {
+    // answerTemplate luôn có dạng "Yes, ... . / No, ... ." (vd "Yes, it is. / No, it isn't.",
+    // "Yes, they are. / No, they aren't.") — tách lấy đúng nửa câu khớp với đáp án đúng, hiện
+    // NGUYÊN CÂU thay vì chỉ mỗi "Yes"/"No".
+    if (scene.answerTemplate) {
+      const [yesPart, noPart] = scene.answerTemplate.split("/").map(s => s.trim());
+      return (scene.expectedYesNo === "yes" ? yesPart : noPart) ?? yesPart;
+    }
+    return scene.expectedYesNo === "yes" ? "Yes, it is." : "No, it isn't.";
+  }
+  if (scene.expectedKeyword) {
+    // Vài câu có nhiều đáp án đều đúng (vd "She's phoning."/"She's talking.") — expectedKeyword
+    // khi đó là mảng, hiện đáp án ĐẦU TIÊN trong mảng làm gợi ý (các đáp án khác vẫn được chấm
+    // đúng khi trả lời qua mic, chỉ không hiện hết trong nhãn reveal).
+    const keyword = Array.isArray(scene.expectedKeyword) ? scene.expectedKeyword[0] : scene.expectedKeyword;
+    // answerTemplate dạng "It's a ....'/"There are ...." — thay chỗ trống bằng từ khoá đáp án
+    // để hiện nguyên câu, không chỉ mỗi từ khoá trơ trọi.
+    if (scene.answerTemplate?.includes("....")) {
+      return scene.answerTemplate.replace("....", keyword);
+    }
+    return keyword;
+  }
+  return "";
+}
+
 // ---------- Chao-hoi / câu hỏi mic: hiện mẫu câu trả lời trước khi bấm mic ----------
 function MicScene({ scene, onNext }) {
   const [phase, setPhase] = useState("ask"); // ask | recording | busy | done
@@ -232,6 +196,8 @@ function MicScene({ scene, onNext }) {
   const [result, setResult] = useState(null); // null | true | false — chỉ dùng khi scene.expectedYesNo
   const [praise, setPraise] = useState(null);
   const [wrongPraise, setWrongPraise] = useState(null);
+  const [wrongCount, setWrongCount] = useState(0);
+  const [revealed, setRevealed] = useState(false);
   const mediaRecorderRef = useRef(null);
   const chunksRef = useRef([]);
   const streamRef = useRef(null);
@@ -239,6 +205,24 @@ function MicScene({ scene, onNext }) {
   useEffect(() => {
     playLine(scene.examinerLine, { audioUrl: scene.audioUrl });
   }, [scene]);
+
+  // Trả về true nếu đã chạm giới hạn sai (đã tự hiện đáp án + chuyển scene, không cho thử lại
+  // nữa) — false nếu còn lượt, gọi nơi dùng tự set lại phase "ask" để học sinh thử lại.
+  function handleWrong() {
+    setResult(false);
+    const nextWrongCount = wrongCount + 1;
+    setWrongCount(nextWrongCount);
+    if (nextWrongCount >= WRONG_LIMIT) {
+      setRevealed(true);
+      setPhase("done");
+      setTimeout(onNext, REVEAL_DELAY_MS);
+      return true;
+    }
+    const w = pickWrong();
+    setWrongPraise(w);
+    playLine(w.text, { audioUrl: w.audioUrl });
+    return false;
+  }
 
   async function startHold(e) {
     e.preventDefault();
@@ -275,11 +259,20 @@ function MicScene({ scene, onNext }) {
         }
         setPhase("busy");
         setHeard("");
+        // Ưu tiên chấm qua Azure Speech (Worker) khi có cấu hình — chính xác hơn Whisper, đặc
+        // biệt với giọng trẻ em. Không cấu hình Worker, hoặc Worker/Azure lỗi (offline, hết hạn
+        // mức free tier...) thì rơi về Whisper WASM chạy local như trước — không để học sinh bị
+        // kẹt vì lý do hạ tầng bên ngoài.
         let said = "";
         try {
-          said = await transcribeBlob(blob);
+          const result = await assessPronunciation(blob, scene.expectedKeyword || scene.expectedYesNo || "");
+          said = result.text || "";
         } catch {
-          said = "";
+          try {
+            said = await transcribeBlob(blob);
+          } catch {
+            said = "";
+          }
         }
 
         // Câu hỏi Yes/No có đáp án xác định (expectedYesNo: "yes"|"no") → chấm đúng/sai thật,
@@ -294,10 +287,7 @@ function MicScene({ scene, onNext }) {
             (scene.expectedYesNo === "yes" && saidYes && !saidNo) ||
             (scene.expectedYesNo === "no" && saidNo && !saidYes);
           if (!ok) {
-            setResult(false);
-            const w = pickWrong();
-            setWrongPraise(w);
-            playLine(w.text, { audioUrl: w.audioUrl });
+            if (handleWrong()) return;
             setPhase("ask");
             return;
           }
@@ -309,12 +299,12 @@ function MicScene({ scene, onNext }) {
         // để không bắt lỗi oan khi Whisper nhận nhầm 1-2 ký tự do bé phát âm chưa chuẩn.
         if (scene.expectedKeyword) {
           const saidNorm = normalize(said);
-          const ok = fuzzyIncludesWord(saidNorm, scene.expectedKeyword);
+          // Vài câu có nhiều đáp án đều đúng (vd "She's phoning."/"She's talking.") —
+          // expectedKeyword là mảng thì chấp nhận khớp BẤT KỲ từ khoá nào trong đó.
+          const keywords = Array.isArray(scene.expectedKeyword) ? scene.expectedKeyword : [scene.expectedKeyword];
+          const ok = keywords.some(k => fuzzyIncludesWord(saidNorm, k));
           if (!ok) {
-            setResult(false);
-            const w = pickWrong();
-            setWrongPraise(w);
-            playLine(w.text, { audioUrl: w.audioUrl });
+            if (handleWrong()) return;
             setPhase("ask");
             return;
           }
@@ -376,7 +366,10 @@ function MicScene({ scene, onNext }) {
         {phase === "done" && praise && (
           <div className="result-ok">{praise.emoji} {praise.text}</div>
         )}
-        {result === false && wrongPraise && (
+        {revealed && (
+          <div className="result-hint">Đáp án đúng: <strong>{micAnswerLabel(scene)}</strong></div>
+        )}
+        {!revealed && result === false && wrongPraise && (
           <div className="result-bad">{wrongPraise.emoji} {wrongPraise.text}</div>
         )}
       </div>
@@ -390,13 +383,26 @@ function SceneClickScene({ scene, onNext }) {
   const [wrong, setWrong] = useState(false);
   const [praise, setPraise] = useState(null);
   const [wrongPraise, setWrongPraise] = useState(null);
+  const [wrongCount, setWrongCount] = useState(0);
+  const [revealed, setRevealed] = useState(false);
 
   useEffect(() => {
     playLine(scene.examinerLine, { audioUrl: scene.audioUrl });
   }, [scene]);
 
+  // Scene soạn dở trong CMS (chưa kéo chọn vùng bấm đúng qua CoordinatePicker) không có
+  // scene.target — hiện thông báo rõ thay vì crash trắng trang khi học sinh lỡ vào phải.
+  if (!scene.target) {
+    return (
+      <div className="scene-body">
+        <ExaminerLine text={scene.examinerLine} />
+        <p className="mock-banner">Scene này chưa cấu hình vùng bấm đúng — vào CMS chỉnh lại.</p>
+      </div>
+    );
+  }
+
   function choose(hit) {
-    if (correct) return;
+    if (correct || revealed) return;
     if (hit) {
       setCorrect(true);
       const p = pickPraise();
@@ -404,10 +410,17 @@ function SceneClickScene({ scene, onNext }) {
       playLine(p.text, { audioUrl: p.audioUrl, onEnd: () => setTimeout(onNext, NEXT_DELAY_MS) });
     } else {
       setWrong(true);
+      setTimeout(() => setWrong(false), 1500);
+      const nextWrongCount = wrongCount + 1;
+      setWrongCount(nextWrongCount);
+      if (nextWrongCount >= WRONG_LIMIT) {
+        setRevealed(true);
+        setTimeout(onNext, REVEAL_DELAY_MS);
+        return;
+      }
       const w = pickWrong();
       setWrongPraise(w);
       playLine(w.text, { audioUrl: w.audioUrl });
-      setTimeout(() => setWrong(false), 1500);
     }
   }
 
@@ -422,7 +435,7 @@ function SceneClickScene({ scene, onNext }) {
             onError={e => (e.currentTarget.style.display = "none")}
           />
           <button
-            className="part1-hotspot"
+            className={`part1-hotspot${correct || revealed ? " is-correct" : ""}`}
             style={{
               left: `${scene.target.x}%`,
               top: `${scene.target.y}%`,
@@ -438,12 +451,14 @@ function SceneClickScene({ scene, onNext }) {
         </SceneStage>
       </div>
       <div className="scene-foot">
-        <div className={correct ? "result-ok" : wrong ? "result-bad" : "result-hint"}>
+        <div className={correct ? "result-ok" : revealed ? "result-hint" : wrong ? "result-bad" : "result-hint"}>
           {correct
             ? `${praise.emoji} ${praise.text}`
-            : wrong
-              ? `${wrongPraise.emoji} ${wrongPraise.text}`
-              : "Chạm vào đáp án đúng nhé"}
+            : revealed
+              ? <>Đáp án đúng: <strong>{scene.target.label}</strong></>
+              : wrong
+                ? `${wrongPraise.emoji} ${wrongPraise.text}`
+                : "Chạm vào đáp án đúng nhé"}
         </div>
       </div>
     </>
@@ -456,26 +471,53 @@ function CardSelectScene({ scene, onNext }) {
   const [wrongId, setWrongId] = useState(null);
   const [praise, setPraise] = useState(null);
   const [wrongPraise, setWrongPraise] = useState(null);
+  const [wrongCount, setWrongCount] = useState(0);
+  const [revealed, setRevealed] = useState(false);
 
   useEffect(() => {
     playLine(scene.examinerLine, { audioUrl: scene.audioUrl });
   }, [scene]);
 
+  // Vài scene chấp nhận NHIỀU đáp án đúng (vd đề thi thật giám khảo chỉ hỏi 1 trong 2 vật, xem
+  // scene "Which is the book/pen?") — dùng scene.correctIds (mảng); scene chỉ có 1 đáp án vẫn
+  // dùng scene.correctId như cũ.
+  const correctIds = scene.correctIds ?? [scene.correctId];
+
+  // Scene soạn dở trong CMS (chưa thêm đủ 4 thẻ lựa chọn) — hiện thông báo rõ thay vì crash
+  // trắng trang khi học sinh lỡ vào phải.
+  if (!scene.options?.length) {
+    return (
+      <div className="scene-body">
+        <ExaminerLine text={scene.examinerLine} />
+        <p className="mock-banner">Scene này chưa có đủ thẻ lựa chọn — vào CMS chỉnh lại.</p>
+      </div>
+    );
+  }
+
   function choose(id) {
-    if (correct) return;
-    if (id === scene.correctId) {
+    if (correct || revealed) return;
+    if (correctIds.includes(id)) {
       setCorrect(true);
       const p = pickPraise();
       setPraise(p);
       playLine(p.text, { audioUrl: p.audioUrl, onEnd: () => setTimeout(onNext, NEXT_DELAY_MS) });
     } else {
       setWrongId(id);
+      setTimeout(() => setWrongId(null), 1500);
+      const nextWrongCount = wrongCount + 1;
+      setWrongCount(nextWrongCount);
+      if (nextWrongCount >= WRONG_LIMIT) {
+        setRevealed(true);
+        setTimeout(onNext, REVEAL_DELAY_MS);
+        return;
+      }
       const w = pickWrong();
       setWrongPraise(w);
       playLine(w.text, { audioUrl: w.audioUrl });
-      setTimeout(() => setWrongId(null), 1500);
     }
   }
+
+  const correctOption = scene.options.find(o => correctIds.includes(o.id));
 
   return (
     <>
@@ -487,7 +529,7 @@ function CardSelectScene({ scene, onNext }) {
           {scene.options.map(opt => (
             <button
               key={opt.id}
-              className={`part1-option${correct && opt.id === scene.correctId ? " is-correct" : ""}${
+              className={`part1-option${(correct || revealed) && correctIds.includes(opt.id) ? " is-correct" : ""}${
                 wrongId === opt.id ? " is-wrong is-shake" : ""
               }`}
               onClick={() => choose(opt.id)}
@@ -497,12 +539,14 @@ function CardSelectScene({ scene, onNext }) {
             </button>
           ))}
         </div>
-        <div className={correct ? "result-ok" : wrongId ? "result-bad" : "result-hint"}>
+        <div className={correct ? "result-ok" : revealed ? "result-hint" : wrongId ? "result-bad" : "result-hint"}>
           {correct
             ? `${praise.emoji} ${praise.text}`
-            : wrongId
-              ? `${wrongPraise.emoji} ${wrongPraise.text}`
-              : "Chạm vào đáp án đúng nhé"}
+            : revealed
+              ? <>Đáp án đúng: <strong>{correctOption.label}</strong></>
+              : wrongId
+                ? `${wrongPraise.emoji} ${wrongPraise.text}`
+                : "Chạm vào đáp án đúng nhé"}
         </div>
       </div>
     </>
@@ -516,8 +560,13 @@ function DragDropScene({ scene, onNext }) {
   const [dragPos, setDragPos] = useState(null); // {x,y} client coords khi đang kéo
   const [praise, setPraise] = useState(null);
   const [wrongPraise, setWrongPraise] = useState(null);
+  const [revealed, setRevealed] = useState(false);
   const sceneRef = useRef(null);
   const draggingRef = useRef(false);
+  // Dùng ref thay vì state cho số lần sai — handleUp bên dưới được tạo trong useEffect chỉ phụ
+  // thuộc [scene] (không tạo lại mỗi lần kéo-thả), nên đọc state thường sẽ bị "stale closure"
+  // (luôn thấy giá trị lúc effect chạy lần đầu). Ref luôn đọc được giá trị mới nhất.
+  const wrongCountRef = useRef(0);
 
   useEffect(() => {
     playLine(scene.examinerLine, { audioUrl: scene.audioUrl });
@@ -560,8 +609,14 @@ function DragDropScene({ scene, onNext }) {
         });
         return;
       }
-      setWrong(true);
       setDragPos(null);
+      wrongCountRef.current += 1;
+      if (wrongCountRef.current >= WRONG_LIMIT) {
+        setRevealed(true);
+        setTimeout(onNext, REVEAL_DELAY_MS);
+        return;
+      }
+      setWrong(true);
       const w = pickWrong();
       setWrongPraise(w);
       playLine(w.text, { audioUrl: w.audioUrl });
@@ -581,10 +636,21 @@ function DragDropScene({ scene, onNext }) {
   }, [scene]);
 
   function onDragStart(e) {
-    if (correct) return;
+    if (correct || revealed) return;
     draggingRef.current = true;
     const p = e.touches ? e.touches[0] : e;
     setDragPos({ x: p.clientX, y: p.clientY });
+  }
+
+  // Scene soạn dở trong CMS (chưa kéo chọn vùng thả đúng hoặc chưa gán thẻ) — hiện thông báo rõ
+  // thay vì crash trắng trang khi học sinh lỡ vào phải.
+  if (!scene.target || !scene.card) {
+    return (
+      <div className="scene-body">
+        <ExaminerLine text={scene.examinerLine} />
+        <p className="mock-banner">Scene này chưa cấu hình đầy đủ (vị trí đích/thẻ) — vào CMS chỉnh lại.</p>
+      </div>
+    );
   }
 
   return (
@@ -597,7 +663,7 @@ function DragDropScene({ scene, onNext }) {
             src={scene.sceneImage}
             onError={e => (e.currentTarget.style.display = "none")}
           />
-          {correct && (
+          {(correct || revealed) && (
             <img
               className="dropped-card"
               src={scene.card.image}
@@ -610,7 +676,7 @@ function DragDropScene({ scene, onNext }) {
         </SceneStage>
       </div>
       <div className="scene-foot">
-        {!correct && (
+        {!correct && !revealed && (
           <img
             className="drag-card"
             src={scene.card.image}
@@ -625,12 +691,14 @@ function DragDropScene({ scene, onNext }) {
             }
           />
         )}
-        <div className={correct ? "result-ok" : wrong ? "result-bad" : "result-hint"}>
+        <div className={correct ? "result-ok" : revealed ? "result-hint" : wrong ? "result-bad" : "result-hint"}>
           {correct
             ? `${praise.emoji} ${praise.text}`
-            : wrong
-              ? `${wrongPraise.emoji} ${wrongPraise.text}`
-              : `Kéo ${scene.card.label} vào đúng vị trí nhé`}
+            : revealed
+              ? <>Đáp án đúng: <strong>{scene.target.label}</strong></>
+              : wrong
+                ? `${wrongPraise.emoji} ${wrongPraise.text}`
+                : `Kéo ${scene.card.label} vào đúng vị trí nhé`}
         </div>
       </div>
     </>

@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import { YLE_SERIES } from "../lib/yleData.js";
 import { stopCurrent } from "../lib/speech.js";
+import { loadLevelContent } from "../lib/lessons.js";
 import ListeningMode from "../components/ListeningMode.jsx";
 import SceneRunner from "../components/SceneRunner.jsx";
 import PasswordGate from "../components/PasswordGate.jsx";
 import { useAuth } from "../lib/authContext.jsx";
-import { isUnlockedInSession } from "../lib/lessonAccess.js";
+import { isUnlockedInSession, lockSession } from "../lib/lessonAccess.js";
 
 const TYPES = [
   { key: "listening", label: "Listening", desc: "Xem video và luyện nghe" },
@@ -16,6 +17,8 @@ export default function LessonsPage() {
   const [series, setSeries] = useState(null);
   const [level, setLevel] = useState(null);
   const [type, setType] = useState(null);
+  const [content, setContent] = useState(null); // { listening, tests } — đọc qua lib/lessons.js
+  const [selectedTest, setSelectedTest] = useState(null);
   const { isStaff } = useAuth();
   // Guest/học sinh: khoá nội dung thật (Listening/Speaking) sau 1 mật khẩu chung, xem
   // PasswordGate.jsx + lib/lessonAccess.js. Admin/teacher tự động bỏ qua màn khoá.
@@ -23,6 +26,38 @@ export default function LessonsPage() {
   useEffect(() => {
     if (isStaff) setUnlocked(true);
   }, [isStaff]);
+
+  // Tải nội dung thật (Firestore, fallback hardcode) ngay khi vào 1 cấp — dùng chung cho cả
+  // Listening lẫn Speaking, không phụ thuộc `type` để không phải tải lại khi đổi qua lại.
+  useEffect(() => {
+    if (!series || !level) {
+      setContent(null);
+      return;
+    }
+    setContent(null);
+    loadLevelContent(series, level).then(setContent);
+  }, [series, level]);
+
+  useEffect(() => {
+    setSelectedTest(null);
+  }, [type]);
+
+  function backToTypePicker() {
+    stopCurrent();
+    setType(null);
+    setSelectedTest(null);
+    // Guest/học sinh: khoá lại ngay khi thoát bài, bắt nhập mật khẩu mỗi lần vào lại — admin/teacher
+    // (isStaff) không bị ảnh hưởng, luôn bỏ qua màn khoá.
+    if (!isStaff) {
+      lockSession();
+      setUnlocked(false);
+    }
+  }
+
+  const tests = content?.tests ?? [];
+  // Cấp độ chỉ có 1 Test (trường hợp phổ biến hiện tại) → tự chọn luôn, không hiện thêm bước chọn.
+  const autoTest = tests.length === 1 ? tests[0] : null;
+  const activeTest = selectedTest ?? autoTest;
 
   return (
     <>
@@ -93,63 +128,96 @@ export default function LessonsPage() {
         </>
       )}
 
-      {series && level && type === "listening" && !unlocked && (
-        <>
-          <PasswordGate onUnlock={() => setUnlocked(true)} />
-          <button className="back-btn" onClick={() => setType(null)}>
-            ⬅ Quay lại
-          </button>
-        </>
-      )}
-
-      {series && level && type === "listening" && unlocked && (
+      {series && level && type === "listening" && content && !content.listening && (
         <>
           <h1 className="page-title">{series.title} {level.number} – Listening</h1>
-          <ListeningMode listening={level.listening} />
-          <button className="back-btn" onClick={() => setType(null)}>
+          <p className="mock-banner">Cấp độ này chưa có video Listening thật.</p>
+          <button className="back-btn" onClick={backToTypePicker}>
             ⬅ Quay lại
           </button>
         </>
       )}
 
-      {series && level && type === "speaking" && !level.speakingPart1 && (
+      {series && level && type === "listening" && content?.listening && !unlocked && (
+        <>
+          <PasswordGate onUnlock={() => setUnlocked(true)} />
+          <button className="back-btn" onClick={backToTypePicker}>
+            ⬅ Quay lại
+          </button>
+        </>
+      )}
+
+      {series && level && type === "listening" && content?.listening && unlocked && (
+        <>
+          <h1 className="page-title">{series.title} {level.number} – Listening</h1>
+          <ListeningMode listening={content.listening} />
+          <button className="back-btn" onClick={backToTypePicker}>
+            ⬅ Quay lại
+          </button>
+        </>
+      )}
+
+      {series && level && type === "speaking" && content && tests.length === 0 && (
         <>
           <h1 className="page-title">{series.title} {level.number} – Speaking</h1>
           <p className="mock-banner">Bài Speaking cấp độ này chưa có dữ liệu thật.</p>
-          <button className="back-btn" onClick={() => setType(null)}>
+          <button className="back-btn" onClick={backToTypePicker}>
             ⬅ Quay lại
           </button>
         </>
       )}
 
-      {series && level && type === "speaking" && level.speakingPart1 && !unlocked && (
+      {series && level && type === "speaking" && activeTest && !activeTest.scenes?.length && (
+        <>
+          <h1 className="page-title">{series.title} {level.number} – Speaking</h1>
+          <p className="mock-banner">{activeTest.title} chưa có scene nào — vào CMS soạn bài để thêm scene.</p>
+          <button className="back-btn" onClick={backToTypePicker}>
+            ⬅ Quay lại
+          </button>
+        </>
+      )}
+
+      {series && level && type === "speaking" && tests.length > 1 && !activeTest && (
+        <>
+          <h1 className="page-title">{series.title} {level.number} – Speaking</h1>
+          <p className="lead">Chọn Test muốn luyện.</p>
+          <div className="lesson-grid">
+            {tests.map(t => (
+              <button key={t.id} className="lesson-preview-card" onClick={() => setSelectedTest(t)}>
+                <h3>{t.title}</h3>
+              </button>
+            ))}
+          </div>
+          <button className="back-btn" onClick={backToTypePicker}>
+            ⬅ Quay lại
+          </button>
+        </>
+      )}
+
+      {series && level && type === "speaking" && activeTest && Boolean(activeTest.scenes?.length) && !unlocked && (
         <>
           <PasswordGate onUnlock={() => setUnlocked(true)} />
-          <button className="back-btn" onClick={() => setType(null)}>
+          <button className="back-btn" onClick={backToTypePicker}>
             ⬅ Quay lại
           </button>
         </>
       )}
     </section>
 
-    {series && level && type === "speaking" && level.speakingPart1 && unlocked && (
+    {series && level && type === "speaking" && activeTest && Boolean(activeTest.scenes?.length) && unlocked && (
       <div className="speaking-fullscreen">
-        <button
-          className="speaking-fullscreen-back"
-          onClick={() => {
-            stopCurrent();
-            setType(null);
-          }}
-        >
-          ⬅ Quay lại
-        </button>
+        <div className="speaking-fullscreen-topbar">
+          <button className="speaking-fullscreen-back" onClick={backToTypePicker}>
+            ⬅ Quay lại
+          </button>
+          <span className="speaking-fullscreen-title">
+            {series.title} {level.number} · {activeTest.title}
+          </span>
+        </div>
         <div className="speaking-fullscreen-body">
           <SceneRunner
-            scenes={level.speakingPart1}
-            onFinish={() => {
-              stopCurrent();
-              setType(null);
-            }}
+            scenes={activeTest.scenes}
+            onFinish={backToTypePicker}
           />
         </div>
       </div>

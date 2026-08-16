@@ -16,6 +16,7 @@ MVP coi là **đạt** khi có ít nhất 1 bộ đề (Starters 1) đầy đủ
 
 - Không backend tự vận hành, không API AI trả phí theo lượng dùng (xem `CLAUDE.md` mục 2).
 - Ngoại lệ duy nhất đã chấp nhận: **Firebase Auth + Firestore, gói Spark (miễn phí)** — không dùng Cloud Functions, không nâng lên gói Blaze.
+- **KHÔNG dùng Firebase Storage** (phát hiện ở Phase 2: Google giờ bắt buộc gói Blaze/thẻ thanh toán mới bật được Storage, kể cả khi dùng trong hạn mức miễn phí) — thay bằng **Cloudinary (free tier, không cần thẻ thanh toán)**: ảnh/audio trong CMS nhận **dán URL có sẵn HOẶC upload trực tiếp qua Cloudinary** (`src/lib/cloudinaryUpload.js`, unsigned upload preset — không cần server/API secret ở client).
 - Không đóng gói app/exe/APK — luôn là website thuần chạy trình duyệt.
 - Mỗi phase mới phải xác nhận với người dùng trước khi code (không tự ý mở rộng phạm vi).
 
@@ -48,17 +49,18 @@ MVP coi là **đạt** khi có ít nhất 1 bộ đề (Starters 1) đầy đủ
 
 ---
 
-## Phase 2 — Soạn bài không cần code (CMS) (⏳ Chưa làm)
+## Phase 2 — Soạn bài không cần code (CMS) (✅ Đã xong — 2026-08-14)
 
-**Mục tiêu:** admin/teacher tự thêm/sửa bài học (Test/Part/scene) qua giao diện web, không cần Claude sửa code mỗi lần. Đã có sẵn mục "Tạo bài" trong sidebar (placeholder) từ Phase 1.5, chỉ cần làm phần nội dung thật.
+**Mục tiêu:** admin tự thêm/sửa bài học (Listening + Speaking, nhiều Test/cấp) qua giao diện web, không cần Claude sửa code mỗi lần.
 
-**Việc cần làm (dự kiến, sẽ chốt lại chi tiết khi bắt đầu phase này):**
-- Chuyển dữ liệu bài học từ `src/lib/yleData.js` (hard-code) sang Firestore (hoặc giữ song song, migrate dần).
-- Thiết kế lại schema Firestore cho 1 bài Speaking (danh sách scene, từng loại — xem `docs/quy-trinh/B0-Chia-scene.md` mục "Các loại scene" làm tham chiếu, KHÔNG đổi cách chia scene đã chốt).
-- Giao diện admin: CRUD scene (thêm/sửa/xoá/sắp xếp lại thứ tự), upload ảnh/audio (cần tính toán chỗ lưu file — Firebase Storage free tier hoặc giữ nguyên cách thủ công qua `public/assets/` + Claude code như hiện tại, cần bàn kỹ vì ảnh hưởng tới ràng buộc "không backend").
-- Phân quyền chi tiết hơn nếu cần (vd teacher chỉ sửa được bài của mình, admin sửa được tất cả).
+- **Schema Firestore mới:** `lessons/{seriesId}-{level}` (chứa `listening: {videoId,title}`) + subcollection `tests/{testId}` (mỗi Test 1 doc riêng, chứa `scenes: [...]` đúng contract `SceneRunner.jsx`).
+- **`LessonsPage.jsx`** (phía học sinh) đọc Firestore trước, KHÔNG có thì tự dùng lại dữ liệu hardcode cũ (`yleData.js`, Starters 1 Test 1) làm "Test 1" mặc định — không cần migrate ép buộc, nội dung cũ vẫn chạy y nguyên.
+- **`CreateLessonPage.jsx`** (dashboard admin): wizard chọn bộ đề → cấp → Listening (form videoId+title) / Speaking (danh sách Test, mỗi Test có `SceneListBuilder` kiểu Canva — thêm/sửa/xoá/nhân bản/sắp xếp lại scene, chọn 1 trong 5 template loại scene, `CoordinatePicker` chọn toạ độ % bằng kéo chuột trực tiếp trên ảnh thay vì đo tay).
+- **Đổi hướng giữa chừng:** dự tính ban đầu dùng Firebase Storage để admin upload ảnh/audio trực tiếp — phát hiện Storage giờ bắt buộc gói Blaze (thẻ thanh toán), trái với ràng buộc dự án → tạm thời bỏ Storage, chỉ nhận dán URL ảnh/audio có sẵn.
+- **Bổ sung 2026-08-15:** tích hợp **Cloudinary** (free, không thẻ) để bù lại việc mất upload trực tiếp — `ImageUploadField`/`AudioUploadField` giờ có thêm nút "Chọn file để upload" gọi `uploadToCloudinary()` (`src/lib/cloudinaryUpload.js`, dùng unsigned upload preset, không cần backend), tự điền URL trả về vào field; ô dán URL thủ công vẫn giữ nguyên làm lựa chọn thay thế.
+- Chỉ **admin** ghi được bài học (teacher chưa có quyền soạn bài, chỉ xem "Kết quả học sinh" ở Phase 3).
 
-**Điều kiện bắt đầu:** người dùng chủ động yêu cầu, xác nhận lại phạm vi cụ thể trước khi code (theo đúng mục 7 `CLAUDE.md`).
+**Trạng thái:** đã code xong, build sạch. Cần publish lại Firestore Rules (thêm khối `lessons`) rồi test trên local trước khi push.
 
 ---
 
@@ -87,3 +89,4 @@ MVP coi là **đạt** khi có ít nhất 1 bộ đề (Starters 1) đầy đủ
 
 - 2026-08-14: Tạo file, ghi lại Phase 1 đã hoàn thành + phác thảo Phase 2/3 dựa trên trao đổi với người dùng khi làm tính năng phân quyền.
 - 2026-08-14: Thêm Phase 1.5 (dashboard quản trị riêng biệt + admin tự tạo tài khoản giáo viên trong app) — đã code + test xong.
+- 2026-08-14: Làm Phase 2 (CMS "Tạo bài") — phát hiện giữa chừng Firebase Storage giờ bắt buộc gói Blaze, phải đổi hướng bỏ Storage, chuyển field ảnh/audio sang nhận URL dán tay thay vì upload trực tiếp. Cập nhật nguyên tắc chung ghi rõ KHÔNG dùng Storage.

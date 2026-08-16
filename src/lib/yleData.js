@@ -60,9 +60,19 @@ const CARD = {
 // Khung khoanh vùng cho các scene mic Part 2 (đo tạm bằng mắt trên scene.jpg, đơn vị %,
 // theo đúng cách dùng ở scene "Are these the oranges?" — cần xem lại trên web thật rồi chỉnh
 // cho khớp bằng image-map.net trước khi coi là chốt).
-const PINEAPPLE_HL = { x: 44, y: 23, w: 15, h: 13 };
-const WOMAN_HL = { x: 2.0, y: 33.0, w: 13.7, h: 66.1 }; // đo bằng image-map.net: coords="24,296,188,888"
-const FLOWERS_HL = { x: 79.75, y: 43.3, w: 17.67, h: 23.66 }; // đo bằng image-map.net: coords="957,388,1169,600"
+// Đo lại 2026-08-15 trên scene.jpg 16:9 mới (1376×768) sau khi đổi từ ảnh 4:3 cũ.
+// Đề thi thật giám khảo chỉ hỏi 1 TRONG 2 ("Which is the book?" HOẶC "Which is the pen?"),
+// không hỏi gộp cả 2 — chọn ngẫu nhiên 1 trong 2 mỗi lần tải trang (chốt 2026-08-15), áp dụng
+// nhất quán cho cả 3 scene liên quan (10 The-chon, 10b câu hỏi phụ mic, 11 kéo-thả).
+const BOOK_OR_PEN = Math.random() < 0.5 ? "book" : "pen";
+const BOOK_OR_PEN_CARD =
+  BOOK_OR_PEN === "book"
+    ? { id: "book", label: "book", image: CARD.book }
+    : { id: "pen2", label: "pen", image: CARD.pen };
+
+const PINEAPPLE_HL = { x: 43.6, y: 24.74, w: 14.17, h: 13.02 }; // coords="600,190,795,290"
+const WOMAN_HL = { x: 14.39, y: 31.9, w: 10.25, h: 67.84 }; // coords="198,245,339,766"
+const FLOWERS_HL = { x: 72.75, y: 43.49, w: 13.01, h: 24.35 }; // coords="1001,334,1180,521"
 
 // Câu hỏi phụ (Back-up questions) giờ là SCENE RIÊNG, cùng loại tương tác với câu chính
 // (học sinh phải tương tác lại thật sự, không chỉ nghe rồi qua) — chốt 2026-08-13.
@@ -103,7 +113,7 @@ const STARTERS_1_TEST1_PART1 = [
     type: "narration",
     examinerLine: "Here's the lemonade.",
     sceneImage: SCENE,
-    highlight: { x: 39.6, y: 38.1, w: 10.3, h: 15.9 }, // khoanh vùng chai chanh trong ảnh, đo bằng image-map.net
+    highlight: { x: 41.79, y: 36.98, w: 8.28, h: 17.58 }, // đo lại 2026-08-15 trên scene.jpg 16:9, coords="575,284,689,419"
     audioUrl: `${P1_AUDIO}/04-lemonade.mp3`,
   },
   // 5 — Canh-click (câu chính) (Câu 6/16)
@@ -111,7 +121,7 @@ const STARTERS_1_TEST1_PART1 = [
     type: "scene-click",
     examinerLine: "Where's the monkey?",
     sceneImage: SCENE,
-    target: { id: "monkey", label: "monkey", x: 34, y: 78, w: 18, h: 18 },
+    target: { id: "monkey", label: "monkey", x: 38.01, y: 83.2, w: 10.97, h: 10.55 },
     audioUrl: `${P1_AUDIO}/05-monkey.mp3`,
   },
   // 5b — Cau-hoi-mic (câu hỏi phụ Yes/No, khoanh vùng gợi ý — không bấm được, phải trả lời bằng mic) (Câu 7/16)
@@ -119,7 +129,7 @@ const STARTERS_1_TEST1_PART1 = [
     type: "mic",
     examinerLine: "Is this the monkey?",
     sceneImage: SCENE,
-    highlight: { x: 34, y: 78, w: 18, h: 18 },
+    highlight: { x: 38.01, y: 83.2, w: 10.97, h: 10.55 },
     answerTemplate: "Yes, it is. / No, it isn't.",
     expectedYesNo: "yes",
     audioUrl: `${P1_AUDIO}/05-followup.mp3`,
@@ -129,7 +139,7 @@ const STARTERS_1_TEST1_PART1 = [
     type: "scene-click",
     examinerLine: "Where are the oranges?",
     sceneImage: SCENE,
-    target: { id: "oranges", label: "oranges", x: 49, y: 39, w: 16, h: 17 },
+    target: { id: "oranges", label: "oranges", x: 50.29, y: 36.59, w: 8.94, h: 17.45 },
     audioUrl: `${P1_AUDIO}/06-oranges.mp3`,
   },
   // 6b — Cau-hoi-mic (câu hỏi phụ Yes/No, khoanh vùng gợi ý — không bấm được, phải trả lời bằng mic) (Câu 9/16)
@@ -137,7 +147,7 @@ const STARTERS_1_TEST1_PART1 = [
     type: "mic",
     examinerLine: "Are these the oranges?",
     sceneImage: SCENE,
-    highlight: { x: 49, y: 39, w: 16, h: 17 },
+    highlight: { x: 50.29, y: 36.59, w: 8.94, h: 17.45 },
     answerTemplate: "Yes, they are. / No, they aren't.",
     expectedYesNo: "yes",
     audioUrl: `${P1_AUDIO}/06-followup.mp3`,
@@ -171,7 +181,7 @@ const STARTERS_1_TEST1_PART1 = [
     sceneImage: SCENE,
     demoCard: {
       card: { id: "shell", label: "shell", image: CARD.shell },
-      target: { x: 4.0, y: 2.6, w: 16.3, h: 38.7 }, // vùng cửa, đo bằng image-map.net
+      target: { x: 15.26, y: 8.46, w: 11.99, h: 25.39 }, // vùng cửa, đo lại 2026-08-15 trên scene.jpg 16:9
     },
     audioUrl: `${P1_AUDIO}/08-putting-shell.mp3`,
   },
@@ -181,29 +191,30 @@ const STARTERS_1_TEST1_PART1 = [
     examinerLine: "Now you put the shell between the watermelons.",
     sceneImage: SCENE,
     card: { id: "shell", label: "shell", image: CARD.shell },
-    target: { id: "watermelons", label: "between the watermelons", x: 66, y: 28, w: 13, h: 24 },
+    target: { id: "watermelons", label: "between the watermelons", x: 62.28, y: 32.68, w: 6.61, h: 19.27 },
     followupLine: "Between the watermelons.",
     audioUrl: `${P1_AUDIO}/09-watermelons.mp3`,
     followupAudioUrl: `${P1_AUDIO}/09-followup.mp3`,
   },
-  // 10 — The-chon (câu chính) (Câu 14/16)
+  // 10 — The-chon (câu chính) (Câu 14/16) — câu hỏi + đáp án đúng phụ thuộc BOOK_OR_PEN
+  // (chọn ngẫu nhiên 1 trong 2 mỗi lần tải trang, xem ghi chú ở BOOK_OR_PEN phía trên).
   {
     type: "card-select",
-    examinerLine: "Which is the book/pen?",
+    examinerLine: `Which is the ${BOOK_OR_PEN}?`,
     options: [
-      { id: "book", label: "book/pen", image: CARD.book },
+      { id: "book", label: "book", image: CARD.book },
       { id: "shell", label: "shell", image: CARD.shell },
       { id: "pen2", label: "pen", image: CARD.pen },
       { id: "clock", label: "clock", image: CARD.clock },
     ],
-    correctId: "book",
+    correctId: BOOK_OR_PEN === "book" ? "book" : "pen2",
     audioUrl: `${P1_AUDIO}/10-book-pen.mp3`,
   },
   // 10b — Cau-hoi-mic (câu hỏi phụ Yes/No — chỉ hiện đúng 1 thẻ, trả lời bằng mic) (Câu 15/16)
   {
     type: "mic",
-    examinerLine: "Is this the book/pen?",
-    card: { id: "book", label: "book/pen", image: CARD.book },
+    examinerLine: `Is this the ${BOOK_OR_PEN}?`,
+    card: BOOK_OR_PEN_CARD,
     answerTemplate: "Yes, it is. / No, it isn't.",
     expectedYesNo: "yes",
     audioUrl: `${P1_AUDIO}/10-followup.mp3`,
@@ -211,10 +222,10 @@ const STARTERS_1_TEST1_PART1 = [
   // 11 — Dat-vi-tri (không tách câu hỏi phụ — xem ghi chú đầu file) (Câu 16/16)
   {
     type: "drag-drop",
-    examinerLine: "Put the book/pen in front of the babies.",
+    examinerLine: `Put the ${BOOK_OR_PEN} in front of the babies.`,
     sceneImage: SCENE,
-    card: { id: "book", label: "book/pen", image: CARD.book },
-    target: { id: "babies", label: "in front of the babies", x: 38, y: 74, w: 12, h: 12 },
+    card: BOOK_OR_PEN_CARD,
+    target: { id: "babies", label: "in front of the babies", x: 49.71, y: 55.6, w: 8.5, h: 15.63 },
     followupLine: "In front of the babies.",
     audioUrl: `${P1_AUDIO}/11-babies.mp3`,
     followupAudioUrl: `${P1_AUDIO}/11-followup.mp3`,
@@ -226,20 +237,20 @@ const STARTERS_1_TEST1_PART1 = [
   // 17 — Cau-hoi-mic (câu chính) — highlight giống cách làm ở scene "Are these the oranges?" (Câu 9/16)
   {
     type: "mic",
-    examinerLine: "Now, *, what's this?",
+    examinerLine: "What are these?",
     sceneImage: SCENE,
     highlight: PINEAPPLE_HL,
-    answerTemplate: "It's a ....",
-    expectedKeyword: "pineapple",
+    answerTemplate: "They are ....",
+    expectedKeyword: "pineapples",
     audioUrl: `${P1_AUDIO}/17-pineapple-what.mp3`,
   },
   // 18 — Cau-hoi-mic (câu hỏi phụ, scene riêng)
   {
     type: "mic",
-    examinerLine: "Is it a pineapple?",
+    examinerLine: "Are they pineapples?",
     sceneImage: SCENE,
     highlight: PINEAPPLE_HL,
-    answerTemplate: "Yes, it is. / No, it isn't.",
+    answerTemplate: "Yes, they are. / No, they aren't.",
     expectedYesNo: "yes",
     audioUrl: `${P1_AUDIO}/18-pineapple-confirm.mp3`,
   },
@@ -276,7 +287,7 @@ const STARTERS_1_TEST1_PART1 = [
   // 22 — Cau-hoi-mic (câu hỏi phụ, scene riêng — dạng lựa chọn 2 phương án, chấm theo từ khoá)
   {
     type: "mic",
-    examinerLine: "Are there two? Three?",
+    examinerLine: "Are there three or two pineapples?",
     sceneImage: SCENE,
     highlight: PINEAPPLE_HL,
     answerTemplate: "There are ....",
@@ -290,7 +301,7 @@ const STARTERS_1_TEST1_PART1 = [
     sceneImage: SCENE,
     highlight: WOMAN_HL,
     answerTemplate: "She's ....",
-    expectedKeyword: "phoning",
+    expectedKeyword: ["phoning", "talking"], // 2 đáp án đều đúng theo sách
     audioUrl: `${P1_AUDIO}/23-woman-doing.mp3`,
   },
   // 24 — Cau-hoi-mic (câu hỏi phụ, scene riêng)
@@ -310,7 +321,7 @@ const STARTERS_1_TEST1_PART1 = [
     sceneImage: SCENE,
     highlight: FLOWERS_HL,
     answerTemplate: "They're ....",
-    expectedKeyword: "pink",
+    expectedKeyword: ["pink", "table"], // 2 đáp án đều đúng theo sách (màu sắc hoặc vị trí)
     audioUrl: `${P1_AUDIO}/25-flowers-colour.mp3`,
   },
   // 26 — Cau-hoi-mic (câu hỏi phụ, scene riêng)
@@ -533,7 +544,7 @@ const STARTERS_1_TEST1_PART1 = [
   // 49 — Cau-hoi-mic (câu hỏi cá nhân mở, không chấm đúng/sai)
   {
     type: "mic",
-    examinerLine: "Now, *, do you live in a house or a flat/apartment?",
+    examinerLine: "Now, *, do you live in a house or a flat?",
     answerTemplate: "I live in a ....",
     audioUrl: `${P1_AUDIO}/49-live-where.mp3`,
   },
@@ -548,15 +559,15 @@ const STARTERS_1_TEST1_PART1 = [
   // 51 — Cau-hoi-mic (câu hỏi cá nhân mở, không chấm đúng/sai)
   {
     type: "mic",
-    examinerLine: "Who lives in your house/flat/apartment?",
+    examinerLine: "Who lives in your house?",
     answerTemplate: "I live with ....",
     audioUrl: `${P1_AUDIO}/51-live-who.mp3`,
   },
   // 52 — Cau-hoi-mic (câu hỏi phụ, scene riêng — cá nhân Yes/No)
   {
     type: "mic",
-    examinerLine: "Does your family live in your house/flat/apartment?",
-    answerTemplate: "Yes, they do. / No, they don't.",
+    examinerLine: "Does your family live in a house?",
+    answerTemplate: "Yes, we do. / No, we don't.",
     expectedYesNo: "either",
     audioUrl: `${P1_AUDIO}/52-live-who-followup.mp3`,
   },
@@ -579,7 +590,7 @@ const STARTERS_1_TEST1_PART1 = [
   {
     type: "mic",
     examinerLine: "OK. Thank you, *. Goodbye.",
-    answerTemplate: "....",
+    answerTemplate: "Goodbye!",
     expectedKeyword: "goodbye",
     audioUrl: `${P1_AUDIO}/55-goodbye.mp3`,
   },

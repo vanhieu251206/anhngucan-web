@@ -25,6 +25,12 @@ export function setUnlockedInSession() {
   sessionStorage.setItem(UNLOCK_KEY, "1");
 }
 
+// Khoá lại ngay khi thoát khỏi 1 bài học — theo yêu cầu chốt 2026-08-15: mỗi lần vào bài học
+// đều phải nhập mật khẩu lại, không mở khoá cho cả phiên trình duyệt nữa như trước.
+export function lockSession() {
+  sessionStorage.removeItem(UNLOCK_KEY);
+}
+
 // Đọc doc settings/access (chứa passwordHash) — cache lại trong sessionStorage để KHÔNG đọc lại
 // Firestore mỗi lần PasswordGate mount trong cùng 1 phiên (tránh tốn quota đọc miễn phí/ngày).
 export async function getAccessHash() {
