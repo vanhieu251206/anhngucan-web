@@ -60,7 +60,13 @@ function loadPieces(onProgress) {
       }
 
       return { tokenizer, processor, model };
-    })();
+    })().catch(err => {
+      // Không cache lại lần tải LỖI — nếu không, mọi lần bấm mic sau sẽ lập tức fail theo lỗi
+      // cũ mãi mãi (kể cả khi nguyên nhân chỉ là mạng chập chờn tạm thời lúc đó) thay vì được
+      // thử tải lại. Chỉ cache khi tải THÀNH CÔNG.
+      piecesPromise = null;
+      throw err;
+    });
   }
   return piecesPromise;
 }

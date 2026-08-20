@@ -265,11 +265,14 @@ function MicScene({ scene, onNext }) {
           const result = await assessPronunciation(blob, scene.expectedKeyword || scene.expectedYesNo || "");
           said = result.text || "";
         } catch (err) {
-          setHeard(
+          const friendly =
             err?.message === "model-load-timeout"
               ? "Đang tải mô hình nhận diện (lần đầu có thể hơi lâu), đợi chút rồi thử lại nhé!"
-              : "Không nghe rõ, thử bấm mic nói lại lần nữa nhé!",
-          );
+              : "Không nghe rõ, thử bấm mic nói lại lần nữa nhé!";
+          // TẠM THỜI hiện thêm chi tiết lỗi thật (tên/message) để debug lỗi mic trên thiết bị
+          // thật — xoá dòng debugDetail này sau khi xác định xong nguyên nhân.
+          const debugDetail = err ? ` [debug: ${err.name || "Error"}: ${err.message || String(err)}]` : "";
+          setHeard(friendly + debugDetail);
           setPhase("ask");
           return;
         }
@@ -317,8 +320,11 @@ function MicScene({ scene, onNext }) {
       };
       setPhase("recording");
       recorder.start();
-    } catch {
-      setHeard("Không dùng được micro. Kiểm tra quyền truy cập micro.");
+    } catch (err) {
+      // TẠM THỜI hiện thêm chi tiết lỗi thật để debug lỗi mic trên thiết bị thật — xoá phần
+      // debug này sau khi xác định xong nguyên nhân.
+      const debugDetail = err ? ` [debug: ${err.name || "Error"}: ${err.message || String(err)}]` : "";
+      setHeard("Không dùng được micro. Kiểm tra quyền truy cập micro." + debugDetail);
     }
   }
 
