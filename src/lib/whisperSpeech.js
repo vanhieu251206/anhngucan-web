@@ -84,9 +84,23 @@ async function blobToFloat32Audio(blob) {
   return rendered.getChannelData(0);
 }
 
+function withTimeout(promise, ms, message) {
+  const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error(message)), ms));
+  return Promise.race([promise, timeout]);
+}
+
 export async function transcribeBlob(blob, onProgress) {
+  // Tách riêng thời gian chờ TẢI MODEL (có thể rất lâu ở lần đầu tiên trên mạng di động — model
+  // ~90MB — nếu ModelPreloader chưa tải xong trước khi học sinh bấm mic) khỏi thời gian chờ NHẬN
+  // DIỆN thực tế (nhanh, model đã sẵn trong bộ nhớ). Gộp chung 1 timeout ngắn trước đây khiến lần
+  // bấm mic đầu tiên trên mạng chậm/4G dễ bị timeout oan dù model vẫn đang tải bình thường.
+  const { tokenizer, processor, model } = await withTimeout(
+    loadPieces(onProgress),
+    120000,
+    "model-load-timeout",
+  );
+
   const work = (async () => {
-    const { tokenizer, processor, model } = await loadPieces(onProgress);
     const audio = await blobToFloat32Audio(blob);
     const inputs = await processor(audio);
     const outputs = await model.generate({ ...inputs, max_new_tokens: MAX_NEW_TOKENS });
@@ -94,10 +108,8 @@ export async function transcribeBlob(blob, onProgress) {
     return (text || "").trim();
   })();
 
-  // An toàn: đôi khi bị treo (đã gặp ở lần gọi thứ 2 trở đi trong cùng phiên) — không để nó
-  // chặn cả bài học, timeout thì coi như không nghe rõ.
-  const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error("transcribe-timeout")), 25000));
-  return Promise.race([work, timeout]);
+  // An toàn: đôi khi bị treo — không để nó chặn cả bài học, timeout thì coi như không nghe rõ.
+  return withTimeout(work, 20000, "transcribe-timeout");
 }
 
 export function isRecordingSupported() {

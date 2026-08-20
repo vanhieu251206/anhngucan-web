@@ -264,8 +264,12 @@ function MicScene({ scene, onNext }) {
         try {
           const result = await assessPronunciation(blob, scene.expectedKeyword || scene.expectedYesNo || "");
           said = result.text || "";
-        } catch {
-          setHeard("Không kết nối được dịch vụ nhận diện giọng nói. Thử lại sau nhé!");
+        } catch (err) {
+          setHeard(
+            err?.message === "model-load-timeout"
+              ? "Đang tải mô hình nhận diện (lần đầu có thể hơi lâu), đợi chút rồi thử lại nhé!"
+              : "Không nghe rõ, thử bấm mic nói lại lần nữa nhé!",
+          );
           setPhase("ask");
           return;
         }
