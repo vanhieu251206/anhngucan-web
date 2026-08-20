@@ -30,14 +30,13 @@ env.localModelPath = `${import.meta.env.BASE_URL}models/`;
 const MODEL_ID = "onnx-community/whisper-base.en";
 const MAX_NEW_TOKENS = 64;
 
+// TẠM THỜI ép luôn false (tắt hẳn WebGPU) để kiểm chứng nghi ngờ: tổ hợp encoder fp16 chạy
+// WebGPU đang cho kết quả sai (nhận được "..." hoặc chỉ 1 chữ cái dù ghi âm rõ ràng, đỉnh âm
+// bình thường) — có thể là bug trong cách xử lý fp16 trên WebGPU của thư viện. Nếu tắt WebGPU mà
+// nhận diện đúng trở lại thì xác nhận đúng nguyên nhân, sẽ cân nhắc bỏ hẳn nhánh WebGPU hoặc tìm
+// cấu hình dtype khác an toàn hơn thay vì fp16.
 async function detectWebGpu() {
-  if (typeof navigator === "undefined" || !navigator.gpu) return false;
-  try {
-    const adapter = await navigator.gpu.requestAdapter();
-    return !!adapter;
-  } catch {
-    return false;
-  }
+  return false;
 }
 
 let piecesPromise = null;
