@@ -15,9 +15,6 @@ dist-ssr
 # Cấu hình Firebase cục bộ (xem .env.example) — không commit, dùng GitHub Actions secrets khi deploy.
 .env
 
-# Secret Azure Speech dùng khi chạy `wrangler dev` cục bộ (worker/README.md) — không commit.
-worker/.dev.vars
-
 # Sách giáo trình gốc (có bản quyền, chỉ dùng tham khảo nội bộ, không đẩy lên repo)
 Input/
 

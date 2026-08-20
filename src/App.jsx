@@ -8,6 +8,7 @@ import ContactPage from "./pages/ContactPage.jsx";
 import LoginPage from "./pages/LoginPage.jsx";
 import SettingsPage from "./pages/SettingsPage.jsx";
 import DashboardPage from "./pages/DashboardPage.jsx";
+import ModelPreloader from "./components/ModelPreloader.jsx";
 import { useAuth } from "./lib/authContext.jsx";
 import { readParams, setParams } from "./lib/urlState.js";
 
@@ -50,7 +51,12 @@ export default function App() {
   // Khu vực quản trị (dashboard) có layout TÁCH BIỆT hoàn toàn khỏi web công khai — không
   // bọc Header/Footer, giống cách SceneRunner render fullscreen riêng trong LessonsPage.jsx.
   if (page === "dashboard" && isStaff) {
-    return <DashboardPage onNavigate={setPage} />;
+    return (
+      <>
+        <DashboardPage onNavigate={setPage} />
+        <ModelPreloader />
+      </>
+    );
   }
 
   // Trang chủ và Bài học dùng chung 1 kiểu màn hình riêng (logo + nút riêng, không Header/Footer
@@ -59,6 +65,7 @@ export default function App() {
     return (
       <>
         <HomePage onNavigate={setPage} onSelectSeries={goToLessons} />
+        <ModelPreloader />
       </>
     );
   }
@@ -67,6 +74,7 @@ export default function App() {
     return (
       <>
         <LessonsPage initialSeriesId={lessonSeriesId} onNavigate={setPage} />
+        <ModelPreloader />
       </>
     );
   }
@@ -83,6 +91,7 @@ export default function App() {
       </main>
 
       <Footer onNavigate={setPage} />
+      <ModelPreloader />
     </>
   );
 }

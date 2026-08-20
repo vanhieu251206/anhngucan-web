@@ -258,9 +258,8 @@ function MicScene({ scene, onNext }) {
         }
         setPhase("busy");
         setHeard("");
-        // Chấm qua Azure Speech (Worker) — không còn fallback Whisper WASM. Nếu Worker/Azure lỗi
-        // (offline, hết hạn mức free tier...) thì báo rõ cho học sinh thay vì âm thầm rớt xuống
-        // engine khác (đã bỏ theo yêu cầu người dùng).
+        // Nhận diện qua Whisper (client-side, xem pronunciationApi.js). Nếu lỗi (model chưa tải
+        // xong, treo quá timeout...) thì báo rõ cho học sinh thay vì âm thầm bỏ qua.
         let said = "";
         try {
           const result = await assessPronunciation(blob, scene.expectedKeyword || scene.expectedYesNo || "");
