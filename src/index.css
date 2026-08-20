@@ -1604,20 +1604,16 @@ button { font-family: inherit; }
   font-weight: 700;
   cursor: pointer;
 }
-.studio-template-popover {
-  position: absolute;
-  bottom: 100%;
-  left: 20px;
-  margin-bottom: 8px;
+/* Ô chọn hành động NẰM TRONG sidebar (không còn là popover nổi trên filmstrip) — chọn xong mới
+   hiện phần nội dung riêng của hành động đó bên dưới, xem TestStudio.jsx. */
+.studio-action-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  grid-template-columns: 1fr;
   gap: 10px;
-  background: var(--admin-card-bg, #fff);
-  border: 1px solid var(--admin-border, #e4e7ee);
-  border-radius: 14px;
-  box-shadow: var(--admin-shadow-lg);
-  padding: 16px;
-  width: min(720px, calc(100vw - 40px));
+}
+.studio-change-action-btn {
+  align-self: flex-start;
+  margin-top: -6px;
 }
 
 @media (max-width: 900px) {

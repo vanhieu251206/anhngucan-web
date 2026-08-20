@@ -1,7 +1,6 @@
 import { useState } from "react";
 import ImageUploadField from "../ImageUploadField.jsx";
 import CardFieldGroup from "../CardFieldGroup.jsx";
-import SceneLineFields from "./SceneLineFields.jsx";
 
 // Loại `mic` — xem Bài học/starters-1-test1-part1/phan-loai-scene.md mục 1 để tra cứu ý nghĩa
 // từng biến thể/nhóm chấm. 3 biến thể ảnh: không ảnh / sceneImage+highlight / card (loại trừ nhau).
@@ -12,11 +11,25 @@ import SceneLineFields from "./SceneLineFields.jsx";
 // ("" hoặc undefined), suy ra kiểu cũ sẽ đọc nhầm thành "chưa chọn gì" và tự bỏ tick ngay lập tức
 // (bug đã gặp 2026-08-20). State cục bộ được TestStudio reset đúng lúc bằng `key={selected}` mỗi
 // khi đổi sang scene khác.
+function keywordToText(expectedKeyword) {
+  return Array.isArray(expectedKeyword) ? expectedKeyword.join(", ") : expectedKeyword ?? "";
+}
+
 export default function MicSceneForm({ scene, onChange }) {
   const [layout, setLayoutState] = useState(() => (scene.card ? "card" : scene.sceneImage != null ? "scene" : "none"));
   const [grading, setGradingState] = useState(() =>
     scene.expectedYesNo ? "yesno" : scene.expectedKeyword != null ? "keyword" : "none"
   );
+  // Text nhập RỜI khỏi scene.expectedKeyword — gõ dấu phẩy để tách nhiều đáp án cùng đúng (vd
+  // "phoning, talking") thì cần giữ nguyên chuỗi đang gõ (kể cả dấu phẩy/khoảng trắng cuối chưa
+  // xong từ tiếp theo), không thể controlled trực tiếp bằng giá trị mảng đã tách+lọc rỗng ở trên.
+  const [keywordText, setKeywordText] = useState(() => keywordToText(scene.expectedKeyword));
+
+  function setKeyword(raw) {
+    setKeywordText(raw);
+    const parts = raw.split(",").map(s => s.trim()).filter(Boolean);
+    onChange({ expectedKeyword: parts.length > 1 ? parts : parts[0] ?? "" });
+  }
 
   function setLayout(next) {
     setLayoutState(next);
@@ -28,13 +41,14 @@ export default function MicSceneForm({ scene, onChange }) {
     setGradingState(next);
     if (next === "none") onChange({ expectedYesNo: undefined, expectedKeyword: undefined });
     if (next === "yesno") onChange({ expectedYesNo: "either", expectedKeyword: undefined });
-    if (next === "keyword") onChange({ expectedYesNo: undefined, expectedKeyword: "" });
+    if (next === "keyword") {
+      setKeywordText("");
+      onChange({ expectedYesNo: undefined, expectedKeyword: "" });
+    }
   }
 
   return (
     <div className="admin-scene-form">
-      <SceneLineFields scene={scene} onChange={onChange} />
-
       <label className="admin-mini-field">
         <span>Gợi ý trả lời (chỗ trống dùng ....)</span>
         <input
@@ -53,12 +67,19 @@ export default function MicSceneForm({ scene, onChange }) {
             checked={layout === "scene"}
             onChange={e => setLayout(e.target.checked ? "scene" : "none")}
           />
-          <span>Ảnh Scene + khoanh vùng</span>
+          <span>Ảnh Scene</span>
         </label>
         {layout === "scene" && (
           <>
             <ImageUploadField value={scene.sceneImage} onChange={sceneImage => onChange({ sceneImage })} />
-            <p className="admin-muted-text">Kéo chuột trên ảnh xem trước bên phải để khoanh vùng (highlight).</p>
+            <p className="admin-muted-text">
+              Không cần làm gì thêm nếu chỉ muốn hiện ảnh. Muốn khoanh vùng (tuỳ chọn) thì kéo chuột trên ảnh xem trước bên phải.
+            </p>
+            {scene.highlight && (
+              <button type="button" className="admin-link-btn" onClick={() => onChange({ highlight: null })}>
+                ✕ Xoá vùng đã khoanh
+              </button>
+            )}
           </>
         )}
         <label className="admin-checkbox-row">
@@ -91,12 +112,15 @@ export default function MicSceneForm({ scene, onChange }) {
           </select>
         )}
         {grading === "keyword" && (
-          <input
-            className="admin-input"
-            placeholder="Từ khoá đáp án (vd: fish)"
-            value={scene.expectedKeyword ?? ""}
-            onChange={e => onChange({ expectedKeyword: e.target.value })}
-          />
+          <label className="admin-mini-field">
+            <span>Từ khoá đáp án — nhiều đáp án đều đúng thì cách nhau bằng dấu phẩy</span>
+            <input
+              className="admin-input"
+              placeholder="vd: fish  hoặc  phoning, talking"
+              value={keywordText}
+              onChange={e => setKeyword(e.target.value)}
+            />
+          </label>
         )}
       </fieldset>
     </div>

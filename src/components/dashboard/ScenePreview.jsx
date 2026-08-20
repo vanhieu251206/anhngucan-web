@@ -144,11 +144,14 @@ export default function ScenePreview({ scene, onChange }) {
 
         {scene.type === "card-select" && (
           <div className="part1-options">
-            {(scene.options ?? []).map((opt, i) => (
-              <div key={i} className={`part1-option${opt.id && opt.id === scene.correctId ? " is-correct" : ""}`}>
-                {opt.image && <img src={opt.image} alt="" />}
-              </div>
-            ))}
+            {(() => {
+              const correctIds = scene.correctIds ?? (scene.correctId ? [scene.correctId] : []);
+              return (scene.options ?? []).map((opt, i) => (
+                <div key={i} className={`part1-option${opt.id && correctIds.includes(opt.id) ? " is-correct" : ""}`}>
+                  {opt.image && <img src={opt.image} alt="" />}
+                </div>
+              ));
+            })()}
           </div>
         )}
       </div>

@@ -1,7 +1,6 @@
 import { useState } from "react";
 import ImageUploadField from "../ImageUploadField.jsx";
 import CardFieldGroup from "../CardFieldGroup.jsx";
-import SceneLineFields from "./SceneLineFields.jsx";
 
 // Loại `narration` — không cần học sinh trả lời, chỉ nghe + xem. Tuỳ chọn thêm `highlight`
 // (khoanh vùng chỉ xem) HOẶC `demoCard` (giám khảo làm mẫu đặt thẻ) — 2 cái loại trừ nhau.
@@ -23,8 +22,6 @@ export default function NarrationSceneForm({ scene, onChange }) {
 
   return (
     <div className="admin-scene-form">
-      <SceneLineFields scene={scene} onChange={onChange} />
-
       <fieldset className="admin-fieldset">
         <legend>🖼️ Ảnh Scene</legend>
         <ImageUploadField value={scene.sceneImage} onChange={sceneImage => onChange({ sceneImage })} />

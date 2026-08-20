@@ -4,6 +4,7 @@ import NarrationSceneForm from "./scene-forms/NarrationSceneForm.jsx";
 import SceneClickSceneForm from "./scene-forms/SceneClickSceneForm.jsx";
 import CardSelectSceneForm from "./scene-forms/CardSelectSceneForm.jsx";
 import DragDropSceneForm from "./scene-forms/DragDropSceneForm.jsx";
+import SceneLineFields from "./scene-forms/SceneLineFields.jsx";
 import ScenePreview from "./ScenePreview.jsx";
 
 const TEMPLATES = [
@@ -24,39 +25,47 @@ function templateOf(type) {
   return TEMPLATES.find(t => t.type === type);
 }
 
-function defaultScene(type) {
-  const base = { type, examinerLine: "", audioUrl: null };
-  if (type === "mic") return { ...base, answerTemplate: "" };
+// Scene mới luôn bắt đầu KHÔNG có hành động (type: null) — câu dẫn/audio nhập trước, chọn hành
+// động sau (xem TestStudio bên dưới). Đây là phần chung mọi loại scene đều có.
+function blankScene() {
+  return { type: null, examinerLine: "", audioUrl: null };
+}
+
+// Field riêng theo từng loại hành động — gắn kèm base (examinerLine/audioUrl) hiện có của scene
+// khi người soạn chọn/đổi hành động, để không mất câu dẫn đã gõ trước đó.
+function extraFieldsOf(type) {
+  if (type === "mic") return { answerTemplate: "" };
   if (type === "card-select")
     return {
-      ...base,
       options: [
         { id: "", label: "", image: null },
         { id: "", label: "", image: null },
         { id: "", label: "", image: null },
         { id: "", label: "", image: null },
       ],
-      correctId: "",
+      correctIds: [],
     };
-  if (type === "drag-drop") return { ...base, card: { id: "", label: "", image: null }, target: null };
-  return base;
+  if (type === "drag-drop") return { card: { id: "", label: "", image: null }, target: null };
+  return {};
 }
 
 // Màn thiết kế bài Speaking riêng biệt kiểu Canva: đổi tên Test ở top bar, form nhập liệu ở
 // sidebar trái theo đúng scene đang chọn, xem trước Y HỆT giao diện thật ở giữa, danh sách scene
-// dạng filmstrip kéo-thả sắp xếp lại ở dưới cùng. Thay cho SceneListBuilder/SceneEditorForm cũ
-// (2 màn tách rời: 1 danh sách + 1 form-preview riêng) — giờ gộp thành 1 màn full-screen duy nhất.
+// dạng filmstrip kéo-thả sắp xếp lại ở dưới cùng.
+//
+// Sidebar CỐ ĐỊNH: câu dẫn/câu hỏi (SceneLineFields) luôn ở đầu tiên, không phụ thuộc scene đã
+// chọn hành động hay chưa. Sau đó mới đến việc chọn hành động (5 ô như cũ, nhưng nằm ngay trong
+// sidebar thay vì popover riêng) — chọn xong mới hiện tiếp phần nội dung/ảnh riêng của hành động
+// đó. Thay cho luồng cũ (bắt buộc chọn loại scene trước khi soạn được gì).
 export default function TestStudio({ accent, title, onTitleChange, scenes, onScenesChange, onBack, onSave, saving, saved }) {
   const [selected, setSelected] = useState(scenes.length ? 0 : null);
-  const [pickingTemplate, setPickingTemplate] = useState(scenes.length === 0);
   const [dragIndex, setDragIndex] = useState(null);
   const scene = selected !== null ? scenes[selected] : null;
-  const Form = scene ? FORMS[scene.type] : null;
+  const Form = scene?.type ? FORMS[scene.type] : null;
 
-  function addScene(type) {
-    const next = [...scenes, defaultScene(type)];
+  function addScene() {
+    const next = [...scenes, blankScene()];
     onScenesChange(next);
-    setPickingTemplate(false);
     setSelected(next.length - 1);
   }
   function updateScene(patch) {
@@ -64,6 +73,13 @@ export default function TestStudio({ accent, title, onTitleChange, scenes, onSce
     const next = [...scenes];
     next[selected] = { ...next[selected], ...patch };
     onScenesChange(next);
+  }
+  function chooseAction(type) {
+    updateScene({ type, ...extraFieldsOf(type) });
+  }
+  function changeAction() {
+    // Quay lại chọn hành động khác — giữ nguyên câu dẫn/audio, xoá field riêng của hành động cũ.
+    updateScene({ type: null });
   }
   function deleteScene(i) {
     const next = scenes.filter((_, idx) => idx !== i);
@@ -125,25 +141,58 @@ export default function TestStudio({ accent, title, onTitleChange, scenes, onSce
             <>
               <div className="studio-sidebar-head">
                 <span className="studio-sidebar-type">
-                  {templateOf(scene.type)?.icon} {templateOf(scene.type)?.label}
+                  {scene.type ? `${templateOf(scene.type)?.icon} ${templateOf(scene.type)?.label}` : "Scene mới"}
                 </span>
                 <div className="studio-sidebar-actions">
                   <button className="admin-link-btn" onClick={() => duplicateScene(selected)}>Nhân bản</button>
                   <button className="admin-link-btn admin-pill-btn-danger" onClick={() => deleteScene(selected)}>Xoá</button>
                 </div>
               </div>
-              <Form key={selected} scene={scene} onChange={updateScene} />
+
+              <div className="admin-scene-form">
+                <SceneLineFields scene={scene} onChange={updateScene} />
+
+                {scene.type ? (
+                  <>
+                    <button type="button" className="admin-link-btn studio-change-action-btn" onClick={changeAction}>
+                      ↺ Đổi hành động
+                    </button>
+                    <Form key={`${selected}-${scene.type}`} scene={scene} onChange={updateScene} />
+                  </>
+                ) : (
+                  <fieldset className="admin-fieldset">
+                    <legend>⚡ Chọn hành động</legend>
+                    <div className="studio-action-grid">
+                      {TEMPLATES.map(t => (
+                        <button
+                          key={t.type}
+                          type="button"
+                          className="admin-template-tile"
+                          onClick={() => chooseAction(t.type)}
+                        >
+                          <strong>{t.icon} {t.label}</strong>
+                          <span>{t.desc}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </fieldset>
+                )}
+              </div>
             </>
           )}
         </aside>
 
         <main className="studio-preview-area">
-          {scene ? (
+          {scene?.type ? (
             <ScenePreview scene={scene} onChange={updateScene} />
           ) : (
             <div className="admin-empty-state">
               <span className="admin-empty-state-icon">🎬</span>
-              <p>Chưa có scene nào — bấm "+ Thêm scene" bên dưới để bắt đầu.</p>
+              <p>
+                {scene
+                  ? "Chọn 1 hành động ở sidebar bên trái để xem trước."
+                  : 'Chưa có scene nào — bấm "+ Thêm scene" bên dưới để bắt đầu.'}
+              </p>
             </div>
           )}
         </main>
@@ -165,29 +214,17 @@ export default function TestStudio({ accent, title, onTitleChange, scenes, onSce
               }}
               onDragEnd={() => setDragIndex(null)}
               onClick={() => setSelected(i)}
-              title={s.examinerLine || templateOf(s.type)?.label}
+              title={s.examinerLine || templateOf(s.type)?.label || "Scene mới"}
             >
               <span className="studio-filmchip-index">{i + 1}</span>
-              <span className="studio-filmchip-icon">{templateOf(s.type)?.icon}</span>
-              <span className="studio-filmchip-label">{s.examinerLine || templateOf(s.type)?.label}</span>
+              <span className="studio-filmchip-icon">{templateOf(s.type)?.icon ?? "❓"}</span>
+              <span className="studio-filmchip-label">{s.examinerLine || templateOf(s.type)?.label || "Chưa chọn hành động"}</span>
             </button>
           ))}
-          <button type="button" className="studio-filmchip studio-filmchip-add" onClick={() => setPickingTemplate(v => !v)}>
+          <button type="button" className="studio-filmchip studio-filmchip-add" onClick={addScene}>
             + Thêm scene
           </button>
         </div>
-
-        {pickingTemplate && (
-          <div className="studio-template-popover">
-            {TEMPLATES.map(t => (
-              <button key={t.type} type="button" className="admin-template-tile" onClick={() => addScene(t.type)}>
-                <strong>{t.icon} {t.label}</strong>
-                <span>{t.desc}</span>
-              </button>
-            ))}
-            <button type="button" className="admin-link-btn" onClick={() => setPickingTemplate(false)}>Huỷ</button>
-          </div>
-        )}
       </div>
     </div>
   );

@@ -1,13 +1,10 @@
 import ImageUploadField from "../ImageUploadField.jsx";
-import SceneLineFields from "./SceneLineFields.jsx";
 
 // Loại `scene-click` — học sinh bấm đúng vị trí trong ảnh Scene.
 export default function SceneClickSceneForm({ scene, onChange }) {
   const target = scene.target ?? {};
   return (
     <div className="admin-scene-form">
-      <SceneLineFields scene={scene} onChange={onChange} />
-
       <fieldset className="admin-fieldset">
         <legend>🖼️ Ảnh Scene</legend>
         <ImageUploadField value={scene.sceneImage} onChange={sceneImage => onChange({ sceneImage })} />

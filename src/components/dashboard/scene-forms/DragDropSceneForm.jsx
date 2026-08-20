@@ -1,7 +1,6 @@
 import ImageUploadField from "../ImageUploadField.jsx";
 import AudioUploadField from "../AudioUploadField.jsx";
 import CardFieldGroup from "../CardFieldGroup.jsx";
-import SceneLineFields from "./SceneLineFields.jsx";
 
 // Loại `drag-drop` — học sinh kéo 1 thẻ vào đúng vị trí trên ảnh Scene. Duy nhất loại có thêm
 // followupLine/followupAudioUrl (đọc thêm câu hỏi phụ tại chỗ sau khi đúng, không tách scene).
@@ -9,8 +8,6 @@ export default function DragDropSceneForm({ scene, onChange }) {
   const target = scene.target ?? {};
   return (
     <div className="admin-scene-form">
-      <SceneLineFields scene={scene} onChange={onChange} />
-
       <fieldset className="admin-fieldset">
         <legend>🖼️ Ảnh Scene</legend>
         <ImageUploadField value={scene.sceneImage} onChange={sceneImage => onChange({ sceneImage })} />
