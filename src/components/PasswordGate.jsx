@@ -38,6 +38,7 @@ export default function PasswordGate({ onUnlock }) {
       <h1 className="page-title">Bài học đang khoá 🔒</h1>
       <p className="lead">Nhập mật khẩu cô/thầy đã cung cấp để mở khoá bài học nhé.</p>
 
+      {!hashLoaded && <p className="auth-hint">Đang tải dữ liệu, đợi một chút nhé...</p>}
       {hashError && (
         <p className="auth-error">Không tải được thông tin khoá bài học. Kiểm tra lại kết nối mạng.</p>
       )}
@@ -55,7 +56,7 @@ export default function PasswordGate({ onUnlock }) {
           autoFocus
         />
         <button className="btn btn-primary" type="submit" disabled={!hash || checking}>
-          {checking ? "Đang kiểm tra..." : "Mở khoá"}
+          {checking ? "Đang kiểm tra..." : !hashLoaded ? "Đang tải..." : "Mở khoá"}
         </button>
         {error && <p className="auth-error">{error}</p>}
       </form>
