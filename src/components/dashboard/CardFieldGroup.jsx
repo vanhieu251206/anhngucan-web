@@ -10,18 +10,24 @@ export default function CardFieldGroup({ value, onChange, title }) {
   return (
     <div className="admin-card-field-group">
       {title && <strong>{title}</strong>}
-      <input
-        className="admin-input"
-        placeholder="id (vd: shell)"
-        value={card.id}
-        onChange={e => set({ id: e.target.value })}
-      />
-      <input
-        className="admin-input"
-        placeholder="Nhãn hiển thị (vd: shell)"
-        value={card.label}
-        onChange={e => set({ label: e.target.value })}
-      />
+      <label className="admin-mini-field">
+        <span>ID</span>
+        <input
+          className="admin-input"
+          placeholder="vd: shell"
+          value={card.id}
+          onChange={e => set({ id: e.target.value })}
+        />
+      </label>
+      <label className="admin-mini-field">
+        <span>Nhãn hiển thị</span>
+        <input
+          className="admin-input"
+          placeholder="vd: shell"
+          value={card.label}
+          onChange={e => set({ label: e.target.value })}
+        />
+      </label>
       <ImageUploadField value={card.image} onChange={image => set({ image })} />
     </div>
   );

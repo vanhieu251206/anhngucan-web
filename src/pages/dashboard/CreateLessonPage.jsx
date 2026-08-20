@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { YLE_SERIES } from "../../lib/yleData.js";
 import { useAuth } from "../../lib/authContext.jsx";
 import { saveListening, getListening, listTests, getTest, saveTest, deleteTest } from "../../lib/adminLessons.js";
-import SceneListBuilder from "../../components/dashboard/SceneListBuilder.jsx";
+import TestStudio from "../../components/dashboard/TestStudio.jsx";
 
 const MODE_INFO = {
   listening: { label: "Listening", icon: "🎧", desc: "Video nghe" },
@@ -259,22 +259,17 @@ function SpeakingEditor({ series, level, uid }) {
 
   if (openTestId) {
     return (
-      <div>
-        <div className="admin-card">
-          <label>
-            Tên Test
-            <input className="admin-input" value={testTitle} onChange={e => setTestTitle(e.target.value)} />
-          </label>
-          <div className="admin-scene-editor-head" style={{ marginTop: 12 }}>
-            <button className="admin-btn-primary" onClick={handleSaveTest} disabled={saving}>
-              {saving ? "Đang lưu..." : "Lưu Test"}
-            </button>
-            <button className="admin-pill-btn" onClick={() => setOpenTestId(null)}>← Quay lại danh sách Test</button>
-            {saved && <span className="admin-success">✓ Đã lưu</span>}
-          </div>
-        </div>
-        <SceneListBuilder scenes={scenes} onChange={setScenes} />
-      </div>
+      <TestStudio
+        accent={series.color}
+        title={testTitle}
+        onTitleChange={setTestTitle}
+        scenes={scenes}
+        onScenesChange={setScenes}
+        onBack={() => setOpenTestId(null)}
+        onSave={handleSaveTest}
+        saving={saving}
+        saved={saved}
+      />
     );
   }
 

@@ -11,7 +11,12 @@ const ADMIN_ITEMS = [
   { key: "create-lesson", label: "Tạo bài" },
   { key: "teachers", label: "Cấu hình tài khoản giáo viên" },
 ];
-const TEACHER_ITEMS = [{ key: "results", label: "Kết quả học sinh" }];
+// Giáo viên cũng được soạn bài (create-lesson) như admin, chỉ không có "Cấu hình tài khoản
+// giáo viên" (chỉ admin mới tạo/quản được tài khoản giáo viên khác).
+const TEACHER_ITEMS = [
+  { key: "create-lesson", label: "Tạo bài" },
+  { key: "results", label: "Kết quả học sinh" },
+];
 
 // Khu vực quản trị — layout TÁCH BIỆT hoàn toàn khỏi giao diện học sinh (không dùng
 // Header/Footer công khai, không dùng tông cam/xanh ngọc), xem class .admin-* trong index.css.
@@ -51,7 +56,7 @@ export default function DashboardPage({ onNavigate }) {
         </div>
         <div className="admin-content">
           {section === "overview" && isAdmin && <OverviewPage />}
-          {section === "create-lesson" && isAdmin && <CreateLessonPage />}
+          {section === "create-lesson" && (isAdmin || isTeacher) && <CreateLessonPage />}
           {section === "teachers" && isAdmin && <TeacherAccountsPage />}
           {section === "results" && isTeacher && <StudentResultsPage />}
         </div>
