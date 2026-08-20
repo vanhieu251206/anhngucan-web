@@ -3,7 +3,6 @@ import {
   AutoProcessor,
   WhisperForConditionalGeneration,
   env,
-  full,
 } from "@huggingface/transformers";
 
 // Model whisper-base.en TỰ HOST trong public/models/ (không tải qua CDN Hugging Face — tránh
@@ -61,11 +60,11 @@ function loadPieces(onProgress) {
         progress_callback: onProgress,
       });
 
-      if (useWebGpu) {
-        // Chạy 1 lần với input rỗng để trình duyệt biên dịch sẵn shader WebGPU — tránh lần bấm
-        // mic đầu tiên của học sinh bị "khựng" thêm vài giây do biên dịch shader lúc đó.
-        await model.generate({ input_features: full([1, 80, 3000], 0.0), max_new_tokens: 1 });
-      }
+      // TẠM THỜI tắt bước "warm up" (chạy generate() thử với input rỗng để biên dịch sẵn shader
+      // WebGPU) — nghi ngờ đây là nguyên nhân khiến lượt nhận diện THẬT đầu tiên sau đó luôn trả
+      // về "..." dù ghi âm rõ ràng (đỉnh âm bình thường, không phải lỗi mic) — có thể do cache
+      // nội bộ (past_key_values...) của lượt generate() rỗng bị dùng sai cho lượt kế tiếp. Đang
+      // kiểm chứng giả thuyết này; nếu đúng sẽ tìm cách warm-up khác an toàn hơn.
 
       return { tokenizer, processor, model };
     })().catch(err => {
