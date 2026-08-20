@@ -19,6 +19,12 @@ import {
 //    Android đời thấp...), chạy CPU qua WASM — chậm hơn nhưng chạy được mọi nơi.
 // Trình duyệt tự cache lại (Cache Storage của onnxruntime-web) nên chỉ tải 1 LẦN DUY NHẤT bộ
 // đang dùng cho mỗi thiết bị, các lượt học sau gần như tức thì.
+// allowLocalModels mặc định là false trong môi trường trình duyệt (xem @huggingface/transformers
+// src/env.js) — PHẢI bật true vì đang tự host model local, không phải tải remote. Thiếu cờ này,
+// bước "kiểm tra file có tồn tại" nội bộ của thư viện (get_file_metadata) luôn trả về false (bỏ
+// qua kiểm tra local VÀ remote), khiến AutoTokenizer nhận danh sách file rỗng và crash với lỗi
+// "undefined is not an object (evaluating '...tokenizer_class')" — đã gặp thực tế trên iPhone.
+env.allowLocalModels = true;
 env.allowRemoteModels = false;
 env.localModelPath = `${import.meta.env.BASE_URL}models/`;
 
