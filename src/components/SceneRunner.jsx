@@ -277,6 +277,11 @@ function MicScene({ scene, onNext }) {
           return;
         }
 
+        // Hiện lại đúng chữ Whisper nghe được (không phải giọng máy đọc lại) — để phụ huynh/giáo
+        // viên kiểm tra máy có nghe đúng những gì học sinh nói không, nhất là lúc mới bật tính
+        // năng nhận diện giọng nói qua Whisper, độ chính xác chưa được kiểm chứng nhiều.
+        setHeard(said ? `Máy nghe được: "${said}"` : "Máy không nghe thấy gì.");
+
         // Câu hỏi Yes/No có đáp án xác định (expectedYesNo: "yes"|"no") → chấm đúng/sai thật,
         // sai thì cho thử lại. "either" (phụ thuộc thông tin cá nhân học sinh) → luôn chấp nhận.
         // Chấp nhận thêm các cách nói tắt phổ biến (yeah/yep/uh-huh, nope/nah) — trẻ nhỏ ít khi
