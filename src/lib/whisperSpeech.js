@@ -5,12 +5,18 @@ import {
   env,
 } from "@huggingface/transformers";
 
-// Model whisper-base.en TỰ HOST trong public/models/ (không tải qua CDN Hugging Face — tránh
-// phụ thuộc tốc độ/khả năng truy cập CDN nước ngoài từ VN). ĐÃ THỬ small.en trước (chính xác
-// hơn) nhưng decoder/encoder của small.en có file vượt quá giới hạn 100MB/file của GitHub (cần
-// Git LFS — free tier chỉ 1GB băng thông/tháng, không đủ cho ~100 học sinh, xem CLAUDE.md mục 2)
-// nên đổi xuống base.en để mọi file đều dưới 100MB, push thẳng lên repo bình thường.
-// Dùng chung 1 bộ decoder quantized (int8) cho cả 2 nhánh thiết bị, chỉ khác encoder:
+// Model whisper-tiny.en TỰ HOST trong public/models/ (không tải qua CDN Hugging Face — tránh
+// phụ thuộc tốc độ/khả năng truy cập CDN nước ngoài từ VN). ĐÃ THỬ base.en/small.en trước (chính
+// xác hơn) nhưng gặp liên tiếp 2 bug đã biết của thư viện @huggingface/transformers khi dùng
+// decoder q8 (dtype "quantized"):
+//  - WebGPU + decoder q8 → kết quả sai/gibberish: github.com/huggingface/transformers.js/issues/1317
+//  - WASM   + decoder q8 → crash lúc tạo session ("Missing required scale... MatMulNBits"):
+//    github.com/huggingface/transformers.js/issues/1707 (đúng y hệt lỗi gặp thực tế với base.en)
+// Cấu hình DUY NHẤT chạy đúng ổn định (theo issue #1707 xác nhận): decoder dùng dtype "q4" thay
+// vì "q8". Decoder q4 của base.en nặng ~118MB (vượt giới hạn 100MB/file không-LFS của GitHub) nên
+// phải hạ xuống tiny.en để decoder q4 chỉ ~87MB, vẫn dưới giới hạn. Đánh đổi: độ chính xác thấp
+// hơn base.en, nhưng ít nhất CHẠY ĐÚNG — ưu tiên đúng trước, tối ưu độ chính xác sau.
+// Dùng chung 1 bộ decoder q4 cho cả 2 nhánh thiết bị, chỉ khác encoder:
 //  - encoder fp16 → dùng khi trình duyệt hỗ trợ WebGPU (chạy trên GPU máy/điện thoại, nhanh
 //    hơn hẳn CPU — theo đúng cấu hình mẫu chính thức của Hugging Face cho Whisper + WebGPU, xem
 //    transformers.js-examples/realtime-whisper-webgpu).
@@ -27,16 +33,17 @@ env.allowLocalModels = true;
 env.allowRemoteModels = false;
 env.localModelPath = `${import.meta.env.BASE_URL}models/`;
 
-const MODEL_ID = "onnx-community/whisper-base.en";
+const MODEL_ID = "onnx-community/whisper-tiny.en";
 const MAX_NEW_TOKENS = 64;
 
-// TẠM THỜI ép luôn false (tắt hẳn WebGPU) để kiểm chứng nghi ngờ: tổ hợp encoder fp16 chạy
-// WebGPU đang cho kết quả sai (nhận được "..." hoặc chỉ 1 chữ cái dù ghi âm rõ ràng, đỉnh âm
-// bình thường) — có thể là bug trong cách xử lý fp16 trên WebGPU của thư viện. Nếu tắt WebGPU mà
-// nhận diện đúng trở lại thì xác nhận đúng nguyên nhân, sẽ cân nhắc bỏ hẳn nhánh WebGPU hoặc tìm
-// cấu hình dtype khác an toàn hơn thay vì fp16.
 async function detectWebGpu() {
-  return false;
+  if (typeof navigator === "undefined" || !navigator.gpu) return false;
+  try {
+    const adapter = await navigator.gpu.requestAdapter();
+    return !!adapter;
+  } catch {
+    return false;
+  }
 }
 
 let piecesPromise = null;
@@ -53,7 +60,7 @@ function loadPieces(onProgress) {
       const model = await WhisperForConditionalGeneration.from_pretrained(MODEL_ID, {
         dtype: {
           encoder_model: useWebGpu ? "fp16" : "q8",
-          decoder_model_merged: "q8",
+          decoder_model_merged: "q4",
         },
         device: useWebGpu ? "webgpu" : "wasm",
         progress_callback: onProgress,

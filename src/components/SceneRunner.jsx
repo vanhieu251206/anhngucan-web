@@ -79,14 +79,6 @@ export default function SceneRunner({ scenes, onFinish }) {
   const scene = scenes[index];
   const isLast = index === scenes.length - 1;
 
-  // TẠM THỜI: cộng dồn tổng thời gian ghi âm mic đã gửi cho Whisper xử lý trong phiên test này —
-  // để người dùng ước tính chi phí nếu sau này chuyển sang dịch vụ tính tiền theo giờ âm thanh
-  // (vd Azure Speech). Chỉ theo dõi trong bộ nhớ (mất khi tải lại trang), không lưu Firestore.
-  const [totalMicSeconds, setTotalMicSeconds] = useState(0);
-  function addMicSeconds(sec) {
-    if (typeof sec === "number" && sec > 0) setTotalMicSeconds(t => t + sec);
-  }
-
   // Rời bài Speaking bằng bất kỳ cách nào (không chỉ nút quay lại, vd bấm logo/menu) đều phải
   // ngưng audio đang phát ngay, không để tiếng tiếp tục phát sau khi đã thoát màn hình.
   useEffect(() => {
@@ -118,11 +110,6 @@ export default function SceneRunner({ scenes, onFinish }) {
     <div className="sentence-box">
       <div className="speaking-progress">
         Câu {index + 1} / {scenes.length}
-        {totalMicSeconds > 0 && (
-          <span title="Tổng thời gian ghi âm đã gửi nhận diện trong phiên test này">
-            {" "}🎙️ {totalMicSeconds.toFixed(1)}s
-          </span>
-        )}
         <span className="dev-test-btns">
           <button
             className="dev-skip-btn"
@@ -139,7 +126,7 @@ export default function SceneRunner({ scenes, onFinish }) {
       </div>
       {scene.type === "narration" && <NarrationScene key={index} scene={scene} onNext={goNext} />}
       {scene.type === "mic" && (
-        <MicScene key={index} scene={scene} onNext={goNext} onMicSeconds={addMicSeconds} />
+        <MicScene key={index} scene={scene} onNext={goNext} />
       )}
       {scene.type === "scene-click" && <SceneClickScene key={index} scene={scene} onNext={goNext} />}
       {scene.type === "card-select" && <CardSelectScene key={index} scene={scene} onNext={goNext} />}
@@ -204,7 +191,7 @@ function micAnswerLabel(scene) {
 }
 
 // ---------- Chao-hoi / câu hỏi mic: hiện mẫu câu trả lời trước khi bấm mic ----------
-function MicScene({ scene, onNext, onMicSeconds }) {
+function MicScene({ scene, onNext }) {
   const [phase, setPhase] = useState("ask"); // ask | recording | busy | done
   const [heard, setHeard] = useState("");
   const [result, setResult] = useState(null); // null | true | false — chỉ dùng khi scene.expectedYesNo
@@ -281,7 +268,6 @@ function MicScene({ scene, onNext, onMicSeconds }) {
           const result = await assessPronunciation(blob, scene.expectedKeyword || scene.expectedYesNo || "");
           said = result.text || "";
           debugInfo = result.debug || null;
-          onMicSeconds?.(debugInfo?.durationSec);
         } catch (err) {
           const friendly =
             err?.message === "model-load-timeout"

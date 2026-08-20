@@ -15,6 +15,10 @@ dist-ssr
 # Cấu hình Firebase cục bộ (xem .env.example) — không commit, dùng GitHub Actions secrets khi deploy.
 .env
 
+# Secret Groq API key dùng khi chạy `wrangler dev` cục bộ (worker/README.md) — không commit.
+worker/.dev.vars
+worker/node_modules
+
 # Sách giáo trình gốc (có bản quyền, chỉ dùng tham khảo nội bộ, không đẩy lên repo)
 Input/
 
