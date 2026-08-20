@@ -261,9 +261,11 @@ function MicScene({ scene, onNext }) {
         // Nhận diện qua Whisper (client-side, xem pronunciationApi.js). Nếu lỗi (model chưa tải
         // xong, treo quá timeout...) thì báo rõ cho học sinh thay vì âm thầm bỏ qua.
         let said = "";
+        let debugInfo = null;
         try {
           const result = await assessPronunciation(blob, scene.expectedKeyword || scene.expectedYesNo || "");
           said = result.text || "";
+          debugInfo = result.debug || null;
         } catch (err) {
           const friendly =
             err?.message === "model-load-timeout"
@@ -280,7 +282,13 @@ function MicScene({ scene, onNext }) {
         // Hiện lại đúng chữ Whisper nghe được (không phải giọng máy đọc lại) — để phụ huynh/giáo
         // viên kiểm tra máy có nghe đúng những gì học sinh nói không, nhất là lúc mới bật tính
         // năng nhận diện giọng nói qua Whisper, độ chính xác chưa được kiểm chứng nhiều.
-        setHeard(said ? `Máy nghe được: "${said}"` : "Máy không nghe thấy gì.");
+        // TẠM THỜI thêm debug (thiết bị dùng WebGPU/WASM, độ dài audio, biên độ lớn nhất) để xác
+        // định nguyên nhân Whisper thỉnh thoảng trả về "..." dù đã nói rõ — xoá phần debug này
+        // sau khi xác định xong nguyên nhân.
+        const debugText = debugInfo
+          ? ` [debug: ${debugInfo.device}, ${debugInfo.durationSec}s, đỉnh âm ${debugInfo.maxAmplitude}, ${debugInfo.blobBytes}B]`
+          : "";
+        setHeard((said ? `Máy nghe được: "${said}"` : "Máy không nghe thấy gì.") + debugText);
 
         // Câu hỏi Yes/No có đáp án xác định (expectedYesNo: "yes"|"no") → chấm đúng/sai thật,
         // sai thì cho thử lại. "either" (phụ thuộc thông tin cá nhân học sinh) → luôn chấp nhận.

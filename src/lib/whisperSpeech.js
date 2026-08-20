@@ -42,11 +42,13 @@ async function detectWebGpu() {
 }
 
 let piecesPromise = null;
+let lastUsedDevice = null;
 
 function loadPieces(onProgress) {
   if (!piecesPromise) {
     piecesPromise = (async () => {
       const useWebGpu = await detectWebGpu();
+      lastUsedDevice = useWebGpu ? "webgpu" : "wasm";
 
       const tokenizer = await AutoTokenizer.from_pretrained(MODEL_ID, { progress_callback: onProgress });
       const processor = await AutoProcessor.from_pretrained(MODEL_ID, { progress_callback: onProgress });
@@ -114,10 +116,27 @@ export async function transcribeBlob(blob, onProgress) {
 
   const work = (async () => {
     const audio = await blobToFloat32Audio(blob);
+    // TẠM THỜI: đo biên độ lớn nhất của audio để phân biệt "ghi âm rỗng/im lặng thật" (biên độ
+    // ~0, MediaRecorder không thu được gì) với "có tiếng nói nhưng Whisper nhận nhầm" (biên độ
+    // bình thường) — đang debug lỗi Whisper trả về "..." dù đã nói rõ. Xoá debug object này sau
+    // khi xác định xong nguyên nhân.
+    let maxAbs = 0;
+    for (let i = 0; i < audio.length; i++) {
+      const v = Math.abs(audio[i]);
+      if (v > maxAbs) maxAbs = v;
+    }
     const inputs = await processor(audio);
     const outputs = await model.generate({ ...inputs, max_new_tokens: MAX_NEW_TOKENS });
     const [text] = tokenizer.batch_decode(outputs, { skip_special_tokens: true });
-    return (text || "").trim();
+    return {
+      text: (text || "").trim(),
+      debug: {
+        device: lastUsedDevice,
+        blobBytes: blob.size,
+        durationSec: Math.round((audio.length / 16000) * 100) / 100,
+        maxAmplitude: Math.round(maxAbs * 1000) / 1000,
+      },
+    };
   })();
 
   // An toàn: đôi khi bị treo — không để nó chặn cả bài học, timeout thì coi như không nghe rõ.
