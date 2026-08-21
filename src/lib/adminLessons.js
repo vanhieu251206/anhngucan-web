@@ -5,17 +5,22 @@ function lessonId(seriesId, level) {
   return `${seriesId}-${level}`;
 }
 
-export async function saveListening(seriesId, level, { videoId, title }, uid) {
+// videos: { videoId, title }[] — cho phép nhúng nhiều video/bài nghe trong 1 cấp độ.
+export async function saveListening(seriesId, level, videos, uid) {
   await setDoc(
     doc(db, "lessons", lessonId(seriesId, level)),
-    { seriesId, level, listening: { videoId, title }, updatedAt: serverTimestamp(), updatedBy: uid },
+    { seriesId, level, listening: videos, updatedAt: serverTimestamp(), updatedBy: uid },
     { merge: true }
   );
 }
 
 export async function getListening(seriesId, level) {
   const snap = await getDoc(doc(db, "lessons", lessonId(seriesId, level)));
-  return snap.exists() ? snap.data().listening ?? null : null;
+  if (!snap.exists()) return null;
+  const listening = snap.data().listening ?? null;
+  if (!listening) return null;
+  // Chuẩn hoá dữ liệu cũ (1 object đơn) thành mảng.
+  return Array.isArray(listening) ? listening : [listening];
 }
 
 export async function listTests(seriesId, level) {

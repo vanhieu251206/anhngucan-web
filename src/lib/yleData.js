@@ -10,10 +10,12 @@ function buildLevel(seriesId, number) {
   return {
     id: `${seriesId}-${number}`,
     number,
-    listening: {
-      videoId: PLACEHOLDER_VIDEO_ID,
-      title: `${seriesId} ${number} – Listening (video mẫu)`,
-    },
+    listening: [
+      {
+        videoId: PLACEHOLDER_VIDEO_ID,
+        title: `${seriesId} ${number} – Listening (video mẫu)`,
+      },
+    ],
     speaking: [
       { image: "", question: "What's this?", answer_keywords: "" },
       { image: "", question: "What colour is it?", answer_keywords: "red, blue, green, yellow" },

@@ -17,6 +17,9 @@ export async function loadLevelContent(series, level) {
     if (snap.exists() && snap.data().listening) {
       listening = snap.data().listening;
     }
+    // Chuẩn hoá thành mảng (hỗ trợ nhiều video/bài nghe) — dữ liệu cũ (hardcode yleData.js hoặc
+    // Firestore trước khi có tính năng này) là 1 object đơn, không phải mảng.
+    if (listening && !Array.isArray(listening)) listening = [listening];
     const testsSnap = await getDocs(collection(db, "lessons", lessonId, "tests"));
     // Chỉ tính các test ĐÃ có scene thật — test nháp rỗng (mới tạo qua CMS, chưa soạn scene)
     // không hiện cho học sinh thấy bài trống trơn.

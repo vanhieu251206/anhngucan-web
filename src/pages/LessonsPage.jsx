@@ -54,12 +54,16 @@ function LessonShell({ step, backLabel, onBack, onNavigate, onStepClick, title, 
       <Header page="lessons" onNavigate={onNavigate} />
 
       <div className="dark-hero-band dark-hero-band-sm">
-        <div className="dark-hero-inner">
-          <button className="lesson-back-link" onClick={onBack}>
-            ⬅ {backLabel}
-          </button>
-          <h1 className="dark-hero-title">{title}</h1>
-          {subtitle && <p className="dark-hero-subtitle">{subtitle}</p>}
+        <div className="dark-hero-inner dark-hero-inner-row">
+          <div className="dark-hero-text dark-hero-text-row">
+            <button className="lesson-back-link" onClick={onBack}>
+              ⬅ {backLabel}
+            </button>
+            <div className="dark-hero-titles">
+              <h1 className="dark-hero-title">{title}</h1>
+              {subtitle && <p className="dark-hero-subtitle">{subtitle}</p>}
+            </div>
+          </div>
           {typeof step === "number" && <WizardSteps step={step} onStepClick={onStepClick} />}
         </div>
       </div>
@@ -293,7 +297,7 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
   }
 
   // ---------- Chi tiết Listening (bấm vào thẻ Listening) ----------
-  if (listeningActive && content?.listening) {
+  if (listeningActive && content?.listening?.length) {
     return (
       <LessonShell
         step={2}
@@ -372,8 +376,8 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
     banner: "Listening",
     title: `${series.title} ${level.number} · Listening`,
     desc: "Xem video và luyện nghe",
-    cta: content?.listening ? "Xem video" : "Chưa có video",
-    disabled: !content?.listening,
+    cta: content?.listening?.length ? "Xem video" : "Chưa có video",
+    disabled: !content?.listening?.length,
     onClick: () => setListeningActive(true),
   });
 

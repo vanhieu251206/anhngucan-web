@@ -152,8 +152,7 @@ function ModePicker({ series, level, onPick }) {
 }
 
 function ListeningEditor({ series, level, uid }) {
-  const [videoId, setVideoId] = useState("");
-  const [title, setTitle] = useState("");
+  const [videos, setVideos] = useState([{ videoId: "", title: "" }]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -161,17 +160,27 @@ function ListeningEditor({ series, level, uid }) {
   useEffect(() => {
     setLoading(true);
     getListening(series.id, level.number).then(l => {
-      setVideoId(l?.videoId ?? "");
-      setTitle(l?.title ?? "");
+      setVideos(l?.length ? l : [{ videoId: "", title: "" }]);
       setLoading(false);
     });
   }, [series.id, level.number]);
+
+  function updateVideo(i, patch) {
+    setVideos(vs => vs.map((v, idx) => (idx === i ? { ...v, ...patch } : v)));
+  }
+  function addVideo() {
+    setVideos(vs => [...vs, { videoId: "", title: "" }]);
+  }
+  function removeVideo(i) {
+    setVideos(vs => vs.filter((_, idx) => idx !== i));
+  }
 
   async function handleSave(e) {
     e.preventDefault();
     setSaving(true);
     setSaved(false);
-    await saveListening(series.id, level.number, { videoId, title }, uid);
+    const cleaned = videos.filter(v => v.videoId.trim() || v.title.trim());
+    await saveListening(series.id, level.number, cleaned, uid);
     setSaving(false);
     setSaved(true);
   }
@@ -182,29 +191,46 @@ function ListeningEditor({ series, level, uid }) {
     <div className="admin-card">
       <h2>{series.title} {level.number} — Listening</h2>
       <form className="admin-form" onSubmit={handleSave}>
-        <label>
-          Google Drive File ID
-          <input
-            className="admin-input"
-            placeholder="vd: 1AbCdEfGhIjKlMnOpQrStUvWxYz"
-            value={videoId}
-            onChange={e => setVideoId(e.target.value)}
-          />
-        </label>
         <p className="admin-hint">
           Upload video lên Google Drive → chia sẻ "Bất kỳ ai có link" (chế độ Xem) → lấy ID từ link dạng
           drive.google.com/file/d/<b>ID_Ở_ĐÂY</b>/view. Học sinh bấm nút sẽ mở video ở tab mới (không nhúng
-          trực tiếp trong trang) để tránh lỗi trình duyệt chặn cookie khi nhúng iframe.
+          trực tiếp trong trang) để tránh lỗi trình duyệt chặn cookie khi nhúng iframe. Có thể thêm nhiều
+          video cho 1 cấp độ (vd nhiều Test Listening khác nhau).
         </p>
-        <label>
-          Tiêu đề hiển thị
-          <input
-            className="admin-input"
-            placeholder="vd: Starters 1 – Test 1"
-            value={title}
-            onChange={e => setTitle(e.target.value)}
-          />
-        </label>
+        {videos.map((v, i) => (
+          <div className="admin-listening-row" key={i}>
+            <label>
+              Google Drive File ID
+              <input
+                className="admin-input"
+                placeholder="vd: 1AbCdEfGhIjKlMnOpQrStUvWxYz"
+                value={v.videoId}
+                onChange={e => updateVideo(i, { videoId: e.target.value })}
+              />
+            </label>
+            <label>
+              Tiêu đề hiển thị
+              <input
+                className="admin-input"
+                placeholder="vd: Starters 1 – Test 1"
+                value={v.title}
+                onChange={e => updateVideo(i, { title: e.target.value })}
+              />
+            </label>
+            {videos.length > 1 && (
+              <button
+                type="button"
+                className="admin-link-btn admin-pill-btn-danger"
+                onClick={() => removeVideo(i)}
+              >
+                Xoá video này
+              </button>
+            )}
+          </div>
+        ))}
+        <button type="button" className="admin-btn-secondary" onClick={addVideo}>
+          + Thêm video
+        </button>
         <button className="admin-btn-primary" type="submit" disabled={saving}>
           {saving ? "Đang lưu..." : "Lưu"}
         </button>
