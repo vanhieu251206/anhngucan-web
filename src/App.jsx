@@ -6,7 +6,6 @@ import LessonsPage from "./pages/LessonsPage.jsx";
 import AboutPage from "./pages/AboutPage.jsx";
 import ContactPage from "./pages/ContactPage.jsx";
 import LoginPage from "./pages/LoginPage.jsx";
-import SettingsPage from "./pages/SettingsPage.jsx";
 import DashboardPage from "./pages/DashboardPage.jsx";
 import ModelPreloader from "./components/ModelPreloader.jsx";
 import { useAuth } from "./lib/authContext.jsx";
@@ -48,6 +47,17 @@ export default function App() {
     return () => window.removeEventListener("popstate", onPopState);
   }, []);
 
+  // "Cài đặt" (đổi mật khẩu chung) giờ nằm TRONG Dashboard (mục Sidebar), không còn là trang
+  // riêng — link/URL cũ (?page=settings) tự chuyển vào đúng chỗ thay vì vào trang trống.
+  if (page === "settings" && isStaff) {
+    return (
+      <>
+        <DashboardPage onNavigate={setPage} initialSection="settings" />
+        <ModelPreloader />
+      </>
+    );
+  }
+
   // Khu vực quản trị (dashboard) có layout TÁCH BIỆT hoàn toàn khỏi web công khai — không
   // bọc Header/Footer, giống cách SceneRunner render fullscreen riêng trong LessonsPage.jsx.
   if (page === "dashboard" && isStaff) {
@@ -87,10 +97,9 @@ export default function App() {
         {page === "about" && <AboutPage onNavigate={setPage} />}
         {page === "contact" && <ContactPage />}
         {page === "login" && <LoginPage onNavigate={setPage} />}
-        {page === "settings" && isStaff && <SettingsPage />}
       </main>
 
-      <Footer onNavigate={setPage} />
+      {page !== "login" && <Footer onNavigate={setPage} />}
       <ModelPreloader />
     </>
   );

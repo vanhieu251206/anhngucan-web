@@ -25,6 +25,11 @@ export default function Footer({ onNavigate }) {
         </div>
       </div>
       <p className="footer-copy">© {new Date().getFullYear()} Anh Ngữ C.A.N. Học mà chơi, chơi mà học.</p>
+      <p className="footer-legal-row">
+        <span>Nội dung bám sát khung Cambridge YLE</span>
+        <span aria-hidden="true">·</span>
+        <span>Starters · Movers · Flyers</span>
+      </p>
     </footer>
   );
 }

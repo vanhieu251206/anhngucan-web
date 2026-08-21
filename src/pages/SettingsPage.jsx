@@ -38,31 +38,31 @@ export default function SettingsPage() {
   }
 
   return (
-    <section className="section narrow">
-      <h1 className="page-title">Cài đặt</h1>
-      <p className="lead">Đổi mật khẩu chung để mở khoá bài học cho học sinh.</p>
+    <div className="admin-card">
+      <h2>Đổi mật khẩu chung</h2>
+      <p>Mật khẩu này dùng để mở khoá bài học (Listening/Speaking) cho học sinh/guest.</p>
 
-      <form className="auth-form" onSubmit={handleSubmit}>
+      <form className="admin-form" onSubmit={handleSubmit}>
         <input
-          className="auth-input"
+          className="admin-input"
           type="password"
           placeholder="Mật khẩu mới"
           value={password}
           onChange={e => setPassword(e.target.value)}
         />
         <input
-          className="auth-input"
+          className="admin-input"
           type="password"
           placeholder="Nhập lại mật khẩu mới"
           value={confirm}
           onChange={e => setConfirm(e.target.value)}
         />
-        <button className="btn btn-primary" type="submit" disabled={saving}>
+        <button className="admin-btn-primary" type="submit" disabled={saving}>
           {saving ? "Đang lưu..." : "Lưu mật khẩu"}
         </button>
         {error && <p className="auth-error">{error}</p>}
         {saved && <p className="auth-success">Đã lưu mật khẩu mới!</p>}
       </form>
-    </section>
+    </div>
   );
 }

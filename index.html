@@ -7,7 +7,38 @@
     <title>Anh Ngữ C.A.N — Học tiếng Anh vui vẻ cho bé</title>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <!-- Skeleton hiện tạm trong lúc tải bundle JS — tránh màn hình trắng xoá, tự bị
+           thay thế ngay khi React mount xong (App.jsx render đè lên #root). -->
+      <div class="boot-skeleton" aria-hidden="true">
+        <div class="boot-skeleton-bar boot-skeleton-bar-lg"></div>
+        <div class="boot-skeleton-row">
+          <div class="boot-skeleton-card"></div>
+          <div class="boot-skeleton-card"></div>
+          <div class="boot-skeleton-card"></div>
+        </div>
+      </div>
+    </div>
+    <style>
+      html, body { background: #fffbf2; margin: 0; }
+      .boot-skeleton { max-width: 1100px; margin: 0 auto; padding: 40px 24px; }
+      .boot-skeleton-bar { border-radius: 999px; background: #f0e9d8; }
+      .boot-skeleton-bar-lg { width: min(60%, 360px); height: 22px; margin-bottom: 28px; }
+      .boot-skeleton-row { display: flex; gap: 20px; flex-wrap: wrap; }
+      .boot-skeleton-card { flex: 1 1 260px; height: 180px; border-radius: 20px; background: #f0e9d8; }
+      .boot-skeleton-bar, .boot-skeleton-card {
+        background-image: linear-gradient(90deg, #f0e9d8 0%, #f7f2e6 50%, #f0e9d8 100%);
+        background-size: 200% 100%;
+        animation: boot-shimmer 1.4s ease-in-out infinite;
+      }
+      @keyframes boot-shimmer {
+        0% { background-position: 200% 0; }
+        100% { background-position: -200% 0; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .boot-skeleton-bar, .boot-skeleton-card { animation: none; }
+      }
+    </style>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

@@ -34,7 +34,7 @@ export default function PasswordGate({ onUnlock }) {
   }
 
   return (
-    <div className="section narrow password-gate">
+    <div className="password-gate-card password-gate">
       <h1 className="page-title">Bài học đang khoá 🔒</h1>
       <p className="lead">Nhập mật khẩu cô/thầy đã cung cấp để mở khoá bài học nhé.</p>
 

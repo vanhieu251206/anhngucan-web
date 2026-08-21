@@ -5,25 +5,28 @@ import OverviewPage from "./dashboard/OverviewPage.jsx";
 import CreateLessonPage from "./dashboard/CreateLessonPage.jsx";
 import TeacherAccountsPage from "./dashboard/TeacherAccountsPage.jsx";
 import StudentResultsPage from "./dashboard/StudentResultsPage.jsx";
+import SettingsPage from "./SettingsPage.jsx";
 
 const ADMIN_ITEMS = [
   { key: "overview", label: "Tổng quan" },
   { key: "create-lesson", label: "Tạo bài" },
   { key: "teachers", label: "Cấu hình tài khoản giáo viên" },
+  { key: "settings", label: "Cài đặt" },
 ];
 // Giáo viên cũng được soạn bài (create-lesson) như admin, chỉ không có "Cấu hình tài khoản
 // giáo viên" (chỉ admin mới tạo/quản được tài khoản giáo viên khác).
 const TEACHER_ITEMS = [
   { key: "create-lesson", label: "Tạo bài" },
   { key: "results", label: "Kết quả học sinh" },
+  { key: "settings", label: "Cài đặt" },
 ];
 
 // Khu vực quản trị — layout TÁCH BIỆT hoàn toàn khỏi giao diện học sinh (không dùng
 // Header/Footer công khai, không dùng tông cam/xanh ngọc), xem class .admin-* trong index.css.
-export default function DashboardPage({ onNavigate }) {
+export default function DashboardPage({ onNavigate, initialSection }) {
   const { user, isAdmin, isTeacher, logout } = useAuth();
   const items = isAdmin ? ADMIN_ITEMS : isTeacher ? TEACHER_ITEMS : [];
-  const [section, setSection] = useState(items[0]?.key ?? "overview");
+  const [section, setSection] = useState(initialSection ?? items[0]?.key ?? "overview");
 
   // Phòng hờ: nếu section hiện tại không hợp lệ với role (vd role đổi giữa chừng), rơi về
   // mục đầu tiên hợp lệ của role đó — không để lọt vào trang không thuộc quyền.
@@ -59,6 +62,7 @@ export default function DashboardPage({ onNavigate }) {
           {section === "create-lesson" && (isAdmin || isTeacher) && <CreateLessonPage />}
           {section === "teachers" && isAdmin && <TeacherAccountsPage />}
           {section === "results" && isTeacher && <StudentResultsPage />}
+          {section === "settings" && (isAdmin || isTeacher) && <SettingsPage />}
         </div>
       </div>
     </div>
