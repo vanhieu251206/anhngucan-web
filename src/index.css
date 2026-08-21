@@ -734,24 +734,61 @@ button { font-family: inherit; }
 .result-ok { color: var(--color-green); font-weight: 700; }
 .result-bad { color: var(--color-red); font-weight: 700; }
 .heard-text { color: var(--color-muted); font-style: italic; }
-.listening-box { max-width: 640px; margin: 0 auto; text-align: center; }
+.listening-box { max-width: 720px; width: 100%; margin: 0 auto; text-align: center; }
 .video-frame {
   position: relative;
   width: 100%;
-  padding-top: 56.25%;
+  aspect-ratio: 16 / 9;
+  max-height: 46vh;
+  margin: 0 auto;
   border-radius: var(--radius-card);
   overflow: hidden;
   box-shadow: var(--shadow-soft);
-  background: #000;
+  background: linear-gradient(135deg, var(--color-secondary) 0%, #1d8e99 100%);
 }
-.video-frame iframe {
+.video-frame::before {
+  content: "";
   position: absolute;
   inset: 0;
-  width: 100%;
-  height: 100%;
-  border: 0;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.14) 2px, transparent 2px);
+  background-size: 26px 26px;
 }
-.listening-title { color: var(--color-muted); margin-top: 12px; font-size: 0.95rem; }
+.video-frame-link {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform 0.2s ease, filter 0.2s ease;
+}
+.video-frame-link:hover { transform: scale(1.02); filter: brightness(1.08); }
+.video-frame-link:active { transform: scale(0.98); }
+.video-frame-play {
+  width: clamp(84px, 14vw, 120px);
+  height: clamp(84px, 14vw, 120px);
+  border-radius: 50%;
+  background: var(--color-primary);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: clamp(2rem, 3.5vw, 2.6rem);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.25);
+  border: 4px solid rgba(255, 255, 255, 0.85);
+}
+.video-frame-hint {
+  color: #fff;
+  font-weight: 700;
+  font-size: clamp(1rem, 1.6vw, 1.2rem);
+  background: rgba(0, 0, 0, 0.28);
+  padding: 8px 20px;
+  border-radius: 999px;
+}
+.listening-title { font-weight: 700; font-size: clamp(1.1rem, 2vw, 1.4rem); color: var(--color-ink); margin-top: 18px; }
 
 /* Dành sẵn chỗ đủ cho 2 dòng thoại (kể cả khi thực tế chỉ 1 dòng) — để tránh việc ảnh/thẻ bên
    dưới bị xê dịch vị trí giữa các scene chỉ khác nhau độ dài câu thoại. */

@@ -183,14 +183,19 @@ function ListeningEditor({ series, level, uid }) {
       <h2>{series.title} {level.number} — Listening</h2>
       <form className="admin-form" onSubmit={handleSave}>
         <label>
-          YouTube video ID
+          Google Drive File ID
           <input
             className="admin-input"
-            placeholder="vd: M7lc1UVf-VE"
+            placeholder="vd: 1AbCdEfGhIjKlMnOpQrStUvWxYz"
             value={videoId}
             onChange={e => setVideoId(e.target.value)}
           />
         </label>
+        <p className="admin-hint">
+          Upload video lên Google Drive → chia sẻ "Bất kỳ ai có link" (chế độ Xem) → lấy ID từ link dạng
+          drive.google.com/file/d/<b>ID_Ở_ĐÂY</b>/view. Học sinh bấm nút sẽ mở video ở tab mới (không nhúng
+          trực tiếp trong trang) để tránh lỗi trình duyệt chặn cookie khi nhúng iframe.
+        </p>
         <label>
           Tiêu đề hiển thị
           <input

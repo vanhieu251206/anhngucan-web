@@ -3,8 +3,8 @@
 // 1 phần Listening (video có sẵn) + 1 phần Speaking (luyện nói tương tác).
 // Dùng để dựng giao diện trước khi có dữ liệu Google Sheet thật.
 
-// TODO: thay bằng videoId YouTube (Không công khai) thật của từng cấp khi có.
-const PLACEHOLDER_VIDEO_ID = "M7lc1UVf-VE";
+// TODO: thay bằng Google Drive File ID thật của từng cấp khi có.
+const PLACEHOLDER_VIDEO_ID = "";
 
 function buildLevel(seriesId, number) {
   return {
