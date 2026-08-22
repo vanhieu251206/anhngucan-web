@@ -36,6 +36,57 @@ const SERIES_INFO = {
   },
 };
 
+// Các bộ sách/kỳ thi ngoài Starters/Movers/Flyers — chưa có dữ liệu bài học, chỉ hiện thẻ
+// "Sắp có" để định hướng lộ trình tăng dần độ khó.
+const EXTRA_EXAMS = [
+  {
+    id: "kids",
+    title: "Kids",
+    accent: "#F2A93B",
+    difficulty: "Vỡ lòng",
+    icon: <><path d="M12 3l2.5 5 5.5.8-4 3.9.9 5.5-5-2.6-5 2.6.9-5.5-4-3.9 5.5-.8L12 3z" /></>,
+  },
+  {
+    id: "ket-pet",
+    title: "KET / PET",
+    accent: "#8B5CF6",
+    difficulty: "Trung cấp",
+    icon: <><rect x="3" y="4" width="18" height="14" rx="2" /><path d="M3 9h18M8 4v14" /></>,
+  },
+  {
+    id: "ielts",
+    title: "IELTS",
+    accent: "#1F3A63",
+    difficulty: "Nâng cao",
+    icon: <><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3c2.5 2.5 2.5 15.5 0 18M12 3c-2.5 2.5-2.5 15.5 0 18" /></>,
+  },
+];
+
+// 4 kỹ năng cho các bộ sách trừ Kids (Kids chỉ có Listening/Speaking, xem render bên dưới).
+const SKILL_ICONS = {
+  reading: <path d="M4 5.5C6 4 9 4 12 5.5V19c-3-1.5-6-1.5-8 0zM20 5.5C18 4 15 4 12 5.5V19c3-1.5 6-1.5 8 0z" />,
+  listening: <path d="M4 14v-2a8 8 0 0 1 16 0v2M2 14h5v7H4a2 2 0 0 1-2-2v-5zM22 14h-5v7h3a2 2 0 0 0 2-2v-5z" />,
+  speaking: <path d="M9 2h6v12a3 3 0 0 1-6 0zM5 11a7 7 0 0 0 14 0M12 18v4" />,
+  dictation: <path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />,
+};
+const SKILLS_FULL = ["reading", "listening", "speaking", "dictation"];
+const SKILL_LABELS = { reading: "Reading", listening: "Listening", speaking: "Speaking", dictation: "Dictation" };
+
+function SeriesModes({ skills }) {
+  return (
+    <div className="series-modes">
+      {skills.map(key => (
+        <span className="series-mode" key={key}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            {SKILL_ICONS[key]}
+          </svg>
+          {SKILL_LABELS[key]}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 export default function HomePage({ onNavigate, onSelectSeries }) {
   return (
     <div className="home-v2">
@@ -48,19 +99,8 @@ export default function HomePage({ onNavigate, onSelectSeries }) {
           <div className="motivation-banner">
             <img className="motivation-bee" src={BEE_IMG} alt="Ong linh vật Anh Ngữ C.A.N" />
             <div className="motivation-copy">
-              <h2>Luyện tiếng Anh mỗi ngày để tự tin hơn khi thi Cambridge YLE nhé!</h2>
-              <p>Nghe kỹ, nói to, và đừng ngại trả lời giám khảo ong nhé 🐝</p>
-            </div>
-            <div className="motivation-mini-row">
-              {YLE_SERIES.map(s => {
-                const info = SERIES_INFO[s.id] ?? SERIES_INFO.movers;
-                return (
-                  <div className="motivation-mini-card" key={s.id}>
-                    <strong>{s.title}</strong>
-                    <span>{info.difficulty} · {s.levels.length} cấp độ</span>
-                  </div>
-                );
-              })}
+              <h2>Chào mừng đến với Anh Ngữ C.A.N — người bạn đồng hành luyện thi tiếng Anh mỗi ngày!</h2>
+              <p>Học cùng chú ong C.A.N mỗi ngày để tự tin chinh phục mọi kỳ thi nhé 🐝</p>
             </div>
           </div>
         </div>
@@ -69,6 +109,20 @@ export default function HomePage({ onNavigate, onSelectSeries }) {
       {/* ---------- 4. Lưới thẻ bộ đề ---------- */}
       <section className="content-grid-section">
         <div className="content-grid">
+          <div
+            className="content-card-v2 is-disabled"
+            style={{ "--accent": EXTRA_EXAMS[0].accent }}
+          >
+            <div className="card-banner-strip">
+              <span>{EXTRA_EXAMS[0].title}</span>
+            </div>
+            <div className="content-card-v2-body">
+              <div className="series-card-top">
+                <SeriesModes skills={["listening", "speaking"]} />
+                <span className="series-status">Sắp có</span>
+              </div>
+            </div>
+          </div>
           {YLE_SERIES.map(s => {
             const info = SERIES_INFO[s.id] ?? SERIES_INFO.movers;
             return (
@@ -83,38 +137,32 @@ export default function HomePage({ onNavigate, onSelectSeries }) {
                 </div>
                 <div className="content-card-v2-body">
                   <div className="series-card-top">
-                    <span className="series-card-icon" aria-hidden="true">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-                        {info.icon}
-                      </svg>
-                    </span>
+                    <SeriesModes skills={SKILLS_FULL} />
                     <span className={`series-status${info.ready ? " is-ready" : ""}`}>
                       {info.ready ? "Đang mở" : "Sắp có"}
                     </span>
-                  </div>
-                  <h3>{s.title}</h3>
-                  <p className="series-levels">Cấp 1 – Cấp {s.levels.length} · {info.difficulty}</p>
-                  <div className="series-modes">
-                    <span className="series-mode">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
-                        <path d="M4 14v-2a8 8 0 0 1 16 0v2M2 14h5v7H4a2 2 0 0 1-2-2v-5zM22 14h-5v7h3a2 2 0 0 0 2-2v-5z" />
-                      </svg>
-                      Listening {info.listeningNote}
-                    </span>
-                    <span className="series-mode">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
-                        <path d="M9 2h6v12a3 3 0 0 1-6 0zM5 11a7 7 0 0 0 14 0M12 18v4" />
-                      </svg>
-                      Speaking {info.speakingNote}
-                    </span>
-                  </div>
-                  <div className="card-meta-row">
-                    <span className="card-badge-pill">{s.levels.length} cấp độ</span>
                   </div>
                 </div>
               </button>
             );
           })}
+          {EXTRA_EXAMS.slice(1).map(e => (
+            <div
+              className="content-card-v2 is-disabled"
+              key={e.id}
+              style={{ "--accent": e.accent }}
+            >
+              <div className="card-banner-strip">
+                <span>{e.title}</span>
+              </div>
+              <div className="content-card-v2-body">
+                <div className="series-card-top">
+                  <SeriesModes skills={SKILLS_FULL} />
+                  <span className="series-status">Sắp có</span>
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
 
       </section>

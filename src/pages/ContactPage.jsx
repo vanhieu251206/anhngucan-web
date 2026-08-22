@@ -1,6 +1,6 @@
 export default function ContactPage() {
   return (
-    <section className="section narrow">
+    <section className="section">
       <h1 className="page-title">Liên hệ</h1>
       <p className="lead">
         Có góp ý hoặc muốn gửi bài học mới? Nhắn cho chúng mình qua thông tin

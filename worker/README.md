@@ -1,17 +1,22 @@
-# Speech Worker — proxy Groq Whisper API
+# Speech Worker — proxy AssemblyAI Speech-to-Text API
 
-Cloudflare Worker nhỏ, chỉ 1 việc: nhận audio từ web, gọi Groq Whisper API (giữ key bí mật), trả
-lại chữ nhận diện được. Free tier Cloudflare Worker (100.000 request/ngày) + free tier Groq
-(~8 giờ audio/ngày) — không cần thẻ tín dụng cho cả 2 dịch vụ.
+Cloudflare Worker nhỏ, chỉ 1 việc: nhận audio từ web, gọi AssemblyAI Speech-to-Text API (giữ key
+bí mật), trả lại chữ nhận diện được. Free tier Cloudflare Worker (100.000 request/ngày) + free
+tier AssemblyAI (185 giờ audio batch) — không cần thẻ tín dụng cho cả 2 dịch vụ.
 
-Đây KHÔNG phải engine nhận diện giọng nói bắt buộc — nếu chưa deploy Worker này (hoặc `VITE_WORKER_URL`
-để trống), app tự dùng Whisper chạy local trong trình duyệt (xem `src/lib/whisperSpeech.js`) làm
-dự phòng. Deploy Worker này chỉ để CẢI THIỆN độ chính xác/tốc độ khi có mạng.
+Đã chuyển từ Groq sang AssemblyAI (2026-08-22): Groq tạm khoá nâng cấp gói trả phí (Developer
+tier) và giới hạn free 20 request/phút không đủ khi nhiều học sinh cùng luyện Speaking một lúc.
+AssemblyAI đắt hơn Groq ~4-5 lần mỗi giờ audio khi trả phí, nhưng free tier 185 giờ đủ dùng lâu
+dài ở quy mô ~100 học sinh, và không cần thẻ tín dụng để bắt đầu.
+
+**KHÔNG còn dự phòng Whisper local** (đã bỏ khỏi code) — nếu Worker này chưa deploy/cấu hình
+(`VITE_WORKER_URL` để trống) hoặc gọi lỗi, tính năng ghi âm sẽ báo lỗi thẳng cho học sinh thay vì
+tự chuyển sang engine khác (xem `src/lib/pronunciationApi.js`).
 
 ## Các bước deploy (làm 1 lần)
 
-1. **Tạo tài khoản Groq** (miễn phí, không cần thẻ): vào [console.groq.com](https://console.groq.com),
-   đăng ký, vào mục **API Keys** → tạo 1 key mới, copy lại (chỉ hiện 1 lần).
+1. **Tạo tài khoản AssemblyAI** (free tier 185 giờ audio, không cần thẻ): vào
+   [assemblyai.com](https://www.assemblyai.com), đăng ký, vào Dashboard → **API Keys**, copy key.
 2. **Cài Node.js** nếu máy chưa có (dùng để chạy `wrangler`, công cụ deploy Cloudflare Worker).
 3. Trong thư mục `worker/` này, chạy:
    ```
@@ -20,11 +25,11 @@ dự phòng. Deploy Worker này chỉ để CẢI THIỆN độ chính xác/tố
    ```
    (mở trình duyệt, đăng nhập/tạo tài khoản Cloudflare miễn phí nếu chưa có — cũng không cần thẻ
    tín dụng cho gói Workers free tier).
-4. Lưu API key Groq vào Worker (KHÔNG ghi vào code, tránh lộ lên Git):
+4. Lưu API key AssemblyAI vào Worker (KHÔNG ghi vào code, tránh lộ lên Git):
    ```
-   npx wrangler secret put GROQ_API_KEY
+   npx wrangler secret put ASSEMBLYAI_API_KEY
    ```
-   dán key Groq đã copy ở bước 1 vào khi được hỏi.
+   dán key AssemblyAI đã copy ở bước 1 vào khi được hỏi.
 5. Deploy:
    ```
    npm run deploy
@@ -33,6 +38,11 @@ dự phòng. Deploy Worker này chỉ để CẢI THIỆN độ chính xác/tố
    copy URL này.
 6. Điền URL vừa copy vào biến môi trường `VITE_WORKER_URL` (`.env` khi test local, và GitHub
    Secrets `VITE_WORKER_URL` khi deploy thật — xem `.env.example` và `.github/workflows/deploy.yml`).
+
+**Lưu ý nếu trước đây đã deploy bản dùng Groq:** cần chạy lại bước 4 với key MỚI
+(`ASSEMBLYAI_API_KEY` thay vì `GROQ_API_KEY`) rồi deploy lại (bước 5) — secret cũ `GROQ_API_KEY`
+không còn được code dùng tới nữa, có thể xoá bằng `npx wrangler secret delete GROQ_API_KEY` (không
+bắt buộc, chỉ để dọn dẹp).
 
 ## Test lại sau khi sửa code Worker
 

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { playLine, normalize, isRecordingSupported } from "../lib/speech.js";
-import { assessPronunciation } from "../lib/pronunciationApi.js";
+import { assessPronunciation, describePronunciationError } from "../lib/pronunciationApi.js";
 
 const MIC_ICON = `${import.meta.env.BASE_URL}assets/img/icons/mic.png`;
 
@@ -76,8 +76,8 @@ export default function SpeakingMode({ lesson, onFinish }) {
             });
           }
           setAnswered(true);
-        } catch {
-          setResult({ text: "Không nhận diện được, hãy thử lại.", ok: false });
+        } catch (err) {
+          setResult({ text: describePronunciationError(err), ok: false });
         } finally {
           setBusy(false);
         }

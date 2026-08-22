@@ -1,23 +1,47 @@
-// Engine nhận diện giọng nói CHÍNH: gọi Cloudflare Worker (worker/) proxy Groq Whisper API
-// (large-v3-turbo, chính xác + nhanh hơn Whisper local đáng kể) — Worker giữ API key bí mật,
-// trình duyệt không bao giờ thấy key. Free tier Groq (~8 giờ audio/ngày, không thẻ tín dụng) đủ
-// dùng cho quy mô ~100 học sinh của dự án (xem CLAUDE.md mục 2).
+// Engine nhận diện giọng nói: gọi Cloudflare Worker (worker/) proxy AssemblyAI Speech-to-Text API
+// — Worker giữ API key bí mật, trình duyệt không bao giờ thấy key. Free tier AssemblyAI (185 giờ
+// audio batch, không cần thẻ tín dụng) đủ dùng lâu dài cho quy mô ~100 học sinh (xem CLAUDE.md
+// mục 2). Đã chuyển từ Groq sang AssemblyAI (2026-08-22) vì Groq tạm khoá nâng cấp gói trả phí và
+// giới hạn free 20 request/phút không đủ cho lớp đông cùng lúc.
 //
-// DỰ PHÒNG: nếu chưa deploy Worker (`VITE_WORKER_URL` trống) hoặc gọi lỗi (mất mạng, Worker lỗi,
-// hết hạn mức free tier Groq trong ngày...), tự động rớt xuống Whisper chạy local trong trình
-// duyệt (src/lib/whisperSpeech.js) — học sinh vẫn dùng được mic, chỉ độ chính xác giảm tạm thời
-// thay vì báo lỗi hẳn. Đây là điểm khác với thiết kế trước đây (Azure Speech) — lúc đó KHÔNG có
-// fallback, người dùng chủ động yêu cầu vậy để không phụ thuộc hoàn toàn vào dịch vụ ngoài.
-import { transcribeBlob } from "./whisperSpeech.js";
+// AssemblyAI xử lý BẤT ĐỒNG BỘ (Worker phải poll kết quả) nên chậm hơn Groq đáng kể — timeout
+// client dài hơn để chờ đủ thời gian Worker poll xong (xem POLL_INTERVAL_MS/MAX_POLL_ATTEMPTS
+// trong worker/src/index.js).
+//
+// KHÔNG còn dự phòng Whisper local (đã bỏ theo yêu cầu người dùng) — nếu Worker chưa cấu hình
+// hoặc gọi lỗi, tự thử lại 2 lần với lỗi tạm thời (mất mạng/timeout/Worker quá tải) trước khi báo
+// lỗi thẳng cho học sinh.
 
 const WORKER_URL = import.meta.env.VITE_WORKER_URL;
+
+const MAX_ATTEMPTS = 3; // 1 lần gọi gốc + 2 lần thử lại
+const RETRY_DELAY_MS = 1000;
+const FETCH_TIMEOUT_MS = 25000; // AssemblyAI poll bất đồng bộ chậm hơn Groq, cần chờ lâu hơn
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// Lỗi TẠM THỜI (đáng thử lại): mất mạng (TypeError của fetch), hết timeout (AbortError), hoặc
+// Worker/Groq báo lỗi phía server (5xx) hay quá tải (429). KHÔNG thử lại lỗi 4xx khác (audio hỏng,
+// request sai định dạng...) vì thử lại cũng sẽ lỗi y hệt.
+function isRetryableError(err) {
+  if (err?.name === "AbortError") return true;
+  if (err instanceof TypeError) return true; // fetch network failure
+  const match = /^worker-error-(\d+)$/.exec(err?.message || "");
+  if (match) {
+    const status = Number(match[1]);
+    return status === 429 || status >= 500;
+  }
+  return false;
+}
 
 async function transcribeViaWorker(blob) {
   const form = new FormData();
   form.append("audio", blob, "audio.webm");
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 15000);
+  const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
     const res = await fetch(`${WORKER_URL}/transcribe`, {
       method: "POST",
@@ -34,15 +58,43 @@ async function transcribeViaWorker(blob) {
 }
 
 export async function assessPronunciation(blob, expectedText) {
-  if (WORKER_URL) {
-    try {
-      const text = await transcribeViaWorker(blob);
-      return { text, accuracyScore: null, debug: { device: "groq-worker" } };
-    } catch {
-      // Rớt xuống Whisper local — xem comment đầu file.
-    }
+  if (!WORKER_URL) {
+    throw new Error("worker-not-configured");
   }
 
-  const { text, debug } = await transcribeBlob(blob);
-  return { text, accuracyScore: null, debug };
+  let lastErr;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      const text = await transcribeViaWorker(blob);
+      return { text, accuracyScore: null, debug: { device: "assemblyai-worker", attempt } };
+    } catch (err) {
+      lastErr = err;
+      if (attempt < MAX_ATTEMPTS && isRetryableError(err)) {
+        await sleep(RETRY_DELAY_MS * attempt); // 1s, 2s — nới dần
+        continue;
+      }
+      break;
+    }
+  }
+  throw lastErr;
+}
+
+// Gộp lỗi kỹ thuật thành thông báo dễ hiểu cho học sinh/giáo viên — dùng chung ở mọi nơi gọi
+// assessPronunciation() (SceneRunner.jsx, SpeakingMode.jsx) để nhất quán.
+export function describePronunciationError(err) {
+  const message = err?.message || "";
+  if (message === "worker-not-configured") {
+    return "Tính năng nhận diện giọng nói chưa được cấu hình, báo cho giáo viên nhé!";
+  }
+  if (err?.name === "AbortError" || err instanceof TypeError) {
+    return "Mất kết nối mạng, kiểm tra Wi-Fi/4G rồi thử lại nhé!";
+  }
+  const match = /^worker-error-(\d+)$/.exec(message);
+  if (match) {
+    const status = Number(match[1]);
+    if (status === 429 || status >= 500) {
+      return "Hệ thống đang quá tải, đợi một chút rồi thử lại nhé!";
+    }
+  }
+  return "Không nghe rõ, thử bấm mic nói lại lần nữa nhé!";
 }

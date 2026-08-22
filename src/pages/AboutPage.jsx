@@ -1,6 +1,6 @@
 export default function AboutPage({ onNavigate }) {
   return (
-    <section className="section narrow">
+    <section className="section">
       <h1 className="page-title">Về Anh Ngữ C.A.N</h1>
       <p className="lead">
         Anh Ngữ C.A.N là website học tiếng Anh dành cho học sinh nhỏ tuổi, xây

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { playLine, normalize, stopCurrent, fuzzyIncludesWord, isRecordingSupported } from "../lib/speech.js";
-import { assessPronunciation } from "../lib/pronunciationApi.js";
+import { assessPronunciation, describePronunciationError } from "../lib/pronunciationApi.js";
 import { ExaminerLine, SceneStage, MIC_ICON } from "./sceneVisuals.jsx";
 
 // Lời khen dùng chung cho MỌI bài (không riêng lesson nào) — audio thật lấy từ
@@ -260,8 +260,8 @@ function MicScene({ scene, onNext }) {
         }
         setPhase("busy");
         setHeard("");
-        // Nhận diện qua Whisper (client-side, xem pronunciationApi.js). Nếu lỗi (model chưa tải
-        // xong, treo quá timeout...) thì báo rõ cho học sinh thay vì âm thầm bỏ qua.
+        // Nhận diện qua AssemblyAI (Cloudflare Worker, xem pronunciationApi.js). Nếu lỗi (mất
+        // mạng, Worker chưa cấu hình, hết hạn mức...) thì báo rõ cho học sinh thay vì âm thầm bỏ qua.
         let said = "";
         let debugInfo = null;
         try {
@@ -269,10 +269,7 @@ function MicScene({ scene, onNext }) {
           said = result.text || "";
           debugInfo = result.debug || null;
         } catch (err) {
-          const friendly =
-            err?.message === "model-load-timeout"
-              ? "Đang tải mô hình nhận diện (lần đầu có thể hơi lâu), đợi chút rồi thử lại nhé!"
-              : "Không nghe rõ, thử bấm mic nói lại lần nữa nhé!";
+          const friendly = describePronunciationError(err);
           // TẠM THỜI hiện thêm chi tiết lỗi thật (tên/message) để debug lỗi mic trên thiết bị
           // thật — xoá dòng debugDetail này sau khi xác định xong nguyên nhân.
           const debugDetail = err ? ` [debug: ${err.name || "Error"}: ${err.message || String(err)}]` : "";
