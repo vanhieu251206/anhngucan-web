@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { playLine, normalize, stopCurrent, fuzzyIncludesWord, isRecordingSupported } from "../lib/speech.js";
+import { playLine, normalize, stopCurrent, fuzzyIncludesWord, isRecordingSupported, diffWords } from "../lib/speech.js";
 import { assessPronunciation, describePronunciationError } from "../lib/pronunciationApi.js";
 import { ExaminerLine, SceneStage, MIC_ICON } from "./sceneVisuals.jsx";
 
@@ -194,6 +194,7 @@ function micAnswerLabel(scene) {
 function MicScene({ scene, onNext }) {
   const [phase, setPhase] = useState("ask"); // ask | recording | busy | done
   const [heard, setHeard] = useState("");
+  const [recognized, setRecognized] = useState(null); // null = chưa có kết quả, "" = có kết quả nhưng không nghe được gì
   const [result, setResult] = useState(null); // null | true | false — chỉ dùng khi scene.expectedYesNo
   const [praise, setPraise] = useState(null);
   const [wrongPraise, setWrongPraise] = useState(null);
@@ -237,6 +238,7 @@ function MicScene({ scene, onNext }) {
     stopCurrent();
     setResult(null);
     setWrongPraise(null);
+    setRecognized(null);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
@@ -263,31 +265,16 @@ function MicScene({ scene, onNext }) {
         // Nhận diện qua AssemblyAI (Cloudflare Worker, xem pronunciationApi.js). Nếu lỗi (mất
         // mạng, Worker chưa cấu hình, hết hạn mức...) thì báo rõ cho học sinh thay vì âm thầm bỏ qua.
         let said = "";
-        let debugInfo = null;
         try {
           const result = await assessPronunciation(blob, scene.expectedKeyword || scene.expectedYesNo || "");
           said = result.text || "";
-          debugInfo = result.debug || null;
         } catch (err) {
-          const friendly = describePronunciationError(err);
-          // TẠM THỜI hiện thêm chi tiết lỗi thật (tên/message) để debug lỗi mic trên thiết bị
-          // thật — xoá dòng debugDetail này sau khi xác định xong nguyên nhân.
-          const debugDetail = err ? ` [debug: ${err.name || "Error"}: ${err.message || String(err)}]` : "";
-          setHeard(friendly + debugDetail);
+          setHeard(describePronunciationError(err));
           setPhase("ask");
           return;
         }
 
-        // Hiện lại đúng chữ Whisper nghe được (không phải giọng máy đọc lại) — để phụ huynh/giáo
-        // viên kiểm tra máy có nghe đúng những gì học sinh nói không, nhất là lúc mới bật tính
-        // năng nhận diện giọng nói qua Whisper, độ chính xác chưa được kiểm chứng nhiều.
-        // TẠM THỜI thêm debug (thiết bị dùng WebGPU/WASM, độ dài audio, biên độ lớn nhất) để xác
-        // định nguyên nhân Whisper thỉnh thoảng trả về "..." dù đã nói rõ — xoá phần debug này
-        // sau khi xác định xong nguyên nhân.
-        const debugText = debugInfo
-          ? ` [debug: ${debugInfo.device}, ${debugInfo.durationSec}s, đỉnh âm ${debugInfo.maxAmplitude}, ${debugInfo.blobBytes}B]`
-          : "";
-        setHeard((said ? `Máy nghe được: "${said}"` : "Máy không nghe thấy gì.") + debugText);
+        setRecognized(said);
 
         // Câu hỏi Yes/No có đáp án xác định (expectedYesNo: "yes"|"no") → chấm đúng/sai thật,
         // sai thì cho thử lại. "either" (phụ thuộc thông tin cá nhân học sinh) → luôn chấp nhận.
@@ -332,11 +319,8 @@ function MicScene({ scene, onNext }) {
       };
       setPhase("recording");
       recorder.start();
-    } catch (err) {
-      // TẠM THỜI hiện thêm chi tiết lỗi thật để debug lỗi mic trên thiết bị thật — xoá phần
-      // debug này sau khi xác định xong nguyên nhân.
-      const debugDetail = err ? ` [debug: ${err.name || "Error"}: ${err.message || String(err)}]` : "";
-      setHeard("Không dùng được micro. Kiểm tra quyền truy cập micro." + debugDetail);
+    } catch {
+      setHeard("Không dùng được micro. Kiểm tra quyền truy cập micro.");
     }
   }
 
@@ -363,7 +347,18 @@ function MicScene({ scene, onNext }) {
       <div className="scene-foot">
         {scene.answerTemplate && (
           <div className="answer-template">
-            💡 Gợi ý: <strong>{scene.answerTemplate}</strong>
+            {recognized !== null ? (
+              <>
+                Đáp án:{" "}
+                {diffWords(micAnswerLabel(scene) || scene.answerTemplate, recognized).map((w, i) => (
+                  <strong key={i} className={w.correct ? "word-correct" : "word-wrong"}>
+                    {w.text}{" "}
+                  </strong>
+                ))}
+              </>
+            ) : (
+              <>💡 Gợi ý: <strong>{scene.answerTemplate}</strong></>
+            )}
           </div>
         )}
         <button

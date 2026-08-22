@@ -211,6 +211,44 @@ button { font-family: inherit; }
 .home-topbar-navlink.is-active { background: #fff0e4; color: var(--color-primary-dark); font-weight: 800; }
 .home-topbar-actions { display: flex; align-items: center; gap: 10px; }
 
+.home-topbar-burger {
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 5px;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  background: none;
+  border: 1.5px solid #ece6da;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+}
+.home-topbar-burger span {
+  display: block;
+  width: 18px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--color-ink);
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+.home-topbar-burger.is-open span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+.home-topbar-burger.is-open span:nth-child(2) { opacity: 0; }
+.home-topbar-burger.is-open span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+.home-topbar-mobile-menu {
+  display: none;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 0 4px;
+  border-top: 1px solid #f1ebdd;
+  margin-top: 10px;
+}
+.home-topbar-mobile-menu .home-topbar-navlink { text-align: left; padding: 10px 12px; }
+.home-topbar-mobile-actions { display: flex; gap: 10px; margin-top: 8px; }
+.home-topbar-mobile-actions .top-nav-login,
+.home-topbar-mobile-actions .top-nav-cta { flex: 1; text-align: center; }
+
 .accent-green { color: var(--color-green); }
 .accent-orange { color: var(--color-primary); }
 
@@ -223,7 +261,7 @@ button { font-family: inherit; }
     radial-gradient(circle at 88% 78%, rgba(255, 255, 255, 0.10), transparent 40%),
     radial-gradient(circle at 60% 8%, rgba(255, 255, 255, 0.08), transparent 30%),
     linear-gradient(135deg, #2b2250 0%, #1b1a3a 55%, #241f45 100%);
-  padding: clamp(16px, 2.4vh, 26px) clamp(20px, 4vw, 48px) clamp(18px, 2.8vh, 28px);
+  padding: clamp(16px, 2.4vh, 26px) 0 clamp(18px, 2.8vh, 28px);
 }
 .dark-hero-band-sm { padding-top: clamp(12px, 1.6vh, 18px); padding-bottom: clamp(10px, 1.6vh, 16px); }
 .dark-hero-band-sm .dark-hero-title { font-size: clamp(1.15rem, 2.2vw, 1.5rem); margin: 0 0 2px; }
@@ -240,7 +278,7 @@ button { font-family: inherit; }
   .dark-hero-inner-row { justify-content: flex-start; }
   .dark-hero-inner-row .wizard-steps { justify-content: flex-start; margin-top: 8px; }
 }
-.dark-hero-inner { max-width: min(1600px, 94vw); margin: 0 auto; }
+.dark-hero-inner { max-width: min(1600px, 94vw); margin: 0 auto; padding-left: clamp(20px, 4vw, 48px); padding-right: clamp(20px, 4vw, 48px); }
 .lesson-back-link {
   display: inline-flex;
   align-items: center;
@@ -333,10 +371,20 @@ button { font-family: inherit; }
   padding-bottom: clamp(18px, 2.4vh, 26px);
 }
 .content-grid-section-dark > * {
-  max-width: 1200px;
+  max-width: min(1600px, 94vw);
   padding-left: clamp(20px, 4vw, 48px);
   padding-right: clamp(20px, 4vw, 48px);
   margin-left: auto;
+  margin-right: auto;
+}
+/* Nội dung "Bài học" (thẻ Listening/Speaking) tự nhiên hẹp — giới hạn hẹp hơn thanh header phía
+   trên để không tạo khoảng trống tối rỗng lớn bên phải. margin-left tính lại bằng đúng công
+   thức căn giữa của khối 1600px chuẩn (thay vì margin:auto sẽ tự canh giữa theo bề rộng MỚI,
+   làm lệch trái so với header) để lề trái vẫn thẳng hàng tuyệt đối với Header/back-button. */
+.content-grid-section-dark .lesson-section,
+.content-grid-section-dark .lesson-divider {
+  max-width: min(1100px, 94vw);
+  margin-left: calc((100% - min(1600px, 94vw)) / 2);
   margin-right: auto;
 }
 .content-grid {
@@ -345,7 +393,13 @@ button { font-family: inherit; }
   gap: clamp(20px, 2vw, 32px);
 }
 .content-grid-2 { grid-template-columns: repeat(2, 1fr); max-width: 640px; margin: 0 auto; }
-.content-grid-4 { grid-template-columns: repeat(4, 1fr); max-width: 880px; margin: 0 auto; }
+.content-grid-4 {
+  display: flex;
+  flex-wrap: wrap;
+  max-width: 880px;
+  margin: 0;
+}
+.content-grid-4 > * { width: 210px; flex: 0 0 auto; }
 
 .content-card-v2 {
   --accent: #ff7a45;
@@ -378,14 +432,13 @@ button { font-family: inherit; }
 
 .lesson-section { margin: 0 0 14px; }
 .lesson-section:last-child { margin-bottom: 0; }
-.lesson-section-title { max-width: 880px; margin: 0 auto 10px; font-size: 1.1rem; color: #fff; }
+.lesson-section-title { margin: 0 0 10px; font-size: 1.1rem; color: #fff; }
 
 .lesson-divider {
   display: flex;
   align-items: center;
   gap: 16px;
-  max-width: 880px;
-  margin: 26px auto;
+  margin: 14px 0;
 }
 .lesson-divider::before, .lesson-divider::after {
   content: "";
@@ -739,39 +792,6 @@ button { font-family: inherit; }
 }
 .contact-card h3 { font-size: 1rem; color: var(--color-secondary); }
 
-/* ---------- Footer ---------- */
-.site-footer { background: #fff8ef; margin-top: 40px; border-top: 1px solid #f1ebdd; }
-.site-footer-inner {
-  max-width: min(1600px, 94vw);
-  margin: 0 auto;
-  padding: 40px clamp(20px, 4vw, 48px) 20px;
-  display: grid;
-  grid-template-columns: 1.2fr 1fr;
-  gap: 24px;
-}
-.footer-brand p { color: var(--color-muted); max-width: 32ch; }
-.footer-links { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
-.footer-links h4 { font-family: var(--font-display); font-size: 0.95rem; margin-bottom: 10px; }
-.footer-links button {
-  display: block;
-  background: none;
-  border: none;
-  padding: 4px 0;
-  color: var(--color-muted);
-  cursor: pointer;
-  text-align: left;
-  font-size: 0.95rem;
-}
-.footer-links button:hover { color: var(--color-primary); }
-.footer-links p { color: var(--color-muted); margin: 0 0 4px; font-size: 0.95rem; }
-.footer-copy {
-  text-align: center;
-  color: var(--color-muted);
-  font-size: 0.85rem;
-  padding: 12px 0 24px;
-  margin: 0;
-}
-
 /* ---------- Game modes (kéo thả / flashcard / luyện nói) ---------- */
 .cards { display: flex; flex-wrap: wrap; gap: 16px; justify-content: center; }
 .vocab-card {
@@ -1009,6 +1029,8 @@ button { font-family: inherit; }
   background: #fdf3e3; border: 2px solid #fbe3ae; border-radius: var(--radius-pill);
   padding: 8px 18px; font-size: 0.95rem; color: var(--color-ink);
 }
+.word-correct { color: var(--color-green); }
+.word-wrong { color: #4b4b4b; text-decoration: underline; text-decoration-color: #4b4b4b; }
 .drag-card {
   width: 90px; height: 90px; object-fit: contain; display: block;
   cursor: grab; touch-action: none; border-radius: 12px;
@@ -1108,7 +1130,6 @@ button { font-family: inherit; }
   .level-grid.two-col { grid-template-columns: 1fr; }
   .testimonial-grid { grid-template-columns: 1fr; }
   .contact-grid { grid-template-columns: 1fr; }
-  .site-footer-inner { grid-template-columns: 1fr; }
 
   /* Màn hình nhỏ: bỏ ràng buộc "1 màn hình không cuộn", cho cuộn bình thường. */
   .home-screen { min-height: 0; display: block; overflow: visible; }
@@ -1117,11 +1138,19 @@ button { font-family: inherit; }
 }
 
 @media (max-width: 640px) {
-  .home-topbar { flex-direction: column; align-items: center; text-align: center; gap: 14px; }
-  .home-topbar-actions { width: 100%; justify-content: center; }
-  .top-nav-login, .top-nav-cta { white-space: nowrap; }
+  .home-topbar { gap: 10px; }
+  .home-topbar-nav, .home-topbar-actions { display: none; }
+  .home-topbar-burger { display: flex; }
+  .home-topbar-mobile-menu { display: flex; }
   .hero-feature-sep { display: none; }
+  .motivation-banner { padding: 18px 18px; gap: 14px; }
+  .motivation-bee { width: 54px; height: 54px; }
+  .motivation-copy h2 { font-size: 1.05rem; }
+  .motivation-copy p { font-size: 0.9rem; }
   .motivation-mini-row { grid-template-columns: 1fr; min-width: 0; width: 100%; }
+  .content-grid-section { padding-left: 16px; padding-right: 16px; }
+  .card-banner-strip { padding: 10px 18px; }
+  .content-card-v2-body { padding: 14px 18px 18px; }
 }
 
 /* ---------- Đăng nhập / khoá bài học bằng mật khẩu (LoginPage, SettingsPage, PasswordGate) ---------- */
@@ -1977,17 +2006,6 @@ button.wizard-step:focus-visible { outline: 3px solid var(--color-secondary); ou
 .level-card-status svg { width: 14px; height: 14px; }
 .level-card-status.is-locked { color: var(--color-muted); }
 .level-card-status.is-ready { color: var(--color-green); }
-
-/* ---------- Footer: hàng dưới cùng rõ hơn ---------- */
-.footer-legal-row {
-  display: flex;
-  justify-content: center;
-  gap: 6px;
-  flex-wrap: wrap;
-  font-size: 0.82rem;
-  color: var(--color-muted);
-  padding-bottom: 6px;
-}
 
 /* ---------- Admin sidebar: icon nhất quán trước nhãn mục ---------- */
 .admin-sidebar-link {

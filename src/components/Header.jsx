@@ -1,3 +1,4 @@
+import { useState } from "react";
 import Logo from "./Logo.jsx";
 import { useAuth } from "../lib/authContext.jsx";
 
@@ -12,8 +13,10 @@ const NAV_ITEMS = [
 
 export default function Header({ page, onNavigate }) {
   const { user, role, isStaff, logout } = useAuth();
+  const [menuOpen, setMenuOpen] = useState(false);
 
   function handleAuthClick() {
+    setMenuOpen(false);
     if (user) {
       logout();
       onNavigate("home");
@@ -22,11 +25,16 @@ export default function Header({ page, onNavigate }) {
     }
   }
 
+  function handleNavClick(key) {
+    setMenuOpen(false);
+    onNavigate(key);
+  }
+
   return (
     <div className="home-v2-topbar-wrap">
       <div className="home-v2-inner-topbar">
         <div className="home-topbar">
-          <button className="brand-btn" onClick={() => onNavigate("home")} aria-label="Về trang chủ">
+          <button className="brand-btn" onClick={() => handleNavClick("home")} aria-label="Về trang chủ">
             <Logo size={40} />
           </button>
 
@@ -35,7 +43,7 @@ export default function Header({ page, onNavigate }) {
               <button
                 key={item.key}
                 className={`home-topbar-navlink${page === item.key ? " is-active" : ""}`}
-                onClick={() => onNavigate(item.key)}
+                onClick={() => handleNavClick(item.key)}
               >
                 {item.label}
               </button>
@@ -43,7 +51,7 @@ export default function Header({ page, onNavigate }) {
             {isStaff && (
               <button
                 className={`home-topbar-navlink${page === "dashboard" ? " is-active" : ""}`}
-                onClick={() => onNavigate("dashboard")}
+                onClick={() => handleNavClick("dashboard")}
               >
                 Quản trị
               </button>
@@ -54,11 +62,50 @@ export default function Header({ page, onNavigate }) {
             <button className="top-nav-login" onClick={handleAuthClick} title={user?.email}>
               {user ? `${role === "admin" ? "Admin" : "Giáo viên"} · Đăng xuất` : "Đăng nhập"}
             </button>
-            <button className="top-nav-cta" onClick={() => onNavigate("lessons")}>
+            <button className="top-nav-cta" onClick={() => handleNavClick("lessons")}>
               Học thử ngay
             </button>
           </div>
+
+          <button
+            className={`home-topbar-burger${menuOpen ? " is-open" : ""}`}
+            onClick={() => setMenuOpen(open => !open)}
+            aria-label={menuOpen ? "Đóng menu" : "Mở menu"}
+            aria-expanded={menuOpen}
+          >
+            <span /><span /><span />
+          </button>
         </div>
+
+        {menuOpen && (
+          <div className="home-topbar-mobile-menu">
+            {NAV_ITEMS.map(item => (
+              <button
+                key={item.key}
+                className={`home-topbar-navlink${page === item.key ? " is-active" : ""}`}
+                onClick={() => handleNavClick(item.key)}
+              >
+                {item.label}
+              </button>
+            ))}
+            {isStaff && (
+              <button
+                className={`home-topbar-navlink${page === "dashboard" ? " is-active" : ""}`}
+                onClick={() => handleNavClick("dashboard")}
+              >
+                Quản trị
+              </button>
+            )}
+            <div className="home-topbar-mobile-actions">
+              <button className="top-nav-login" onClick={handleAuthClick} title={user?.email}>
+                {user ? `${role === "admin" ? "Admin" : "Giáo viên"} · Đăng xuất` : "Đăng nhập"}
+              </button>
+              <button className="top-nav-cta" onClick={() => handleNavClick("lessons")}>
+                Học thử ngay
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
