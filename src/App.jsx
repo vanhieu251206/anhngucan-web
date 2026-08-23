@@ -1,13 +1,16 @@
-import { useEffect, useState } from "react";
+import { Suspense, lazy, useEffect, useState } from "react";
 import Header from "./components/Header.jsx";
 import HomePage from "./pages/HomePage.jsx";
 import LessonsPage from "./pages/LessonsPage.jsx";
 import AboutPage from "./pages/AboutPage.jsx";
 import ContactPage from "./pages/ContactPage.jsx";
 import LoginPage from "./pages/LoginPage.jsx";
-import DashboardPage from "./pages/DashboardPage.jsx";
 import { useAuth } from "./lib/authContext.jsx";
 import { readParams, setParams } from "./lib/urlState.js";
+
+// Dashboard (CMS quản trị) chỉ admin/teacher dùng, học sinh không bao giờ vào — tách thành chunk
+// riêng (React.lazy) để 100 học sinh không phải tải kèm code CMS lúc mở app (xem audit P2).
+const DashboardPage = lazy(() => import("./pages/DashboardPage.jsx"));
 
 // Đọc trang + bộ đề ban đầu từ URL (?page=...&series=...) — để F5/mở lại URL đã chia sẻ vào
 // đúng trang thay vì luôn bật về Trang chủ. Xem src/lib/urlState.js.
@@ -48,13 +51,21 @@ export default function App() {
   // "Cài đặt" (đổi mật khẩu chung) giờ nằm TRONG Dashboard (mục Sidebar), không còn là trang
   // riêng — link/URL cũ (?page=settings) tự chuyển vào đúng chỗ thay vì vào trang trống.
   if (page === "settings" && isStaff) {
-    return <DashboardPage onNavigate={setPage} initialSection="settings" />;
+    return (
+      <Suspense fallback={null}>
+        <DashboardPage onNavigate={setPage} initialSection="settings" />
+      </Suspense>
+    );
   }
 
   // Khu vực quản trị (dashboard) có layout TÁCH BIỆT hoàn toàn khỏi web công khai — không
   // bọc Header/Footer, giống cách SceneRunner render fullscreen riêng trong LessonsPage.jsx.
   if (page === "dashboard" && isStaff) {
-    return <DashboardPage onNavigate={setPage} />;
+    return (
+      <Suspense fallback={null}>
+        <DashboardPage onNavigate={setPage} />
+      </Suspense>
+    );
   }
 
   // Trang chủ và Bài học dùng chung 1 kiểu màn hình riêng (logo + nút riêng, không Header/Footer

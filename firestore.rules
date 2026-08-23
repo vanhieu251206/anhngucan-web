@@ -1,0 +1,75 @@
+rules_version = '2';
+
+// Firestore Security Rules — App Học Tiếng Anh.
+// Trước bản này, repo KHÔNG có file rules nào được version-control (xem AUDIT 2026-08-23,
+// mục Critical C1) — rules thật (nếu có) chỉ tồn tại rời rạc trên Firebase Console, không ai
+// review/khôi phục được. File này là NGUỒN SỰ THẬT DUY NHẤT cho rules, khớp đúng schema đọc
+// được từ code (src/lib/lessonAccess.js, adminLessons.js, lessons.js, authContext.jsx,
+// adminUsers.js). Deploy bằng `firebase deploy --only firestore:rules` (cần `firebase login`
+// + `firebase use <projectId>` trước) HOẶC copy nội dung file này dán thẳng vào Firebase Console
+// → Firestore Database → Rules → Publish.
+//
+// Schema thực tế trong code:
+// - settings/access        { passwordHash, updatedAt, updatedBy } — mật khẩu chung khoá bài học.
+// - users/{uid}             { role: "admin" | "teacher", email, createdAt }.
+// - lessons/{seriesId-level}                      { seriesId, level, listening, updatedAt, updatedBy }
+//   └─ tests/{testId}                              { testId, title, order, scenes, updatedAt, updatedBy }
+//
+// KHÔNG có collection lưu tiến độ/điểm số học sinh (Phase 3 chưa làm — xem CLAUDE.md mục 6).
+
+function isSignedIn() {
+  return request.auth != null;
+}
+
+function role() {
+  return isSignedIn()
+    ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role
+    : null;
+}
+
+function isStaff() {
+  return role() == "admin" || role() == "teacher";
+}
+
+function isAdmin() {
+  return role() == "admin";
+}
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Mật khẩu chung mở khoá bài học: PHẢI đọc được công khai (guest chưa đăng nhập cần đọc để
+    // so khớp hash trong PasswordGate.jsx) — chỉ admin/teacher mới ghi được.
+    match /settings/access {
+      allow read: if true;
+      allow write: if isStaff();
+    }
+
+    // Tài khoản admin/teacher: chỉ chủ tài khoản hoặc staff khác đọc được (tránh lộ danh sách
+    // email); chỉ admin tạo/sửa được role người khác (adminUsers.js ghi bằng quyền admin đang
+    // đăng nhập). Không cho tự ghi role của chính mình (tránh học sinh tự phong admin nếu lỡ có
+    // tài khoản Auth nào đó).
+    match /users/{uid} {
+      allow read: if isSignedIn() && (request.auth.uid == uid || isStaff());
+      allow write: if isAdmin();
+    }
+
+    // Dữ liệu bài học (Listening + Test/scene Speaking): đọc công khai (guest cần xem sau khi mở
+    // khoá bằng mật khẩu chung — không có khái niệm tài khoản học sinh riêng nên không phân quyền
+    // theo uid được), chỉ admin/teacher ghi được qua CMS.
+    match /lessons/{lessonId} {
+      allow read: if true;
+      allow write: if isStaff();
+
+      match /tests/{testId} {
+        allow read: if true;
+        allow write: if isStaff();
+      }
+    }
+
+    // Mặc định: chặn tất cả những gì không khớp rule ở trên.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

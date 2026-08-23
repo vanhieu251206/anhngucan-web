@@ -25,10 +25,19 @@ const ASSEMBLYAI_UPLOAD_URL = "https://api.assemblyai.com/v2/upload";
 const ASSEMBLYAI_TRANSCRIPT_URL = "https://api.assemblyai.com/v2/transcript";
 
 // Audio ghi âm câu trả lời của trẻ nhỏ rất ngắn (thường vài giây) nên AssemblyAI thường xử lý
-// xong trong vài giây — nhưng vẫn cần giới hạn để Worker không treo vô thời hạn nếu AssemblyAI
-// chậm bất thường. Client (pronunciationApi.js) có timeout riêng dài hơn mốc này.
+// xong trong vài giây khi ít người dùng cùng lúc — nhưng vẫn cần giới hạn để Worker không treo
+// vô thời hạn nếu AssemblyAI chậm bất thường. Client (pronunciationApi.js) có timeout riêng dài
+// hơn mốc này.
+//
+// NÂNG TỪ 25→45 (2026-08-23) sau load test thật: ở 50-100 học sinh bấm mic cùng lúc, AssemblyAI
+// VẪN xử lý xong (request thành công đo được tới ~24-25s) nhưng Worker bỏ cuộc ở mốc 17.5s cũ —
+// tức phần lớn lỗi 504 trước đây là Worker bỏ cuộc quá sớm, không phải AssemblyAI từ chối. Chờ
+// dư dả để tận dụng đúng công suất AssemblyAI thay vì báo lỗi giả — không tốn thêm hạn mức free
+// tier (chỉ đợi lâu hơn, không gọi thêm request). Cloudflare Worker free tier tính CPU time
+// (không tính thời gian chờ I/O như polling này) nên kéo dài thời gian chờ không phát sinh phí.
 const POLL_INTERVAL_MS = 700;
-const MAX_POLL_ATTEMPTS = 25; // ~17.5 giây
+const MAX_POLL_ATTEMPTS = 45; // ~31.5 giây
+const MAX_AUDIO_BYTES = 10 * 1024 * 1024; // 10MB — dư sức cho vài giây audio ghi âm trẻ nhỏ
 
 function corsHeaders(origin) {
   return {
@@ -123,6 +132,12 @@ export default {
       const audio = incomingForm.get("audio");
       if (!audio) {
         return jsonError(headers, "missing-audio", 400);
+      }
+      // Câu trả lời của học sinh chỉ vài giây — chặn file bất thường lớn (lỗi client hoặc lạm
+      // dụng endpoint không xác thực) để không tốn oan hạn mức free tier AssemblyAI (xem audit
+      // Phase 4/mục 11, khuyến nghị P1 #5).
+      if (audio.size > MAX_AUDIO_BYTES) {
+        return jsonError(headers, "audio-too-large", 413);
       }
 
       const text = await transcribeViaAssemblyAI(audio, env.ASSEMBLYAI_API_KEY);

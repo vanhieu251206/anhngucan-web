@@ -290,7 +290,11 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
           </span>
         </div>
         <div className="speaking-fullscreen-body">
-          <SceneRunner scenes={activeTest.scenes} onFinish={exitSpeaking} />
+          <SceneRunner
+            scenes={activeTest.scenes}
+            onFinish={exitSpeaking}
+            progressKey={`${series.id}-${level.number}-${activeTest.id}`}
+          />
         </div>
       </div>
     );

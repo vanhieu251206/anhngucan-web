@@ -74,9 +74,29 @@ function SceneImageWithHighlight({ scene }) {
   );
 }
 
-export default function SceneRunner({ scenes, onFinish }) {
-  const [index, setIndex] = useState(0);
+// Tiền tố key sessionStorage lưu scene đang làm dở — theo audit 2026-08-23 P3: refresh giữa bài
+// trước đây luôn quay về scene 0. progressKey (do LessonsPage truyền vào, vd "starters-1-test1")
+// định danh đúng 1 bài Speaking cụ thể, tránh lẫn tiến độ giữa các bài khác nhau. Chỉ lưu trong
+// sessionStorage (mất khi đóng tab hẳn) — đúng mức "sống sót qua F5", không phải lưu tiến độ dài
+// hạn (tính năng đó thuộc Phase 3 theo dõi tiến độ, chưa làm — xem CLAUDE.md mục 6).
+const PROGRESS_KEY_PREFIX = "speaking-scene-index-";
+
+function loadSavedIndex(progressKey, sceneCount) {
+  if (!progressKey) return 0;
+  const raw = sessionStorage.getItem(PROGRESS_KEY_PREFIX + progressKey);
+  const saved = Number(raw);
+  return Number.isInteger(saved) && saved >= 0 && saved < sceneCount ? saved : 0;
+}
+
+export default function SceneRunner({ scenes, onFinish, progressKey }) {
+  const [index, setIndex] = useState(() => loadSavedIndex(progressKey, scenes.length));
   const scene = scenes[index];
+
+  // Ghi lại scene hiện tại mỗi khi đổi — đọc lại ở lần mount sau (F5 giữa bài) qua loadSavedIndex.
+  useEffect(() => {
+    if (!progressKey) return;
+    sessionStorage.setItem(PROGRESS_KEY_PREFIX + progressKey, String(index));
+  }, [progressKey, index]);
   const isLast = index === scenes.length - 1;
 
   // Rời bài Speaking bằng bất kỳ cách nào (không chỉ nút quay lại, vd bấm logo/menu) đều phải
@@ -87,6 +107,7 @@ export default function SceneRunner({ scenes, onFinish }) {
 
   function goNext() {
     if (isLast) {
+      if (progressKey) sessionStorage.removeItem(PROGRESS_KEY_PREFIX + progressKey);
       onFinish();
       return;
     }

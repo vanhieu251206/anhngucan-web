@@ -16,7 +16,11 @@ const WORKER_URL = import.meta.env.VITE_WORKER_URL;
 
 const MAX_ATTEMPTS = 3; // 1 lần gọi gốc + 2 lần thử lại
 const RETRY_DELAY_MS = 1000;
-const FETCH_TIMEOUT_MS = 25000; // AssemblyAI poll bất đồng bộ chậm hơn Groq, cần chờ lâu hơn
+// PHẢI dài hơn mốc chờ MAX_POLL_ATTEMPTS×POLL_INTERVAL_MS của Worker (~31.5s, xem
+// worker/src/index.js) + thời gian upload/create trước khi vào vòng poll, nếu không client tự bỏ
+// cuộc trước cả khi Worker kịp trả lỗi 504 rõ ràng — nâng cùng đợt với Worker sau load test thật
+// 2026-08-23 (50-100 users đồng thời cho thấy request thành công có độ trễ tới ~24-25s).
+const FETCH_TIMEOUT_MS = 40000;
 
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));

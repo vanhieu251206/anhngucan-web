@@ -41,3 +41,6 @@ docs/
 *.njsproj
 *.sln
 *.sw?
+scripts/*.local.mjs
+scripts/*.local.wav
+scripts/*.local.png
