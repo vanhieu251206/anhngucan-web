@@ -3,17 +3,17 @@ import { createTeacherAccount, listTeachers } from "../../lib/adminUsers.js";
 
 export default function TeacherAccountsPage() {
   const [teachers, setTeachers] = useState(null); // null = đang tải
-  const [loadError, setLoadError] = useState(false);
+  const [loadError, setLoadError] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState("");
 
   function reload() {
-    setLoadError(false);
+    setLoadError("");
     listTeachers()
       .then(setTeachers)
-      .catch(() => setLoadError(true));
+      .catch(err => setLoadError(err.message || String(err)));
   }
 
   useEffect(reload, []);
@@ -42,7 +42,7 @@ export default function TeacherAccountsPage() {
     <div>
       <div className="admin-card" style={{ marginBottom: 24 }}>
         <h2>Danh sách giáo viên</h2>
-        {loadError && <p className="admin-error">Không tải được danh sách. Kiểm tra kết nối/quyền truy cập.</p>}
+        {loadError && <p className="admin-error">Không tải được danh sách: {loadError}</p>}
         {teachers === null && !loadError && <p className="admin-muted-text">Đang tải...</p>}
         {teachers && teachers.length === 0 && <p className="admin-muted-text">Chưa có giáo viên nào.</p>}
         {teachers && teachers.length > 0 && (

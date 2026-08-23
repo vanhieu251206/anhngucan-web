@@ -25,6 +25,24 @@
    vừa khít 1 màn hình, About/Contact dài hơn nên có thanh cuộn, độ rộng khả dụng khác nhau). */
 html { scrollbar-gutter: stable; }
 
+/* Các màn "toàn màn hình cố định" (Dashboard/CMS, Speaking) dùng position: fixed; inset: 0 để tự
+   quản lý cuộn bên trong (từng panel tự overflow-y riêng) — nhưng nội dung tràn bên trong 1 phần
+   tử fixed vẫn có thể khiến CẢ TRANG (html/body) phát sinh thanh cuộn riêng (quirk CSS đã biết:
+   overflow của phần tử fixed vẫn tính vào "scrollable overflow" của viewport gốc). Kết quả: vừa
+   cuộn trang ngoài vừa cuộn panel trong, gây hiện tượng nội dung bị che/lệch (phát hiện 2026-08-23
+   ở màn Studio soạn Test). Khoá cuộn html/body hẳn khi có 1 trong các màn full-screen này đang mở,
+   để panel bên trong là nơi DUY NHẤT chịu trách nhiệm cuộn.
+   :has() cần Chrome 105+/Safari 15.4+/Firefox 121+ — đủ mới cho trình duyệt admin/giáo viên dùng. */
+html:has(.admin-shell),
+html:has(.studio-shell),
+html:has(.speaking-fullscreen),
+body:has(.admin-shell),
+body:has(.studio-shell),
+body:has(.speaking-fullscreen) {
+  overflow: hidden;
+  height: 100%;
+}
+
 /* Focus rõ ràng cho bàn phím — bắt buộc về accessibility, áp dụng cho cả 2 theme. */
 :focus-visible {
   outline: 3px solid var(--color-secondary);
@@ -1233,6 +1251,63 @@ button { font-family: inherit; }
 
 /* ---------- Khu vực quản trị (Dashboard admin/teacher) — hệ màu RIÊNG, tách biệt hoàn toàn
    khỏi tông cam/xanh ngọc của web học sinh, để rõ ràng đây là khu vực khác. ---------- */
+/* Modal xác nhận tự thiết kế (ConfirmDialog.jsx) — thay window.confirm() mặc định của trình
+   duyệt, xấu và không theo được theme/màu accent app (phản hồi người dùng 2026-08-23). */
+.confirm-overlay {
+  /* Modal render ngoài phạm vi .admin-shell (ConfirmProvider bọc cả admin-shell) nên KHÔNG kế
+     thừa được các biến --admin-accent/--admin-text... định nghĩa trên .admin-shell — khai báo lại
+     đầy đủ ở đây để .admin-btn-primary/.admin-pill-btn dùng chung không bị rỗng giá trị (bug thật:
+     nút "Đồng ý" trắng trơn mất chữ, phát hiện 2026-08-23). */
+  --admin-accent: #3b5bdb;
+  --admin-accent-dark: #2c46b3;
+  --admin-text: #1f2937;
+  --admin-card-bg: #ffffff;
+  --admin-border: #e4e7ee;
+  --admin-shadow-sm: 0 1px 2px rgba(17, 24, 39, 0.05);
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  background: rgba(17, 24, 39, 0.45);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  animation: confirm-fade-in 0.15s ease;
+}
+@keyframes confirm-fade-in { from { opacity: 0; } to { opacity: 1; } }
+.confirm-dialog {
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 20px 50px -10px rgba(17, 24, 39, 0.35);
+  padding: 28px 26px 22px;
+  max-width: 380px;
+  width: 100%;
+  text-align: center;
+  animation: confirm-pop-in 0.18s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+}
+@keyframes confirm-pop-in { from { opacity: 0; transform: scale(0.92) translateY(6px); } to { opacity: 1; transform: none; } }
+.confirm-dialog-message {
+  margin: 0 0 22px;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--admin-text, #1f2937);
+  line-height: 1.5;
+}
+.confirm-dialog-actions {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+}
+.confirm-dialog-actions .admin-pill-btn,
+.confirm-dialog-actions .admin-btn-primary {
+  min-width: 110px;
+}
+.confirm-dialog-danger {
+  background: linear-gradient(135deg, #ef4444, #dc2626) !important;
+  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.32) !important;
+}
+
 .admin-shell {
   --admin-sidebar-bg: #ffffff;
   --admin-sidebar-text: #4b5563;
@@ -1445,7 +1520,7 @@ button { font-family: inherit; }
 }
 .admin-user-info { display: flex; flex-direction: column; line-height: 1.25; text-align: left; }
 .admin-user-email { font-weight: 600; color: var(--admin-text); font-size: 0.88rem; overflow-wrap: anywhere; }
-.admin-user-role { font-size: 0.75rem; color: var(--admin-muted); }
+.admin-user-role { font-size: 0.75rem; color: var(--admin-muted); overflow-wrap: anywhere; }
 .admin-pill-btn {
   background: var(--admin-card-bg);
   border: 1px solid var(--admin-border);
@@ -1464,14 +1539,16 @@ button { font-family: inherit; }
 .admin-pill-btn-danger:hover { background: #fee2e2; border-color: #fca5a5; }
 .admin-form { display: flex; flex-direction: column; gap: 14px; max-width: 360px; margin-top: 16px; }
 .admin-input {
-  border: 1.5px solid var(--admin-border);
+  border: 1.5px solid #c7cbd6;
   border-radius: 9px;
   padding: 11px 14px;
   font-family: var(--font-body);
   font-size: 0.95rem;
   background: var(--admin-card-bg);
+  box-shadow: 0 1px 3px rgba(17, 24, 39, 0.06);
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
+.admin-input:hover { border-color: #a8adba; }
 .admin-input:focus { outline: none; border-color: var(--admin-accent); box-shadow: 0 0 0 3px rgba(59, 91, 219, 0.15); }
 .admin-input::placeholder { color: #9aa1ac; }
 .admin-btn-primary {
@@ -1579,6 +1656,63 @@ button { font-family: inherit; }
 .admin-template-tile strong { font-size: 0.95rem; }
 .admin-template-tile span { color: var(--admin-muted); font-size: 0.82rem; }
 
+/* Lưới Test trong CMS Speaking — mỗi Test là 1 thẻ bấm được, kèm badge số scene và nút
+   Sửa/Xoá riêng, thay cho danh sách dòng phẳng khó quét mắt trước đây. */
+.admin-test-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 14px;
+  margin: 16px 0;
+}
+.admin-test-card {
+  --accent: var(--admin-accent);
+  display: flex;
+  flex-direction: column;
+  background: var(--admin-card-bg);
+  border: 1.5px solid var(--admin-border);
+  border-radius: 14px;
+  box-shadow: var(--admin-shadow-sm);
+  overflow: hidden;
+  transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
+}
+.admin-test-card:hover { border-color: var(--accent); box-shadow: 0 10px 24px -8px color-mix(in srgb, var(--accent) 45%, transparent); transform: translateY(-3px); }
+.admin-test-card-main {
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 18px 18px 14px;
+  font-family: var(--font-body);
+}
+.admin-test-card-icon { font-size: 1.6rem; line-height: 1; }
+.admin-test-card-title { font-weight: 700; font-size: 1rem; color: var(--admin-text); }
+.admin-test-card-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--admin-border);
+  background: color-mix(in srgb, var(--accent) 5%, transparent);
+}
+.admin-test-card-add {
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1.5px dashed var(--admin-border);
+  box-shadow: none;
+  color: var(--admin-muted);
+  font-weight: 700;
+  cursor: pointer;
+  padding: 18px;
+  min-height: 96px;
+}
+.admin-test-card-add:hover { border-color: var(--admin-accent); color: var(--admin-accent); background: var(--admin-sidebar-active-bg); transform: translateY(-3px); }
+.admin-test-card-add-icon { font-size: 1.6rem; line-height: 1; }
+
 .admin-scene-editor-head {
   display: flex;
   justify-content: space-between;
@@ -1668,11 +1802,10 @@ button { font-family: inherit; }
    vẫn bọc thẻ trắng + viền + bóng giống fieldset để nhất quán, tránh 1 dòng chữ trôi nổi giữa
    các khối có viền rõ ràng ở trên/dưới. */
 .admin-scene-form > .admin-mini-field {
-  background: var(--admin-card-bg);
-  border: 1px solid var(--admin-border);
-  border-radius: 14px;
-  box-shadow: var(--admin-shadow-sm);
-  padding: 14px 16px;
+  background: transparent;
+  border: 1.5px dashed var(--admin-border);
+  border-radius: 12px;
+  padding: 12px 14px;
 }
 .admin-mini-field > span {
   font-size: 0.74rem;
@@ -1686,9 +1819,13 @@ button { font-family: inherit; }
    đang ở nhóm nào (phản hồi người dùng 2026-08-20: "chưa nổi bật vùng điền, chưa phân chia rõ"). */
 .admin-fieldset {
   border: 1px solid var(--admin-border);
-  border-radius: 14px;
-  background: var(--admin-card-bg);
-  box-shadow: var(--admin-shadow-sm);
+  border-left: 4px solid var(--accent, var(--admin-accent));
+  border-radius: 12px;
+  /* Nền XÁM NHẠT (khác hẳn nền trắng của input bên trong) — để input trắng + viền đậm hơn "nổi"
+     lên rõ ràng, thay vì viền mỏng chồng viền mỏng trên cùng 1 nền trắng, khó phân biệt tầng
+     (phản hồi người dùng 2026-08-23: "đang lồng các frame viền mỏng vô nhau"). */
+  background: #f6f7fa;
+  box-shadow: var(--admin-shadow-md);
   padding: 18px 18px 20px;
   display: flex;
   flex-direction: column;
@@ -1699,11 +1836,14 @@ button { font-family: inherit; }
 .admin-fieldset legend {
   font-weight: 700;
   font-size: 0.76rem;
-  padding: 5px 12px;
+  padding: 6px 14px;
   margin-left: 4px;
   border-radius: 999px;
-  background: var(--admin-sidebar-active-bg, #eef2ff);
-  color: var(--admin-accent);
+  /* Nền ĐẶC màu accent + chữ trắng (thay vì nền tint nhạt + chữ màu) — độ tương phản cao hơn hẳn,
+     nổi bật rõ thay vì mờ nhạt trên nền card cũng đã đổi màu (phản hồi người dùng 2026-08-23). */
+  background: var(--accent, var(--admin-accent));
+  color: #fff;
+  box-shadow: 0 2px 6px color-mix(in srgb, var(--accent, var(--admin-accent)) 45%, transparent);
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
@@ -1840,8 +1980,11 @@ button { font-family: inherit; }
   display: flex;
 }
 .studio-sidebar {
-  width: 380px;
-  flex-shrink: 0;
+  /* Chiếm hết khoảng trống còn lại (thay vì cố định 380px rồi để trống 1 mảng xám giữa form và
+     khung xem trước) — khung xem trước đã tự chốt độ rộng riêng (50vw, xem .scene-preview-wrap),
+     nên form nhập liệu tận dụng toàn bộ phần còn lại, không bỏ phí không gian (chốt 2026-08-23). */
+  flex: 1;
+  min-width: 380px;
   overflow-y: auto;
   padding: 22px 22px 40px;
   background: var(--admin-bg, #f2f4f8);
@@ -1854,8 +1997,8 @@ button { font-family: inherit; }
   gap: 8px;
   margin-bottom: 22px;
   padding: 12px 16px;
-  background: var(--admin-card-bg, #fff);
-  border: 1px solid var(--admin-border, #e4e7ee);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent, var(--admin-accent)) 14%, white), var(--admin-card-bg, #fff));
+  border: 1px solid color-mix(in srgb, var(--accent, var(--admin-accent)) 30%, var(--admin-border, #e4e7ee));
   border-radius: 12px;
   box-shadow: var(--admin-shadow-sm);
 }
@@ -1863,15 +2006,58 @@ button { font-family: inherit; }
 .studio-sidebar-actions { display: flex; gap: 2px; flex-shrink: 0; }
 .studio-sidebar > .admin-scene-form { gap: 18px; }
 .studio-preview-area {
-  flex: 1;
-  min-width: 0;
-  overflow-y: auto;
+  /* Độ rộng do JS tính (TestStudio.jsx, usePreviewAreaWidth) = chiều cao khả dụng × đúng tỉ lệ
+     card (600:640) — luôn khớp CHÍNH XÁC kích thước card thật cần, không thừa khoảng trống như
+     dùng 1 tỉ lệ màn hình cố định (vd 50vw, từng để hở mảng lớn nếu card bị giới hạn bởi chiều
+     cao). Nhường hết phần còn lại cho .studio-sidebar (chốt 2026-08-23). */
+  flex: 0 0 auto;
+  min-height: 0;
+  overflow: hidden;
   display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding: 32px 24px;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 12px 0 12px 24px;
 }
-.studio-preview-area .scene-preview { width: 100%; max-width: 640px; }
+/* .scene-preview-wrap = khung đo (ResizeObserver qua useFitBoxSize trong ScenePreview.jsx) —
+   chiếm hết khoảng trống linh hoạt của .studio-preview-area, để đo đúng khoảng trống thật hiện có.
+   .scene-preview-scale-box nhận width/height PX = kích thước đã co theo khoảng trống (JS tính,
+   giữ đúng tỉ lệ 600:640 của `.sentence-box` thật) — đây là kích thước THẬT chiếm chỗ trong layout.
+   .scene-preview bên trong LUÔN render ở kích thước GỐC 600×640px (mọi chữ/nút/khoảng cách y hệt
+   bản thật) rồi bị scale() thu nhỏ nguyên khối cho khớp .scale-box — nhờ vậy MỌI thành phần bên
+   trong co giãn ĐỒNG BỘ cùng 1 tỉ lệ (như phóng to/thu nhỏ cả bản thiết kế), không còn cảnh riêng
+   ảnh phải co còn chữ/nút giữ nguyên cỡ gây tràn khung (phát hiện + sửa 2026-08-23). */
+.studio-preview-area .scene-preview-wrap {
+  /* .studio-preview-area đã tự chốt độ rộng 50vw rồi (xem trên) — wrap chỉ cần lấp đầy đúng
+     khoảng đó, không set lại 50vw ở đây nữa (tránh double, chốt 2026-08-23). */
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+.studio-preview-area .scene-preview-scale-box {
+  position: relative;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+.studio-preview-area .scene-preview {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.studio-preview-area .scene-preview-inner {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+}
+.studio-preview-area .scene-preview-inner .part1-scene-stage {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  aspect-ratio: auto;
+}
 .studio-preview-area .admin-empty-state { margin: auto; }
 
 .studio-filmstrip {
@@ -1936,6 +2122,17 @@ button { font-family: inherit; }
 .studio-change-action-btn {
   align-self: flex-start;
   margin-top: -6px;
+  /* Trước chỉ là link chữ trơn, mờ nhạt giữa các khối card có màu — đổi thành pill viền + nền nhạt
+     màu accent để rõ đây LÀ 1 nút bấm được, không phải nhãn/chữ mô tả (phản hồi 2026-08-23). */
+  padding: 6px 14px !important;
+  border: 1.5px solid var(--accent, var(--admin-accent));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent, var(--admin-accent)) 10%, transparent);
+  color: var(--accent, var(--admin-accent)) !important;
+  font-weight: 700;
+}
+.studio-change-action-btn:hover {
+  background: color-mix(in srgb, var(--accent, var(--admin-accent)) 18%, transparent);
 }
 
 @media (max-width: 900px) {

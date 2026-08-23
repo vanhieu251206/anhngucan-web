@@ -3,28 +3,50 @@ import { YLE_SERIES } from "../../lib/yleData.js";
 import { useAuth } from "../../lib/authContext.jsx";
 import { saveListening, getListening, listTests, getTest, saveTest, deleteTest } from "../../lib/adminLessons.js";
 import TestStudio from "../../components/dashboard/TestStudio.jsx";
+import { useConfirm } from "../../components/dashboard/ConfirmDialog.jsx";
+import { readParams, setParams } from "../../lib/urlState.js";
 
 const MODE_INFO = {
   listening: { label: "Listening", icon: "🎧", desc: "Video nghe" },
   speaking: { label: "Speaking", icon: "🎤", desc: "Luyện nói theo scene" },
 };
 
+// Đọc bước đang soạn (bộ đề/cấp/loại bài) từ URL (?cSeries=...&cLevel=...&cMode=...) — để F5
+// quay lại đúng chỗ đang soạn thay vì luôn về bước "Chọn bộ đề" đầu tiên (phản hồi người dùng
+// 2026-08-23). Dùng tiền tố "c" (create) để không đụng key "series" của trang Bài học công khai.
+function initialStepFromUrl() {
+  const p = readParams();
+  const series = YLE_SERIES.find(s => s.id === p.get("cSeries")) ?? null;
+  const level = series?.levels.find(l => String(l.number) === p.get("cLevel")) ?? null;
+  const mode = level && ["listening", "speaking"].includes(p.get("cMode")) ? p.get("cMode") : null;
+  return { series, level: level ?? null, mode };
+}
+
 export default function CreateLessonPage() {
   const { user } = useAuth();
-  const [series, setSeries] = useState(null);
-  const [level, setLevel] = useState(null);
-  const [mode, setMode] = useState(null); // "listening" | "speaking"
+  const [{ series, level, mode }, setStep] = useState(initialStepFromUrl);
+
+  useEffect(() => {
+    setParams(
+      { cSeries: series?.id ?? null, cLevel: level?.number ?? null, cMode: mode ?? null },
+      { replace: true }
+    );
+  }, [series, level, mode]);
+
+  function setSeries(s) { setStep({ series: s, level: null, mode: null }); }
+  function setLevel(l) { setStep(st => ({ ...st, level: l, mode: null })); }
+  function setMode(m) { setStep(st => ({ ...st, mode: m })); }
 
   // Đường dẫn từng bước (Bộ đề → Cấp độ → Loại bài) — bấm vào 1 bước trước đó để quay lại
   // ngay, thay vì chỉ có nút "← Quay lại" đơn lẻ ở cuối mỗi màn.
   const crumbs = [
-    { label: "Bộ đề", onClick: () => { setSeries(null); setLevel(null); setMode(null); }, active: !series },
+    { label: "Bộ đề", onClick: () => setStep({ series: null, level: null, mode: null }), active: !series },
   ];
   if (series) {
     crumbs.push({
       label: series.title,
       accent: series.color,
-      onClick: () => { setLevel(null); setMode(null); },
+      onClick: () => setStep(st => ({ ...st, level: null, mode: null })),
       active: !level,
     });
   }
@@ -32,7 +54,7 @@ export default function CreateLessonPage() {
     crumbs.push({
       label: `Cấp ${level.number}`,
       accent: series.color,
-      onClick: () => setMode(null),
+      onClick: () => setStep(st => ({ ...st, mode: null })),
       active: !mode,
     });
   }
@@ -89,7 +111,7 @@ function SeriesPicker({ onPick }) {
   return (
     <div className="admin-card">
       <h2>Chọn bộ đề</h2>
-      <p className="admin-muted-text">Bắt đầu soạn bài bằng cách chọn 1 trong 3 bộ đề Cambridge YLE.</p>
+      <p className="admin-muted-text">Bắt đầu soạn bài bằng cách chọn 1 bộ đề.</p>
       <div className="admin-picker-grid">
         {YLE_SERIES.map(s => (
           <button
@@ -100,7 +122,6 @@ function SeriesPicker({ onPick }) {
           >
             <span className="admin-picker-tile-dot" />
             <span className="admin-picker-tile-title">{s.title}</span>
-            <span className="admin-picker-tile-meta">{s.levels.length} cấp độ</span>
           </button>
         ))}
       </div>
@@ -120,8 +141,7 @@ function LevelPicker({ series, onPick }) {
             style={{ "--accent": series.color }}
             onClick={() => onPick(l)}
           >
-            <span className="admin-picker-tile-number">{l.number}</span>
-            <span className="admin-picker-tile-title">Cấp {l.number}</span>
+            <span className="admin-picker-tile-title">{series.title} {l.number}</span>
           </button>
         ))}
       </div>
@@ -143,7 +163,6 @@ function ModePicker({ series, level, onPick }) {
           >
             <span className="admin-picker-tile-icon">{info.icon}</span>
             <span className="admin-picker-tile-title">{info.label}</span>
-            <span className="admin-picker-tile-meta">{info.desc}</span>
           </button>
         ))}
       </div>
@@ -241,6 +260,7 @@ function ListeningEditor({ series, level, uid }) {
 }
 
 function SpeakingEditor({ series, level, uid }) {
+  const confirm = useConfirm();
   const [tests, setTests] = useState(null);
   const [openTestId, setOpenTestId] = useState(null);
   const [scenes, setScenes] = useState([]);
@@ -274,9 +294,13 @@ function SpeakingEditor({ series, level, uid }) {
   }
 
   async function handleDeleteTest(id) {
-    if (!window.confirm("Xoá Test này? Không hoàn tác được.")) return;
-    await deleteTest(series.id, level.number, id);
-    reloadTests();
+    if (!(await confirm("Xoá Test này? Không hoàn tác được.", { danger: true }))) return;
+    try {
+      await deleteTest(series.id, level.number, id);
+      reloadTests();
+    } catch (err) {
+      alert(`Không xoá được Test: ${err.message}`);
+    }
   }
   async function handleSaveTest() {
     setSaving(true);
@@ -318,31 +342,30 @@ function SpeakingEditor({ series, level, uid }) {
           </p>
         </div>
       )}
-      {tests && tests.length === 0 && !level.speakingPart1 && (
-        <div className="admin-empty-state">
-          <span className="admin-empty-state-icon">📝</span>
-          <p>Cấp độ này chưa có Test nào — tạo Test đầu tiên để bắt đầu soạn scene.</p>
-        </div>
-      )}
-      {tests && tests.length > 0 && (
-        <ul className="admin-scene-list">
+      {tests && (
+        <div className="admin-test-grid">
           {tests.map(t => (
-            <li key={t.id} className="admin-scene-list-item">
-              <span className="admin-scene-list-summary">
-                {t.title}
+            <div key={t.id} className="admin-test-card" style={{ "--accent": series.color }}>
+              <button className="admin-test-card-main" onClick={() => openTest(t)}>
+                <span className="admin-test-card-icon">🎤</span>
+                <span className="admin-test-card-title">{t.title}</span>
                 <span className="admin-scene-count-badge">{t.scenes?.length ?? 0} scene</span>
-              </span>
-              <span className="admin-scene-list-actions">
+              </button>
+              <div className="admin-test-card-actions">
                 <button className="admin-link-btn" onClick={() => openTest(t)}>Sửa</button>
                 <button className="admin-link-btn admin-pill-btn-danger" onClick={() => handleDeleteTest(t.id)}>Xoá</button>
-              </span>
-            </li>
+              </div>
+            </div>
           ))}
-        </ul>
+          <button className="admin-test-card admin-test-card-add" onClick={openNewTest}>
+            <span className="admin-test-card-add-icon">+</span>
+            <span>Tạo Test mới</span>
+          </button>
+        </div>
       )}
-      <button className="admin-btn-primary" onClick={openNewTest} style={{ marginTop: 16 }}>
-        + Tạo Test mới
-      </button>
+      {tests && tests.length === 0 && !level.speakingPart1 && (
+        <p className="admin-muted-text">Cấp độ này chưa có Test nào — bấm "Tạo Test mới" để bắt đầu soạn scene.</p>
+      )}
     </div>
   );
 }

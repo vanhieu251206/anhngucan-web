@@ -7,6 +7,16 @@ const BEE_IMG = `${import.meta.env.BASE_URL}assets/img/mascot/bee.png`;
 // Đây là dữ liệu tĩnh mô tả từng bộ đề — không phải số liệu tiến độ học sinh (app chưa
 // có tính năng theo dõi tiến độ, xem CLAUDE.md mục 6-7), nên KHÔNG có streak/điểm/% hoàn thành.
 const SERIES_INFO = {
+  kids: {
+    ready: false,
+    accent: "#F2A93B",
+    difficulty: "Vỡ lòng",
+    difficultyLevel: 0,
+    icon: <><path d="M12 3l2.5 5 5.5.8-4 3.9.9 5.5-5-2.6-5 2.6.9-5.5-4-3.9 5.5-.8L12 3z" /></>,
+    listeningNote: "",
+    speakingNote: "",
+    skills: ["listening", "speaking"],
+  },
   starters: {
     ready: true,
     accent: "#F5711F",
@@ -34,35 +44,27 @@ const SERIES_INFO = {
     listeningNote: "",
     speakingNote: "",
   },
-};
-
-// Các bộ sách/kỳ thi ngoài Starters/Movers/Flyers — chưa có dữ liệu bài học, chỉ hiện thẻ
-// "Sắp có" để định hướng lộ trình tăng dần độ khó.
-const EXTRA_EXAMS = [
-  {
-    id: "kids",
-    title: "Kids",
-    accent: "#F2A93B",
-    difficulty: "Vỡ lòng",
-    icon: <><path d="M12 3l2.5 5 5.5.8-4 3.9.9 5.5-5-2.6-5 2.6.9-5.5-4-3.9 5.5-.8L12 3z" /></>,
-  },
-  {
-    id: "ket-pet",
-    title: "KET / PET",
+  "ket-pet": {
+    ready: false,
     accent: "#8B5CF6",
     difficulty: "Trung cấp",
+    difficultyLevel: 4,
     icon: <><rect x="3" y="4" width="18" height="14" rx="2" /><path d="M3 9h18M8 4v14" /></>,
+    listeningNote: "",
+    speakingNote: "",
   },
-  {
-    id: "ielts",
-    title: "IELTS",
+  ielts: {
+    ready: false,
     accent: "#1F3A63",
     difficulty: "Nâng cao",
+    difficultyLevel: 5,
     icon: <><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3c2.5 2.5 2.5 15.5 0 18M12 3c-2.5 2.5-2.5 15.5 0 18" /></>,
+    listeningNote: "",
+    speakingNote: "",
   },
-];
+};
 
-// 4 kỹ năng cho các bộ sách trừ Kids (Kids chỉ có Listening/Speaking, xem render bên dưới).
+// 4 kỹ năng cho các bộ sách trừ Kids (Kids chỉ có Listening/Speaking, xem SERIES_INFO.kids.skills).
 const SKILL_ICONS = {
   reading: <path d="M4 5.5C6 4 9 4 12 5.5V19c-3-1.5-6-1.5-8 0zM20 5.5C18 4 15 4 12 5.5V19c3-1.5 6-1.5 8 0z" />,
   listening: <path d="M4 14v-2a8 8 0 0 1 16 0v2M2 14h5v7H4a2 2 0 0 1-2-2v-5zM22 14h-5v7h3a2 2 0 0 0 2-2v-5z" />,
@@ -109,22 +111,28 @@ export default function HomePage({ onNavigate, onSelectSeries }) {
       {/* ---------- 4. Lưới thẻ bộ đề ---------- */}
       <section className="content-grid-section">
         <div className="content-grid">
-          <div
-            className="content-card-v2 is-disabled"
-            style={{ "--accent": EXTRA_EXAMS[0].accent }}
-          >
-            <div className="card-banner-strip">
-              <span>{EXTRA_EXAMS[0].title}</span>
-            </div>
-            <div className="content-card-v2-body">
-              <div className="series-card-top">
-                <SeriesModes skills={["listening", "speaking"]} />
-                <span className="series-status">Sắp có</span>
-              </div>
-            </div>
-          </div>
           {YLE_SERIES.map(s => {
             const info = SERIES_INFO[s.id] ?? SERIES_INFO.movers;
+            const skills = info.skills ?? SKILLS_FULL;
+            if (!info.ready) {
+              return (
+                <div
+                  className="content-card-v2 is-disabled"
+                  key={s.id}
+                  style={{ "--accent": info.accent }}
+                >
+                  <div className="card-banner-strip">
+                    <span>{s.title}</span>
+                  </div>
+                  <div className="content-card-v2-body">
+                    <div className="series-card-top">
+                      <SeriesModes skills={skills} />
+                      <span className="series-status">Sắp có</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            }
             return (
               <button
                 className="content-card-v2"
@@ -137,32 +145,13 @@ export default function HomePage({ onNavigate, onSelectSeries }) {
                 </div>
                 <div className="content-card-v2-body">
                   <div className="series-card-top">
-                    <SeriesModes skills={SKILLS_FULL} />
-                    <span className={`series-status${info.ready ? " is-ready" : ""}`}>
-                      {info.ready ? "Đang mở" : "Sắp có"}
-                    </span>
+                    <SeriesModes skills={skills} />
+                    <span className="series-status is-ready">Đang mở</span>
                   </div>
                 </div>
               </button>
             );
           })}
-          {EXTRA_EXAMS.slice(1).map(e => (
-            <div
-              className="content-card-v2 is-disabled"
-              key={e.id}
-              style={{ "--accent": e.accent }}
-            >
-              <div className="card-banner-strip">
-                <span>{e.title}</span>
-              </div>
-              <div className="content-card-v2-body">
-                <div className="series-card-top">
-                  <SeriesModes skills={SKILLS_FULL} />
-                  <span className="series-status">Sắp có</span>
-                </div>
-              </div>
-            </div>
-          ))}
         </div>
 
       </section>

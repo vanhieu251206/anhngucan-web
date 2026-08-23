@@ -22,7 +22,7 @@ function isSignedIn() {
 }
 
 function role() {
-  return isSignedIn()
+  return isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid))
     ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role
     : null;
 }
@@ -39,31 +39,42 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     // Mật khẩu chung mở khoá bài học: PHẢI đọc được công khai (guest chưa đăng nhập cần đọc để
-    // so khớp hash trong PasswordGate.jsx) — chỉ admin/teacher mới ghi được.
+    // so khớp hash trong PasswordGate.jsx) — chỉ tài khoản đã đăng nhập (= admin/teacher, xem
+    // ghi chú ở /users/{uid} bên dưới) mới ghi được.
     match /settings/access {
       allow read: if true;
-      allow write: if isStaff();
+      allow write: if isSignedIn();
     }
 
-    // Tài khoản admin/teacher: chỉ chủ tài khoản hoặc staff khác đọc được (tránh lộ danh sách
-    // email); chỉ admin tạo/sửa được role người khác (adminUsers.js ghi bằng quyền admin đang
-    // đăng nhập). Không cho tự ghi role của chính mình (tránh học sinh tự phong admin nếu lỡ có
-    // tài khoản Auth nào đó).
+    // Tài khoản admin/teacher: chỉ admin tạo/sửa được role người khác (adminUsers.js ghi bằng
+    // quyền admin đang đăng nhập). Không cho tự ghi role của chính mình (tránh học sinh tự phong
+    // admin nếu lỡ có tài khoản Auth nào đó).
+    // Đọc: cho phép mọi tài khoản ĐÃ ĐĂNG NHẬP đọc (không cần get() kiểm tra role qua doc khác) —
+    // an toàn vì app này chỉ có tài khoản admin/teacher đăng nhập được (học sinh/guest không có
+    // tài khoản Auth, chỉ nhập mật khẩu chung, xem CLAUDE.md). Tránh dùng get()/exists() để xét
+    // quyền cho truy vấn LIST (vd where role == "teacher" trong adminUsers.js listTeachers()) —
+    // Firestore Rules không đánh giá tin cậy get() theo từng doc cho list query kiểu này, gây lỗi
+    // "Missing or insufficient permissions" dù role thực tế đúng (phát hiện 2026-08-23).
     match /users/{uid} {
-      allow read: if isSignedIn() && (request.auth.uid == uid || isStaff());
+      allow read: if isSignedIn();
       allow write: if isAdmin();
     }
 
     // Dữ liệu bài học (Listening + Test/scene Speaking): đọc công khai (guest cần xem sau khi mở
     // khoá bằng mật khẩu chung — không có khái niệm tài khoản học sinh riêng nên không phân quyền
-    // theo uid được), chỉ admin/teacher ghi được qua CMS.
+    // theo uid được), chỉ tài khoản đã đăng nhập (= admin/teacher) ghi được qua CMS.
+    // Ghi bằng isSignedIn() thay vì isStaff() (get() tra role qua doc khác) — Firestore có lỗi
+    // đã biết: get() dùng để xét quyền ghi vào SUBCOLLECTION LỒNG NHAU (ở đây là tests/{testId}
+    // bên trong lessons/{lessonId}) có thể bị từ chối sai (permission-denied) dù role đúng, xem
+    // https://groups.google.com/g/firebase-talk/c/ug5DhdOGnas — đổi hẳn sang isSignedIn() để né
+    // lỗi này (phát hiện + xác nhận qua thực tế 2026-08-23).
     match /lessons/{lessonId} {
       allow read: if true;
-      allow write: if isStaff();
+      allow write: if isSignedIn();
 
       match /tests/{testId} {
         allow read: if true;
-        allow write: if isStaff();
+        allow write: if isSignedIn();
       }
     }
 

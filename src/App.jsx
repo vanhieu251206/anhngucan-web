@@ -21,7 +21,7 @@ function initialNavFromUrl() {
 
 export default function App() {
   const [{ page, lessonSeriesId }, setNav] = useState(initialNavFromUrl);
-  const { isStaff } = useAuth();
+  const { isStaff, loading } = useAuth();
 
   function setPage(next) {
     setNav(n => ({ ...n, page: next }));
@@ -47,6 +47,14 @@ export default function App() {
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
   }, []);
+
+  // F5 vào thẳng trang quản trị: Firebase Auth cần chút thời gian xác thực lại (loading=true lúc
+  // đầu, isStaff tạm thời false) — chặn render ở đây thay vì để rớt xuống nhánh trang công khai
+  // bên dưới rồi lại nhảy sang Dashboard ngay khi auth xong (gây "chớp" qua giao diện Trang chủ,
+  // phản hồi người dùng 2026-08-23).
+  if ((page === "dashboard" || page === "settings") && loading) {
+    return null;
+  }
 
   // "Cài đặt" (đổi mật khẩu chung) giờ nằm TRONG Dashboard (mục Sidebar), không còn là trang
   // riêng — link/URL cũ (?page=settings) tự chuyển vào đúng chỗ thay vì vào trang trống.

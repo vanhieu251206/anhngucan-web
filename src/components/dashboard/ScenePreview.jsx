@@ -1,5 +1,17 @@
 import { useRef, useState } from "react";
 import { ExaminerLine, SceneStage, MIC_ICON } from "../sceneVisuals.jsx";
+import { useFitBoxSize } from "../../lib/useFitBoxSize.js";
+
+// Kích thước GỐC của thẻ trắng thật ở màn Speaking học sinh (`.sentence-box`:
+// width: min(600px,94vw); height: min(640px,88vh)) — render nội dung preview LUÔN ở đúng kích
+// thước gốc 600×640px này (font-size, nút mic, khoảng cách... y hệt bản thật), rồi zoom nguyên
+// khối bằng transform: scale() theo hệ số đo được (useFitBoxSize) để vừa khít khoảng trống hiện
+// có — mọi thành phần bên trong co giãn ĐỒNG BỘ theo đúng 1 tỉ lệ (giống phóng to/thu nhỏ cả bản
+// thiết kế), không còn cảnh chữ/nút giữ nguyên cỡ mà ảnh phải co làm tràn khung (phát hiện
+// 2026-08-23: co lệch từng phần riêng lẻ theo flexbox làm nội dung vẫn tràn/phải cuộn).
+const CARD_WIDTH = 600;
+const CARD_HEIGHT = 640;
+const CARD_RATIO = CARD_WIDTH / CARD_HEIGHT;
 
 // Xem trước Y HỆT giao diện thật học sinh sẽ thấy (dùng chung component/CSS với SceneRunner.jsx,
 // xem sceneVisuals.jsx) — vùng toạ độ (target/highlight/demoCard.target) sửa được TRỰC TIẾP bằng
@@ -73,10 +85,19 @@ function EditableSceneStage({ sceneImage, rect, onRectChange, overlayClassName }
 }
 
 export default function ScenePreview({ scene, onChange }) {
+  const wrapRef = useRef(null);
+  const size = useFitBoxSize(wrapRef, CARD_RATIO);
+  const scale = size ? size.width / CARD_WIDTH : 1;
+
   if (!scene.type) return null;
 
   return (
-    <div className="scene-preview">
+    <div ref={wrapRef} className="scene-preview-wrap">
+      <div className="scene-preview-scale-box" style={size ? { width: size.width, height: size.height } : undefined}>
+      <div
+        className="scene-preview"
+        style={{ width: CARD_WIDTH, height: CARD_HEIGHT, transform: `scale(${scale})`, transformOrigin: "top left" }}
+      >
       <div className="scene-preview-inner">
         <ExaminerLine text={scene.examinerLine || "(chưa có câu thoại)"} />
 
@@ -158,6 +179,8 @@ export default function ScenePreview({ scene, onChange }) {
       <p className="admin-muted-text scene-preview-hint">
         Kéo chuột trực tiếp trên ảnh để chỉnh vùng toạ độ (nếu có).
       </p>
+      </div>
+      </div>
     </div>
   );
 }

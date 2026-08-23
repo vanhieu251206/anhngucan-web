@@ -12,13 +12,17 @@
 // dev -- --host, xem CLAUDE.md). Đổi/thêm origin nếu đổi domain deploy. Không có xác thực người
 // gọi (học sinh là khách ẩn danh) — rủi ro bị lạm dụng đã được chấp nhận tương tự cơ chế mật khẩu
 // hash client-side, giảm nhẹ bằng giới hạn CORS này.
-const ALLOWED_ORIGINS = [
-  "https://vanhieu251206.github.io",
-  "https://localhost:5173",
-];
+const ALLOWED_ORIGINS = ["https://vanhieu251206.github.io"];
 
+// Vite tự bump cổng (5173, 5174, 5175...) nếu cổng trước đó đang bận (vd nhiều phiên dev server
+// chạy song song) — chốt cứng 1 cổng từng gây lỗi CORS thật khi dev server không chạy đúng ở 5173
+// (phát hiện 2026-08-23). Cho phép cả dải cổng dev quen dùng (5173-5179) thay vì chỉ đúng 1 cổng.
 function isAllowedOrigin(origin) {
-  return ALLOWED_ORIGINS.includes(origin) || /^https:\/\/192\.168\.\d+\.\d+:5173$/.test(origin);
+  return (
+    ALLOWED_ORIGINS.includes(origin) ||
+    /^https:\/\/localhost:517[3-9]$/.test(origin) ||
+    /^https:\/\/192\.168\.\d+\.\d+:517[3-9]$/.test(origin)
+  );
 }
 
 const ASSEMBLYAI_UPLOAD_URL = "https://api.assemblyai.com/v2/upload";

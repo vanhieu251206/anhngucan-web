@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import MicSceneForm from "./scene-forms/MicSceneForm.jsx";
 import NarrationSceneForm from "./scene-forms/NarrationSceneForm.jsx";
 import SceneClickSceneForm from "./scene-forms/SceneClickSceneForm.jsx";
@@ -6,6 +6,35 @@ import CardSelectSceneForm from "./scene-forms/CardSelectSceneForm.jsx";
 import DragDropSceneForm from "./scene-forms/DragDropSceneForm.jsx";
 import SceneLineFields from "./scene-forms/SceneLineFields.jsx";
 import ScenePreview from "./ScenePreview.jsx";
+import { useConfirm } from "./ConfirmDialog.jsx";
+
+// Tỉ lệ đúng khung thẻ thật ở màn Speaking học sinh — PHẢI khớp CARD_RATIO trong ScenePreview.jsx.
+const PREVIEW_CARD_RATIO = 600 / 640;
+
+// Khung xem trước (.studio-preview-area) KHÔNG được chiếm cứng 1 tỉ lệ màn hình cố định (vd 50vw)
+// — sẽ để trống 1 mảng lớn bên trong nếu card thực tế nhỏ hơn (card luôn bị giới hạn bởi CHIỀU
+// CAO khả dụng vì tỉ lệ 600:640 khá "đứng"), làm phí không gian lẽ ra sidebar form có thể dùng.
+// Thay vào đó: đo CHIỀU CAO thật (luôn xác định được ngay cả khi width chưa biết, nhờ flexbox
+// stretch chiều cao theo hàng), tự tính width = height × tỉ lệ, rồi áp CHÍNH XÁC width đó cho
+// khung ngoài — sidebar chiếm phần còn lại, không còn khoảng trống thừa (chốt 2026-08-23).
+function usePreviewAreaWidth(ratio) {
+  const ref = useRef(null);
+  const [width, setWidth] = useState(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    function measure() {
+      const h = el.clientHeight;
+      if (!h) return;
+      setWidth(h * ratio);
+    }
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [ratio]);
+  return { ref, width };
+}
 
 const TEMPLATES = [
   { type: "mic", icon: "🎤", label: "Câu hỏi mic", desc: "Học sinh trả lời bằng giọng nói" },
@@ -58,6 +87,7 @@ function extraFieldsOf(type) {
 // sidebar thay vì popover riêng) — chọn xong mới hiện tiếp phần nội dung/ảnh riêng của hành động
 // đó. Thay cho luồng cũ (bắt buộc chọn loại scene trước khi soạn được gì).
 export default function TestStudio({ accent, title, onTitleChange, scenes, onScenesChange, onBack, onSave, saving, saved }) {
+  const { ref: previewAreaRef, width: previewAreaWidth } = usePreviewAreaWidth(PREVIEW_CARD_RATIO);
   const [selected, setSelected] = useState(scenes.length ? 0 : null);
   const [dragIndex, setDragIndex] = useState(null);
   const scene = selected !== null ? scenes[selected] : null;
@@ -110,8 +140,9 @@ export default function TestStudio({ accent, title, onTitleChange, scenes, onSce
   // "Lưu" nghe nhẹ nhàng như đang soạn nháp, nhưng thật ra ghi thẳng lên Firestore — học sinh
   // thấy ngay lập tức, không có bước duyệt/nháp riêng. Đổi tên nút thành "Xuất bản" + xác nhận
   // trước khi ghi, để admin/giáo viên ý thức rõ đây là hành động công khai ngay trên web.
-  function handlePublish() {
-    if (window.confirm("Bài này sẽ hiển thị ngay trên website cho học sinh. Xuất bản?")) {
+  const confirm = useConfirm();
+  async function handlePublish() {
+    if (await confirm("Bài này sẽ hiển thị ngay trên website cho học sinh. Xuất bản?")) {
       onSave();
     }
   }
@@ -182,7 +213,11 @@ export default function TestStudio({ accent, title, onTitleChange, scenes, onSce
           )}
         </aside>
 
-        <main className="studio-preview-area">
+        <main
+          className="studio-preview-area"
+          ref={previewAreaRef}
+          style={previewAreaWidth ? { flexBasis: previewAreaWidth, width: previewAreaWidth } : undefined}
+        >
           {scene?.type ? (
             <ScenePreview scene={scene} onChange={updateScene} />
           ) : (
