@@ -14,6 +14,7 @@ rules_version = '2';
 // - users/{uid}             { role: "admin" | "teacher", email, createdAt }.
 // - lessons/{seriesId-level}                      { seriesId, level, listening, updatedAt, updatedBy }
 //   └─ tests/{testId}                              { testId, title, order, scenes, updatedAt, updatedBy }
+//   └─ readingTests/{testId}                       { testId, title, order, parts, updatedAt, updatedBy }
 //
 // KHÔNG có collection lưu tiến độ/điểm số học sinh (Phase 3 chưa làm — xem CLAUDE.md mục 6).
 
@@ -73,6 +74,11 @@ service cloud.firestore {
       allow write: if isSignedIn();
 
       match /tests/{testId} {
+        allow read: if true;
+        allow write: if isSignedIn();
+      }
+
+      match /readingTests/{testId} {
         allow read: if true;
         allow write: if isSignedIn();
       }

@@ -1,14 +1,19 @@
 import { useEffect, useState } from "react";
 import { YLE_SERIES } from "../../lib/yleData.js";
 import { useAuth } from "../../lib/authContext.jsx";
-import { saveListening, getListening, listTests, getTest, saveTest, deleteTest } from "../../lib/adminLessons.js";
+import {
+  saveListening, getListening, listTests, getTest, saveTest, deleteTest,
+  listReadingTests, getReadingTest, saveReadingTest, deleteReadingTest,
+} from "../../lib/adminLessons.js";
 import TestStudio from "../../components/dashboard/TestStudio.jsx";
+import ReadingStudio from "../../components/dashboard/ReadingStudio.jsx";
 import { useConfirm } from "../../components/dashboard/ConfirmDialog.jsx";
 import { readParams, setParams } from "../../lib/urlState.js";
 
 const MODE_INFO = {
   listening: { label: "Listening", icon: "🎧", desc: "Video nghe" },
   speaking: { label: "Speaking", icon: "🎤", desc: "Luyện nói theo scene" },
+  reading: { label: "Reading & Writing", icon: "📖", desc: "Đọc & Viết" },
 };
 
 // Đọc bước đang soạn (bộ đề/cấp/loại bài) từ URL (?cSeries=...&cLevel=...&cMode=...) — để F5
@@ -18,7 +23,7 @@ function initialStepFromUrl() {
   const p = readParams();
   const series = YLE_SERIES.find(s => s.id === p.get("cSeries")) ?? null;
   const level = series?.levels.find(l => String(l.number) === p.get("cLevel")) ?? null;
-  const mode = level && ["listening", "speaking"].includes(p.get("cMode")) ? p.get("cMode") : null;
+  const mode = level && ["listening", "speaking", "reading"].includes(p.get("cMode")) ? p.get("cMode") : null;
   return { series, level: level ?? null, mode };
 }
 
@@ -73,6 +78,9 @@ export default function CreateLessonPage() {
       )}
       {series && level && mode === "speaking" && (
         <SpeakingEditor series={series} level={level} uid={user.uid} />
+      )}
+      {series && level && mode === "reading" && (
+        <ReadingEditor series={series} level={level} uid={user.uid} />
       )}
     </div>
   );
@@ -365,6 +373,103 @@ function SpeakingEditor({ series, level, uid }) {
       )}
       {tests && tests.length === 0 && !level.speakingPart1 && (
         <p className="admin-muted-text">Cấp độ này chưa có Test nào — bấm "Tạo Test mới" để bắt đầu soạn scene.</p>
+      )}
+    </div>
+  );
+}
+
+function ReadingEditor({ series, level, uid }) {
+  const confirm = useConfirm();
+  const [tests, setTests] = useState(null);
+  const [openTestId, setOpenTestId] = useState(null);
+  const [parts, setParts] = useState([]);
+  const [testTitle, setTestTitle] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  function reloadTests() {
+    listReadingTests(series.id, level.number).then(setTests);
+  }
+  useEffect(reloadTests, [series.id, level.number]);
+
+  async function openTest(t) {
+    const full = await getReadingTest(series.id, level.number, t.id);
+    setOpenTestId(t.id);
+    setTestTitle(full?.title ?? t.title ?? "");
+    setParts(full?.parts ?? []);
+    setSaved(false);
+  }
+
+  function openNewTest() {
+    const nextOrder = (tests?.length ?? 0) + 1;
+    setOpenTestId(`test${nextOrder}`);
+    setTestTitle(`Test ${nextOrder}`);
+    setParts([]);
+    setSaved(false);
+  }
+
+  async function handleDeleteTest(id) {
+    if (!(await confirm("Xoá Test này? Không hoàn tác được.", { danger: true }))) return;
+    try {
+      await deleteReadingTest(series.id, level.number, id);
+      reloadTests();
+    } catch (err) {
+      alert(`Không xoá được Test: ${err.message}`);
+    }
+  }
+  async function handleSaveTest() {
+    setSaving(true);
+    setSaved(false);
+    const order = tests?.find(t => t.id === openTestId)?.order ?? (tests?.length ?? 0) + 1;
+    await saveReadingTest(series.id, level.number, openTestId, { title: testTitle, order, parts }, uid);
+    setSaving(false);
+    setSaved(true);
+    reloadTests();
+  }
+
+  if (openTestId) {
+    return (
+      <ReadingStudio
+        accent={series.color}
+        title={testTitle}
+        onTitleChange={setTestTitle}
+        parts={parts}
+        onPartsChange={setParts}
+        onBack={() => setOpenTestId(null)}
+        onSave={handleSaveTest}
+        saving={saving}
+        saved={saved}
+      />
+    );
+  }
+
+  return (
+    <div className="admin-card">
+      <h2>{series.title} {level.number} — Reading &amp; Writing</h2>
+      {tests === null && <LoadingCard inline />}
+      {tests && (
+        <div className="admin-test-grid">
+          {tests.map(t => (
+            <div key={t.id} className="admin-test-card" style={{ "--accent": series.color }}>
+              <button className="admin-test-card-main" onClick={() => openTest(t)}>
+                <span className="admin-test-card-icon">📖</span>
+                <span className="admin-test-card-title">{t.title}</span>
+                <span className="admin-scene-count-badge">{t.parts?.length ?? 0} part</span>
+              </button>
+              <div className="admin-test-card-actions">
+                <button className="admin-link-btn" onClick={() => openTest(t)}>Sửa</button>
+                <button className="admin-link-btn admin-pill-btn-danger" onClick={() => handleDeleteTest(t.id)}>Xoá</button>
+              </div>
+            </div>
+          ))}
+          <button className="admin-test-card admin-test-card-add" onClick={openNewTest}>
+            <span className="admin-test-card-add-icon">+</span>
+            <span>Tạo Test mới</span>
+          </button>
+        </div>
+      )}
+      {tests && tests.length === 0 && (
+        <p className="admin-muted-text">Cấp độ này chưa có Test nào — bấm "Tạo Test mới" để bắt đầu soạn Part/câu hỏi.</p>
       )}
     </div>
   );

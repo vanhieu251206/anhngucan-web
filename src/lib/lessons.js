@@ -36,5 +36,17 @@ export async function loadLevelContent(series, level) {
     (a, b) => (a.order ?? 0) - (b.order ?? 0)
   );
 
-  return { listening, tests };
+  // Reading & Writing — chưa có dữ liệu nhúng cứng (yleData.js), chỉ đọc từ Firestore.
+  let readingTests = [];
+  try {
+    const readingSnap = await getDocs(collection(db, "lessons", lessonId, "readingTests"));
+    readingTests = readingSnap.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .filter(t => t.parts?.length)
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  } catch {
+    // Lỗi mạng/Firestore — coi như chưa có gì mới, không chặn học.
+  }
+
+  return { listening, tests, readingTests };
 }

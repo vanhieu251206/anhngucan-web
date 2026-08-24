@@ -5,6 +5,7 @@ import { stopCurrent } from "../lib/speech.js";
 import { loadLevelContent } from "../lib/lessons.js";
 import ListeningMode from "../components/ListeningMode.jsx";
 import SceneRunner from "../components/SceneRunner.jsx";
+import ReadingRunner from "../components/ReadingRunner.jsx";
 import PasswordGate from "../components/PasswordGate.jsx";
 import { useAuth } from "../lib/authContext.jsx";
 import { isUnlockedInSession, lockSession } from "../lib/lessonAccess.js";
@@ -139,11 +140,14 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
     const n = Number(initialUrlRef.current.get("level"));
     return series.levels.find(l => l.number === n) ?? null;
   });
-  const [content, setContent] = useState(null); // { listening, tests } — đọc qua lib/lessons.js
+  const [content, setContent] = useState(null); // { listening, tests, readingTests } — đọc qua lib/lessons.js
   const [selectedTest, setSelectedTest] = useState(null);
+  const [selectedReadingTest, setSelectedReadingTest] = useState(null);
   // true khi đang chạy bài Speaking toàn màn hình (SceneRunner) — không còn bước "Chọn dạng bài"
   // riêng, Listening + Speaking hiện luôn cùng lúc trên màn hình chọn cấp độ (xem yêu cầu rút gọn).
   const [speakingActive, setSpeakingActive] = useState(false);
+  // true khi đang chạy bài Reading & Writing toàn màn hình (ReadingRunner).
+  const [readingActive, setReadingActive] = useState(false);
   // true khi đang xem chi tiết Listening (bấm vào thẻ Listening trên màn "Bài học").
   const [listeningActive, setListeningActive] = useState(false);
   // Đang xem trang "Xem tất cả Test" của Speaking (khi 1 cấp độ có nhiều Test) — false = màn
@@ -196,7 +200,9 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
   function backToLevelList() {
     stopCurrent();
     setSelectedTest(null);
+    setSelectedReadingTest(null);
     setSpeakingActive(false);
+    setReadingActive(false);
     setListeningActive(false);
     setViewAllTests(false);
     if (!isStaff) {
@@ -213,6 +219,18 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
     setSpeakingActive(false);
     setSelectedTest(null);
     setViewAllTests(false);
+    if (!isStaff) {
+      lockSession();
+      setUnlocked(false);
+    }
+  }
+
+  // Thoát khỏi bài Reading & Writing toàn màn hình (ReadingRunner), quay lại màn "Bài học" —
+  // khoá lại nội dung như exitSpeaking/exitListening để nhất quán.
+  function exitReading() {
+    stopCurrent();
+    setReadingActive(false);
+    setSelectedReadingTest(null);
     if (!isStaff) {
       lockSession();
       setUnlocked(false);
@@ -240,6 +258,10 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
   // Cấp độ chỉ có 1 Test (trường hợp phổ biến hiện tại) → tự chọn luôn, không hiện thêm bước chọn.
   const autoTest = tests.length === 1 ? tests[0] : null;
   const activeTest = selectedTest ?? autoTest;
+
+  const readingTests = content?.readingTests ?? [];
+  const autoReadingTest = readingTests.length === 1 ? readingTests[0] : null;
+  const activeReadingTest = selectedReadingTest ?? autoReadingTest;
 
   // ---------- Bước 1: chọn cấp độ ----------
   if (!level) {
@@ -295,6 +317,25 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
             onFinish={exitSpeaking}
             progressKey={`${series.id}-${level.number}-${activeTest.id}`}
           />
+        </div>
+      </div>
+    );
+  }
+
+  // ---------- Bài Reading & Writing toàn màn hình (ReadingRunner) ----------
+  if (readingActive && activeReadingTest?.parts?.length) {
+    return (
+      <div className="reading-fullscreen">
+        <div className="speaking-fullscreen-topbar">
+          <button className="speaking-fullscreen-back" onClick={exitReading}>
+            ⬅ Quay lại
+          </button>
+          <span className="speaking-fullscreen-title">
+            {series.title} {level.number} · {activeReadingTest.title}
+          </span>
+        </div>
+        <div className="speaking-fullscreen-body reading-fullscreen-body">
+          <ReadingRunner parts={activeReadingTest.parts} onFinish={exitReading} />
         </div>
       </div>
     );
@@ -357,6 +398,21 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
     });
   }
 
+  function readingTestCard(t) {
+    return lessonCard({
+      key: t.id,
+      banner: "Đọc & Viết",
+      title: t.title,
+      desc: `${t.parts?.length ?? 0} part · Đọc & viết theo đề Cambridge YLE`,
+      cta: t.parts?.length ? "Bắt đầu làm bài" : "Chưa có Part",
+      disabled: !t.parts?.length,
+      onClick: () => {
+        setSelectedReadingTest(t);
+        setReadingActive(true);
+      },
+    });
+  }
+
   // ---------- Trang "Xem tất cả Test" của Speaking (khi 1 cấp độ có nhiều hơn 2 Test) ----------
   if (viewAllTests && tests.length > 0) {
     return (
@@ -413,6 +469,16 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
               <InfoCard text="Bài Speaking cấp độ này chưa có dữ liệu thật." />
             ) : (
               <div className="content-grid content-grid-4">{tests.slice(0, 3).map(testCard)}</div>
+            )}
+          </LessonSection>
+
+          <SectionDivider />
+
+          <LessonSection title="Reading & Writing">
+            {readingTests.length === 0 ? (
+              <InfoCard text="Bài Reading & Writing cấp độ này chưa có dữ liệu thật." />
+            ) : (
+              <div className="content-grid content-grid-4">{readingTests.slice(0, 3).map(readingTestCard)}</div>
             )}
           </LessonSection>
         </>

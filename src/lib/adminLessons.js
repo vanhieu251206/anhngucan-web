@@ -51,3 +51,34 @@ export async function saveTest(seriesId, level, testId, { title, order, scenes }
 export async function deleteTest(seriesId, level, testId) {
   await deleteDoc(doc(db, "lessons", lessonId(seriesId, level), "tests", testId));
 }
+
+// Reading & Writing — cấu trúc tương tự Speaking (subcollection riêng "readingTests" trong cùng
+// 1 doc lesson), nhưng mỗi Test chứa `parts` (Part 1/2/3...), mỗi Part chứa `questions` (3 loại:
+// yesno/gapfill/short-answer) thay vì `scenes`.
+export async function listReadingTests(seriesId, level) {
+  const snap = await getDocs(collection(db, "lessons", lessonId(seriesId, level), "readingTests"));
+  return snap.docs
+    .map(d => ({ id: d.id, ...d.data() }))
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+}
+
+export async function getReadingTest(seriesId, level, testId) {
+  const snap = await getDoc(doc(db, "lessons", lessonId(seriesId, level), "readingTests", testId));
+  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+}
+
+// parts PHẢI đã resolve hết ảnh thành URL đầy đủ (Cloudinary) trước khi gọi hàm này, giống saveTest.
+export async function saveReadingTest(seriesId, level, testId, { title, order, parts }, uid) {
+  await setDoc(doc(db, "lessons", lessonId(seriesId, level), "readingTests", testId), {
+    testId,
+    title,
+    order,
+    parts,
+    updatedAt: serverTimestamp(),
+    updatedBy: uid,
+  });
+}
+
+export async function deleteReadingTest(seriesId, level, testId) {
+  await deleteDoc(doc(db, "lessons", lessonId(seriesId, level), "readingTests", testId));
+}
