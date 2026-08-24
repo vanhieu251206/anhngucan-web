@@ -61,7 +61,7 @@ export default function DashboardPage({ onNavigate, initialSection }) {
           activeKey={section}
           onSelect={setSection}
           userEmail={user?.email}
-          roleLabel={`${isAdmin ? "Admin" : "Giáo viên"} · UID: ${user?.uid}`}
+          roleLabel={isAdmin ? "Admin" : "Giáo viên"}
           onGoHome={() => onNavigate("home")}
           onLogout={handleLogout}
         />
