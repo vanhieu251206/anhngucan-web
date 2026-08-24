@@ -301,6 +301,30 @@ function SpeakingEditor({ series, level, uid }) {
     setSaved(false);
   }
 
+  // Nhập nhanh 1 mảng scene soạn sẵn từ file JSON (vd Claude chuẩn bị trước từ quy trình soạn bài
+  // ở docs/quy-trinh/) — mở thẳng vào TestStudio như "Tạo Test mới" để người dùng xem/sửa lại
+  // trước khi bấm Lưu, không tự ý ghi thẳng vào Firestore mà chưa qua bước xem lại.
+  function handleImportJSON(e) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const parsed = JSON.parse(reader.result);
+        if (!Array.isArray(parsed)) throw new Error("File JSON phải là 1 mảng scene.");
+        const nextOrder = (tests?.length ?? 0) + reservedTestSlots + 1;
+        setOpenTestId(`test${nextOrder}`);
+        setTestTitle(`Test ${nextOrder}`);
+        setScenes(parsed);
+        setSaved(false);
+      } catch (err) {
+        alert(`File JSON không hợp lệ: ${err.message}`);
+      }
+    };
+    reader.readAsText(file);
+  }
+
   async function handleDeleteTest(id) {
     if (!(await confirm("Xoá Test này? Không hoàn tác được.", { danger: true }))) return;
     try {
@@ -371,6 +395,10 @@ function SpeakingEditor({ series, level, uid }) {
           </button>
         </div>
       )}
+      <label className="admin-btn-secondary admin-import-json-btn">
+        Nhập từ file JSON
+        <input type="file" accept="application/json" onChange={handleImportJSON} hidden />
+      </label>
       {tests && tests.length === 0 && !level.speakingPart1 && (
         <p className="admin-muted-text">Cấp độ này chưa có Test nào — bấm "Tạo Test mới" để bắt đầu soạn scene.</p>
       )}

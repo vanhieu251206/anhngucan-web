@@ -1,7 +1,10 @@
-import { useEffect, useRef, useState } from "react";
-import { playLine, normalize, stopCurrent, fuzzyIncludesWord, isRecordingSupported, diffWords } from "../lib/speech.js";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { playLine, normalize, stopCurrent, fuzzyIncludesWord, isRecordingSupported } from "../lib/speech.js";
 import { assessPronunciation, describePronunciationError } from "../lib/pronunciationApi.js";
 import { ExaminerLine, SceneStage, MIC_ICON } from "./sceneVisuals.jsx";
+import { useAuth } from "../lib/authContext.jsx";
+import { logSpeechAttempt } from "../lib/speechLog.js";
+import { startSpeakingSession, finishSpeakingSession, logSpeakingEvent } from "../lib/speakingSessions.js";
 
 // Lời khen dùng chung cho MỌI bài (không riêng lesson nào) — audio thật lấy từ
 // Bài học/_dung-chung/praises/voice.txt, KHÔNG có TTS trình duyệt dự phòng.
@@ -29,11 +32,83 @@ function pickWrong() {
 }
 const NEXT_DELAY_MS = 1300;
 const NARRATION_PAUSE_MS = 3000;
-// Sai liên tục 2 lần ở BẤT KỲ loại scene nào (mic/scene-click/card-select/drag-drop) → tự hiện
-// đáp án đúng (không phát audio khen vì chưa làm đúng) rồi tự chuyển scene sau 1 khoảng nghỉ, để
-// học sinh không bị kẹt mãi ở 1 câu không làm được.
-const WRONG_LIMIT = 2;
+// Sai liên tục 3 lần ở scene-click/card-select/drag-drop (chốt 2026-08-24, đồng bộ với
+// MIC_MAX_ATTEMPTS = 3 của scene mic) → tự hiện đáp án đúng (không phát audio khen vì chưa làm
+// đúng) rồi tự chuyển scene sau 1 khoảng nghỉ, để học sinh không bị kẹt mãi ở 1 câu không làm được.
+const WRONG_LIMIT = 3;
 const REVEAL_DELAY_MS = 3000;
+// Chốt 2026-08-24 (yêu cầu trung tâm): MỌI câu hỏi mic đều được CHẤM theo từng từ trong câu đáp
+// án hoàn chỉnh (ghép answerTemplate + từ đáp án nếu có) — riêng cho mic, học sinh được thử tối
+// đa 3 lần (khác WRONG_LIMIT=2 dùng cho scene-click/card-select/drag-drop), mỗi lần chỉ cần sửa
+// lại những từ còn sai, từ đã đúng giữ nguyên không bị chấm lại.
+const MIC_MAX_ATTEMPTS = 3;
+
+function testYes(normText) {
+  return /\b(yes|yeah|yep|yup|uh-?huh)\b/.test(normText);
+}
+function testNo(normText) {
+  return /\b(no|nope|nah)\b/.test(normText);
+}
+function splitYesNoTemplate(template) {
+  if (!template) return [null, null];
+  const [yesPart, noPart] = template.split("/").map(s => s.trim());
+  return [yesPart || null, noPart || null];
+}
+// Câu hoàn chỉnh dùng để CHẤM: ghép answerTemplate với từ đáp án thật (nếu có) — áp dụng cho MỌI
+// scene mic. branch ("yes"|"no"|null) chỉ có ý nghĩa khi scene.expectedYesNo === "either" (chưa
+// biết học sinh sẽ trả lời Yes hay No trước — chốt theo lần nói đầu tiên, xem chooseBranch()).
+function buildExpectedSentence(scene, branch) {
+  if (scene.expectedYesNo && scene.expectedYesNo !== "either") {
+    const [yesPart, noPart] = splitYesNoTemplate(scene.answerTemplate);
+    return (scene.expectedYesNo === "yes" ? yesPart : noPart) ?? scene.answerTemplate ?? "";
+  }
+  if (scene.expectedYesNo === "either") {
+    const [yesPart, noPart] = splitYesNoTemplate(scene.answerTemplate);
+    return (branch === "no" ? noPart : yesPart) ?? scene.answerTemplate ?? "";
+  }
+  if (scene.expectedKeyword) {
+    const keyword = Array.isArray(scene.expectedKeyword) ? scene.expectedKeyword[0] : scene.expectedKeyword;
+    return scene.answerTemplate?.includes("....") ? scene.answerTemplate.replace("....", keyword) : (scene.answerTemplate || keyword);
+  }
+  return scene.answerTemplate ?? "";
+}
+// Tách câu chấm thành từng token: "blank" (chỗ trống "...." của câu hỏi mở không chấm được, tự
+// coi là đúng), "yesno" (đúng từ Yes/No của câu — chấp nhận thêm cách nói tắt phổ biến), "word"
+// (so khớp gần đúng bình thường qua fuzzyIncludesWord).
+function tokenizeForGrading(sentence, isYesNoSentence) {
+  return sentence
+    .split(/\s+/)
+    .filter(Boolean)
+    .map(text => {
+      if (text === "....") return { text, kind: "blank" };
+      const norm = normalize(text);
+      if (isYesNoSentence && (norm === "yes" || norm === "no")) return { text, kind: "yesno", isYes: norm === "yes" };
+      return { text, kind: "word" };
+    });
+}
+// Chấm 1 lượt nói: trả về mảng đúng/sai MỚI đã gộp với lượt trước — từ đã xanh (đúng) giữ mãi
+// xanh, chỉ những từ còn đỏ mới được nghe lại ở lượt này (theo đúng yêu cầu khách).
+// Câu có từ Yes/No (isYesNoSentence): phải bắt ĐÚNG được chữ "Yes"/"No" (hoặc cách nói tắt phổ
+// biến) mới tính — nếu chưa bắt được đúng chiều Yes/No, các từ khung câu còn lại (vd "it", "is")
+// KHÔNG được tô xanh dù trùng ngẫu nhiên với câu nói (chốt 2026-08-24: từng bị báo lỗi hiện "it"
+// xanh dù học sinh nói "Yes, it is." trong khi đáp án đúng là "No, it isn't.").
+function gradeAttempt(tokens, priorCorrect, said) {
+  const saidNorm = normalize(said);
+  const yesnoIndex = tokens.findIndex(t => t.kind === "yesno");
+  const yesnoTok = yesnoIndex >= 0 ? tokens[yesnoIndex] : null;
+  const yesnoOk =
+    !yesnoTok ||
+    priorCorrect[yesnoIndex] ||
+    (yesnoTok.isYes ? testYes(saidNorm) && !testNo(saidNorm) : testNo(saidNorm) && !testYes(saidNorm));
+
+  return tokens.map((tok, i) => {
+    if (priorCorrect[i]) return true;
+    if (tok.kind === "blank") return true;
+    if (tok.kind === "yesno") return yesnoOk;
+    if (!yesnoOk) return false;
+    return fuzzyIncludesWord(saidNorm, normalize(tok.text));
+  });
+}
 
 // Ảnh Scene + khung khoanh vùng gợi ý (không bấm được) — dùng chung cho Huong-dan và
 // câu hỏi mic Yes/No có chỉ vào 1 vật cụ thể trong ảnh (vd "Is this the monkey?").
@@ -88,9 +163,20 @@ function loadSavedIndex(progressKey, sceneCount) {
   return Number.isInteger(saved) && saved >= 0 && saved < sceneCount ? saved : 0;
 }
 
-export default function SceneRunner({ scenes, onFinish, progressKey }) {
+export default function SceneRunner({
+  scenes,
+  onFinish,
+  progressKey,
+  studentName,
+  seriesId,
+  level,
+  testId,
+  lessonLabel,
+}) {
+  const { isStaff } = useAuth();
   const [index, setIndex] = useState(() => loadSavedIndex(progressKey, scenes.length));
   const scene = scenes[index];
+  const sessionIdRef = useRef(null);
 
   // Ghi lại scene hiện tại mỗi khi đổi — đọc lại ở lần mount sau (F5 giữa bài) qua loadSavedIndex.
   useEffect(() => {
@@ -98,6 +184,28 @@ export default function SceneRunner({ scenes, onFinish, progressKey }) {
     sessionStorage.setItem(PROGRESS_KEY_PREFIX + progressKey, String(index));
   }, [progressKey, index]);
   const isLast = index === scenes.length - 1;
+
+  // Báo cáo quá trình làm bài (chốt 2026-08-24): chỉ tạo session khi có studentName — học sinh
+  // đã nhập họ tên (xem LessonsPage.jsx), hoặc admin/teacher tự test (LessonsPage.jsx tự gắn tên
+  // "[Test - Admin]"/"[Test - Giáo viên]" để phân biệt với học sinh thật trong báo cáo, chốt
+  // 2026-08-24 theo yêu cầu người dùng). Chỉ tạo 1 lần khi mount, không tạo lại khi đổi scene.
+  useEffect(() => {
+    if (!studentName) return;
+    let cancelled = false;
+    startSpeakingSession({ studentName, seriesId, level, testId, lessonLabel, sceneCount: scenes.length }).then(
+      id => {
+        if (!cancelled) sessionIdRef.current = id;
+      }
+    );
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function recordAttempt(sceneIndex, sceneType, examinerLine, attemptNumber, result, recognizedText) {
+    logSpeakingEvent(sessionIdRef.current, { sceneIndex, sceneType, examinerLine, attemptNumber, result, recognizedText });
+  }
 
   // Rời bài Speaking bằng bất kỳ cách nào (không chỉ nút quay lại, vd bấm logo/menu) đều phải
   // ngưng audio đang phát ngay, không để tiếng tiếp tục phát sau khi đã thoát màn hình.
@@ -108,6 +216,7 @@ export default function SceneRunner({ scenes, onFinish, progressKey }) {
   function goNext() {
     if (isLast) {
       if (progressKey) sessionStorage.removeItem(PROGRESS_KEY_PREFIX + progressKey);
+      finishSpeakingSession(sessionIdRef.current);
       onFinish();
       return;
     }
@@ -131,27 +240,44 @@ export default function SceneRunner({ scenes, onFinish, progressKey }) {
     <div className="sentence-box">
       <div className="speaking-progress">
         Câu {index + 1} / {scenes.length}
-        <span className="dev-test-btns">
-          <button
-            className="dev-skip-btn"
-            onClick={prevScene}
-            disabled={index === 0}
-            title="Chỉ dùng khi test — bỏ khi bài xong"
-          >
-            ⏮ Trước
-          </button>
-          <button className="dev-skip-btn" onClick={skipScene} title="Chỉ dùng khi test — bỏ khi bài xong">
-            Skip ⏭
-          </button>
-        </span>
+        {isStaff && (
+          // Nút Skip/Quay lại CHỈ dành cho admin/teacher test nhanh khi soạn bài — guest/học sinh
+          // không thấy (bài thi thật của Cambridge YLE không cho quay lại scene trước).
+          <span className="dev-test-btns">
+            <button
+              className="dev-skip-btn"
+              onClick={prevScene}
+              disabled={index === 0}
+              title="Chỉ dùng khi test — bỏ khi bài xong"
+            >
+              ⏮ Trước
+            </button>
+            <button className="dev-skip-btn" onClick={skipScene} title="Chỉ dùng khi test — bỏ khi bài xong">
+              Skip ⏭
+            </button>
+          </span>
+        )}
       </div>
       {scene.type === "narration" && <NarrationScene key={index} scene={scene} onNext={goNext} />}
       {scene.type === "mic" && (
-        <MicScene key={index} scene={scene} onNext={goNext} />
+        <MicScene
+          key={index}
+          scene={scene}
+          onNext={goNext}
+          lessonId={progressKey}
+          sceneIndex={index}
+          onAttempt={recordAttempt}
+        />
       )}
-      {scene.type === "scene-click" && <SceneClickScene key={index} scene={scene} onNext={goNext} />}
-      {scene.type === "card-select" && <CardSelectScene key={index} scene={scene} onNext={goNext} />}
-      {scene.type === "drag-drop" && <DragDropScene key={index} scene={scene} onNext={goNext} />}
+      {scene.type === "scene-click" && (
+        <SceneClickScene key={index} scene={scene} onNext={goNext} sceneIndex={index} onAttempt={recordAttempt} />
+      )}
+      {scene.type === "card-select" && (
+        <CardSelectScene key={index} scene={scene} onNext={goNext} sceneIndex={index} onAttempt={recordAttempt} />
+      )}
+      {scene.type === "drag-drop" && (
+        <DragDropScene key={index} scene={scene} onNext={goNext} sceneIndex={index} onAttempt={recordAttempt} />
+      )}
     </div>
   );
 }
@@ -183,69 +309,37 @@ function NarrationScene({ scene, onNext }) {
   );
 }
 
-// Nhãn đáp án hiện ra khi sai đủ WRONG_LIMIT lần ở scene mic có đáp án xác định — scene mic
-// không có đáp án xác định (chào hỏi, "either"...) không bao giờ vào nhánh sai nên không cần nhãn.
-function micAnswerLabel(scene) {
-  if (scene.expectedYesNo && scene.expectedYesNo !== "either") {
-    // answerTemplate luôn có dạng "Yes, ... . / No, ... ." (vd "Yes, it is. / No, it isn't.",
-    // "Yes, they are. / No, they aren't.") — tách lấy đúng nửa câu khớp với đáp án đúng, hiện
-    // NGUYÊN CÂU thay vì chỉ mỗi "Yes"/"No".
-    if (scene.answerTemplate) {
-      const [yesPart, noPart] = scene.answerTemplate.split("/").map(s => s.trim());
-      return (scene.expectedYesNo === "yes" ? yesPart : noPart) ?? yesPart;
-    }
-    return scene.expectedYesNo === "yes" ? "Yes, it is." : "No, it isn't.";
-  }
-  if (scene.expectedKeyword) {
-    // Vài câu có nhiều đáp án đều đúng (vd "She's phoning."/"She's talking.") — expectedKeyword
-    // khi đó là mảng, hiện đáp án ĐẦU TIÊN trong mảng làm gợi ý (các đáp án khác vẫn được chấm
-    // đúng khi trả lời qua mic, chỉ không hiện hết trong nhãn reveal).
-    const keyword = Array.isArray(scene.expectedKeyword) ? scene.expectedKeyword[0] : scene.expectedKeyword;
-    // answerTemplate dạng "It's a ....'/"There are ...." — thay chỗ trống bằng từ khoá đáp án
-    // để hiện nguyên câu, không chỉ mỗi từ khoá trơ trọi.
-    if (scene.answerTemplate?.includes("....")) {
-      return scene.answerTemplate.replace("....", keyword);
-    }
-    return keyword;
-  }
-  return "";
-}
-
 // ---------- Chao-hoi / câu hỏi mic: hiện mẫu câu trả lời trước khi bấm mic ----------
-function MicScene({ scene, onNext }) {
+// Chốt 2026-08-24 (yêu cầu trung tâm): MỌI scene mic đều được CHẤM theo từng từ của câu đáp án
+// hoàn chỉnh (xem buildExpectedSentence/tokenizeForGrading/gradeAttempt ở trên) — kể cả câu hỏi
+// cá nhân dạng Yes/No ("either") hay câu chào hỏi mở, chỉ riêng phần "...." (thông tin cá nhân
+// không biết trước) là luôn coi như đúng. Học sinh được thử tối đa MIC_MAX_ATTEMPTS lần, mỗi lần
+// chỉ cần sửa lại từ còn đỏ — từ đã xanh giữ nguyên không bị chấm lại.
+function MicScene({ scene, onNext, lessonId, sceneIndex, onAttempt }) {
+  const { isAdmin } = useAuth();
   const [phase, setPhase] = useState("ask"); // ask | recording | busy | done
   const [heard, setHeard] = useState("");
-  const [recognized, setRecognized] = useState(null); // null = chưa có kết quả, "" = có kết quả nhưng không nghe được gì
-  const [result, setResult] = useState(null); // null | true | false — chỉ dùng khi scene.expectedYesNo
+  const [lastSaid, setLastSaid] = useState(null); // debug: nguyên văn máy nghe được lượt gần nhất — CHỈ hiện cho admin
+  const [attempts, setAttempts] = useState(0);
+  const [branch, setBranch] = useState(null); // "yes"|"no"|null — chỉ dùng khi expectedYesNo === "either"
   const [praise, setPraise] = useState(null);
   const [wrongPraise, setWrongPraise] = useState(null);
-  const [wrongCount, setWrongCount] = useState(0);
-  const [revealed, setRevealed] = useState(false);
+  const [outcome, setOutcome] = useState(null); // null | "correct" | "revealed"
   const mediaRecorderRef = useRef(null);
   const chunksRef = useRef([]);
   const streamRef = useRef(null);
 
+  const isYesNoSentence = Boolean(scene.expectedYesNo);
+  const expectedSentence = buildExpectedSentence(scene, branch);
+  const tokens = useMemo(
+    () => tokenizeForGrading(expectedSentence, isYesNoSentence),
+    [expectedSentence, isYesNoSentence]
+  );
+  const [correct, setCorrect] = useState(() => tokens.map(t => t.kind === "blank"));
+
   useEffect(() => {
     playLine(scene.examinerLine, { audioUrl: scene.audioUrl });
   }, [scene]);
-
-  // Trả về true nếu đã chạm giới hạn sai (đã tự hiện đáp án + chuyển scene, không cho thử lại
-  // nữa) — false nếu còn lượt, gọi nơi dùng tự set lại phase "ask" để học sinh thử lại.
-  function handleWrong() {
-    setResult(false);
-    const nextWrongCount = wrongCount + 1;
-    setWrongCount(nextWrongCount);
-    if (nextWrongCount >= WRONG_LIMIT) {
-      setRevealed(true);
-      setPhase("done");
-      setTimeout(onNext, REVEAL_DELAY_MS);
-      return true;
-    }
-    const w = pickWrong();
-    setWrongPraise(w);
-    playLine(w.text, { audioUrl: w.audioUrl });
-    return false;
-  }
 
   async function startHold(e) {
     e.preventDefault();
@@ -257,9 +351,8 @@ function MicScene({ scene, onNext }) {
     // Học sinh bấm mic nói ngay khi giám khảo còn đang đọc — phải ngưng ngay, không để phát
     // tiếp đè lên lúc học sinh đang nói.
     stopCurrent();
-    setResult(null);
-    setWrongPraise(null);
-    setRecognized(null);
+    // KHÔNG xoá kết quả của lượt trước ở đây — giữ nguyên các từ đã xanh trên màn hình, chỉ cập
+    // nhật đè khi có kết quả nhận diện MỚI (xem recorder.onstop bên dưới).
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
@@ -295,48 +388,63 @@ function MicScene({ scene, onNext }) {
           return;
         }
 
-        setRecognized(said);
+        const saidNorm = normalize(said);
+        setLastSaid(said);
 
-        // Câu hỏi Yes/No có đáp án xác định (expectedYesNo: "yes"|"no") → chấm đúng/sai thật,
-        // sai thì cho thử lại. "either" (phụ thuộc thông tin cá nhân học sinh) → luôn chấp nhận.
-        // Chấp nhận thêm các cách nói tắt phổ biến (yeah/yep/uh-huh, nope/nah) — trẻ nhỏ ít khi
-        // nói "yes"/"no" chuẩn, Whisper cũng hay nhận nhầm các từ này.
-        if (scene.expectedYesNo && scene.expectedYesNo !== "either") {
-          const saidNorm = normalize(said);
-          const saidYes = /\b(yes|yeah|yep|yup|uh-?huh)\b/.test(saidNorm);
-          const saidNo = /\b(no|nope|nah)\b/.test(saidNorm);
-          const ok =
-            (scene.expectedYesNo === "yes" && saidYes && !saidNo) ||
-            (scene.expectedYesNo === "no" && saidNo && !saidYes);
-          if (!ok) {
-            if (handleWrong()) return;
-            setPhase("ask");
-            return;
-          }
-          setResult(true);
+        // Scene "either" (chưa biết học sinh trả lời Yes hay No, vd "Is your name HENRY?") — chốt
+        // nhánh NGAY lần nói đầu tiên có nhắc rõ yes/no, tính luôn cho lượt chấm này (không đợi
+        // qua lượt sau mới áp dụng, tránh lệch 1 nhịp).
+        let effectiveBranch = branch;
+        if (scene.expectedYesNo === "either" && !branch) {
+          if (testYes(saidNorm) && !testNo(saidNorm)) effectiveBranch = "yes";
+          else if (testNo(saidNorm) && !testYes(saidNorm)) effectiveBranch = "no";
         }
+        const branchJustChosen = effectiveBranch !== branch;
+        if (branchJustChosen) setBranch(effectiveBranch);
+        const gradingSentence = branchJustChosen ? buildExpectedSentence(scene, effectiveBranch) : expectedSentence;
+        const gradingTokens = branchJustChosen ? tokenizeForGrading(gradingSentence, isYesNoSentence) : tokens;
+        const priorCorrect = branchJustChosen ? gradingTokens.map(t => t.kind === "blank") : correct;
 
-        // Câu hỏi mở có từ khoá đáp án cụ thể (expectedKeyword, vd "yellow"/"three") — chấm đúng
-        // khi lời nói có từ GẦN GIỐNG từ khoá đó (không cần khớp tuyệt đối, xem fuzzyIncludesWord),
-        // để không bắt lỗi oan khi Whisper nhận nhầm 1-2 ký tự do bé phát âm chưa chuẩn.
-        if (scene.expectedKeyword) {
-          const saidNorm = normalize(said);
-          // Vài câu có nhiều đáp án đều đúng (vd "She's phoning."/"She's talking.") —
-          // expectedKeyword là mảng thì chấp nhận khớp BẤT KỲ từ khoá nào trong đó.
-          const keywords = Array.isArray(scene.expectedKeyword) ? scene.expectedKeyword : [scene.expectedKeyword];
-          const ok = keywords.some(k => fuzzyIncludesWord(saidNorm, k));
-          if (!ok) {
-            if (handleWrong()) return;
-            setPhase("ask");
-            return;
-          }
-          setResult(true);
+        const nextCorrect = gradeAttempt(gradingTokens, priorCorrect, said);
+        setCorrect(nextCorrect);
+        const nextAttempts = attempts + 1;
+        setAttempts(nextAttempts);
+        const attemptAllCorrect = nextCorrect.every(Boolean);
+        // Log THUẦN TEXT (không audio) mỗi lượt để sau này phân tích lỗi phát âm/nhận diện thường
+        // gặp của trẻ Việt Nam — không chặn luồng học nếu lỗi (xem speechLog.js).
+        logSpeechAttempt({
+          lessonId,
+          sceneIndex,
+          examinerLine: scene.examinerLine,
+          expectedSentence: gradingSentence,
+          saidText: said,
+          attemptNumber: nextAttempts,
+          correct: attemptAllCorrect,
+        });
+
+        if (attemptAllCorrect) {
+          setOutcome("correct");
+          setPhase("done");
+          onAttempt?.(sceneIndex, "mic", scene.examinerLine, nextAttempts, "correct", said);
+          const p = pickPraise();
+          setPraise(p);
+          playLine(p.text, { audioUrl: p.audioUrl, onEnd: () => setTimeout(onNext, NEXT_DELAY_MS) });
+          return;
         }
-
-        const p = pickPraise();
-        setPraise(p);
-        playLine(p.text, { audioUrl: p.audioUrl, onEnd: () => setTimeout(onNext, NEXT_DELAY_MS) });
-        setPhase("done");
+        if (nextAttempts >= MIC_MAX_ATTEMPTS) {
+          // Hết lượt mà vẫn còn từ sai — vẫn cho qua scene (không bắt học sinh nói mãi không
+          // được), không phát lời khen vì chưa nói đúng hết, chỉ hiện rõ đáp án rồi tự chuyển tiếp.
+          setOutcome("revealed");
+          setPhase("done");
+          onAttempt?.(sceneIndex, "mic", scene.examinerLine, nextAttempts, "revealed", said);
+          setTimeout(onNext, REVEAL_DELAY_MS);
+          return;
+        }
+        onAttempt?.(sceneIndex, "mic", scene.examinerLine, nextAttempts, "wrong", said);
+        const w = pickWrong();
+        setWrongPraise(w);
+        playLine(w.text, { audioUrl: w.audioUrl });
+        setPhase("ask");
       };
       setPhase("recording");
       recorder.start();
@@ -355,6 +463,7 @@ function MicScene({ scene, onNext }) {
   // Không có ảnh/thẻ minh hoạ (vd "Hello. My name's Jane.", "What's your name?") → câu hỏi
   // căn giữa cả vùng trên, tránh khoảng trắng trống trải phía dưới câu thoại.
   const hasMedia = Boolean(scene.sceneImage || scene.card);
+  const attemptsLeft = MIC_MAX_ATTEMPTS - attempts;
 
   return (
     <>
@@ -366,19 +475,25 @@ function MicScene({ scene, onNext }) {
         )}
       </div>
       <div className="scene-foot">
-        {scene.answerTemplate && (
+        {tokens.length > 0 && (
           <div className="answer-template">
-            {recognized !== null ? (
-              <>
-                Đáp án:{" "}
-                {diffWords(micAnswerLabel(scene) || scene.answerTemplate, recognized).map((w, i) => (
-                  <strong key={i} className={w.correct ? "word-correct" : "word-wrong"}>
-                    {w.text}{" "}
-                  </strong>
-                ))}
-              </>
-            ) : (
+            {attempts === 0 ? (
+              // Gợi ý TRƯỚC khi nói lần đầu luôn hiện NGUYÊN VĂN answerTemplate gốc (soạn từ PDF)
+              // — có chỗ trống "...." cho câu hỏi mở, hoặc ĐỦ CẢ 2 lựa chọn "Yes, .../No, ..." cho
+              // câu Yes/No (kể cả expectedYesNo cố định "yes"/"no", không riêng "either") — TUYỆT
+              // ĐỐI không lộ sẵn đáp án thật (expectedSentence) ra gợi ý (chốt 2026-08-24).
               <>💡 Gợi ý: <strong>{scene.answerTemplate}</strong></>
+            ) : (
+              <>
+                {outcome === "correct" ? "✅" : outcome === "revealed" ? "❌" : "💡"} Đáp án:{" "}
+                {tokens.map((tok, i) =>
+                  tok.kind === "blank" ? null : (
+                    <strong key={i} className={correct[i] ? "word-correct" : "word-wrong"}>
+                      {tok.text}{" "}
+                    </strong>
+                  )
+                )}
+              </>
             )}
           </div>
         )}
@@ -396,22 +511,29 @@ function MicScene({ scene, onNext }) {
         </button>
         {phase === "busy" && <div className="heard-text">Đang nhận diện...</div>}
         {heard && <div className="heard-text">{heard}</div>}
-        {phase === "done" && praise && (
+        {outcome === "correct" && praise && (
           <div className="result-ok">{praise.emoji} {praise.text}</div>
         )}
-        {revealed && (
-          <div className="result-hint">Đáp án đúng: <strong>{micAnswerLabel(scene)}</strong></div>
+        {outcome === "revealed" && (
+          <div className="result-hint">Đáp án đúng: <strong>{expectedSentence}</strong></div>
         )}
-        {!revealed && result === false && wrongPraise && (
-          <div className="result-bad">{wrongPraise.emoji} {wrongPraise.text}</div>
+        {outcome === null && attempts > 0 && wrongPraise && (
+          <div className="result-bad">
+            {wrongPraise.emoji} {wrongPraise.text} ({attemptsLeft} {attemptsLeft === 1 ? "try" : "tries"} left)
+          </div>
         )}
       </div>
+      {isAdmin && lastSaid !== null && (
+        // Debug: nguyên văn máy nghe được (chưa qua chấm) — CHỈ hiện cho tài khoản admin, để
+        // kiểm chứng ASR/logic chấm, đặt góc riêng tách khỏi khu vực đáp án chính học sinh nhìn.
+        <div className="mic-debug-heard">🎤 Máy nghe: "{lastSaid || "(im lặng)"}"</div>
+      )}
     </>
   );
 }
 
 // ---------- Canh-click: click vào vật trong ảnh Scene ----------
-function SceneClickScene({ scene, onNext }) {
+function SceneClickScene({ scene, onNext, sceneIndex, onAttempt }) {
   const [correct, setCorrect] = useState(false);
   const [wrong, setWrong] = useState(false);
   const [praise, setPraise] = useState(null);
@@ -438,6 +560,7 @@ function SceneClickScene({ scene, onNext }) {
     if (correct || revealed) return;
     if (hit) {
       setCorrect(true);
+      onAttempt?.(sceneIndex, "scene-click", scene.examinerLine, wrongCount + 1, "correct", null);
       const p = pickPraise();
       setPraise(p);
       playLine(p.text, { audioUrl: p.audioUrl, onEnd: () => setTimeout(onNext, NEXT_DELAY_MS) });
@@ -448,9 +571,11 @@ function SceneClickScene({ scene, onNext }) {
       setWrongCount(nextWrongCount);
       if (nextWrongCount >= WRONG_LIMIT) {
         setRevealed(true);
+        onAttempt?.(sceneIndex, "scene-click", scene.examinerLine, nextWrongCount, "revealed", null);
         setTimeout(onNext, REVEAL_DELAY_MS);
         return;
       }
+      onAttempt?.(sceneIndex, "scene-click", scene.examinerLine, nextWrongCount, "wrong", null);
       const w = pickWrong();
       setWrongPraise(w);
       playLine(w.text, { audioUrl: w.audioUrl });
@@ -499,7 +624,7 @@ function SceneClickScene({ scene, onNext }) {
 }
 
 // ---------- The-chon: chọn đúng thẻ trong 4 lựa chọn ----------
-function CardSelectScene({ scene, onNext }) {
+function CardSelectScene({ scene, onNext, sceneIndex, onAttempt }) {
   const [correct, setCorrect] = useState(false);
   const [wrongId, setWrongId] = useState(null);
   const [praise, setPraise] = useState(null);
@@ -531,6 +656,7 @@ function CardSelectScene({ scene, onNext }) {
     if (correct || revealed) return;
     if (correctIds.includes(id)) {
       setCorrect(true);
+      onAttempt?.(sceneIndex, "card-select", scene.examinerLine, wrongCount + 1, "correct", null);
       const p = pickPraise();
       setPraise(p);
       playLine(p.text, { audioUrl: p.audioUrl, onEnd: () => setTimeout(onNext, NEXT_DELAY_MS) });
@@ -541,9 +667,11 @@ function CardSelectScene({ scene, onNext }) {
       setWrongCount(nextWrongCount);
       if (nextWrongCount >= WRONG_LIMIT) {
         setRevealed(true);
+        onAttempt?.(sceneIndex, "card-select", scene.examinerLine, nextWrongCount, "revealed", null);
         setTimeout(onNext, REVEAL_DELAY_MS);
         return;
       }
+      onAttempt?.(sceneIndex, "card-select", scene.examinerLine, nextWrongCount, "wrong", null);
       const w = pickWrong();
       setWrongPraise(w);
       playLine(w.text, { audioUrl: w.audioUrl });
@@ -587,7 +715,7 @@ function CardSelectScene({ scene, onNext }) {
 }
 
 // ---------- Dat-vi-tri: kéo-thả thẻ vào đúng vị trí trên ảnh Scene ----------
-function DragDropScene({ scene, onNext }) {
+function DragDropScene({ scene, onNext, sceneIndex, onAttempt }) {
   const [correct, setCorrect] = useState(false);
   const [wrong, setWrong] = useState(false);
   const [dragPos, setDragPos] = useState(null); // {x,y} client coords khi đang kéo
@@ -636,6 +764,7 @@ function DragDropScene({ scene, onNext }) {
       if (hit) {
         setCorrect(true);
         setDragPos(null);
+        onAttempt?.(sceneIndex, "drag-drop", scene.examinerLine, wrongCountRef.current + 1, "correct", null);
         const p = pickPraise();
         setPraise(p);
         playLine(p.text, {
@@ -653,9 +782,11 @@ function DragDropScene({ scene, onNext }) {
       wrongCountRef.current += 1;
       if (wrongCountRef.current >= WRONG_LIMIT) {
         setRevealed(true);
+        onAttempt?.(sceneIndex, "drag-drop", scene.examinerLine, wrongCountRef.current, "revealed", null);
         setTimeout(onNext, REVEAL_DELAY_MS);
         return;
       }
+      onAttempt?.(sceneIndex, "drag-drop", scene.examinerLine, wrongCountRef.current, "wrong", null);
       setWrong(true);
       const w = pickWrong();
       setWrongPraise(w);

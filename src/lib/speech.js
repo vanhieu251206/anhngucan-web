@@ -80,24 +80,3 @@ export function fuzzyIncludesWord(text, keyword) {
   const threshold = keyword.length <= 4 ? 1 : keyword.length <= 7 ? 2 : 3;
   return words.some(w => levenshtein(w, keyword) <= threshold);
 }
-
-// So từng từ trong câu đáp án đầy đủ (expectedSentence) với những gì học sinh nói (saidText) —
-// trả về mảng { text, correct } giữ nguyên chữ/dấu câu gốc của đáp án để hiện ra, chỉ dùng bản
-// normalize để so khớp gần đúng (cùng ngưỡng với fuzzyIncludesWord). Mỗi từ đã nói chỉ được dùng
-// để khớp 1 lần (tránh 1 từ học sinh nói khớp bừa nhiều từ đáp án).
-export function diffWords(expectedSentence, saidText) {
-  const saidWords = normalize(saidText || "").split(/\s+/).filter(Boolean);
-  const used = new Array(saidWords.length).fill(false);
-  const tokens = (expectedSentence || "").split(/\s+/).filter(Boolean);
-  return tokens.map(token => {
-    const norm = normalize(token);
-    if (!norm) return { text: token, correct: true };
-    const threshold = norm.length <= 4 ? 1 : norm.length <= 7 ? 2 : 3;
-    const idx = saidWords.findIndex((w, i) => !used[i] && levenshtein(w, norm) <= threshold);
-    if (idx >= 0) {
-      used[idx] = true;
-      return { text: token, correct: true };
-    }
-    return { text: token, correct: false };
-  });
-}

@@ -5,6 +5,7 @@ import OverviewPage from "./dashboard/OverviewPage.jsx";
 import CreateLessonPage from "./dashboard/CreateLessonPage.jsx";
 import TeacherAccountsPage from "./dashboard/TeacherAccountsPage.jsx";
 import StudentResultsPage from "./dashboard/StudentResultsPage.jsx";
+import SpeechLogsPage from "./dashboard/SpeechLogsPage.jsx";
 import SettingsPage from "./SettingsPage.jsx";
 import { ConfirmProvider } from "../components/dashboard/ConfirmDialog.jsx";
 import { readParams, setParams } from "../lib/urlState.js";
@@ -12,7 +13,9 @@ import { readParams, setParams } from "../lib/urlState.js";
 const ADMIN_ITEMS = [
   { key: "overview", label: "Tổng quan" },
   { key: "create-lesson", label: "Tạo bài" },
+  { key: "results", label: "Kết quả học sinh" },
   { key: "teachers", label: "Cấu hình tài khoản giáo viên" },
+  { key: "speech-logs", label: "Log phát âm" },
   { key: "settings", label: "Cài đặt" },
 ];
 // Giáo viên cũng được soạn bài (create-lesson) như admin, chỉ không có "Cấu hình tài khoản
@@ -73,7 +76,8 @@ export default function DashboardPage({ onNavigate, initialSection }) {
             {section === "overview" && isAdmin && <OverviewPage />}
             {section === "create-lesson" && (isAdmin || isTeacher) && <CreateLessonPage />}
             {section === "teachers" && isAdmin && <TeacherAccountsPage />}
-            {section === "results" && isTeacher && <StudentResultsPage />}
+            {section === "speech-logs" && isAdmin && <SpeechLogsPage />}
+            {section === "results" && (isAdmin || isTeacher) && <StudentResultsPage />}
             {section === "settings" && (isAdmin || isTeacher) && <SettingsPage />}
           </div>
         </div>

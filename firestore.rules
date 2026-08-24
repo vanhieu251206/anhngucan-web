@@ -1,23 +1,5 @@
 rules_version = '2';
 
-// Firestore Security Rules — App Học Tiếng Anh.
-// Trước bản này, repo KHÔNG có file rules nào được version-control (xem AUDIT 2026-08-23,
-// mục Critical C1) — rules thật (nếu có) chỉ tồn tại rời rạc trên Firebase Console, không ai
-// review/khôi phục được. File này là NGUỒN SỰ THẬT DUY NHẤT cho rules, khớp đúng schema đọc
-// được từ code (src/lib/lessonAccess.js, adminLessons.js, lessons.js, authContext.jsx,
-// adminUsers.js). Deploy bằng `firebase deploy --only firestore:rules` (cần `firebase login`
-// + `firebase use <projectId>` trước) HOẶC copy nội dung file này dán thẳng vào Firebase Console
-// → Firestore Database → Rules → Publish.
-//
-// Schema thực tế trong code:
-// - settings/access        { passwordHash, updatedAt, updatedBy } — mật khẩu chung khoá bài học.
-// - users/{uid}             { role: "admin" | "teacher", email, createdAt }.
-// - lessons/{seriesId-level}                      { seriesId, level, listening, updatedAt, updatedBy }
-//   └─ tests/{testId}                              { testId, title, order, scenes, updatedAt, updatedBy }
-//   └─ readingTests/{testId}                       { testId, title, order, parts, updatedAt, updatedBy }
-//
-// KHÔNG có collection lưu tiến độ/điểm số học sinh (Phase 3 chưa làm — xem CLAUDE.md mục 6).
-
 function isSignedIn() {
   return request.auth != null;
 }
@@ -28,10 +10,6 @@ function role() {
     : null;
 }
 
-function isStaff() {
-  return role() == "admin" || role() == "teacher";
-}
-
 function isAdmin() {
   return role() == "admin";
 }
@@ -39,36 +17,16 @@ function isAdmin() {
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Mật khẩu chung mở khoá bài học: PHẢI đọc được công khai (guest chưa đăng nhập cần đọc để
-    // so khớp hash trong PasswordGate.jsx) — chỉ tài khoản đã đăng nhập (= admin/teacher, xem
-    // ghi chú ở /users/{uid} bên dưới) mới ghi được.
     match /settings/access {
       allow read: if true;
       allow write: if isSignedIn();
     }
 
-    // Tài khoản admin/teacher: chỉ admin tạo/sửa được role người khác (adminUsers.js ghi bằng
-    // quyền admin đang đăng nhập). Không cho tự ghi role của chính mình (tránh học sinh tự phong
-    // admin nếu lỡ có tài khoản Auth nào đó).
-    // Đọc: cho phép mọi tài khoản ĐÃ ĐĂNG NHẬP đọc (không cần get() kiểm tra role qua doc khác) —
-    // an toàn vì app này chỉ có tài khoản admin/teacher đăng nhập được (học sinh/guest không có
-    // tài khoản Auth, chỉ nhập mật khẩu chung, xem CLAUDE.md). Tránh dùng get()/exists() để xét
-    // quyền cho truy vấn LIST (vd where role == "teacher" trong adminUsers.js listTeachers()) —
-    // Firestore Rules không đánh giá tin cậy get() theo từng doc cho list query kiểu này, gây lỗi
-    // "Missing or insufficient permissions" dù role thực tế đúng (phát hiện 2026-08-23).
     match /users/{uid} {
       allow read: if isSignedIn();
       allow write: if isAdmin();
     }
 
-    // Dữ liệu bài học (Listening + Test/scene Speaking): đọc công khai (guest cần xem sau khi mở
-    // khoá bằng mật khẩu chung — không có khái niệm tài khoản học sinh riêng nên không phân quyền
-    // theo uid được), chỉ tài khoản đã đăng nhập (= admin/teacher) ghi được qua CMS.
-    // Ghi bằng isSignedIn() thay vì isStaff() (get() tra role qua doc khác) — Firestore có lỗi
-    // đã biết: get() dùng để xét quyền ghi vào SUBCOLLECTION LỒNG NHAU (ở đây là tests/{testId}
-    // bên trong lessons/{lessonId}) có thể bị từ chối sai (permission-denied) dù role đúng, xem
-    // https://groups.google.com/g/firebase-talk/c/ug5DhdOGnas — đổi hẳn sang isSignedIn() để né
-    // lỗi này (phát hiện + xác nhận qua thực tế 2026-08-23).
     match /lessons/{lessonId} {
       allow read: if true;
       allow write: if isSignedIn();
@@ -84,7 +42,24 @@ service cloud.firestore {
       }
     }
 
-    // Mặc định: chặn tất cả những gì không khớp rule ở trên.
+    match /speechLogs/{logId} {
+      allow read: if isSignedIn();
+      allow create: if true;
+      allow update, delete: if false;
+    }
+
+    match /speakingSessions/{sessionId} {
+      allow read: if isSignedIn();
+      allow create, update: if true;
+      allow delete: if false;
+
+      match /events/{eventId} {
+        allow read: if isSignedIn();
+        allow create: if true;
+        allow update, delete: if false;
+      }
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }
