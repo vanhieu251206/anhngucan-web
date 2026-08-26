@@ -1,24 +1,19 @@
 import { useEffect, useState } from "react";
 import { collection, getDocs, limit, orderBy, query } from "firebase/firestore";
 import { db } from "../../lib/firebase.js";
+import { SpeakingReportView, groupIntoReportItems } from "../../components/SpeakingReportView.jsx";
 
 const PAGE_SIZE = 300;
-
-const RESULT_LABEL = { correct: "✅ Đúng", wrong: "❌ Sai", revealed: "⚠️ Hết lượt (tự qua)" };
-const SCENE_TYPE_LABEL = {
-  mic: "🎤 Mic",
-  "scene-click": "👆 Chạm ảnh",
-  "card-select": "🃏 Chọn thẻ",
-  "drag-drop": "✋ Kéo-thả",
-};
 
 function formatDate(ts) {
   return ts?.toDate ? ts.toDate().toLocaleString("vi-VN") : "—";
 }
 
-// Báo cáo QUÁ TRÌNH làm bài Speaking — CHƯA có điểm số tổng (xem CLAUDE.md mục 6, Phase 3 phần
-// điểm số vẫn chưa làm). Mỗi dòng = 1 lần 1 học sinh (đã nhập họ tên) vào làm 1 bài; bấm "Xem chi
-// tiết" để xem từng scene/từng lượt trong lần làm bài đó (dữ liệu ghi bởi SceneRunner.jsx).
+// Báo cáo QUÁ TRÌNH làm bài Speaking. Mỗi dòng = 1 lần 1 học sinh (đã nhập họ tên) vào làm 1 bài;
+// bấm "Xem chi tiết" mở ra ĐÚNG format màn tổng kết mà học sinh thấy (điểm %, thống kê, từng câu
+// kèm quá trình thử nhiều lần nếu có) qua SpeakingReportView.jsx dùng chung với SceneRunner.jsx —
+// CHỈ khác là KHÔNG có audio (audio chỉ lưu trên máy học sinh, xem CLAUDE.md — không có cơ chế
+// giáo viên nghe từ xa, chốt 2026-08-25).
 export default function StudentResultsPage() {
   const [sessions, setSessions] = useState(null);
   const [error, setError] = useState(null);
@@ -49,9 +44,9 @@ export default function StudentResultsPage() {
     <div className="admin-card">
       <h2>Kết quả học sinh</h2>
       <p className="admin-muted-text">
-        Báo cáo quá trình làm bài Speaking — mỗi dòng là 1 lần 1 học sinh vào làm 1 bài. Bấm "Xem chi
-        tiết" để xem từng câu, mỗi câu qua sau bao nhiêu lượt. Chưa có điểm số tổng kết (sẽ bổ sung
-        sau). Hiện {PAGE_SIZE} lần làm bài gần nhất, mới nhất trên cùng.
+        Báo cáo quá trình làm bài Speaking — mỗi dòng là 1 lần 1 học sinh vào làm 1 bài. Bấm "Xem kết
+        quả" để mở màn tổng kết đúng như học sinh đã thấy (điểm %, từng câu, quá trình thử nhiều lần
+        nếu có) — không có audio. Hiện {PAGE_SIZE} lần làm bài gần nhất, mới nhất trên cùng.
       </p>
       {error && <p className="admin-error">Lỗi tải dữ liệu: {error}</p>}
       {sessions === null && !error && <LoadingRow />}
@@ -131,14 +126,14 @@ function SessionRow({ session, open, onToggle }) {
         <td>{session.sceneCount ?? "—"}</td>
         <td>
           <button className="admin-link-btn" onClick={onToggle}>
-            {open ? "Đóng" : "Xem chi tiết"}
+            {open ? "Đóng" : "Xem kết quả"}
           </button>
         </td>
       </tr>
       {open && (
         <tr>
           <td colSpan={6} style={{ padding: 0 }}>
-            <SessionDetail sessionId={session.id} />
+            <SessionDetail session={session} />
           </td>
         </tr>
       )}
@@ -146,48 +141,29 @@ function SessionRow({ session, open, onToggle }) {
   );
 }
 
-function SessionDetail({ sessionId }) {
+function SessionDetail({ session }) {
   const [events, setEvents] = useState(null);
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    getDocs(query(collection(db, "speakingSessions", sessionId, "events"), orderBy("createdAt", "asc")))
+    getDocs(query(collection(db, "speakingSessions", session.id, "events"), orderBy("createdAt", "asc")))
       .then(snap => setEvents(snap.docs.map(d => ({ id: d.id, ...d.data() }))))
       .catch(err => setError(err.message));
-  }, [sessionId]);
+  }, [session.id]);
 
   if (error) return <p className="admin-error" style={{ padding: 14 }}>Lỗi tải chi tiết: {error}</p>;
   if (events === null) return <LoadingRow />;
   if (events.length === 0) return <p className="admin-muted-text" style={{ padding: 14 }}>Chưa có lượt nào được ghi.</p>;
 
+  const items = groupIntoReportItems(events);
+  const elapsedMs =
+    session.finishedAt?.toDate && session.startedAt?.toDate
+      ? session.finishedAt.toDate() - session.startedAt.toDate()
+      : null;
+
   return (
-    <div style={{ background: "#fafbfd", padding: "10px 14px", overflowX: "auto" }}>
-      <table className="admin-table">
-        <thead>
-          <tr>
-            <th>Scene</th>
-            <th>Loại</th>
-            <th>Câu hỏi</th>
-            <th>Lượt</th>
-            <th>Kết quả</th>
-            <th>Máy nghe được</th>
-            <th>Lúc</th>
-          </tr>
-        </thead>
-        <tbody>
-          {events.map(e => (
-            <tr key={e.id}>
-              <td>{e.sceneIndex != null ? e.sceneIndex + 1 : "—"}</td>
-              <td>{SCENE_TYPE_LABEL[e.sceneType] ?? e.sceneType ?? "—"}</td>
-              <td>{e.examinerLine}</td>
-              <td>{e.attemptNumber ?? "—"}</td>
-              <td>{RESULT_LABEL[e.result] ?? e.result ?? "—"}</td>
-              <td>{e.recognizedText || (e.sceneType === "mic" ? <em>(im lặng)</em> : "—")}</td>
-              <td>{formatDate(e.createdAt)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="admin-report-panel">
+      <SpeakingReportView items={items} elapsedMs={elapsedMs} />
     </div>
   );
 }

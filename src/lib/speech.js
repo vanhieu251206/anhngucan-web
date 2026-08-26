@@ -22,7 +22,8 @@ export function stopCurrent() {
 // CHỐT: dự án KHÔNG dùng giọng đọc máy (browser TTS) nữa — chỉ phát file audio thật do người
 // dùng cung cấp. Thiếu file thì báo rõ ra console (và người dùng cần cung cấp bổ sung), KHÔNG
 // được tự ý phát giọng máy thay thế.
-export function playLine(text, { audioUrl, onEnd } = {}) {
+// attempt: nội bộ, đếm số lần đã thử lại — KHÔNG truyền tay khi gọi hàm này.
+export function playLine(text, { audioUrl, onEnd, attempt = 0 } = {}) {
   stopCurrent();
 
   if (!audioUrl) {
@@ -40,8 +41,19 @@ export function playLine(text, { audioUrl, onEnd } = {}) {
   }
   function missing(reason) {
     if (done || audio.__stopped) return; // bị chủ động dừng (scene đổi/StrictMode) — không phải lỗi thật
-    console.warn(`[audio] Không phát được file audio cho câu: "${text}" (${audioUrl}) — ${reason}. Cần cung cấp/kiểm tra lại file voice thật.`);
-    finish();
+    done = true;
+    if (currentAudio === audio) currentAudio = null;
+    // Mạng chập chờn (hay gặp trên di động, đặc biệt lần đầu tải file audio từ Cloudinary) khiến
+    // audio.play() hoặc onerror bắn 1 lần không có nghĩa là file thật sự hỏng — thử lại ĐÚNG 1 LẦN
+    // trước khi bỏ qua hẳn, thay vì lặng lẽ im tiếng ngay từ lần lỗi đầu tiên (chốt 2026-08-25, sau
+    // khi người dùng báo audio thỉnh thoảng không phát được).
+    if (attempt < 1) {
+      console.warn(`[audio] Lỗi lần đầu, thử lại: "${text}" (${audioUrl}) — ${reason}.`);
+      setTimeout(() => playLine(text, { audioUrl, onEnd, attempt: attempt + 1 }), 400);
+      return;
+    }
+    console.warn(`[audio] Không phát được file audio cho câu: "${text}" (${audioUrl}) sau khi thử lại — ${reason}. Cần cung cấp/kiểm tra lại file voice thật.`);
+    onEnd?.();
   }
 
   const audio = new Audio(audioUrl);
@@ -51,7 +63,7 @@ export function playLine(text, { audioUrl, onEnd } = {}) {
   audio.play().catch(err => missing(err?.message || "không phát được"));
 
   // Timeout dự phòng, phòng khi audio không bắn onended (file lỗi im lặng...) — không để treo vĩnh viễn.
-  setTimeout(finish, 15000);
+  setTimeout(() => missing("timeout 15s"), 15000);
 }
 
 export function normalize(str) {

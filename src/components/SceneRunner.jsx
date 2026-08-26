@@ -2,9 +2,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { playLine, normalize, stopCurrent, fuzzyIncludesWord, isRecordingSupported } from "../lib/speech.js";
 import { assessPronunciation, describePronunciationError } from "../lib/pronunciationApi.js";
 import { ExaminerLine, SceneStage, MIC_ICON } from "./sceneVisuals.jsx";
+import { SpeakingReportView } from "./SpeakingReportView.jsx";
 import { useAuth } from "../lib/authContext.jsx";
 import { logSpeechAttempt } from "../lib/speechLog.js";
 import { startSpeakingSession, finishSpeakingSession, logSpeakingEvent } from "../lib/speakingSessions.js";
+import { saveRecording, submitRun, getRunRecordings, cleanupExpiredAudio, isWithinViewWindow } from "../lib/audioReviewCache.js";
 
 // Lời khen dùng chung cho MỌI bài (không riêng lesson nào) — audio thật lấy từ
 // Bài học/_dung-chung/praises/voice.txt, KHÔNG có TTS trình duyệt dự phòng.
@@ -177,6 +179,22 @@ export default function SceneRunner({
   const [index, setIndex] = useState(() => loadSavedIndex(progressKey, scenes.length));
   const scene = scenes[index];
   const sessionIdRef = useRef(null);
+  // Định danh riêng cho MỖI lượt làm bài (dùng để nhóm audio ghi âm cho màn "Nghe lại" cuối bài,
+  // xem lib/audioReviewCache.js) — không dùng progressKey trực tiếp vì làm lại bài nhiều lần
+  // trong ngày vẫn phải tách riêng từng lượt.
+  const runIdRef = useRef(crypto.randomUUID());
+  const [reviewOpen, setReviewOpen] = useState(false);
+  // Mốc bắt đầu làm bài — dùng tính "Thời gian làm bài" hiện ở màn tổng kết.
+  const startedAtRef = useRef(Date.now());
+
+  // Dọn audio "Nghe lại" đã quá hạn (>48h) khi bắt đầu 1 bài mới — đỡ tồn đọng dữ liệu vô thời hạn.
+  useEffect(() => {
+    cleanupExpiredAudio();
+  }, []);
+
+  function saveMicRecording(sceneIndex, examinerLine, blob) {
+    saveRecording(runIdRef.current, sceneIndex, examinerLine, blob);
+  }
 
   // Ghi lại scene hiện tại mỗi khi đổi — đọc lại ở lần mount sau (F5 giữa bài) qua loadSavedIndex.
   useEffect(() => {
@@ -203,8 +221,28 @@ export default function SceneRunner({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Kết quả từng câu (keyed theo sceneIndex) — dùng để hiện màn tổng kết cuối bài. Mỗi câu có thể
+  // gọi onAttempt() NHIỀU LẦN (thử sai rồi thử lại) — giữ lại `history` đầy đủ từng lần thử (để
+  // màn tổng kết hiện rõ quá trình làm bài, không chỉ kết quả cuối), còn result/recognizedText/
+  // attemptNumber ở ngoài luôn là của lần gọi GẦN NHẤT (kết quả chốt trước khi qua scene tiếp theo).
+  const [results, setResults] = useState({});
+
   function recordAttempt(sceneIndex, sceneType, examinerLine, attemptNumber, result, recognizedText) {
     logSpeakingEvent(sessionIdRef.current, { sceneIndex, sceneType, examinerLine, attemptNumber, result, recognizedText });
+    setResults(r => {
+      const prevHistory = r[sceneIndex]?.history ?? [];
+      return {
+        ...r,
+        [sceneIndex]: {
+          sceneType,
+          examinerLine,
+          attemptNumber,
+          result,
+          recognizedText,
+          history: [...prevHistory, { attemptNumber, result, recognizedText }],
+        },
+      };
+    });
   }
 
   // Rời bài Speaking bằng bất kỳ cách nào (không chỉ nút quay lại, vd bấm logo/menu) đều phải
@@ -217,7 +255,8 @@ export default function SceneRunner({
     if (isLast) {
       if (progressKey) sessionStorage.removeItem(PROGRESS_KEY_PREFIX + progressKey);
       finishSpeakingSession(sessionIdRef.current);
-      onFinish();
+      if (progressKey) submitRun(progressKey, runIdRef.current);
+      setReviewOpen(true);
       return;
     }
     setIndex(i => i + 1);
@@ -234,6 +273,17 @@ export default function SceneRunner({
     if (index === 0) return;
     stopCurrent();
     setIndex(i => i - 1);
+  }
+
+  if (reviewOpen) {
+    return (
+      <ReviewScreen
+        runId={runIdRef.current}
+        results={results}
+        elapsedMs={Date.now() - startedAtRef.current}
+        onDone={onFinish}
+      />
+    );
   }
 
   return (
@@ -267,6 +317,7 @@ export default function SceneRunner({
           lessonId={progressKey}
           sceneIndex={index}
           onAttempt={recordAttempt}
+          onSaveRecording={saveMicRecording}
         />
       )}
       {scene.type === "scene-click" && (
@@ -278,6 +329,44 @@ export default function SceneRunner({
       {scene.type === "drag-drop" && (
         <DragDropScene key={index} scene={scene} onNext={goNext} sceneIndex={index} onAttempt={recordAttempt} />
       )}
+    </div>
+  );
+}
+
+// ---------- Màn tổng kết cuối bài: kết quả TẤT CẢ câu đã làm, audio (nếu có) chỉ là 1 phần ----------
+// Phần hiển thị dùng chung với StudentResultsPage.jsx (giáo viên/admin xem lại sau — KHÔNG có
+// audio) qua SpeakingReportView.jsx (xem file đó để biết lý do). Ở đây (học sinh xem NGAY sau khi
+// nộp bài) mới có thêm audio nghe lại (đọc từ IndexedDB trên chính máy này, xem
+// lib/audioReviewCache.js — chỉ dùng được 24h đầu, hoàn toàn không upload lên đâu).
+function ReviewScreen({ runId, results, elapsedMs, onDone }) {
+  const [recordings, setRecordings] = useState(null); // null = đang tải
+
+  useEffect(() => {
+    let cancelled = false;
+    getRunRecordings(runId).then(list => {
+      if (!cancelled) setRecordings(list || []);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [runId]);
+
+  const items = Object.entries(results)
+    .map(([sceneIndex, r]) => ({ sceneIndex: Number(sceneIndex), ...r }))
+    .sort((a, b) => a.sceneIndex - b.sceneIndex);
+
+  return (
+    <div className="sentence-box review-screen">
+      <SpeakingReportView items={items} elapsedMs={elapsedMs} showAudio recordings={recordings} />
+      <div className="review-footer">
+        <p className="review-footer-note">
+          🎧 Câu đã nói (🎤) nghe lại được trong <strong>24 giờ</strong> kể từ bây giờ, sau đó tự xoá khỏi
+          thiết bị này.
+        </p>
+        <button className="btn btn-primary review-done-btn" onClick={onDone}>
+          Xong
+        </button>
+      </div>
     </div>
   );
 }
@@ -315,7 +404,7 @@ function NarrationScene({ scene, onNext }) {
 // cá nhân dạng Yes/No ("either") hay câu chào hỏi mở, chỉ riêng phần "...." (thông tin cá nhân
 // không biết trước) là luôn coi như đúng. Học sinh được thử tối đa MIC_MAX_ATTEMPTS lần, mỗi lần
 // chỉ cần sửa lại từ còn đỏ — từ đã xanh giữ nguyên không bị chấm lại.
-function MicScene({ scene, onNext, lessonId, sceneIndex, onAttempt }) {
+function MicScene({ scene, onNext, lessonId, sceneIndex, onAttempt, onSaveRecording }) {
   const { isAdmin } = useAuth();
   const [phase, setPhase] = useState("ask"); // ask | recording | busy | done
   const [heard, setHeard] = useState("");
@@ -426,6 +515,7 @@ function MicScene({ scene, onNext, lessonId, sceneIndex, onAttempt }) {
           setOutcome("correct");
           setPhase("done");
           onAttempt?.(sceneIndex, "mic", scene.examinerLine, nextAttempts, "correct", said);
+          onSaveRecording?.(sceneIndex, scene.examinerLine, blob);
           const p = pickPraise();
           setPraise(p);
           playLine(p.text, { audioUrl: p.audioUrl, onEnd: () => setTimeout(onNext, NEXT_DELAY_MS) });
@@ -437,6 +527,7 @@ function MicScene({ scene, onNext, lessonId, sceneIndex, onAttempt }) {
           setOutcome("revealed");
           setPhase("done");
           onAttempt?.(sceneIndex, "mic", scene.examinerLine, nextAttempts, "revealed", said);
+          onSaveRecording?.(sceneIndex, scene.examinerLine, blob);
           setTimeout(onNext, REVEAL_DELAY_MS);
           return;
         }
@@ -586,6 +677,7 @@ function SceneClickScene({ scene, onNext, sceneIndex, onAttempt }) {
     <>
       <div className="scene-body">
         <ExaminerLine text={scene.examinerLine} />
+        {!correct && !revealed && !wrong && <div className="scene-hint-inline">Chạm vào đáp án đúng</div>}
         <SceneStage extraClassName={wrong ? "is-shake" : ""} onClick={() => choose(false)}>
           <img
             className="part1-scene-img"
@@ -609,15 +701,15 @@ function SceneClickScene({ scene, onNext, sceneIndex, onAttempt }) {
         </SceneStage>
       </div>
       <div className="scene-foot">
-        <div className={correct ? "result-ok" : revealed ? "result-hint" : wrong ? "result-bad" : "result-hint"}>
-          {correct
-            ? `${praise.emoji} ${praise.text}`
-            : revealed
-              ? <>Đáp án đúng: <strong>{scene.target.label}</strong></>
-              : wrong
-                ? `${wrongPraise.emoji} ${wrongPraise.text}`
-                : "Chạm vào đáp án đúng nhé"}
-        </div>
+        {(correct || revealed || wrong) && (
+          <div className={correct ? "result-ok" : revealed ? "result-hint" : "result-bad"}>
+            {correct
+              ? `${praise.emoji} ${praise.text}`
+              : revealed
+                ? <>Đáp án đúng: <strong>{scene.target.label}</strong></>
+                : `${wrongPraise.emoji} ${wrongPraise.text}`}
+          </div>
+        )}
       </div>
     </>
   );
@@ -684,6 +776,7 @@ function CardSelectScene({ scene, onNext, sceneIndex, onAttempt }) {
     <>
       <div className="scene-body scene-body-center">
         <ExaminerLine text={scene.examinerLine} />
+        {!correct && !revealed && !wrongId && <div className="scene-hint-inline">Chạm vào đáp án đúng</div>}
       </div>
       <div className="scene-foot">
         <div className="part1-options">
@@ -700,15 +793,15 @@ function CardSelectScene({ scene, onNext, sceneIndex, onAttempt }) {
             </button>
           ))}
         </div>
-        <div className={correct ? "result-ok" : revealed ? "result-hint" : wrongId ? "result-bad" : "result-hint"}>
-          {correct
-            ? `${praise.emoji} ${praise.text}`
-            : revealed
-              ? <>Đáp án đúng: <strong>{correctOption.label}</strong></>
-              : wrongId
-                ? `${wrongPraise.emoji} ${wrongPraise.text}`
-                : "Chạm vào đáp án đúng nhé"}
-        </div>
+        {(correct || revealed || wrongId) && (
+          <div className={correct ? "result-ok" : revealed ? "result-hint" : "result-bad"}>
+            {correct
+              ? `${praise.emoji} ${praise.text}`
+              : revealed
+                ? <>Đáp án đúng: <strong>{correctOption.label}</strong></>
+                : `${wrongPraise.emoji} ${wrongPraise.text}`}
+          </div>
+        )}
       </div>
     </>
   );
