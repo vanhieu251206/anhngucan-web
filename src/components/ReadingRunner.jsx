@@ -37,6 +37,17 @@ export function gapPoints(question, blankCount) {
   return questionPoints(question) / blankCount;
 }
 
+// Điểm THẬT SỰ dùng để chấm 1 câu — nếu Part có `partPoints` (tổng điểm cố định cho cả Part, chia
+// đều cho các câu bên trong), điểm riêng từng câu (question.points) bị BỎ QUA hoàn toàn, dùng
+// part.partPoints / số câu trong Part thay thế (yêu cầu người dùng 2026-08-26, vd Movers Part 1
+// chấm theo tổng điểm cả Part chứ không theo từng câu riêng). Không có partPoints thì giữ nguyên
+// cách cũ (questionPoints(question)).
+export function effectiveQuestionPoints(part, question) {
+  const questionCount = part.questions?.length ?? 0;
+  if (part.partPoints != null && questionCount > 0) return part.partPoints / questionCount;
+  return questionPoints(question);
+}
+
 // Xáo chữ cái THẬT MẠNH: lặp lại tới khi KHÔNG CÒN chữ cái nào đứng đúng vị trí gốc (derangement),
 // không chỉ đơn thuần khác thứ tự gốc — tránh tình trạng xáo yếu chỉ đổi chỗ 1-2 chữ khiến từ vẫn
 // nhìn gần giống bản gốc (phản hồi thực tế 2026-08-26, vd "APPLE" xáo ra y hệt "APPLE"). Giới hạn
@@ -63,7 +74,7 @@ function flattenQuestions(parts) {
   let n = 1;
   parts.forEach((part, partIndex) => {
     (part.questions ?? []).forEach((q, qIndex) => {
-      flat.push({ question: q, partIndex, qIndex, qNumber: n });
+      flat.push({ question: q, part, partIndex, qIndex, qNumber: n });
       n += 1;
     });
   });
@@ -72,6 +83,7 @@ function flattenQuestions(parts) {
 
 function isAnswered(question, value) {
   if (question.type === "gapfill") return (value ?? []).some(v => (v ?? "").trim());
+  if (question.type === "multiple-choice") return value !== undefined && value !== null;
   return !!(value ?? "").toString().trim();
 }
 
@@ -80,7 +92,7 @@ function isAnswered(question, value) {
 export function QuestionBadge({ qNumber }) {
   return (
     <div className="reading-question-badge">
-      <span className="reading-question-num">{qNumber}</span>
+      <span className="reading-question-num">Question {qNumber}</span>
     </div>
   );
 }
@@ -125,15 +137,46 @@ function GapfillQuestion({ question, qNumber, values, onChange }) {
             if (isLast) return <span key={i}>{seg}</span>;
             const answered = values[gapIndex] ?? "";
             const correct = answers[gapIndex];
+            // Tách riêng nhãn số thứ tự "(N)" (do GapfillTextEditor tự chèn liền sát ô trống, vd
+            // "...very (2)___") ra khỏi phần chữ còn lại, rồi bọc CHUNG với ô input trong 1 span
+            // white-space:nowrap — tránh việc trình duyệt xuống dòng giữa "(2)" và ô trống thành 2
+            // dòng tách rời trông rất rối (lỗi thực tế 2026-08-26, đoạn văn dài nhiều dòng).
+            const numMatch = seg.match(/(\(\d+\))\s*$/);
+            const prefix = numMatch ? seg.slice(0, numMatch.index) : seg;
+            const marker = numMatch ? numMatch[1] : "";
+            const choices = question.gapMode === "choices" ? question.gapOptions?.[gapIndex]?.options : null;
             return (
               <span key={i}>
-                {seg}
-                <input
-                  className="reading-gap-input"
-                  value={answered}
-                  onChange={e => onChange(gapIndex, e.target.value)}
-                  size={Math.max(4, (correct?.length ?? 6) + 2)}
-                />
+                {prefix}
+                {choices ? (
+                  // Chế độ bấm chọn (khác gõ tự do) — 3 nút cho từng chỗ trống, bấm vào thì
+                  // highlight (khớp đáp án đúng hay không tính lúc chấm điểm, không tô màu ngay khi
+                  // chọn — tránh lộ đáp án trước khi nộp bài).
+                  <span className="reading-gap-choices">
+                    {marker}
+                    {choices.map((opt, ci) => (
+                      <button
+                        key={ci}
+                        type="button"
+                        className={`reading-gap-choice-btn${answered === opt ? " is-selected" : ""}`}
+                        onClick={() => onChange(gapIndex, opt)}
+                        disabled={!opt}
+                      >
+                        {opt || `(chưa nhập lựa chọn ${ci + 1})`}
+                      </button>
+                    ))}
+                  </span>
+                ) : (
+                  <span className="reading-gap-nowrap">
+                    {marker}
+                    <input
+                      className="reading-gap-input"
+                      value={answered}
+                      onChange={e => onChange(gapIndex, e.target.value)}
+                      size={Math.max(4, (correct?.length ?? 6) + 2)}
+                    />
+                  </span>
+                )}
               </span>
             );
           })}
@@ -175,6 +218,130 @@ function ShortAnswerQuestion({ question, qNumber, value, onChange }) {
               />
             </>
           )}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// Chọn 1 trong nhiều đáp án (radio) — dùng cho Part hội thoại (chọn câu trả lời đúng) và Part chọn
+// tiêu đề câu chuyện của Movers. `value` lưu index đáp án học sinh chọn (number), khớp với
+// `question.answerIndex` (index đáp án đúng) khi chấm điểm.
+// Nhãn chữ cái A/B/C... cho từng đáp án multiple-choice — khớp đúng cách đề Cambridge YLE thật
+// luôn đánh A/B/C cạnh đáp án (yêu cầu người dùng 2026-08-26), tính theo index nên tự đúng dù có
+// nhiều hơn/ít hơn 3 đáp án.
+export function optionLetter(i) {
+  return String.fromCharCode(65 + i) + ".";
+}
+
+function MultipleChoiceQuestion({ question, qNumber, value, onChange }) {
+  const options = question.options ?? [];
+  return (
+    <div className="reading-question" id={`rq-${qNumber}`}>
+      <QuestionBadge qNumber={qNumber} />
+      <div className="reading-question-body">
+        {question.text && <p className="reading-question-text">{question.text}</p>}
+        <div className="reading-mc-options">
+          {options.map((opt, i) => (
+            <label key={i} className={`reading-mc-option${value === i ? " is-selected" : ""}`}>
+              <input
+                type="radio"
+                name={`mc-${qNumber}`}
+                checked={value === i}
+                onChange={() => onChange(i)}
+              />
+              {!question.hideLetters && <span className="reading-mc-option-letter">{optionLetter(i)}</span>}
+              <span>{opt}</span>
+            </label>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Mục ngân hàng từ có thể là string trơn (Movers/Flyers Part 1/2 — chỉ chữ) HOẶC object {text, image}
+// (Movers Part 3 — mỗi từ kèm ảnh minh hoạ, xem sách gốc trang "Example" có 9 ô ảnh+chữ). 2 hàm này
+// đọc thống nhất bất kể dữ liệu cũ (string) hay mới (object), dùng chung ở CMS lẫn màn học sinh.
+export function bankLabel(item) {
+  return typeof item === "string" ? item : (item?.text ?? "");
+}
+export function bankImage(item) {
+  return typeof item === "string" ? null : (item?.image ?? null);
+}
+
+// Khung hiện TOÀN BỘ ngân hàng từ ở đầu Part — giống hệt trang sách thật (các từ bày sẵn để học
+// sinh đọc qua trước khi làm câu), CHỈ ĐỌC, không tương tác (chọn đáp án vẫn qua dropdown ở từng
+// câu bên dưới, xem WordBankQuestion) — yêu cầu người dùng 2026-08-26.
+export function WordBankBox({ words }) {
+  if (!words?.length) return null;
+  return (
+    <div className="reading-wordbank-box">
+      {words.map((w, i) => {
+        const img = bankImage(w);
+        return (
+          <span key={i} className={`reading-wordbank-chip${img ? " has-img" : ""}`}>
+            {img && <img src={img} alt="" className="reading-wordbank-chip-img" />}
+            {bankLabel(w)}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
+// Dòng "Example" mẫu trước các câu hỏi thật — chỉ minh hoạ cách làm, KHÔNG tính điểm, KHÔNG tương
+// tác được (khớp sách gốc luôn có sẵn 1 ví dụ đã điền đáp án). Dùng cho type word-bank.
+// mode="multiple-choice" (Movers Part 2...) hiện luôn 3 đáp án, đáp án đúng khoanh sẵn — khớp cách
+// sách gốc luôn đánh dấu sẵn đáp án đúng ở dòng Example (vd khoanh tròn "B  Is it?").
+export function ExampleRow({ example, mode }) {
+  if (!example?.text) return null;
+  if (mode === "multiple-choice") {
+    return (
+      <div className="reading-question reading-example-row">
+        <div className="reading-question-badge reading-example-badge">Example</div>
+        <div className="reading-question-body">
+          <p className="reading-question-text">{example.text}</p>
+          <div className="reading-mc-options">
+            {(example.options ?? []).map((opt, i) => (
+              <span key={i} className={`reading-mc-option${example.answerIndex === i ? " is-selected" : ""}`}>
+                <span className="reading-mc-option-letter">{optionLetter(i)}</span>
+                {opt}
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="reading-question reading-example-row">
+      <div className="reading-question-badge reading-example-badge">Example</div>
+      <div className="reading-question-body">
+        <p className="reading-question-text">
+          {example.text} <span className="reading-example-answer">{example.answer}</span>
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// Đọc câu mô tả, GÕ TỰ DO từ đúng vào ô trống (khớp đúng cách làm bài thật "write the word on the
+// line") — ngân hàng từ vẫn hiện sẵn ở khung WordBankBox đầu Part để học sinh tham khảo/chọn từ đó
+// mà gõ lại, không phải chọn qua dropdown (đổi lại theo yêu cầu người dùng 2026-08-26).
+function WordBankQuestion({ question, qNumber, value, onChange }) {
+  return (
+    <div className="reading-question" id={`rq-${qNumber}`}>
+      <QuestionBadge qNumber={qNumber} />
+      <div className="reading-question-body">
+        <p className="reading-question-text">
+          {question.text}{" "}
+          <input
+            className="reading-gap-input"
+            value={value ?? ""}
+            onChange={e => onChange(e.target.value)}
+            size={Math.max(6, (question.answer?.length ?? 8) + 2)}
+          />
         </p>
       </div>
     </div>
@@ -297,9 +464,9 @@ function QuestionListSidebar({ flat, answers }) {
 function buildResults(flat, answers) {
   let earnedPoints = 0;
   let totalPoints = 0;
-  const items = flat.map(({ question, partIndex, qIndex, qNumber }) => {
+  const items = flat.map(({ question, part, partIndex, qIndex, qNumber }) => {
     const value = answers[partIndex]?.[qIndex];
-    const qPoints = questionPoints(question);
+    const qPoints = effectiveQuestionPoints(part, question);
     totalPoints += qPoints;
 
     if (question.type === "yesno") {
@@ -319,7 +486,7 @@ function buildResults(flat, answers) {
 
     if (question.type === "gapfill") {
       const gapAnswers = question.answers ?? [];
-      const perGap = gapPoints(question, gapAnswers.length);
+      const perGap = gapAnswers.length ? qPoints / gapAnswers.length : 0;
       let gapEarned = 0;
       const blanks = gapAnswers.map((a, gi) => {
         const ok = normalizeAnswer(value?.[gi]) === normalizeAnswer(a);
@@ -349,6 +516,37 @@ function buildResults(flat, answers) {
         total: qPoints,
         studentAnswer: (value ?? "").trim() || "(chưa trả lời)",
         correctAnswer: question.answer,
+      };
+    }
+
+    if (question.type === "word-bank") {
+      const isCorrect = normalizeAnswer(value) === normalizeAnswer(question.answer);
+      const earned = isCorrect ? qPoints : 0;
+      earnedPoints += earned;
+      return {
+        qNumber,
+        question,
+        isCorrect,
+        earned,
+        total: qPoints,
+        studentAnswer: (value ?? "").trim() || "(chưa trả lời)",
+        correctAnswer: question.answer,
+      };
+    }
+
+    if (question.type === "multiple-choice") {
+      const options = question.options ?? [];
+      const isCorrect = value === question.answerIndex;
+      const earned = isCorrect ? qPoints : 0;
+      earnedPoints += earned;
+      return {
+        qNumber,
+        question,
+        isCorrect,
+        earned,
+        total: qPoints,
+        studentAnswer: value !== undefined && value !== null ? options[value] ?? "(chưa trả lời)" : "(chưa trả lời)",
+        correctAnswer: options[question.answerIndex] ?? "",
       };
     }
 
@@ -425,7 +623,11 @@ export default function ReadingRunner({ parts, onFinish }) {
             <div className="reading-part-head">
               <h2>{part.title}</h2>
               {part.instruction && <p className="reading-part-instruction">{part.instruction}</p>}
+              {part.image && <img src={part.image} alt="" className="reading-part-img" />}
+              {part.caption && <p className="reading-part-caption">{part.caption}</p>}
             </div>
+            <WordBankBox words={part.wordBank} />
+            <ExampleRow example={part.example} mode={part.allowedTypes?.includes("multiple-choice") ? "multiple-choice" : "word-bank"} />
             <div className="reading-question-list">
               {(part.questions ?? []).map((q, qIndex) => {
                 const { qNumber } = flat.find(f => f.partIndex === partIndex && f.qIndex === qIndex);
@@ -455,6 +657,28 @@ export default function ReadingRunner({ parts, onFinish }) {
                           return cur;
                         })())
                       }
+                    />
+                  );
+                }
+                if (q.type === "word-bank") {
+                  return (
+                    <WordBankQuestion
+                      key={qIndex}
+                      question={q}
+                      qNumber={qNumber}
+                      value={value}
+                      onChange={val => setAnswer(partIndex, qIndex, val)}
+                    />
+                  );
+                }
+                if (q.type === "multiple-choice") {
+                  return (
+                    <MultipleChoiceQuestion
+                      key={qIndex}
+                      question={q}
+                      qNumber={qNumber}
+                      value={value}
+                      onChange={val => setAnswer(partIndex, qIndex, val)}
                     />
                   );
                 }

@@ -448,17 +448,25 @@ function ReadingEditor({ series, level, uid }) {
   async function handleSaveTest() {
     setSaving(true);
     setSaved(false);
-    const order = tests?.find(t => t.id === openTestId)?.order ?? (tests?.length ?? 0) + 1;
-    await saveReadingTest(series.id, level.number, openTestId, { title: testTitle, order, parts }, uid);
-    setSaving(false);
-    setSaved(true);
-    reloadTests();
+    try {
+      const order = tests?.find(t => t.id === openTestId)?.order ?? (tests?.length ?? 0) + 1;
+      await saveReadingTest(series.id, level.number, openTestId, { title: testTitle, order, parts }, uid);
+      setSaved(true);
+      reloadTests();
+    } catch (err) {
+      // Thiếu try/catch trước đây khiến lỗi (vd Firestore từ chối field `undefined`) bị nuốt mất,
+      // nút "Xuất bản" kẹt mãi ở trạng thái loading không rõ lý do (phản hồi thực tế 2026-08-27).
+      alert(`Không xuất bản được: ${err.message}`);
+    } finally {
+      setSaving(false);
+    }
   }
 
   if (openTestId) {
     return (
       <ReadingStudio
         accent={series.color}
+        seriesId={series.id}
         title={testTitle}
         onTitleChange={setTestTitle}
         parts={parts}

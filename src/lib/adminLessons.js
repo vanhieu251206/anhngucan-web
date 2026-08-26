@@ -53,8 +53,9 @@ export async function deleteTest(seriesId, level, testId) {
 }
 
 // Reading & Writing — cấu trúc tương tự Speaking (subcollection riêng "readingTests" trong cùng
-// 1 doc lesson), nhưng mỗi Test chứa `parts` (Part 1/2/3...), mỗi Part chứa `questions` (3 loại:
-// yesno/gapfill/short-answer) thay vì `scenes`.
+// 1 doc lesson), nhưng mỗi Test chứa `parts` (Part 1/2/3...), mỗi Part chứa `questions` (nhiều loại
+// tuỳ series — xem QUESTION_TYPES trong ReadingStudio.jsx) thay vì `scenes`, và có thể có thêm
+// `wordBank` (ngân hàng từ dùng chung cho các câu "word-bank" trong Part, chỉ Movers trở lên).
 export async function listReadingTests(seriesId, level) {
   const snap = await getDocs(collection(db, "lessons", lessonId(seriesId, level), "readingTests"));
   return snap.docs

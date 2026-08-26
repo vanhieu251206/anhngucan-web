@@ -991,25 +991,31 @@ button { font-family: inherit; }
    tên riêng để dễ nhận diện + cho selector khoá cuộn html/body ở trên; nội dung bên trong (thân
    bài) cuộn được như bình thường (không giữ khung ảnh cố định như Speaking). */
 .reading-fullscreen {
-  position: fixed; inset: 0; z-index: 1000;
+  position: fixed; inset: 0; z-index: 1000; overflow: hidden;
   background: var(--color-bg);
   display: flex; flex-direction: column;
 }
-.reading-fullscreen-body { align-items: stretch; justify-content: flex-start; overflow-y: auto; }
+/* overflow: hidden ở trên (.reading-fullscreen) chặn nội dung tràn ra ngoài khung fixed, ép buộc
+   CHÍNH .reading-fullscreen-body bên dưới phải là nơi thật sự cuộn (overflow-y: auto) — thiếu dòng
+   này, nội dung dài tràn lên cả document khiến trang (html/body) cuộn thay vì vùng bên trong, làm
+   sidebar sticky mất tác dụng (cuộn trôi theo thay vì ghim cố định — lỗi thực tế 2026-08-26). */
+.reading-fullscreen-body { align-items: stretch; justify-content: flex-start; overflow-y: auto; min-height: 0; }
 
-/* Trang làm bài Reading & Writing 1-lần-cuộn-hết: sidebar trái "Danh sách câu hỏi" (sticky) +
-   nội dung chính bên phải chứa toàn bộ Part nối tiếp nhau (xem ReadingRunner.jsx). */
+/* Trang làm bài Reading & Writing 1-lần-cuộn-hết: sidebar trái "Danh sách câu hỏi" ghim cố định
+   theo viewport (position: fixed) + nội dung chính bên phải chứa toàn bộ Part nối tiếp nhau (xem
+   ReadingRunner.jsx). ĐÃ THỬ position: sticky (kể cả sửa align-items/overflow tổ tiên) nhưng vẫn bị
+   cuộn trôi theo trong khung .reading-fullscreen-body lồng nhiều lớp flex/overflow — chuyển hẳn
+   sang fixed để không còn phụ thuộc vùng cuộn nào của tổ tiên nữa (lỗi thực tế 2026-08-26). Do
+   sidebar rời khỏi luồng flex, .reading-runner-main tự chừa margin-left đúng bằng bề rộng sidebar
+   + khoảng cách thay vì dùng flex gap.  */
 .reading-runner-page {
-  width: 100%; max-width: 1080px; display: flex; flex-direction: row; align-items: stretch;
-  gap: 22px; margin: 0 auto;
+  position: relative; width: 100%; max-width: 1080px; margin: 0 auto;
 }
-/* align-items: stretch ở trên khiến sidebar cao BẰNG card nội dung bên phải (thay vì co lại theo
-   đúng nội dung của nó, nhìn lệch/mất cân đối khi bài chỉ có ít câu — phản hồi thực tế 2026-08-26)
-   — sticky vẫn giữ nguyên tác dụng ghim khi cuộn, chỉ khác chiều cao khung bao ngoài. */
 .reading-sidebar {
-  flex-shrink: 0; width: 210px; align-self: stretch; position: sticky; top: 14px;
+  position: fixed; z-index: 5; width: 210px;
+  left: max(12px, calc(50vw - 540px)); top: 76px;
   background: #fff; border: 2px solid #ece6da; border-radius: var(--radius-lg);
-  padding: 18px; max-height: calc(100vh - 28px); overflow-y: auto;
+  padding: 18px; max-height: calc(100vh - 96px); overflow-y: auto;
   box-shadow: var(--shadow-soft);
 }
 .reading-sidebar-title { margin: 0 0 12px; font-family: var(--font-display); font-size: 1rem; }
@@ -1029,11 +1035,11 @@ button { font-family: inherit; }
 .reading-sidebar-dot:hover { border-color: var(--color-primary); transform: scale(1.08); }
 .reading-sidebar-dot.is-answered { background: var(--color-primary); border-color: var(--color-primary); color: #fff; }
 .reading-sidebar-hint { margin: 12px 0 0; font-size: 0.78rem; color: var(--color-primary); }
-.reading-runner-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 18px; }
+.reading-runner-main { min-width: 0; margin-left: 232px; display: flex; flex-direction: column; gap: 18px; padding-bottom: 32px; }
 .reading-runner-footer { justify-content: center; }
 @media (max-width: 820px) {
-  .reading-runner-page { flex-direction: column; }
-  .reading-sidebar { position: static; width: 100%; max-height: none; }
+  .reading-sidebar { position: static; width: 100%; max-height: none; left: auto; top: auto; margin-bottom: 18px; }
+  .reading-runner-main { margin-left: 0; }
   .reading-sidebar-grid { grid-template-columns: repeat(auto-fill, minmax(36px, 1fr)); }
 }
 
@@ -1042,7 +1048,7 @@ button { font-family: inherit; }
   padding: 24px 26px 22px; display: flex; flex-direction: column; gap: 20px;
   box-shadow: var(--shadow-soft);
 }
-.reading-part-head { display: flex; align-items: flex-start; gap: 10px; border-bottom: 2px dashed #f1ebdd; padding-bottom: 14px; }
+.reading-part-head { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 10px; border-bottom: 2px dashed #f1ebdd; padding-bottom: 14px; }
 .reading-part-head::before {
   content: "📘"; font-size: 1.4rem; line-height: 1; flex-shrink: 0;
 }
@@ -1050,21 +1056,51 @@ button { font-family: inherit; }
 .reading-part-instruction {
   color: var(--color-primary-dark); font-style: italic; margin: 0; font-weight: 600;
 }
+.reading-part-img { flex: 1 1 100%; max-width: 100%; max-height: 260px; object-fit: contain; border-radius: 14px; margin-top: 4px; }
+.reading-part-caption { flex: 1 1 100%; margin: 2px 0 0; color: var(--color-text); font-weight: 600; }
+
+.reading-example-row { background: #fff8ec; border-style: dashed; }
+.reading-example-badge {
+  color: var(--color-primary-dark); font-weight: 700; font-size: 0.78rem;
+  font-family: var(--font-display); text-transform: uppercase; letter-spacing: 0.03em;
+}
+.reading-example-answer { font-weight: 700; color: var(--color-primary-dark); text-decoration: underline; }
+
+.reading-wordbank-box {
+  display: flex; flex-wrap: wrap; gap: 10px; padding: 14px 16px; margin: 14px 0;
+  background: #fff8ec; border: 2px dashed var(--color-primary); border-radius: 14px;
+}
+.reading-wordbank-chip {
+  padding: 6px 14px; border-radius: var(--radius-pill); background: #fff; font-weight: 700;
+  border: 2px solid #ece6da; font-family: var(--font-display); font-size: 0.92rem;
+  user-select: none; -webkit-user-select: none;
+}
+/* Từ ngân hàng có ảnh (Movers Part 3) — đổi từ pill sang thẻ dọc (ảnh trên, chữ dưới) để đủ chỗ
+   hiện ảnh minh hoạ, thay vì nhồi ảnh nhỏ xíu vào trong 1 pill ngang như chữ trơn. */
+.reading-wordbank-chip.has-img {
+  display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 8px 12px 10px;
+  border-radius: 14px;
+}
+.reading-wordbank-chip-img { width: 64px; height: 64px; object-fit: cover; border-radius: 10px; }
 
 .reading-question-list { display: flex; flex-direction: column; gap: 16px; }
 /* Mỗi câu là 1 THẺ RIÊNG (nền tương phản + viền + đổ bóng nhẹ khi hover/focus) — trước đây chỉ là
    hàng chữ trần không có ranh giới, khó phân biệt từng câu (yêu cầu người dùng 2026-08-26: "làm
    giao diện bài này thật đẹp"). */
+/* Badge "Question N" nằm 1 HÀNG RIÊNG phía trên (không còn xếp cùng hàng bên trái ảnh/nội dung
+   như trước) — khi badge đổi từ số tròn sang chữ "Question N" dài hơn, xếp cùng hàng khiến ảnh bị
+   đè/lấn lên góc badge, ảnh không còn full-width rõ ràng (phản hồi thực tế 2026-08-26). */
 .reading-question {
-  display: flex; gap: 14px; background: var(--color-bg); border: 1.5px solid #f1ebdd;
-  border-radius: 16px; padding: 16px 18px; transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  display: flex; flex-direction: column; gap: 10px; background: var(--color-bg);
+  border: 1.5px solid #f1ebdd; border-radius: 16px; padding: 16px 18px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 .reading-question:focus-within, .reading-question:hover { border-color: #f3d9b8; box-shadow: var(--shadow-soft); }
-.reading-question-badge { flex-shrink: 0; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.reading-question-badge { flex-shrink: 0; display: flex; align-items: center; gap: 6px; }
 .reading-question-num {
-  width: 32px; height: 32px; border-radius: 50%;
-  background: var(--color-primary); color: #fff;
-  display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.95rem;
+  min-width: 32px; height: 32px; padding: 0 12px; border-radius: var(--radius-pill);
+  background: var(--color-primary); color: #fff; white-space: nowrap;
+  display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.85rem;
   font-family: var(--font-display); box-shadow: 0 3px 8px rgba(255, 122, 69, 0.35);
 }
 .reading-question-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
@@ -1082,11 +1118,40 @@ button { font-family: inherit; }
 .reading-yesno-btn:active { transform: scale(0.96); }
 .reading-yesno-btn.is-selected { border-color: var(--color-primary); color: #fff; background: var(--color-primary); }
 
+.reading-mc-options { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
+.reading-mc-option {
+  display: flex; align-items: center; gap: 10px; padding: 9px 16px; border-radius: 12px;
+  border: 2px solid #ece6da; background: #fff; cursor: pointer; font-weight: 600;
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+.reading-mc-option:hover { border-color: var(--color-primary); }
+.reading-mc-option input[type="radio"] { accent-color: var(--color-primary); width: 18px; height: 18px; }
+.reading-mc-option-letter { font-weight: 800; color: var(--color-primary-dark); min-width: 18px; }
+.admin-mc-option-row .reading-mc-option-letter { font-weight: 800; color: var(--admin-accent, var(--color-primary-dark)); min-width: 18px; flex-shrink: 0; }
+.reading-mc-option.is-selected { border-color: var(--color-primary); background: #fff8ec; }
+.reading-question-preview .reading-mc-option { cursor: default; padding: 9px 16px; }
+
 .reading-gap-input {
   border: none; border-bottom: 2px solid var(--color-primary); background: #fff8ec;
   font-family: inherit; font-size: 1rem; text-align: center; padding: 3px 6px; margin: 0 2px;
   border-radius: 6px 6px 0 0;
 }
+/* Giữ nhãn số thứ tự "(N)" dính liền ô trống, không cho trình duyệt tách ra 2 dòng khác nhau khi
+   đoạn văn gapfill dài phải xuống dòng (lỗi thực tế 2026-08-26). */
+.reading-gap-nowrap { white-space: nowrap; }
+
+/* Chế độ "bấm chọn 1 trong 3" của gapfill (khác gõ tự do) — nhóm nút nhỏ ngay tại vị trí chỗ trống,
+   flex-wrap để tự xuống dòng theo nhóm khi không đủ chỗ, không tách rời nhãn số khỏi các nút. */
+.reading-gap-choices { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0 2px; }
+.reading-gap-choice-btn {
+  padding: 4px 12px; border-radius: var(--radius-pill); border: 2px solid #ece6da; background: #fff8ec;
+  font-family: inherit; font-weight: 700; font-size: 0.92rem; cursor: pointer;
+  transition: border-color 0.12s ease, background 0.12s ease, transform 0.12s ease;
+}
+.reading-gap-choice-btn:hover { border-color: var(--color-primary); }
+.reading-gap-choice-btn:active { transform: scale(0.95); }
+.reading-gap-choice-btn.is-selected { border-color: var(--color-primary); background: var(--color-primary); color: #fff; }
+.reading-gap-choice-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .reading-gap-input:focus { outline: none; border-color: var(--color-primary-dark); background: #fff; }
 .reading-gap-input-preview { display: inline-block; width: 46px; }
 
@@ -2194,6 +2259,22 @@ button { font-family: inherit; }
   padding: 2px 8px; border-radius: 999px; flex-shrink: 0;
 }
 
+/* Ô nhập "Điểm cả Part" đặt ngay trong thanh tiêu đề Part (đã chuyển từ trong thân PartEditor lên
+   đây — yêu cầu người dùng 2026-08-26) — style dạng pill nhỏ, nổi bật bằng màu vàng/gold để gợi
+   liên tưởng "điểm số" mà không trùng màu accent xanh dùng cho badge số câu bên cạnh. */
+.admin-part-points-pill {
+  display: flex; align-items: center; gap: 5px; flex-shrink: 0;
+  background: #fff8e1; border: 1.5px solid #f3d98b; border-radius: 999px;
+  padding: 2px 10px 2px 8px; cursor: text;
+}
+.admin-part-points-pill-icon { font-size: 0.85rem; line-height: 1; }
+.admin-part-points-pill input {
+  width: 64px; border: none; background: transparent; font-weight: 700; font-size: 0.78rem;
+  color: #8a6d1a; font-family: inherit; padding: 2px 0;
+}
+.admin-part-points-pill input:focus { outline: none; }
+.admin-part-points-pill input::placeholder { color: #c9ad5e; font-weight: 600; }
+
 /* Trạng thái rỗng/đang tải trong CMS — thay chữ trơ "Đang tải..."/"Chưa có..." bằng khối có
    biểu tượng, dễ nhận ra hơn là dòng chữ xám đơn độc. */
 .admin-empty-state {
@@ -2292,6 +2373,9 @@ button { font-family: inherit; }
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
+.admin-mc-option-row { display: flex; align-items: center; gap: 8px; }
+.admin-mc-option-row input[type="radio"] { accent-color: var(--accent, var(--admin-accent)); width: 18px; height: 18px; flex-shrink: 0; }
+.admin-mc-option-row .admin-input { flex: 1; }
 /* Dòng tick chọn ảnh/card object — bấm tick MỚI hiện ô tải/dán link ảnh bên dưới, thay vì
    dropdown chọn kiểu ẩn (phải mở ra mới thấy có lựa chọn nào), tick thấy ngay cả 2 lựa chọn cùng
    lúc và trạng thái đang bật ở đâu. */
@@ -2384,6 +2468,10 @@ button { font-family: inherit; }
   color: var(--admin-accent);
 }
 
+.admin-wordbank-item-card {
+  display: flex; flex-direction: column; gap: 8px; padding: 10px; border-radius: 10px;
+  background: #f6f7fa; border: 1px solid var(--admin-border);
+}
 .admin-upload-field { display: flex; flex-direction: column; gap: 6px; }
 .admin-upload-label { font-weight: 600; font-size: 0.85rem; }
 .admin-upload-preview-img {

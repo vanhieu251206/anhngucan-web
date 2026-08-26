@@ -14,6 +14,8 @@ export const READING_TYPE_META = {
   gapfill: { label: "Điền từ", icon: "📝" },
   "short-answer": { label: "Trả lời ngắn", icon: "✏️" },
   "word-scramble": { label: "Xáo chữ cái", icon: "🔤" },
+  "multiple-choice": { label: "Chọn đáp án", icon: "🔘" },
+  "word-bank": { label: "Chọn từ", icon: "🗂️" },
 };
 
 // items: mảng do buildReadingResults() ở ReadingRunner.jsx tạo ra — mỗi phần tử đã tính sẵn
