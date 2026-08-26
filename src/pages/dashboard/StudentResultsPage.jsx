@@ -85,6 +85,7 @@ export default function StudentResultsPage() {
               <thead>
                 <tr>
                   <th>Học sinh</th>
+                  <th>Lớp</th>
                   <th>Bài</th>
                   <th>Bắt đầu</th>
                   <th>Trạng thái</th>
@@ -103,7 +104,7 @@ export default function StudentResultsPage() {
                 ))}
                 {filtered.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="admin-muted-text">Chưa có kết quả nào khớp bộ lọc.</td>
+                    <td colSpan={7} className="admin-muted-text">Chưa có kết quả nào khớp bộ lọc.</td>
                   </tr>
                 )}
               </tbody>
@@ -120,6 +121,7 @@ function SessionRow({ session, open, onToggle }) {
     <>
       <tr>
         <td>{session.studentName || "—"}</td>
+        <td>{session.studentClass || "—"}</td>
         <td>{session.lessonLabel || "—"}</td>
         <td>{formatDate(session.startedAt)}</td>
         <td>{session.finishedAt ? "✅ Hoàn thành" : "⏳ Đang làm dở"}</td>
@@ -132,7 +134,7 @@ function SessionRow({ session, open, onToggle }) {
       </tr>
       {open && (
         <tr>
-          <td colSpan={6} style={{ padding: 0 }}>
+          <td colSpan={7} style={{ padding: 0 }}>
             <SessionDetail session={session} />
           </td>
         </tr>

@@ -7,10 +7,11 @@ import { db } from "./firebase.js";
 // là log chi tiết để giáo viên/admin xem lại quá trình làm bài. Mọi lỗi ghi (mất mạng, rules
 // chặn...) đều bị nuốt, KHÔNG được chặn luồng học của học sinh.
 
-export async function startSpeakingSession({ studentName, seriesId, level, testId, lessonLabel, sceneCount }) {
+export async function startSpeakingSession({ studentName, studentClass, seriesId, level, testId, lessonLabel, sceneCount }) {
   try {
     const ref = await addDoc(collection(db, "speakingSessions"), {
       studentName: studentName ?? null,
+      studentClass: studentClass ?? null,
       seriesId: seriesId ?? null,
       level: level ?? null,
       testId: testId ?? null,

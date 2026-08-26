@@ -27,7 +27,11 @@ const SERIES_INFO = {
     speakingNote: "— Test 1, Part 1",
   },
   movers: {
-    ready: false,
+    // Mở khoá thẻ theo yêu cầu người dùng 2026-08-26 — CHỈ mở giao diện, bên trong VẪN là dữ liệu
+    // giả (video Listening mẫu + câu Speaking chưa có ảnh/audio thật, xem yleData.js) vì nội dung
+    // Speaking thật cho Movers chưa được soạn (theo docs/quy-trinh/, cần sách gốc). Không dùng dạy
+    // học sinh thật cho tới khi có nội dung thật.
+    ready: true,
     accent: "#2fb6c4",
     difficulty: "Trung bình",
     difficultyLevel: 2,
@@ -36,7 +40,9 @@ const SERIES_INFO = {
     speakingNote: "",
   },
   flyers: {
-    ready: false,
+    // Mở khoá thẻ theo yêu cầu người dùng 2026-08-26 — xem ghi chú ở movers phía trên, áp dụng
+    // tương tự cho Flyers (chưa có nội dung Speaking thật).
+    ready: true,
     accent: "#4C9A3F",
     difficulty: "Nâng cao",
     difficultyLevel: 3,

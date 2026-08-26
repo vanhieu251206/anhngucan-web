@@ -113,22 +113,27 @@ function SectionDivider({ onViewAll }) {
   );
 }
 
-// Màn nhập họ tên trước khi vào bài Speaking (chỉ guest/học sinh) — dùng để gắn tên vào báo cáo
-// quá trình làm bài (speakingSessions, xem SceneRunner.jsx + StudentResultsPage.jsx).
-function NamePromptScreen({ seriesTitle, levelNumber, testTitle, initialName, onCancel, onStart }) {
+// Màn nhập họ tên + lớp trước khi vào BẤT KỲ bài nào (Listening/Speaking/Reading & Writing, chỉ
+// guest/học sinh) — dùng để gắn tên/lớp vào báo cáo quá trình làm bài (speakingSessions, xem
+// SceneRunner.jsx + StudentResultsPage.jsx) và để giáo viên biết đúng học sinh lớp nào đang làm,
+// tránh nhầm lẫn khi nhiều lớp cùng dùng chung 1 mật khẩu (chốt 2026-08-26, áp dụng mọi dạng bài
+// thay vì chỉ riêng Speaking như trước).
+function NamePromptScreen({ seriesTitle, levelNumber, subtitle, initialName, initialClass, ctaLabel, onCancel, onStart }) {
   const [name, setName] = useState(initialName || "");
+  const [studentClass, setStudentClass] = useState(initialClass || "");
+  const canSubmit = name.trim() && studentClass.trim();
   function handleSubmit(e) {
     e.preventDefault();
-    if (!name.trim()) return;
-    onStart(name);
+    if (!canSubmit) return;
+    onStart(name, studentClass);
   }
   return (
     <div className="home-v2 lessons-screen-v2">
       <div className="name-prompt-shell">
         <div className="name-prompt-card">
-          <h2>Con tên gì nhỉ? 🐝</h2>
+          <h2>Con tên gì, lớp mấy nhỉ? 🐝</h2>
           <p className="admin-muted-text">
-            {seriesTitle} {levelNumber} · {testTitle}
+            {seriesTitle} {levelNumber} · {subtitle}
           </p>
           <form onSubmit={handleSubmit}>
             <input
@@ -140,12 +145,20 @@ function NamePromptScreen({ seriesTitle, levelNumber, testTitle, initialName, on
               autoFocus
               maxLength={60}
             />
+            <input
+              className="name-prompt-input"
+              type="text"
+              value={studentClass}
+              onChange={e => setStudentClass(e.target.value)}
+              placeholder="Nhập lớp của con (vd: 3A)"
+              maxLength={30}
+            />
             <div className="name-prompt-actions">
               <button type="button" className="btn btn-secondary" onClick={onCancel}>
                 Quay lại
               </button>
-              <button type="submit" className="btn btn-primary" disabled={!name.trim()}>
-                Bắt đầu luyện nói
+              <button type="submit" className="btn btn-primary" disabled={!canSubmit}>
+                {ctaLabel}
               </button>
             </div>
           </form>
@@ -196,12 +209,15 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
   // "Bài học" gọn mặc định, chỉ hiện 2 Test đầu.
   const [viewAllTests, setViewAllTests] = useState(false);
   const { isStaff, isAdmin } = useAuth();
-  // Báo cáo quá trình làm bài (chốt 2026-08-24): guest/học sinh phải nhập họ tên trước khi vào
-  // bài Speaking — admin/teacher tự test thì bỏ qua (không tạo session, xem SceneRunner.jsx).
-  // Tên lưu sessionStorage để không phải gõ lại mỗi bài, nhưng vẫn hiện lại màn xác nhận mỗi lần
-  // bắt đầu 1 bài mới (phòng trường hợp đổi bé khác dùng chung thiết bị).
+  // Báo cáo quá trình làm bài (chốt 2026-08-24, mở rộng 2026-08-26 sang MỌI dạng bài + thêm lớp):
+  // guest/học sinh phải nhập họ tên + lớp trước khi vào Listening/Speaking/Reading & Writing —
+  // admin/teacher tự test thì bỏ qua (không tạo session, xem SceneRunner.jsx). Tên/lớp lưu
+  // sessionStorage để không phải gõ lại mỗi bài, nhưng vẫn hiện lại màn xác nhận mỗi lần bắt đầu 1
+  // bài mới (phòng trường hợp đổi bé khác dùng chung thiết bị).
   const [studentName, setStudentName] = useState(() => sessionStorage.getItem("student-name") ?? "");
-  const [namePromptTest, setNamePromptTest] = useState(null); // Test đang chờ nhập tên trước khi bắt đầu
+  const [studentClass, setStudentClass] = useState(() => sessionStorage.getItem("student-class") ?? "");
+  // Hành động đang chờ xác nhận tên/lớp: { type: "speaking"|"reading"|"listening", test? }
+  const [namePrompt, setNamePrompt] = useState(null);
 
   useEffect(() => {
     setParams({ level: level ? level.number : null, test: null });
@@ -346,16 +362,28 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
     );
   }
 
-  // ---------- Màn nhập tên trước khi vào bài Speaking (chỉ guest — xem NamePromptScreen) ----------
-  if (namePromptTest) {
+  // ---------- Màn nhập tên + lớp trước khi vào bất kỳ bài nào (chỉ guest — xem NamePromptScreen) ----------
+  if (namePrompt) {
+    const subtitleByType = {
+      speaking: namePrompt.test?.title,
+      reading: namePrompt.test?.title,
+      listening: "Listening",
+    };
+    const ctaByType = {
+      speaking: "Bắt đầu luyện nói",
+      reading: "Bắt đầu làm bài",
+      listening: "Xem video",
+    };
     return (
       <NamePromptScreen
         seriesTitle={series.title}
         levelNumber={level.number}
-        testTitle={namePromptTest.title}
+        subtitle={subtitleByType[namePrompt.type]}
+        ctaLabel={ctaByType[namePrompt.type]}
         initialName={studentName}
-        onCancel={() => setNamePromptTest(null)}
-        onStart={startSpeakingWithName}
+        initialClass={studentClass}
+        onCancel={() => setNamePrompt(null)}
+        onStart={confirmNamePrompt}
       />
     );
   }
@@ -379,6 +407,7 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
             onFinish={exitSpeaking}
             progressKey={`${series.id}-${level.number}-${activeTest.id}`}
             studentName={studentName}
+            studentClass={studentClass}
             seriesId={series.id}
             level={level.number}
             testId={activeTest.id}
@@ -450,6 +479,45 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
     );
   }
 
+  // Gộp chung 1 chỗ: bài nào cũng cần xác nhận tên+lớp trước khi bắt đầu (chỉ guest — admin/
+  // teacher tự test bỏ qua màn nhập, nhưng vẫn gắn nhãn riêng để phân biệt học sinh thật trong
+  // "Kết quả học sinh"). `type` khớp với `namePrompt.type`/performStart() bên dưới.
+  function requestStart(type, test) {
+    if (isStaff) {
+      setStudentName(isAdmin ? "[Test - Admin]" : "[Test - Giáo viên]");
+      setStudentClass("Admin");
+      performStart(type, test);
+      return;
+    }
+    setNamePrompt({ type, test });
+  }
+
+  function performStart(type, test) {
+    if (type === "speaking") {
+      setSelectedTest(test);
+      setSpeakingActive(true);
+    } else if (type === "reading") {
+      setSelectedReadingTest(test);
+      setReadingActive(true);
+    } else if (type === "listening") {
+      setListeningActive(true);
+    }
+  }
+
+  // Xác nhận tên+lớp xong mới thực sự bắt đầu bài — lưu lại sessionStorage để lần sau không phải
+  // gõ lại (vẫn hiện màn này mỗi lần bắt đầu 1 bài mới, phòng đổi bé khác dùng chung thiết bị).
+  function confirmNamePrompt(name, cls) {
+    const trimmedName = name.trim();
+    const trimmedClass = cls.trim();
+    sessionStorage.setItem("student-name", trimmedName);
+    sessionStorage.setItem("student-class", trimmedClass);
+    setStudentName(trimmedName);
+    setStudentClass(trimmedClass);
+    const pending = namePrompt;
+    setNamePrompt(null);
+    if (pending) performStart(pending.type, pending.test);
+  }
+
   function testCard(t) {
     return lessonCard({
       key: t.id,
@@ -458,29 +526,8 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
       desc: "Luyện nói cùng giám khảo ong, đúng cấu trúc đề thi Cambridge YLE",
       cta: t.scenes?.length ? "Bắt đầu luyện nói" : "Chưa có scene",
       disabled: !t.scenes?.length,
-      onClick: () => {
-        if (isStaff) {
-          // Admin/teacher tự test bài — bỏ qua màn nhập tên, nhưng VẪN tạo session (gắn nhãn
-          // riêng để phân biệt với học sinh thật trong "Kết quả học sinh").
-          setStudentName(isAdmin ? "[Test - Admin]" : "[Test - Giáo viên]");
-          setSelectedTest(t);
-          setSpeakingActive(true);
-          return;
-        }
-        setNamePromptTest(t);
-      },
+      onClick: () => requestStart("speaking", t),
     });
-  }
-
-  // Xác nhận tên xong mới thực sự bắt đầu bài — lưu lại sessionStorage để lần sau không phải gõ
-  // lại (vẫn hiện màn này mỗi lần bắt đầu 1 bài mới, phòng đổi bé khác dùng chung thiết bị).
-  function startSpeakingWithName(name) {
-    const trimmed = name.trim();
-    sessionStorage.setItem("student-name", trimmed);
-    setStudentName(trimmed);
-    setSelectedTest(namePromptTest);
-    setSpeakingActive(true);
-    setNamePromptTest(null);
   }
 
   function readingTestCard(t) {
@@ -491,10 +538,7 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
       desc: "Đọc & viết theo đúng đề thi Cambridge YLE",
       cta: t.parts?.length ? "Bắt đầu làm bài" : "Chưa có Part",
       disabled: !t.parts?.length,
-      onClick: () => {
-        setSelectedReadingTest(t);
-        setReadingActive(true);
-      },
+      onClick: () => requestStart("reading", t),
     });
   }
 
@@ -523,7 +567,7 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
     desc: "Xem video và luyện nghe theo đúng đề thi Cambridge YLE",
     cta: content?.listening?.length ? "Xem video" : "Chưa có video",
     disabled: !content?.listening?.length,
-    onClick: () => setListeningActive(true),
+    onClick: () => requestStart("listening"),
   });
 
   return (

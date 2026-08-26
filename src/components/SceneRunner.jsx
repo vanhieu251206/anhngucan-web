@@ -170,6 +170,7 @@ export default function SceneRunner({
   onFinish,
   progressKey,
   studentName,
+  studentClass,
   seriesId,
   level,
   testId,
@@ -210,7 +211,7 @@ export default function SceneRunner({
   useEffect(() => {
     if (!studentName) return;
     let cancelled = false;
-    startSpeakingSession({ studentName, seriesId, level, testId, lessonLabel, sceneCount: scenes.length }).then(
+    startSpeakingSession({ studentName, studentClass, seriesId, level, testId, lessonLabel, sceneCount: scenes.length }).then(
       id => {
         if (!cancelled) sessionIdRef.current = id;
       }

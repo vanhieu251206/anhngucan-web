@@ -1,21 +1,27 @@
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import ImageUploadField from "./ImageUploadField.jsx";
 import { useConfirm } from "./ConfirmDialog.jsx";
+import { WORD_SCRAMBLE_DEFAULT_TEXT, scrambleWord, questionPoints, gapPoints, QuestionBadge } from "../ReadingRunner.jsx";
 
 const QUESTION_TYPES = [
   { type: "yesno", icon: "✅", label: "Đúng/Sai (Yes/No)", desc: "Xem tranh, đọc câu, chọn Yes hoặc No" },
   { type: "gapfill", icon: "📝", label: "Điền từ vào đoạn văn", desc: "Đoạn văn có nhiều chỗ trống, mỗi chỗ điền 1 từ" },
   { type: "short-answer", icon: "✏️", label: "Trả lời ngắn", desc: "Điền 1 từ để hoàn thành câu trả lời" },
+  { type: "word-scramble", icon: "🔤", label: "Xáo chữ cái đoán từ vựng", desc: "Xem ảnh, ghép lại các ô chữ cái bị xáo trộn thành đúng từ" },
 ];
 
 function typeInfo(type) {
   return QUESTION_TYPES.find(t => t.type === type);
 }
 
+// Điểm mặc định khi tạo câu mới — 1 điểm/câu. Giáo viên sửa lại tổng điểm câu bất kỳ lúc nào qua
+// ô "Điểm" (riêng gapfill: tổng điểm câu tự chia đều cho các chỗ trống, xem gapPoints() trong
+// ReadingRunner.jsx).
 function blankQuestion(type) {
-  if (type === "yesno") return { type, image: null, text: "", answer: "yes" };
-  if (type === "gapfill") return { type, image: null, text: "", answers: [] };
-  return { type: "short-answer", image: null, prompt: "", answer: "" };
+  if (type === "yesno") return { type, image: null, text: "", answer: "yes", points: 1 };
+  if (type === "gapfill") return { type, image: null, text: "", answers: [], points: 1 };
+  if (type === "word-scramble") return { type, image: null, text: WORD_SCRAMBLE_DEFAULT_TEXT, answer: "", points: 1 };
+  return { type: "short-answer", image: null, prompt: "", answer: "", points: 1 };
 }
 
 function blankPart(order) {
@@ -147,6 +153,17 @@ function QuestionEditor({ question, index, onChange, onDelete, onDuplicate }) {
       <div className="admin-reading-question-head">
         <span className="admin-reading-question-num">Câu {index + 1}</span>
         <span className="admin-reading-question-type">{info?.icon} {info?.label}</span>
+        <label className="admin-reading-question-points">
+          Điểm
+          <input
+            type="number"
+            min={0}
+            step={0.5}
+            className="admin-input admin-points-input"
+            value={question.points ?? 1}
+            onChange={e => onChange({ points: Number(e.target.value) })}
+          />
+        </label>
         <div className="admin-reading-question-actions">
           <button type="button" className="admin-link-btn" onClick={onDuplicate}>Nhân bản</button>
           <button type="button" className="admin-link-btn admin-pill-btn-danger" onClick={onDelete}>Xoá</button>
@@ -204,6 +221,12 @@ function QuestionEditor({ question, index, onChange, onDelete, onDuplicate }) {
           />
           <GapfillTextEditor value={question.text} onChange={text => onChange({ text })} />
           <GapfillAnswersEditor question={question} onChange={onChange} />
+          {countGaps(question.text || "") > 0 && (
+            <p className="admin-hint">
+              Tổng {questionPoints(question)} điểm chia đều cho {countGaps(question.text || "")} chỗ trống — mỗi chỗ:{" "}
+              <strong>{gapPoints(question, countGaps(question.text || "")).toFixed(2).replace(/\.?0+$/, "")} điểm</strong>
+            </p>
+          )}
         </>
       )}
 
@@ -224,6 +247,25 @@ function QuestionEditor({ question, index, onChange, onDelete, onDuplicate }) {
               placeholder="vd: table"
             />
           </label>
+        </>
+      )}
+
+      {question.type === "word-scramble" && (
+        <>
+          <label className="admin-mini-field">
+            <span>Nhập từ vựng</span>
+            <input
+              className="admin-input"
+              value={question.answer ?? ""}
+              onChange={e => onChange({ answer: e.target.value.replace(/\s/g, "").toUpperCase() })}
+              placeholder="vd: APPLE"
+            />
+          </label>
+          <ImageUploadField
+            label="Ảnh minh hoạ từ vựng"
+            value={question.image}
+            onChange={image => onChange({ image })}
+          />
         </>
       )}
     </div>
@@ -314,31 +356,68 @@ function PartEditor({ part, onChange }) {
   );
 }
 
-// Đếm tổng Part/câu/điểm của cả Test — mỗi chỗ trống gapfill tính là 1 câu/1 điểm riêng (khớp
-// đúng cách ReadingRunner.jsx chấm điểm phía học sinh), dùng cho khung "Thông tin chung" bên phải.
+// Đếm tổng Part/câu/điểm của cả Test — mỗi chỗ trống gapfill tính là 1 câu riêng (khớp đúng cách
+// ReadingRunner.jsx chấm điểm phía học sinh), điểm cộng dồn theo questionPoints() (khớp cách
+// gapPoints() chia đều điểm gapfill), dùng cho khung "Thông tin chung" bên phải.
 function testStats(parts) {
   let totalQuestions = 0;
+  let totalPoints = 0;
   for (const part of parts) {
     for (const q of part.questions ?? []) {
       totalQuestions += q.type === "gapfill" ? (q.answers?.length ?? 0) : 1;
+      totalPoints += questionPoints(q);
     }
   }
-  return { totalParts: parts.length, totalQuestions };
+  return { totalParts: parts.length, totalQuestions, totalPoints };
 }
 
 // Xem trước 1 câu hỏi giống hệt cách học sinh sẽ thấy (SceneRunner/ReadingRunner) nhưng ở dạng
 // tĩnh, không tương tác — cho giáo viên hình dung ngay khi đang gõ, không cần lưu rồi mới xem thử.
 // Số "Question N." đánh liên tục xuyên suốt cả Test, KHÔNG reset theo từng Part (khớp ReadingRunner.jsx).
+// Tách riêng component (thay vì nhánh if trong QuestionPreview) để dùng useMemo hợp lệ — xáo trộn
+// GIỐNG HỆT thuật toán học sinh sẽ thấy (scrambleWord dùng chung từ ReadingRunner.jsx, không còn
+// chữ nào đứng đúng vị trí gốc) thay vì hiện nguyên từ gốc như trước, để giáo viên xem trước đúng
+// thực tế. Chữ xáo trộn đặt TRÊN ảnh minh hoạ (yêu cầu người dùng 2026-08-26), ô nhập PIN dưới ảnh.
+function WordScramblePreview({ question, qNumber }) {
+  const answer = question.answer ?? "";
+  const scrambled = useMemo(() => scrambleWord(answer), [answer]);
+  return (
+    <div className="reading-question reading-question-preview">
+      <QuestionBadge qNumber={qNumber} />
+      <div className="reading-question-body">
+        <p className="reading-question-text">{question.text || WORD_SCRAMBLE_DEFAULT_TEXT}</p>
+        {answer ? (
+          <>
+            <div className="reading-scramble-prompt">
+              {scrambled.split("").map((c, i) => (
+                <span key={i} className="reading-scramble-prompt-tile reading-scramble-tile-preview">{c}</span>
+              ))}
+            </div>
+            {question.image && <img src={question.image} alt="" className="reading-question-img" />}
+            <div className="reading-scramble-pin-row">
+              {answer.split("").map((_, i) => (
+                <span key={i} className="reading-scramble-pin-input" />
+              ))}
+            </div>
+          </>
+        ) : (
+          <>
+            {question.image && <img src={question.image} alt="" className="reading-question-img" />}
+            <em>(chưa nhập từ vựng đáp án)</em>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function QuestionPreview({ question, qNumber }) {
-  const label = <p className="reading-question-label">Question {qNumber}.</p>;
   if (question.type === "yesno") {
     return (
       <div className="reading-question reading-question-preview">
+        <QuestionBadge qNumber={qNumber} />
         <div className="reading-question-body">
-          <p className="reading-question-text">
-            <span className="reading-question-label">Question {qNumber}.</span>{" "}
-            {question.text || <em>(chưa nhập câu khẳng định)</em>}
-          </p>
+          <p className="reading-question-text">{question.text || <em>(chưa nhập câu khẳng định)</em>}</p>
           {question.image && <img src={question.image} alt="" className="reading-question-img" />}
           <div className="reading-yesno-btns">
             <span className={`reading-yesno-btn${question.answer === "yes" ? " is-selected" : ""}`}>Yes</span>
@@ -352,8 +431,8 @@ function QuestionPreview({ question, qNumber }) {
     const segments = (question.text ?? "").split("___");
     return (
       <div className="reading-question reading-question-preview">
+        <QuestionBadge qNumber={qNumber} />
         <div className="reading-question-body">
-          {label}
           {question.image && <img src={question.image} alt="" className="reading-question-img" />}
           <p className="reading-gapfill-text">
             {segments.map((seg, i) => {
@@ -370,10 +449,13 @@ function QuestionPreview({ question, qNumber }) {
       </div>
     );
   }
+  if (question.type === "word-scramble") {
+    return <WordScramblePreview question={question} qNumber={qNumber} />;
+  }
   return (
     <div className="reading-question reading-question-preview">
+      <QuestionBadge qNumber={qNumber} />
       <div className="reading-question-body">
-        {label}
         {question.image && <img src={question.image} alt="" className="reading-question-img" />}
         <p className="reading-question-text">
           {question.prompt ? (
@@ -405,6 +487,7 @@ function TestPreview({ parts, stats }) {
       <div className="admin-reading-preview-stats">
         <span>Tổng Part: <strong>{stats.totalParts}</strong></span>
         <span>Tổng số câu: <strong>{stats.totalQuestions}</strong></span>
+        <span>Tổng điểm: <strong>{stats.totalPoints}</strong></span>
       </div>
 
       <h3>Xem trước toàn bộ bài</h3>
