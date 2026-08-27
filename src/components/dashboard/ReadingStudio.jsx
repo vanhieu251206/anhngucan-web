@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import ImageUploadField from "./ImageUploadField.jsx";
 import { useConfirm } from "./ConfirmDialog.jsx";
-import { WORD_SCRAMBLE_DEFAULT_TEXT, scrambleWord, questionPoints, gapPoints, QuestionBadge, WordBankBox, ExampleRow, ExamplesPairRow, StoryParagraph, AnswerTableRow, optionLetter, bankLabel, bankImage } from "../ReadingRunner.jsx";
+import { WORD_SCRAMBLE_DEFAULT_TEXT, scrambleWord, questionPoints, QuestionBadge, WordBankBox, ExampleRow, ExamplesPairRow, StoryParagraph, AnswerTableRow, optionLetter, bankLabel, bankImage } from "../ReadingRunner.jsx";
 
 // Mỗi loại câu hỏi gắn với `series` — danh sách seriesId được PHÉP dùng type này. Khi soạn bài,
 // menu "+ Thêm câu hỏi" chỉ hiện type khớp seriesId của bài đang soạn (xem questionTypesFor()) —
@@ -63,15 +63,9 @@ const FLYERS_PART_TEMPLATES = [
   },
 ];
 
-// Movers có đủ 6 Part/bài (khác Flyers 7 Part) — mới chốt được cấu trúc Part 1 (câu đơn: ảnh + câu
-// mô tả có chỗ trống + đáp án, dùng type "short-answer"), Part 2 (hội thoại 2 nhân vật, mỗi dòng là
-// 1 câu multiple-choice 3 đáp án, có ảnh + 1 dòng giới thiệu ngữ cảnh riêng — xem field `caption`
-// trong PartEditor) và Part 3 (mỗi câu tự chọn 1 trong 2 dạng: gapfill kiểu Starters — gõ tự do, có
-// nút đục lỗ — hoặc multiple-choice cho câu chọn tiêu đề đúng; ngân hàng từ chỉ để HIỆN THAM KHẢO,
-// chỉ chữ giống hệt Part 1 — `hasWordBank: true`, KHÔNG có ảnh) và Part 4 (gapfill khoá cứng, 1
-// đoạn văn dài duy nhất, KHÔNG có ngân hàng từ tham khảo — ảnh minh hoạ dùng field ảnh sẵn có của
-// chính câu gapfill đó). Part 5-6 CHƯA rõ cấu trúc, để trống + không khoá allowedTypes (giáo viên
-// tạm chọn type tự do trong số type đã gắn series "movers") — sẽ khoá cứng khi có đề thật.
+// Movers có đủ 6 Part/bài (khác Flyers 7 Part). Part 4 (gapfill khoá cứng, 1 đoạn văn dài duy
+// nhất, KHÔNG có ngân hàng từ tham khảo — ảnh minh hoạ dùng field ảnh sẵn có của chính câu gapfill
+// đó) CHƯA khoá `fixedLayout`.
 const MOVERS_PART_TEMPLATES = [
   // Part 1: format CỐ ĐỊNH — 2 ảnh minh hoạ chung đặt CẠNH NHAU ở đầu Part (khác Part 6 chỉ 1 ảnh) +
   // 1 Example (1 dòng, dùng lại ExampleRow mode mặc định) + ĐÚNG 5 câu short-answer, mỗi câu KHÔNG
@@ -82,21 +76,38 @@ const MOVERS_PART_TEMPLATES = [
     allowedTypes: ["short-answer"],
     fixedLayout: "movers-part1",
   },
+  // Part 2: format CỐ ĐỊNH — đúng 6 câu multiple-choice (3 đáp án/câu, hội thoại 2 nhân vật) + 1
+  // ảnh + 1 dòng giới thiệu ngữ cảnh (caption) + 1 Example — chốt 2026-08-27. Layout hiển thị giữ
+  // NGUYÊN như trước (không cần branch riêng trong PartEditor, chỉ khoá thêm/xoá câu qua `locked`).
   {
     title: "Part 2 – Reading and Writing",
     instruction: "Read the text and choose the best answer.",
     allowedTypes: ["multiple-choice"],
+    fixedLayout: "movers-part2",
   },
+  // Part 3: format CỐ ĐỊNH — ĐÚNG 2 câu: (1) 1 đoạn truyện gapfill có 5 chỗ trống đánh số (1)-(5) +
+  // (2) 1 câu multiple-choice "chọn tiêu đề đúng" 3 lựa chọn KHÔNG có chữ A/B/C (chỉ ô tick trống,
+  // `hideLetters: true`) — thứ tự hiển thị: đoạn truyện TRƯỚC, khung "Example" (ngân hàng từ CÓ ẢNH,
+  // `wordBankImages: true` — sách gốc có 9 ô ảnh+chữ) NẰM GIỮA đoạn truyện và câu chọn tiêu đề, khác
+  // Part 1/2/5/6 (ảnh/ví dụ luôn ở đầu Part) — chốt 2026-08-27 sau khi xem ảnh sách thật.
   {
     title: "Part 3 – Reading and Writing",
     instruction: "Read the story. Choose a word from the box. Write the correct word next to numbers 1-5. Then choose the best name for the story.",
     allowedTypes: ["gapfill", "multiple-choice"],
     hasWordBank: true,
+    wordBankImages: true,
+    fixedLayout: "movers-part3",
   },
+  // Part 4: format CỐ ĐỊNH — ĐÚNG 1 đoạn văn gapfill duy nhất. Chỗ trống "___" ĐẦU TIÊN luôn là ví
+  // dụ mẫu (đáp án hiện sẵn ngay trong đoạn văn, không tính điểm — `question.firstGapIsExample`),
+  // các chỗ trống từ thứ 2 trở đi mới là câu thật, TỰ ĐỘNG đánh số (1), (2)... (tính từ 1, không
+  // tính ví dụ) — không còn gõ tay số thứ tự qua nút "+ Chèn chỗ trống" nữa (chốt 2026-08-27), giáo
+  // viên chỉ gõ "___" trơn vào đúng vị trí, hệ thống tự lo phần còn lại.
   {
     title: "Part 4 – Reading and Writing",
     instruction: "Read the text. Write the missing words.",
     allowedTypes: ["gapfill"],
+    fixedLayout: "movers-part4",
   },
   // Part 5: format CỐ ĐỊNH — 1 ảnh chung + tiêu đề truyện (in đậm) + truyện chia 3 đoạn xen giữa
   // câu hỏi + 2 ví dụ mẫu (đều dạng điền chỗ trống, tái dùng examplesPair/ExamplesPairRow của Part
@@ -152,6 +163,23 @@ function blankPartsFromTemplates(templates) {
     if (t.fixedLayout === "movers-part1") {
       base.questions = Array.from({ length: 5 }, () => blankQuestion("short-answer"));
       base.partImages = ["", ""];
+    }
+    // Part 2 Movers: đúng 6 câu multiple-choice CỐ ĐỊNH (hội thoại 2 nhân vật, 3 đáp án/câu).
+    if (t.fixedLayout === "movers-part2") {
+      base.questions = Array.from({ length: 6 }, () => blankQuestion("multiple-choice"));
+    }
+    // Part 3 Movers: ĐÚNG 2 câu CỐ ĐỊNH — (1) gapfill (đoạn truyện, giáo viên tự chèn (N)___ qua nút
+    // đục lỗ), (2) multiple-choice chọn tiêu đề, 3 lựa chọn, KHÔNG chữ A/B/C (`hideLetters: true`).
+    if (t.fixedLayout === "movers-part3") {
+      base.questions = [
+        blankQuestion("gapfill"),
+        { ...blankQuestion("multiple-choice"), hideLetters: true },
+      ];
+    }
+    // Part 4 Movers: ĐÚNG 1 câu gapfill CỐ ĐỊNH — chỗ trống "___" đầu tiên luôn là ví dụ mẫu
+    // (`firstGapIsExample: true`, xem GapfillQuestion/GapfillAnswersEditor).
+    if (t.fixedLayout === "movers-part4") {
+      base.questions = [{ ...blankQuestion("gapfill"), firstGapIsExample: true }];
     }
     // Part 6 Movers: cấu trúc 6 câu CỐ ĐỊNH (2 điền chỗ trống + 2 trả lời mở + 2 viết tự do), dựng
     // sẵn luôn 6 ô trống + 2 ví dụ mẫu trống — giáo viên chỉ điền nội dung, không tự thêm/xoá câu
@@ -426,16 +454,26 @@ function GapfillAnswersEditor({ question, onChange, mode = "free" }) {
     onChange(patch);
   }
 
+  const isExampleGap = i => question.firstGapIsExample && i === 0;
+  // Đánh số hiển thị cho giáo viên: bình thường 1-based bắt đầu từ chỗ trống ĐẦU TIÊN; nếu chỗ
+  // trống đầu tiên là ví dụ (Part 4) thì số bắt đầu từ chỗ trống THỨ 2, tính lại từ 1 (chốt
+  // 2026-08-27) — khớp đúng số TỰ ĐỘNG hiện cho học sinh, xem GapfillQuestion.
+  const displayNum = i => (question.firstGapIsExample ? i : i + 1);
+
   if (mode === "choices") {
     return (
       <div className="admin-card-field-group">
         <strong>3 lựa chọn cho từng chỗ trống — chọn radio ở đáp án đúng</strong>
         {gapCount === 0 && (
-          <p className="admin-hint">Bấm "+ Chèn chỗ trống tại vị trí con trỏ" trong ô đoạn văn ở trên để tạo chỗ trống.</p>
+          <p className="admin-hint">
+            {question.firstGapIsExample
+              ? 'Gõ "___" (3 dấu gạch dưới) vào ô đoạn văn ở trên để tạo chỗ trống — chỗ trống đầu tiên luôn là ví dụ.'
+              : 'Bấm "+ Chèn chỗ trống tại vị trí con trỏ" trong ô đoạn văn ở trên để tạo chỗ trống.'}
+          </p>
         )}
         {Array.from({ length: gapCount }).map((_, i) => (
           <fieldset className="admin-fieldset" key={i}>
-            <legend>Chỗ trống {i + 1}</legend>
+            <legend>{isExampleGap(i) ? "Ví dụ (không tính điểm)" : `Chỗ trống ${displayNum(i)}`}</legend>
             {[0, 1, 2].map(optIndex => (
               <div className="admin-mc-option-row" key={optIndex}>
                 <input
@@ -462,11 +500,15 @@ function GapfillAnswersEditor({ question, onChange, mode = "free" }) {
     <div className="admin-card-field-group">
       <strong>Đáp án từng chỗ trống</strong>
       {gapCount === 0 && (
-        <p className="admin-hint">Bấm "+ Chèn chỗ trống tại vị trí con trỏ" trong ô đoạn văn ở trên để tạo chỗ trống.</p>
+        <p className="admin-hint">
+          {question.firstGapIsExample
+            ? 'Gõ "___" (3 dấu gạch dưới) vào ô đoạn văn ở trên để tạo chỗ trống — chỗ trống đầu tiên luôn là ví dụ.'
+            : 'Bấm "+ Chèn chỗ trống tại vị trí con trỏ" trong ô đoạn văn ở trên để tạo chỗ trống.'}
+        </p>
       )}
       {Array.from({ length: gapCount }).map((_, i) => (
         <label className="admin-mini-field" key={i}>
-          <span>Chỗ trống {i + 1} (học sinh điền)</span>
+          <span>{isExampleGap(i) ? "Đáp án ví dụ (hiện sẵn trong đoạn văn, không tính điểm)" : `Chỗ trống ${displayNum(i)} (học sinh điền)`}</span>
           <input
             className="admin-input"
             value={answers[i] ?? ""}
@@ -481,7 +523,11 @@ function GapfillAnswersEditor({ question, onChange, mode = "free" }) {
 
 // Textarea đoạn văn gapfill + nút "Chèn chỗ trống" tại đúng vị trí con trỏ đang gõ, thay vì bắt
 // giáo viên tự gõ tay 3 dấu "___" (dễ gõ sai số lượng gạch dưới, lệch với parser countGaps()).
-function GapfillTextEditor({ value, onChange }) {
+// hideInsertButton=true (Movers Part 4, `question.firstGapIsExample`) — BỎ nút này (chốt
+// 2026-08-27): số thứ tự "(1)/(2)"... giờ TỰ ĐỘNG tính theo vị trí lúc hiển thị (chỗ trống đầu
+// tiên luôn là ví dụ, không tính số — xem GapfillQuestion/QuestionPreview), không còn gắn CỨNG vào
+// văn bản qua nút bấm nữa — giáo viên chỉ gõ "___" trơn (3 dấu gạch dưới) vào đúng vị trí.
+function GapfillTextEditor({ value, onChange, hideInsertButton }) {
   const ref = useRef(null);
 
   function insertGap() {
@@ -512,11 +558,17 @@ function GapfillTextEditor({ value, onChange }) {
         rows={4}
         value={value ?? ""}
         onChange={e => onChange(e.target.value)}
-        placeholder="vd: You find a living room in a house. His living room is between the dining room and the kitchen."
+        placeholder={
+          hideInsertButton
+            ? "vd: You find a living room ___ a house. His living room is between the dining room ___ the kitchen. (gõ trơn 3 dấu gạch dưới, chỗ trống ĐẦU TIÊN là ví dụ)"
+            : "vd: You find a living room in a house. His living room is between the dining room and the kitchen."
+        }
       />
-      <button type="button" className="admin-btn-secondary admin-gap-insert-btn" onClick={insertGap}>
-        + Chèn chỗ trống (tự đánh số) tại vị trí con trỏ
-      </button>
+      {!hideInsertButton && (
+        <button type="button" className="admin-btn-secondary admin-gap-insert-btn" onClick={insertGap}>
+          + Chèn chỗ trống (tự đánh số) tại vị trí con trỏ
+        </button>
+      )}
     </label>
   );
 }
@@ -697,12 +749,22 @@ function QuestionEditor({ question, index, onChange, onDelete, onDuplicate, word
 
       {question.type === "gapfill" && (
         <>
-          <ImageUploadField
-            label="Ảnh minh hoạ"
-            value={question.image}
-            onChange={image => onChange({ image })}
+          {/* locked=true VÀ KHÔNG phải Part 4 (Movers Part 3) — đoạn truyện gapfill không có ảnh
+              riêng, sách gốc chỉ hiện ảnh trong khung "Example" (ngân hàng từ có ảnh). Part 4 tuy
+              cũng `locked` nhưng vẫn giữ ảnh riêng của chính câu gapfill đó (khác Part 3) — dùng
+              `question.firstGapIsExample` (chỉ Part 4 seed field này) để phân biệt — chốt 2026-08-27. */}
+          {(!locked || question.firstGapIsExample) && (
+            <ImageUploadField
+              label="Ảnh minh hoạ"
+              value={question.image}
+              onChange={image => onChange({ image })}
+            />
+          )}
+          <GapfillTextEditor
+            value={question.text}
+            onChange={text => onChange({ text })}
+            hideInsertButton={!!question.firstGapIsExample}
           />
-          <GapfillTextEditor value={question.text} onChange={text => onChange({ text })} />
           <label className="admin-mini-field">
             <span>Cách điền chỗ trống</span>
             <select
@@ -715,12 +777,6 @@ function QuestionEditor({ question, index, onChange, onDelete, onDuplicate, word
             </select>
           </label>
           <GapfillAnswersEditor question={question} onChange={onChange} mode={question.gapMode === "choices" ? "choices" : "free"} />
-          {countGaps(question.text || "") > 0 && (
-            <p className="admin-hint">
-              Tổng {questionPoints(question)} điểm chia đều cho {countGaps(question.text || "")} chỗ trống — mỗi chỗ:{" "}
-              <strong>{gapPoints(question, countGaps(question.text || "")).toFixed(2).replace(/\.?0+$/, "")} điểm</strong>
-            </p>
-          )}
         </>
       )}
 
@@ -1111,11 +1167,14 @@ function PartEditor({ part, onChange, seriesId }) {
                 wordBank={part.wordBank}
                 partPointsActive={part.partPoints != null}
                 seriesId={seriesId}
+                locked={["movers-part2", "movers-part3", "movers-part4"].includes(part.fixedLayout)}
               />
             ))}
           </div>
 
-          {availableTypes.length === 0 ? (
+          {/* Part 2/3/4 Movers: số câu CỐ ĐỊNH theo đề thật (chốt 2026-08-27) — không cho thêm/xoá
+              câu nữa, ẩn hẳn "+ Thêm câu hỏi"/menu chọn dạng. */}
+          {["movers-part2", "movers-part3", "movers-part4"].includes(part.fixedLayout) ? null : availableTypes.length === 0 ? (
             <p className="admin-hint">Dạng câu hỏi của Part này chưa được lập trình xong, sẽ bổ sung sau.</p>
           ) : availableTypes.length === 1 ? (
             // Part chỉ có đúng 1 dạng được phép (khung Flyers cố định) — bấm là thêm luôn, không cần
@@ -1212,7 +1271,7 @@ function WordScramblePreview({ question, qNumber }) {
   );
 }
 
-function QuestionPreview({ question, qNumber }) {
+function QuestionPreview({ question, qNumber, hideImage }) {
   if (question.type === "yesno") {
     return (
       <div className="reading-question reading-question-preview">
@@ -1234,13 +1293,37 @@ function QuestionPreview({ question, qNumber }) {
       <div className="reading-question reading-question-preview">
         <QuestionBadge qNumber={qNumber} />
         <div className="reading-question-body">
-          {question.image && <img src={question.image} alt="" className="reading-question-img" />}
+          {!hideImage && question.image && <img src={question.image} alt="" className="reading-question-img" />}
           <p className="reading-gapfill-text">
             {segments.map((seg, i) => {
               const isLast = i === segments.length - 1;
-              const numMatch = !isLast && seg.match(/(\(\d+\))\s*$/);
+              if (!isLast && question.firstGapIsExample && i === 0) {
+                const exampleChoices = question.gapMode === "choices" ? question.gapOptions?.[0]?.options : null;
+                return (
+                  <span key={i}>
+                    {seg}
+                    {exampleChoices ? (
+                      <span className="reading-gap-choices">
+                        {exampleChoices.map((opt, ci) => (
+                          <span
+                            key={ci}
+                            className={`reading-gap-choice-btn${opt === question.answers?.[0] && opt ? " is-selected" : ""}`}
+                          >
+                            {opt || `Lựa chọn ${ci + 1}`}
+                          </span>
+                        ))}
+                      </span>
+                    ) : (
+                      <span className="reading-gap-nowrap">
+                        <span className="reading-example-answer">{question.answers?.[0]}</span>
+                      </span>
+                    )}
+                  </span>
+                );
+              }
+              const numMatch = !isLast && !question.firstGapIsExample && seg.match(/(\(\d+\))\s*$/);
               const prefix = numMatch ? seg.slice(0, numMatch.index) : seg;
-              const marker = numMatch ? numMatch[1] : "";
+              const marker = numMatch ? numMatch[1] : !isLast && question.firstGapIsExample ? `(${i})` : "";
               const choices = !isLast && question.gapMode === "choices" ? question.gapOptions?.[i]?.options : null;
               return (
                 <span key={i}>
@@ -1407,13 +1490,13 @@ function TestPreview({ parts, stats, activePartIndex }) {
                   {part.partImages?.[1] && <img src={part.partImages[1]} alt="" />}
                 </div>
               )}
-              <WordBankBox words={part.wordBank} />
+              {part.fixedLayout !== "movers-part3" && <WordBankBox words={part.wordBank} />}
               {part.fixedLayout === "movers-part5" && (
                 <StoryParagraph text={part.storyParagraphs?.[0]} />
               )}
               {part.fixedLayout === "movers-part6" || part.fixedLayout === "movers-part5" ? (
                 <ExamplesPairRow examplesPair={part.examplesPair} />
-              ) : (
+              ) : part.fixedLayout === "movers-part3" ? null : (
                 <ExampleRow
                   example={part.example}
                   mode={
@@ -1445,11 +1528,25 @@ function TestPreview({ parts, stats, activePartIndex }) {
                     const storyParagraphIndex =
                       part.fixedLayout === "movers-part5" ? (i === 2 ? 1 : i === 5 ? 2 : null) : null;
                     const storyBreak = storyParagraphIndex != null ? part.storyParagraphs?.[storyParagraphIndex] : null;
+                    const isFirstMultipleChoice =
+                      part.fixedLayout === "movers-part3" &&
+                      q.type === "multiple-choice" &&
+                      part.questions.findIndex(qq => qq.type === "multiple-choice") === i;
                     return (
                       <div className="reading-question-group" key={i}>
                         {groupLabel && <h4 className="reading-group-label">{groupLabel}</h4>}
                         {storyBreak && <StoryParagraph text={storyBreak} image={part.storyImages?.[storyParagraphIndex]} />}
-                        <QuestionPreview question={q} qNumber={partOffset + i + 1} />
+                        {isFirstMultipleChoice && (
+                          <div className="reading-part3-example-box">
+                            <h3 className="reading-subheading">Example</h3>
+                            <WordBankBox words={part.wordBank} />
+                          </div>
+                        )}
+                        <QuestionPreview
+                          question={q}
+                          qNumber={partOffset + i + 1}
+                          hideImage={part.fixedLayout === "movers-part3" && q.type === "gapfill"}
+                        />
                       </div>
                     );
                   })}
@@ -1540,12 +1637,48 @@ export default function ReadingStudio({ accent, seriesId, title, onTitleChange, 
       );
     }
 
+    // Vá NHẸ chỉ gắn cờ `fixedLayout` (KHÔNG động vào questions) cho Part đã tồn tại đúng shape dữ
+    // liệu từ trước (câu vẫn đúng type cũ — gapfill/multiple-choice/short-answer bình thường, chỉ
+    // cần khoá thêm/xoá câu qua `locked` + đổi thứ tự hiển thị theo type — không cần reseed lại như
+    // Part 1/5/6 vốn đổi hẳn shape dữ liệu, thêm field mới). An toàn dùng cả khi Part đã có nội dung
+    // thật vì không ghi đè bất kỳ field nội dung nào, kể cả khi số câu thực tế khác template (Part 3
+    // render theo TYPE của từng câu chứ không theo số thứ tự cố định, xem ReadingRunner.jsx).
+    const FLAG_ONLY_FIXED_LAYOUTS = new Set(["movers-part2", "movers-part3", "movers-part4"]);
+    function needsFixedLayoutFlagOnly(p, i) {
+      return FLAG_ONLY_FIXED_LAYOUTS.has(templates[i]?.fixedLayout) && p.fixedLayout !== templates[i].fixedLayout;
+    }
+
+    // Part 3 Movers: câu gapfill (đoạn truyện) không còn field ảnh riêng (chốt 2026-08-27, xem mục
+    // 2 Reading-CMS-Kinh-nghiem.md) — Test cũ soạn TRƯỚC khi field này bị ẩn có thể vẫn còn lưu
+    // `question.image` cho câu gapfill, khiến ảnh cũ hiện sót lại dù CMS không còn ô nhập nữa. Xoá
+    // sạch field đó (không đụng field nào khác của câu).
+    function needsPart3ImageStrip(p, i) {
+      return (
+        templates[i]?.fixedLayout === "movers-part3" &&
+        (p.questions ?? []).some(q => q.type === "gapfill" && q.image)
+      );
+    }
+
+    // Part 4 Movers: câu gapfill đầu tiên cần gắn `firstGapIsExample: true` (chốt 2026-08-27) — chỉ
+    // thêm field CỜ, không đụng nội dung đoạn văn/đáp án đã gõ. LƯU Ý: nếu đoạn văn cũ đã gõ số thứ
+    // tự "(1)/(2)"... bằng nút "+ Chèn chỗ trống" (đã bị bỏ), số cũ đó vẫn còn nằm trong text và có
+    // thể không khớp với số TỰ ĐỘNG mới hiển thị — giáo viên cần tự xem lại/gõ lại đoạn văn.
+    function needsPart4ExampleFlag(p, i) {
+      return (
+        templates[i]?.fixedLayout === "movers-part4" &&
+        (p.questions ?? []).some(q => q.type === "gapfill" && !q.firstGapIsExample)
+      );
+    }
+
     const needsPatch = parts.some(
       (p, i) =>
         needsField(p, i, "allowedTypes") ||
         needsField(p, i, "hasWordBank") ||
         wordBankImagesMismatch(p, i) ||
-        needsFixedLayout(p, i)
+        needsFixedLayout(p, i) ||
+        needsFixedLayoutFlagOnly(p, i) ||
+        needsPart3ImageStrip(p, i) ||
+        needsPart4ExampleFlag(p, i)
     );
     if (needsPatch) {
       onPartsChange(
@@ -1554,6 +1687,20 @@ export default function ReadingStudio({ accent, seriesId, title, onTitleChange, 
           if (needsField(p, i, "allowedTypes")) patch.allowedTypes = templates[i].allowedTypes;
           if (needsField(p, i, "hasWordBank")) patch.hasWordBank = templates[i].hasWordBank;
           if (wordBankImagesMismatch(p, i)) patch.wordBankImages = !!templates[i]?.wordBankImages;
+          if (needsFixedLayoutFlagOnly(p, i)) patch.fixedLayout = templates[i].fixedLayout;
+          if (needsPart3ImageStrip(p, i)) {
+            patch.questions = (p.questions ?? []).map(q => (q.type === "gapfill" && q.image ? { ...q, image: null } : q));
+          }
+          if (needsPart4ExampleFlag(p, i)) {
+            let flagged = false;
+            patch.questions = (p.questions ?? []).map(q => {
+              if (!flagged && q.type === "gapfill" && !q.firstGapIsExample) {
+                flagged = true;
+                return { ...q, firstGapIsExample: true };
+              }
+              return q;
+            });
+          }
           if (needsFixedLayout(p, i)) {
             const seeded = blankPartsFromTemplates([templates[i]])[0];
             patch.fixedLayout = seeded.fixedLayout;

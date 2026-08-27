@@ -124,7 +124,7 @@ function YesNoQuestion({ question, qNumber, value, onChange }) {
   );
 }
 
-function GapfillQuestion({ question, qNumber, values, onChange }) {
+function GapfillQuestion({ question, qNumber, values, onChange, hideImage }) {
   const segments = useMemo(() => splitGapfillText(question.text), [question.text]);
   const answers = question.answers ?? [];
 
@@ -132,7 +132,7 @@ function GapfillQuestion({ question, qNumber, values, onChange }) {
     <div className="reading-question" id={`rq-${qNumber}`}>
       <QuestionBadge qNumber={qNumber} />
       <div className="reading-question-body">
-        {question.image && <img src={question.image} alt="" className="reading-question-img" />}
+        {!hideImage && question.image && <img src={question.image} alt="" className="reading-question-img" />}
         <p className="reading-gapfill-text">
           {segments.map((seg, i) => {
             const isLast = i === segments.length - 1;
@@ -140,13 +140,44 @@ function GapfillQuestion({ question, qNumber, values, onChange }) {
             if (isLast) return <span key={i}>{seg}</span>;
             const answered = values[gapIndex] ?? "";
             const correct = answers[gapIndex];
+            // Movers Part 4 (`firstGapIsExample`) — chỗ trống ĐẦU TIÊN luôn là ví dụ mẫu, hiện sẵn
+            // đáp án (KHÔNG phải ô nhập), không đánh số. Từ chỗ trống thứ 2 trở đi mới là câu thật,
+            // số thứ tự TỰ ĐỘNG tính theo vị trí (gapIndex, vì index 0 là ví dụ nên gapIndex đã
+            // đúng là số hiển thị 1/2/3...) — KHÔNG đọc số gõ tay trong text như các Part khác nữa
+            // (nút "+ Chèn chỗ trống" đã bị bỏ cho Part này, xem GapfillTextEditor) — chốt 2026-08-27.
+            if (question.firstGapIsExample && gapIndex === 0) {
+              const exampleChoices = question.gapMode === "choices" ? question.gapOptions?.[0]?.options : null;
+              return (
+                <span key={i}>
+                  {seg}
+                  {exampleChoices ? (
+                    // gapMode="choices" — ví dụ cũng hiện ĐỦ 3 nút như câu thật, đáp án đúng tô sẵn
+                    // (không bấm được, chỉ minh hoạ cách làm) thay vì chỉ hiện 1 chữ gạch chân.
+                    <span className="reading-gap-choices">
+                      {exampleChoices.map((opt, ci) => (
+                        <span
+                          key={ci}
+                          className={`reading-gap-choice-btn${opt === correct && opt ? " is-selected" : ""}`}
+                        >
+                          {opt || `(chưa nhập lựa chọn ${ci + 1})`}
+                        </span>
+                      ))}
+                    </span>
+                  ) : (
+                    <span className="reading-gap-nowrap">
+                      <span className="reading-example-answer">{correct}</span>
+                    </span>
+                  )}
+                </span>
+              );
+            }
             // Tách riêng nhãn số thứ tự "(N)" (do GapfillTextEditor tự chèn liền sát ô trống, vd
             // "...very (2)___") ra khỏi phần chữ còn lại, rồi bọc CHUNG với ô input trong 1 span
             // white-space:nowrap — tránh việc trình duyệt xuống dòng giữa "(2)" và ô trống thành 2
             // dòng tách rời trông rất rối (lỗi thực tế 2026-08-26, đoạn văn dài nhiều dòng).
-            const numMatch = seg.match(/(\(\d+\))\s*$/);
+            const numMatch = !question.firstGapIsExample && seg.match(/(\(\d+\))\s*$/);
             const prefix = numMatch ? seg.slice(0, numMatch.index) : seg;
-            const marker = numMatch ? numMatch[1] : "";
+            const marker = numMatch ? numMatch[1] : question.firstGapIsExample ? `(${gapIndex})` : "";
             const choices = question.gapMode === "choices" ? question.gapOptions?.[gapIndex]?.options : null;
             return (
               <span key={i}>
@@ -244,7 +275,7 @@ function MultipleChoiceQuestion({ question, qNumber, value, onChange }) {
       <QuestionBadge qNumber={qNumber} />
       <div className="reading-question-body">
         {question.text && <p className="reading-question-text">{question.text}</p>}
-        <div className="reading-mc-options">
+        <div className={`reading-mc-options${question.hideLetters ? " reading-mc-options-tickbox" : ""}`}>
           {options.map((opt, i) => (
             <label key={i} className={`reading-mc-option${value === i ? " is-selected" : ""}`}>
               <input
@@ -586,13 +617,16 @@ function buildResults(flat, answers) {
     }
 
     if (question.type === "gapfill") {
-      const gapAnswers = question.answers ?? [];
+      // Chỗ trống ví dụ (Part 4, `firstGapIsExample`) không tính điểm — bỏ khỏi mẫu số chia đều
+      // VÀ khỏi danh sách chấm, offset +1 khi đọc lại value[] (index 0 vẫn là ví dụ trong mảng gốc).
+      const offset = question.firstGapIsExample ? 1 : 0;
+      const gapAnswers = (question.answers ?? []).slice(offset);
       const perGap = gapAnswers.length ? qPoints / gapAnswers.length : 0;
       let gapEarned = 0;
       const blanks = gapAnswers.map((a, gi) => {
-        const ok = normalizeAnswer(value?.[gi]) === normalizeAnswer(a);
+        const ok = normalizeAnswer(value?.[gi + offset]) === normalizeAnswer(a);
         if (ok) gapEarned += perGap;
-        return { correct: ok, studentAnswer: value?.[gi]?.trim() || "(để trống)", correctAnswer: a };
+        return { correct: ok, studentAnswer: value?.[gi + offset]?.trim() || "(để trống)", correctAnswer: a };
       });
       earnedPoints += gapEarned;
       return {
@@ -746,13 +780,16 @@ export default function ReadingRunner({ parts, onFinish }) {
                 {part.partImages?.[1] && <img src={part.partImages[1]} alt="" />}
               </div>
             )}
-            <WordBankBox words={part.wordBank} />
+            {/* Part 3 Movers: khung "Example" (ngân hàng từ CÓ ẢNH) nằm GIỮA đoạn truyện gapfill và
+                câu chọn tiêu đề, KHÔNG ở đầu Part như mọi Part khác — render bên trong danh sách câu
+                hỏi bên dưới (xem exampleBreakEl), không hiện ở đây. */}
+            {part.fixedLayout !== "movers-part3" && <WordBankBox words={part.wordBank} />}
             {part.fixedLayout === "movers-part5" && (
               <StoryParagraph text={part.storyParagraphs?.[0]} />
             )}
             {part.fixedLayout === "movers-part6" || part.fixedLayout === "movers-part5" ? (
               <ExamplesPairRow examplesPair={part.examplesPair} />
-            ) : (
+            ) : part.fixedLayout === "movers-part3" ? null : (
               <ExampleRow
                 example={part.example}
                 mode={
@@ -794,6 +831,19 @@ export default function ReadingRunner({ parts, onFinish }) {
                 const storyBreakEl = storyBreak && (
                   <StoryParagraph text={storyBreak} image={part.storyImages?.[storyParagraphIndex]} />
                 );
+                // Part 3 Movers: khung "Example" (ngân hàng từ có ảnh) chèn NGAY TRƯỚC câu
+                // multiple-choice ĐẦU TIÊN — không cố định theo qIndex (khác Part 5/6) vì Test cũ có
+                // thể có số câu gapfill khác 1, dò theo TYPE để không lệch vị trí.
+                const isFirstMultipleChoice =
+                  part.fixedLayout === "movers-part3" &&
+                  q.type === "multiple-choice" &&
+                  (part.questions ?? []).findIndex(qq => qq.type === "multiple-choice") === qIndex;
+                const exampleBreakEl = isFirstMultipleChoice && (
+                  <div className="reading-part3-example-box">
+                    <h3 className="reading-subheading">Example</h3>
+                    <WordBankBox words={part.wordBank} />
+                  </div>
+                );
 
                 let body;
                 if (q.type === "yesno") {
@@ -811,6 +861,7 @@ export default function ReadingRunner({ parts, onFinish }) {
                       question={q}
                       qNumber={qNumber}
                       values={value ?? []}
+                      hideImage={part.fixedLayout === "movers-part3"}
                       onChange={(gapIndex, val) =>
                         setAnswer(partIndex, qIndex, (() => {
                           const cur = [...(value ?? [])];
@@ -881,6 +932,7 @@ export default function ReadingRunner({ parts, onFinish }) {
                   <div className="reading-question-group" key={qIndex}>
                     {groupHeader}
                     {storyBreakEl}
+                    {exampleBreakEl}
                     {body}
                   </div>
                 );
