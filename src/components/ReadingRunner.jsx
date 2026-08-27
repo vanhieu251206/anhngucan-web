@@ -41,10 +41,13 @@ export function gapPoints(question, blankCount) {
 // đều cho các câu bên trong), điểm riêng từng câu (question.points) bị BỎ QUA hoàn toàn, dùng
 // part.partPoints / số câu trong Part thay thế (yêu cầu người dùng 2026-08-26, vd Movers Part 1
 // chấm theo tổng điểm cả Part chứ không theo từng câu riêng). Không có partPoints thì giữ nguyên
-// cách cũ (questionPoints(question)).
+// cách cũ (questionPoints(question)). Câu "free-writing" (viết tự do, không có đáp án đúng/sai —
+// Movers Part 6 câu 5-6) LUÔN 0 điểm và KHÔNG tính vào mẫu số chia đều của partPoints (yêu cầu
+// người dùng 2026-08-27).
 export function effectiveQuestionPoints(part, question) {
-  const questionCount = part.questions?.length ?? 0;
-  if (part.partPoints != null && questionCount > 0) return part.partPoints / questionCount;
+  if (question.type === "free-writing") return 0;
+  const gradedCount = (part.questions ?? []).filter(q => q.type !== "free-writing").length;
+  if (part.partPoints != null && gradedCount > 0) return part.partPoints / gradedCount;
   return questionPoints(question);
 }
 
@@ -294,8 +297,44 @@ export function WordBankBox({ words }) {
 // tác được (khớp sách gốc luôn có sẵn 1 ví dụ đã điền đáp án). Dùng cho type word-bank.
 // mode="multiple-choice" (Movers Part 2...) hiện luôn 3 đáp án, đáp án đúng khoanh sẵn — khớp cách
 // sách gốc luôn đánh dấu sẵn đáp án đúng ở dòng Example (vd khoanh tròn "B  Is it?").
+// Câu định nghĩa ↔ chỗ trống điền từ (Movers Part 1) — GIỮ NGUYÊN khung thẻ ".reading-question"
+// giống mọi Part khác (viền, bo góc, đổ bóng hover, số thứ tự tròn) để đồng bộ giao diện cả bài,
+// chỉ khác ở chỗ bên TRONG thẻ chia 2 cột cố định (chữ trái, ô điền từ phải) để chỗ trống các câu
+// THẲNG CỘT với nhau — khớp đúng layout sách gốc mà vẫn đồng bộ style với Part 2/3/5/6.
+export function AnswerTableRow({ label, text, value, onChange, readOnly, id }) {
+  const isExample = label === "Example";
+  return (
+    <div className="reading-question" id={id}>
+      {isExample ? (
+        <div className="reading-question-badge reading-example-badge">Example</div>
+      ) : (
+        <QuestionBadge qNumber={label} />
+      )}
+      <div className="reading-question-body">
+        <div className="reading-answer-row">
+          <p className="reading-question-text reading-answer-row-text">{text}</p>
+          <div className="reading-answer-row-answer">
+            {readOnly ? (
+              <span className="reading-answer-row-value">{value}</span>
+            ) : (
+              <input
+                className="reading-answer-input"
+                value={value ?? ""}
+                onChange={e => onChange(e.target.value)}
+              />
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function ExampleRow({ example, mode }) {
   if (!example?.text) return null;
+  if (mode === "table-row") {
+    return <AnswerTableRow label="Example" text={example.text} value={example.answer} readOnly />;
+  }
   if (mode === "multiple-choice") {
     return (
       <div className="reading-question reading-example-row">
@@ -321,6 +360,68 @@ export function ExampleRow({ example, mode }) {
         <p className="reading-question-text">
           {example.text} <span className="reading-example-answer">{example.answer}</span>
         </p>
+      </div>
+    </div>
+  );
+}
+
+// 2 ví dụ mẫu CỐ ĐỊNH của Movers Part 6 (Cambridge YLE) — luôn ĐÚNG 2 dòng: 1 câu hỏi vị trí kiểu
+// "Where is...?" và 1 câu điền từ có sẵn đáp án ("The ___ is..."), khác ExampleRow (chỉ 1 dòng,
+// dùng cho Part 1/2/3). CHỈ ĐỌC, không tính điểm, không tương tác — export dùng chung cho cả màn
+// học sinh (ReadingRunner) lẫn preview trong CMS (ReadingStudio.jsx).
+export function ExamplesPairRow({ examplesPair }) {
+  const pair = examplesPair ?? [];
+  if (!pair.some(ex => ex?.prompt)) return null;
+  return (
+    <div className="reading-examples-pair">
+      <h3 className="reading-subheading">Examples</h3>
+      {pair.map((ex, i) => {
+        if (!ex?.prompt) return null;
+        const hasBlank = ex.prompt.includes("___");
+        return (
+          <p className="reading-example-line" key={i}>
+            {hasBlank
+              ? ex.prompt.split("___").map((seg, si, arr) => (
+                  <span key={si}>
+                    {seg}
+                    {si < arr.length - 1 && <span className="reading-example-answer">{ex.answer}</span>}
+                  </span>
+                ))
+              : <>{ex.prompt} <span className="reading-example-answer">{ex.answer}</span></>}
+          </p>
+        );
+      })}
+    </div>
+  );
+}
+
+// 1 đoạn truyện (Movers Part 5) — giữ nguyên xuống dòng giáo viên gõ (mỗi đoạn văn cách nhau 1
+// dòng trống), CHỈ ĐỌC, không tính điểm. Truyện chia 3 đoạn xen giữa các nhóm câu hỏi (2+3+2 câu,
+// khớp đúng cấu trúc 7 câu cố định của đề Movers Part 5 thật — xem MOVERS_PART_TEMPLATES).
+export function StoryParagraph({ text, image }) {
+  if (!text?.trim()) return null;
+  return (
+    <>
+      {image && <img src={image} alt="" className="reading-part-img" />}
+      <p className="reading-story-text">{text}</p>
+    </>
+  );
+}
+
+// Câu viết tự do — Movers Part 6 câu 5-6 ("Now write two sentences about the picture."), KHÔNG có
+// đáp án đúng/sai, chỉ ghi lại nội dung học sinh viết để giáo viên đọc lại (xem ReadingReportView.jsx).
+function FreeWritingQuestion({ question, qNumber, value, onChange }) {
+  return (
+    <div className="reading-question" id={`rq-${qNumber}`}>
+      <QuestionBadge qNumber={qNumber} />
+      <div className="reading-question-body">
+        <textarea
+          className="reading-freewrite-input"
+          rows={2}
+          value={value ?? ""}
+          onChange={e => onChange(e.target.value)}
+          placeholder="Viết 1 câu về bức tranh..."
+        />
       </div>
     </div>
   );
@@ -550,6 +651,17 @@ function buildResults(flat, answers) {
       };
     }
 
+    if (question.type === "free-writing") {
+      // Không có đáp án đúng/sai — chỉ ghi lại nội dung học sinh viết, KHÔNG cộng vào
+      // totalPoints/earnedPoints (đã loại trừ ở effectiveQuestionPoints, qPoints luôn = 0 ở đây).
+      return {
+        qNumber,
+        question,
+        ungraded: true,
+        studentAnswer: (value ?? "").trim() || "(chưa viết)",
+      };
+    }
+
     // word-scramble
     const built = (value ?? []).join("");
     const isCorrect = normalizeAnswer(built) === normalizeAnswer(question.answer);
@@ -623,30 +735,79 @@ export default function ReadingRunner({ parts, onFinish }) {
             <div className="reading-part-head">
               <h2>{part.title}</h2>
               {part.instruction && <p className="reading-part-instruction">{part.instruction}</p>}
-              {part.image && <img src={part.image} alt="" className="reading-part-img" />}
+              {part.fixedLayout !== "movers-part1" && part.image && (
+                <img src={part.image} alt="" className="reading-part-img" />
+              )}
               {part.caption && <p className="reading-part-caption">{part.caption}</p>}
             </div>
+            {part.fixedLayout === "movers-part1" && (part.partImages?.[0] || part.partImages?.[1]) && (
+              <div className="reading-part-images-pair">
+                {part.partImages?.[0] && <img src={part.partImages[0]} alt="" />}
+                {part.partImages?.[1] && <img src={part.partImages[1]} alt="" />}
+              </div>
+            )}
             <WordBankBox words={part.wordBank} />
-            <ExampleRow example={part.example} mode={part.allowedTypes?.includes("multiple-choice") ? "multiple-choice" : "word-bank"} />
+            {part.fixedLayout === "movers-part5" && (
+              <StoryParagraph text={part.storyParagraphs?.[0]} />
+            )}
+            {part.fixedLayout === "movers-part6" || part.fixedLayout === "movers-part5" ? (
+              <ExamplesPairRow examplesPair={part.examplesPair} />
+            ) : (
+              <ExampleRow
+                example={part.example}
+                mode={
+                  part.fixedLayout === "movers-part1"
+                    ? "table-row"
+                    : part.allowedTypes?.includes("multiple-choice")
+                      ? "multiple-choice"
+                      : "word-bank"
+                }
+              />
+            )}
+            {(part.fixedLayout === "movers-part6" || part.fixedLayout === "movers-part5" || part.fixedLayout === "movers-part1") && (
+              <h3 className="reading-subheading">Questions</h3>
+            )}
             <div className="reading-question-list">
               {(part.questions ?? []).map((q, qIndex) => {
                 const { qNumber } = flat.find(f => f.partIndex === partIndex && f.qIndex === qIndex);
                 const value = answers[partIndex]?.[qIndex];
+                // 3 nhãn nhóm CỐ ĐỊNH của Movers Part 6, chèn đúng trước câu 0/2/4 (2 câu điền chỗ
+                // trống + 2 câu trả lời mở + 2 câu viết tự do) — khớp y hệt sách gốc.
+                const groupLabel =
+                  part.fixedLayout === "movers-part6" && qIndex === 0
+                    ? "Complete the sentences."
+                    : part.fixedLayout === "movers-part6" && qIndex === 2
+                      ? "Answer the questions."
+                      : part.fixedLayout === "movers-part6" && qIndex === 4
+                        ? "Now write two sentences about the picture."
+                        : null;
+                const groupHeader = groupLabel && <h4 className="reading-group-label">{groupLabel}</h4>;
+                // Movers Part 5: truyện chia 3 đoạn CỐ ĐỊNH, đoạn 2/3 chèn trước câu 3 (qIndex 2)
+                // và câu 6 (qIndex 5) — đoạn 1 đã hiện ở đầu Part (trên "Examples") phía trên.
+                const storyParagraphIndex =
+                  part.fixedLayout === "movers-part5" && qIndex === 2
+                    ? 1
+                    : part.fixedLayout === "movers-part5" && qIndex === 5
+                      ? 2
+                      : null;
+                const storyBreak = storyParagraphIndex != null ? part.storyParagraphs?.[storyParagraphIndex] : null;
+                const storyBreakEl = storyBreak && (
+                  <StoryParagraph text={storyBreak} image={part.storyImages?.[storyParagraphIndex]} />
+                );
+
+                let body;
                 if (q.type === "yesno") {
-                  return (
+                  body = (
                     <YesNoQuestion
-                      key={qIndex}
                       question={q}
                       qNumber={qNumber}
                       value={value}
                       onChange={val => setAnswer(partIndex, qIndex, val)}
                     />
                   );
-                }
-                if (q.type === "gapfill") {
-                  return (
+                } else if (q.type === "gapfill") {
+                  body = (
                     <GapfillQuestion
-                      key={qIndex}
                       question={q}
                       qNumber={qNumber}
                       values={value ?? []}
@@ -659,33 +820,55 @@ export default function ReadingRunner({ parts, onFinish }) {
                       }
                     />
                   );
-                }
-                if (q.type === "word-bank") {
-                  return (
+                } else if (q.type === "word-bank") {
+                  body = (
                     <WordBankQuestion
-                      key={qIndex}
                       question={q}
                       qNumber={qNumber}
                       value={value}
                       onChange={val => setAnswer(partIndex, qIndex, val)}
                     />
                   );
-                }
-                if (q.type === "multiple-choice") {
-                  return (
+                } else if (q.type === "multiple-choice") {
+                  body = (
                     <MultipleChoiceQuestion
-                      key={qIndex}
                       question={q}
                       qNumber={qNumber}
                       value={value}
                       onChange={val => setAnswer(partIndex, qIndex, val)}
                     />
                   );
-                }
-                if (q.type === "word-scramble") {
-                  return (
+                } else if (q.type === "word-scramble") {
+                  body = (
                     <WordScrambleQuestion
-                      key={qIndex}
+                      question={q}
+                      qNumber={qNumber}
+                      value={value}
+                      onChange={val => setAnswer(partIndex, qIndex, val)}
+                    />
+                  );
+                } else if (q.type === "free-writing") {
+                  body = (
+                    <FreeWritingQuestion
+                      question={q}
+                      qNumber={qNumber}
+                      value={value}
+                      onChange={val => setAnswer(partIndex, qIndex, val)}
+                    />
+                  );
+                } else if (part.fixedLayout === "movers-part1") {
+                  body = (
+                    <AnswerTableRow
+                      id={`rq-${qNumber}`}
+                      label={qNumber}
+                      text={q.prompt}
+                      value={value}
+                      onChange={val => setAnswer(partIndex, qIndex, val)}
+                    />
+                  );
+                } else {
+                  body = (
+                    <ShortAnswerQuestion
                       question={q}
                       qNumber={qNumber}
                       value={value}
@@ -693,14 +876,13 @@ export default function ReadingRunner({ parts, onFinish }) {
                     />
                   );
                 }
+
                 return (
-                  <ShortAnswerQuestion
-                    key={qIndex}
-                    question={q}
-                    qNumber={qNumber}
-                    value={value}
-                    onChange={val => setAnswer(partIndex, qIndex, val)}
-                  />
+                  <div className="reading-question-group" key={qIndex}>
+                    {groupHeader}
+                    {storyBreakEl}
+                    {body}
+                  </div>
                 );
               })}
             </div>

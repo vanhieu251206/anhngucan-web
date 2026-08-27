@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import ImageUploadField from "./ImageUploadField.jsx";
 import { useConfirm } from "./ConfirmDialog.jsx";
-import { WORD_SCRAMBLE_DEFAULT_TEXT, scrambleWord, questionPoints, gapPoints, QuestionBadge, WordBankBox, ExampleRow, optionLetter, bankLabel, bankImage } from "../ReadingRunner.jsx";
+import { WORD_SCRAMBLE_DEFAULT_TEXT, scrambleWord, questionPoints, gapPoints, QuestionBadge, WordBankBox, ExampleRow, ExamplesPairRow, StoryParagraph, AnswerTableRow, optionLetter, bankLabel, bankImage } from "../ReadingRunner.jsx";
 
 // Mỗi loại câu hỏi gắn với `series` — danh sách seriesId được PHÉP dùng type này. Khi soạn bài,
 // menu "+ Thêm câu hỏi" chỉ hiện type khớp seriesId của bài đang soạn (xem questionTypesFor()) —
@@ -14,6 +14,7 @@ const QUESTION_TYPES = [
   { type: "word-scramble", icon: "🔤", label: "Xáo chữ cái đoán từ vựng", desc: "Xem ảnh, ghép lại các ô chữ cái bị xáo trộn thành đúng từ", series: ["starters"] },
   { type: "multiple-choice", icon: "🔘", label: "Chọn 1 đáp án đúng", desc: "Hiện nhiều đáp án (radio), học sinh chọn 1 đáp án đúng", series: ["flyers", "movers"] },
   { type: "word-bank", icon: "🗂️", label: "Chọn từ trong ngân hàng từ", desc: "Đọc câu, gõ đúng từ có trong ngân hàng từ chung của cả Part", series: ["flyers"] },
+  { type: "free-writing", icon: "✍️", label: "Viết tự do (không chấm điểm)", desc: "Học sinh tự viết 1 câu về bức tranh — không có đáp án đúng/sai, giáo viên tự đọc/chấm sau", series: ["movers"] },
 ];
 
 // Khung 7 Part cố định của 1 Test Reading & Writing Flyers thật (Cambridge YLE) — tạo sẵn tự động
@@ -27,6 +28,7 @@ const FLYERS_PART_TEMPLATES = [
     title: "Part 1 – Reading and Writing",
     instruction: "Look and read. Choose the correct words and write them on the lines. There is one example.",
     allowedTypes: ["word-bank"],
+    wordBankImages: true,
   },
   {
     title: "Part 2 – Reading and Writing",
@@ -71,10 +73,14 @@ const FLYERS_PART_TEMPLATES = [
 // chính câu gapfill đó). Part 5-6 CHƯA rõ cấu trúc, để trống + không khoá allowedTypes (giáo viên
 // tạm chọn type tự do trong số type đã gắn series "movers") — sẽ khoá cứng khi có đề thật.
 const MOVERS_PART_TEMPLATES = [
+  // Part 1: format CỐ ĐỊNH — 2 ảnh minh hoạ chung đặt CẠNH NHAU ở đầu Part (khác Part 6 chỉ 1 ảnh) +
+  // 1 Example (1 dòng, dùng lại ExampleRow mode mặc định) + ĐÚNG 5 câu short-answer, mỗi câu KHÔNG
+  // có ảnh riêng (chốt 2026-08-27). Cấu trúc khoá cứng như Part 5/6.
   {
     title: "Part 1 – Reading and Writing",
-    instruction: "Look and read. Write the correct word next to numbers 1-5.",
+    instruction: "Look and read. Choose the correct words and write them on the lines. There is one example.",
     allowedTypes: ["short-answer"],
+    fixedLayout: "movers-part1",
   },
   {
     title: "Part 2 – Reading and Writing",
@@ -92,8 +98,28 @@ const MOVERS_PART_TEMPLATES = [
     instruction: "Read the text. Write the missing words.",
     allowedTypes: ["gapfill"],
   },
-  { title: "Part 5 – Reading and Writing", instruction: "", allowedTypes: null },
-  { title: "Part 6 – Reading and Writing", instruction: "", allowedTypes: null },
+  // Part 5: format CỐ ĐỊNH — 1 ảnh chung + tiêu đề truyện (in đậm) + truyện chia 3 đoạn xen giữa
+  // câu hỏi + 2 ví dụ mẫu (đều dạng điền chỗ trống, tái dùng examplesPair/ExamplesPairRow của Part
+  // 6) + ĐÚNG 7 câu điền chỗ trống chia 2+3+2 theo 3 đoạn truyện (chốt 2026-08-27, rút kinh nghiệm
+  // Part 6: chỉ 1 ảnh chung, không có ảnh riêng từng câu). Cấu trúc khoá cứng như Part 6.
+  {
+    title: "Part 5 – Reading and Writing",
+    instruction: "Look at the pictures and read the story. Write some words to complete the sentences about the story. You can use 1, 2 or 3 words.",
+    allowedTypes: ["short-answer"],
+    fixedLayout: "movers-part5",
+  },
+  // Part 6: format CỐ ĐỊNH đúng đề Movers thật — 1 ảnh + 2 ví dụ mẫu (Examples) + 6 câu chia 3
+  // nhóm cố định: "Complete the sentences." (2 câu điền chỗ trống, type short-answer) + "Answer
+  // the questions." (2 câu hỏi mở, type short-answer) + "Now write two sentences about the
+  // picture." (2 câu viết tự do, type free-writing, không chấm điểm) — chốt 2026-08-27. Cấu trúc 6
+  // câu này KHOÁ CỨNG (không thêm/xoá được, xem PartEditor + blankPartsFromTemplates), giáo viên
+  // chỉ điền nội dung.
+  {
+    title: "Part 6 – Reading and Writing",
+    instruction: "Look and read and write.",
+    allowedTypes: ["short-answer", "free-writing"],
+    fixedLayout: "movers-part6",
+  },
 ];
 
 // Map seriesId -> khung Part dựng sẵn (nếu có) — dùng cho nút "+ Tạo N Part mẫu" ở màn rỗng.
@@ -103,18 +129,60 @@ const SERIES_PART_TEMPLATES = {
 };
 
 function blankPartsFromTemplates(templates) {
-  return templates.map(t => ({
-    title: t.title,
-    instruction: t.instruction,
-    allowedTypes: t.allowedTypes,
-    hasWordBank: t.hasWordBank ?? false,
-    wordBankImages: t.wordBankImages ?? false,
-    questions: [],
-    wordBank: [],
-    example: null,
-    partPoints: null,
-    caption: null,
-  }));
+  return templates.map(t => {
+    const base = {
+      title: t.title,
+      instruction: t.instruction,
+      allowedTypes: t.allowedTypes,
+      hasWordBank: t.hasWordBank ?? false,
+      wordBankImages: t.wordBankImages ?? false,
+      questions: [],
+      wordBank: [],
+      example: null,
+      partPoints: null,
+      caption: null,
+      fixedLayout: t.fixedLayout ?? null,
+      examplesPair: null,
+      storyParagraphs: null,
+      storyImages: null,
+      partImages: null,
+    };
+    // Part 1 Movers: cấu trúc 5 câu short-answer CỐ ĐỊNH, KHÔNG ảnh riêng từng câu — 2 ảnh minh
+    // hoạ chung đặt cạnh nhau ở đầu Part (part.partImages, xem PartEditor) + 1 Example.
+    if (t.fixedLayout === "movers-part1") {
+      base.questions = Array.from({ length: 5 }, () => blankQuestion("short-answer"));
+      base.partImages = ["", ""];
+    }
+    // Part 6 Movers: cấu trúc 6 câu CỐ ĐỊNH (2 điền chỗ trống + 2 trả lời mở + 2 viết tự do), dựng
+    // sẵn luôn 6 ô trống + 2 ví dụ mẫu trống — giáo viên chỉ điền nội dung, không tự thêm/xoá câu
+    // (xem PartEditor).
+    if (t.fixedLayout === "movers-part6") {
+      base.questions = [
+        blankQuestion("short-answer"),
+        blankQuestion("short-answer"),
+        blankQuestion("short-answer"),
+        blankQuestion("short-answer"),
+        blankQuestion("free-writing"),
+        blankQuestion("free-writing"),
+      ];
+      base.examplesPair = [
+        { prompt: "", answer: "" },
+        { prompt: "", answer: "" },
+      ];
+    }
+    // Part 5 Movers: cấu trúc 7 câu điền chỗ trống CỐ ĐỊNH, chia 2+3+2 xen giữa 3 đoạn truyện —
+    // dựng sẵn 7 ô trống + 2 ví dụ mẫu trống + tiêu đề/3 đoạn truyện trống.
+    if (t.fixedLayout === "movers-part5") {
+      base.questions = Array.from({ length: 7 }, () => blankQuestion("short-answer"));
+      base.examplesPair = [
+        { prompt: "", answer: "" },
+        { prompt: "", answer: "" },
+      ];
+      base.storyParagraphs = ["", "", ""];
+      base.storyImages = ["", "", ""];
+    }
+    return base;
+  });
 }
 
 function typeInfo(type) {
@@ -139,6 +207,7 @@ function blankQuestion(type) {
   if (type === "word-scramble") return { type, image: null, text: WORD_SCRAMBLE_DEFAULT_TEXT, answer: "", points: 1 };
   if (type === "multiple-choice") return { type, text: "", options: ["", "", ""], answerIndex: 0, points: 1 };
   if (type === "word-bank") return { type, text: "", answer: "", points: 1 };
+  if (type === "free-writing") return { type, points: 0 };
   return { type: "short-answer", image: null, prompt: "", answer: "", points: 1 };
 }
 
@@ -192,6 +261,9 @@ function ExampleEditor({ example, wordBank, mode, onChange }) {
   }
 
   const value = example ?? { text: "", answer: "" };
+  // mode="plain" (Movers Part 1 — không có ngân hàng từ chung, mỗi câu tự do) — đáp án gõ tự do,
+  // khác mode mặc định "word-bank" (Flyers Part 1/2 — đáp án PHẢI khớp 1 từ có sẵn trong ngân hàng
+  // từ chung nên dùng dropdown thay vì gõ tự do, tránh gõ lệch chính tả so với ngân hàng từ).
   return (
     <fieldset className="admin-fieldset">
       <legend>💡 Câu ví dụ mẫu (Example)</legend>
@@ -205,17 +277,26 @@ function ExampleEditor({ example, wordBank, mode, onChange }) {
         />
       </label>
       <label className="admin-mini-field">
-        <span>Đáp án ví dụ (chọn trong ngân hàng từ)</span>
-        <select
-          className="admin-input"
-          value={value.answer}
-          onChange={e => onChange({ ...value, answer: e.target.value })}
-        >
-          <option value="">— Chọn từ —</option>
-          {(wordBank ?? []).map((w, i) => (
-            <option key={i} value={bankLabel(w)}>{bankLabel(w) || `(từ ${i + 1} chưa nhập)`}</option>
-          ))}
-        </select>
+        <span>Đáp án ví dụ{mode !== "plain" ? " (chọn trong ngân hàng từ)" : ""}</span>
+        {mode === "plain" ? (
+          <input
+            className="admin-input"
+            value={value.answer}
+            onChange={e => onChange({ ...value, answer: e.target.value })}
+            placeholder="vd: a nurse"
+          />
+        ) : (
+          <select
+            className="admin-input"
+            value={value.answer}
+            onChange={e => onChange({ ...value, answer: e.target.value })}
+          >
+            <option value="">— Chọn từ —</option>
+            {(wordBank ?? []).map((w, i) => (
+              <option key={i} value={bankLabel(w)}>{bankLabel(w) || `(từ ${i + 1} chưa nhập)`}</option>
+            ))}
+          </select>
+        )}
       </label>
     </fieldset>
   );
@@ -482,7 +563,59 @@ function ShortAnswerPromptEditor({ value, onChange, showGapButton = true }) {
   );
 }
 
-function QuestionEditor({ question, index, onChange, onDelete, onDuplicate, wordBank, partPointsActive, seriesId }) {
+// 2 ví dụ mẫu cố định của Movers Part 6 — xem ExamplesPairRow (ReadingRunner.jsx) cho phần hiển
+// thị học sinh, khớp đúng shape dữ liệu ({prompt, answer}). Ví dụ 1 luôn là câu hỏi vị trí kiểu
+// "Where is...?" (không có "___"), ví dụ 2 luôn là câu điền từ có sẵn đáp án (có "___").
+function ExamplesPairEditor({ examplesPair, onChange }) {
+  const pair = examplesPair ?? [{ prompt: "", answer: "" }, { prompt: "", answer: "" }];
+  function setEx(i, patch) {
+    const next = pair.map((ex, idx) => (idx === i ? { ...ex, ...patch } : ex));
+    onChange(next);
+  }
+  return (
+    <fieldset className="admin-fieldset">
+      <legend>💡 2 ví dụ mẫu (Examples) — cố định luôn đúng 2 dòng</legend>
+      <label className="admin-mini-field">
+        <span>Ví dụ 1 — câu hỏi vị trí (vd: Where is the tree with purple leaves?)</span>
+        <input
+          className="admin-input"
+          value={pair[0]?.prompt ?? ""}
+          onChange={e => setEx(0, { prompt: e.target.value })}
+          placeholder="Where is...?"
+        />
+      </label>
+      <label className="admin-mini-field">
+        <span>Đáp án ví dụ 1</span>
+        <input
+          className="admin-input"
+          value={pair[0]?.answer ?? ""}
+          onChange={e => setEx(0, { answer: e.target.value })}
+          placeholder="vd: On the island."
+        />
+      </label>
+      <label className="admin-mini-field">
+        <span>Ví dụ 2 — câu điền từ (dùng ___ làm chỗ trống, vd: The ___ is holding some watermelon.)</span>
+        <input
+          className="admin-input"
+          value={pair[1]?.prompt ?? ""}
+          onChange={e => setEx(1, { prompt: e.target.value })}
+          placeholder="The ___ is..."
+        />
+      </label>
+      <label className="admin-mini-field">
+        <span>Đáp án ví dụ 2</span>
+        <input
+          className="admin-input"
+          value={pair[1]?.answer ?? ""}
+          onChange={e => setEx(1, { answer: e.target.value })}
+          placeholder="vd: monkey"
+        />
+      </label>
+    </fieldset>
+  );
+}
+
+function QuestionEditor({ question, index, onChange, onDelete, onDuplicate, wordBank, partPointsActive, seriesId, locked }) {
   const info = typeInfo(question.type);
   return (
     <div className="admin-reading-question-card">
@@ -506,11 +639,19 @@ function QuestionEditor({ question, index, onChange, onDelete, onDuplicate, word
             />
           </label>
         )}
-        <div className="admin-reading-question-actions">
-          <button type="button" className="admin-link-btn" onClick={onDuplicate}>Nhân bản</button>
-          <button type="button" className="admin-link-btn admin-pill-btn-danger" onClick={onDelete}>Xoá</button>
-        </div>
+        {/* locked=true (Movers Part 6) — cấu trúc 6 câu cố định, không cho nhân bản/xoá từng câu
+            (chỉ sửa được nội dung bên trong) — xem PartEditor. */}
+        {!locked && (
+          <div className="admin-reading-question-actions">
+            <button type="button" className="admin-link-btn" onClick={onDuplicate}>Nhân bản</button>
+            <button type="button" className="admin-link-btn admin-pill-btn-danger" onClick={onDelete}>Xoá</button>
+          </div>
+        )}
       </div>
+
+      {question.type === "free-writing" && (
+        <p className="admin-hint">Học sinh sẽ tự viết 1 câu về bức tranh — không cần nhập gì thêm, không chấm điểm đúng/sai.</p>
+      )}
 
       {question.type === "yesno" && (
         <>
@@ -585,11 +726,16 @@ function QuestionEditor({ question, index, onChange, onDelete, onDuplicate, word
 
       {question.type === "short-answer" && (
         <>
-          <ImageUploadField
-            label="Ảnh minh hoạ (tuỳ chọn)"
-            value={question.image}
-            onChange={image => onChange({ image })}
-          />
+          {/* locked=true (Movers Part 1/6) — cả Part dùng CHUNG ảnh minh hoạ ở đầu PartEditor
+              (part.image hoặc part.partImages), không cần ảnh riêng từng câu nữa (yêu cầu người
+              dùng 2026-08-27). */}
+          {!locked && (
+            <ImageUploadField
+              label="Ảnh minh hoạ (tuỳ chọn)"
+              value={question.image}
+              onChange={image => onChange({ image })}
+            />
+          )}
           <ShortAnswerPromptEditor
             value={question.prompt}
             onChange={prompt => onChange({ prompt })}
@@ -779,100 +925,228 @@ function PartEditor({ part, onChange, seriesId }) {
           placeholder="vd: Look and read. Write yes or no."
         />
       </label>
-      <ImageUploadField
-        label="Ảnh minh hoạ chung cho cả Part (tuỳ chọn)"
-        value={part.image}
-        onChange={image => onChange({ image })}
-      />
+      {/* Movers Part 5: tiêu đề truyện nằm NGAY TRÊN ảnh (khớp sách gốc — "Fishing in the lake" in
+          đậm gạch chân ngay trên tranh minh hoạ), nên field ảnh chung render RIÊNG bên trong nhánh
+          movers-part5 dưới đây thay vì ở đây, còn mọi loại Part khác vẫn giữ đúng thứ tự cũ (ảnh
+          ngay sau câu hướng dẫn) — chốt 2026-08-27. */}
+      {part.fixedLayout !== "movers-part5" && part.fixedLayout !== "movers-part1" && (
+        <ImageUploadField
+          label="Ảnh minh hoạ chung cho cả Part (tuỳ chọn)"
+          value={part.image}
+          onChange={image => onChange({ image })}
+        />
+      )}
       {/* Ô nhập điểm chung cho cả Part đã chuyển lên thanh tiêu đề Part (xem admin-part-points-pill
           trong ReadingStudio component chính). */}
 
-      {/* word-bank là TYPE câu hỏi (Part 1/2 — bắt buộc phải có bank để chấm điểm) thì luôn hiện
-          sẵn form soạn, không cho tắt. Còn lại chỉ là ngân hàng từ THAM KHẢO (vd Part 3) — thêm
-          checkbox bật/tắt, tick mới hiện form nhập, chưa tick chỉ là 1 dòng chữ gọn (yêu cầu người
-          dùng 2026-08-26). */}
-      {hasWordBankType ? (
+      {part.fixedLayout === "movers-part1" ? (
         <>
-          <WordBankEditor
-            words={part.wordBank ?? []}
-            onChange={wordBank => onChange({ wordBank })}
-            withImages={!!part.wordBankImages}
-          />
-          <ExampleEditor example={part.example} wordBank={part.wordBank} mode="word-bank" onChange={example => onChange({ example })} />
-        </>
-      ) : (
-        <>
-          <label className="admin-checkbox-row">
-            <input
-              type="checkbox"
-              checked={!!part.hasWordBank}
-              onChange={e => onChange({ hasWordBank: e.target.checked })}
+          <div className="admin-reading-image-pair">
+            <ImageUploadField
+              label="Ảnh minh hoạ 1"
+              value={part.partImages?.[0]}
+              onChange={image => onChange({ partImages: [image, part.partImages?.[1] ?? ""] })}
             />
-            <span>🗂️ Dùng ngân hàng từ tham khảo cho Part này</span>
-          </label>
-          {part.hasWordBank && (
-            <WordBankEditor
-              words={part.wordBank ?? []}
-              onChange={wordBank => onChange({ wordBank })}
-              withImages={!!part.wordBankImages}
+            <ImageUploadField
+              label="Ảnh minh hoạ 2"
+              value={part.partImages?.[1]}
+              onChange={image => onChange({ partImages: [part.partImages?.[0] ?? "", image] })}
             />
-          )}
-        </>
-      )}
-      {/* Chỉ hiện Example dạng multiple-choice khi Part CHỈ CÓ đúng 1 dạng multiple-choice (vd
-          Part 2 Movers/Flyers) — Part vừa gapfill vừa multiple-choice (vd Part 3, đoạn văn điền từ
-          + câu chọn tiêu đề cuối) không có khái niệm "Example" tách riêng, "Example" ở đó chỉ là
-          nhãn của khung ngân hàng từ tham khảo (đã hiện qua WordBankEditor phía trên). */}
-      {hasMultipleChoiceType && !hasWordBankType && availableTypes.length === 1 && (
-        <ExampleEditor example={part.example} mode="multiple-choice" onChange={example => onChange({ example })} />
-      )}
-
-      <div className="admin-reading-question-list">
-        {questions.map((q, i) => (
-          <QuestionEditor
-            key={i}
-            question={q}
-            index={i}
-            onChange={patch => updateQuestion(i, patch)}
-            onDelete={() => deleteQuestion(i)}
-            onDuplicate={() => duplicateQuestion(i)}
-            wordBank={part.wordBank}
-            partPointsActive={part.partPoints != null}
-            seriesId={seriesId}
-          />
-        ))}
-      </div>
-
-      {availableTypes.length === 0 ? (
-        <p className="admin-hint">Dạng câu hỏi của Part này chưa được lập trình xong, sẽ bổ sung sau.</p>
-      ) : availableTypes.length === 1 ? (
-        // Part chỉ có đúng 1 dạng được phép (khung Flyers cố định) — bấm là thêm luôn, không cần
-        // hiện menu chọn dạng nữa (yêu cầu người dùng 2026-08-26: "ko chọn dạng câu hỏi nữa").
-        <button type="button" className="admin-btn-secondary" onClick={() => addQuestion(availableTypes[0].type)}>
-          + Thêm câu hỏi
-        </button>
-      ) : pickerOpen ? (
-        <fieldset className="admin-fieldset">
-          <legend>⚡ Chọn dạng câu hỏi</legend>
-          <div className="studio-action-grid">
-            {availableTypes.map(t => (
-              <button
-                key={t.type}
-                type="button"
-                className="admin-template-tile"
-                onClick={() => addQuestion(t.type)}
-              >
-                <strong>{t.icon} {t.label}</strong>
-                <span>{t.desc}</span>
-              </button>
+          </div>
+          <ExampleEditor example={part.example} mode="plain" onChange={example => onChange({ example })} />
+          <h3 className="admin-reading-group-heading">Questions</h3>
+          <div className="admin-reading-question-list">
+            {questions.map((q, i) => (
+              <QuestionEditor
+                key={i}
+                question={q}
+                index={i}
+                onChange={patch => updateQuestion(i, patch)}
+                seriesId={seriesId}
+                locked
+              />
             ))}
           </div>
-          <button type="button" className="admin-link-btn" onClick={() => setPickerOpen(false)}>Huỷ</button>
-        </fieldset>
+        </>
+      ) : part.fixedLayout === "movers-part6" ? (
+        <>
+          <ExamplesPairEditor examplesPair={part.examplesPair} onChange={examplesPair => onChange({ examplesPair })} />
+          <h3 className="admin-reading-group-heading">Questions</h3>
+          <div className="admin-reading-question-list">
+            {questions.map((q, i) => {
+              const groupLabel =
+                i === 0 ? "Complete the sentences." : i === 2 ? "Answer the questions." : i === 4 ? "Now write two sentences about the picture." : null;
+              return (
+                <div key={i}>
+                  {groupLabel && <p className="admin-reading-group-heading admin-reading-group-heading-sub">{groupLabel}</p>}
+                  <QuestionEditor
+                    question={q}
+                    index={i}
+                    onChange={patch => updateQuestion(i, patch)}
+                    seriesId={seriesId}
+                    locked
+                  />
+                </div>
+              );
+            })}
+          </div>
+        </>
+      ) : part.fixedLayout === "movers-part5" ? (
+        <>
+          <ImageUploadField
+            label="Ảnh minh hoạ (tuỳ chọn)"
+            value={part.image}
+            onChange={image => onChange({ image })}
+          />
+          <label className="admin-mini-field">
+            <span>Đoạn truyện 1 (hiện trước "Examples")</span>
+            <textarea
+              className="admin-input admin-textarea"
+              rows={4}
+              value={part.storyParagraphs?.[0] ?? ""}
+              onChange={e => {
+                const next = [...(part.storyParagraphs ?? ["", "", ""])];
+                next[0] = e.target.value;
+                onChange({ storyParagraphs: next });
+              }}
+              placeholder="vd: Sally and her brother, Peter, live next to a lake..."
+            />
+          </label>
+          <ExamplesPairEditor examplesPair={part.examplesPair} onChange={examplesPair => onChange({ examplesPair })} />
+          <h3 className="admin-reading-group-heading">Questions</h3>
+          <div className="admin-reading-question-list">
+            {questions.map((q, i) => {
+              const paragraphIndex = i === 2 ? 1 : i === 5 ? 2 : null;
+              return (
+                <div key={i}>
+                  {paragraphIndex != null && (
+                    <div className="admin-reading-story-break">
+                      <ImageUploadField
+                        label={`Ảnh minh hoạ đoạn truyện ${paragraphIndex + 1} (tuỳ chọn)`}
+                        value={part.storyImages?.[paragraphIndex]}
+                        onChange={image => {
+                          const next = [...(part.storyImages ?? ["", "", ""])];
+                          next[paragraphIndex] = image;
+                          onChange({ storyImages: next });
+                        }}
+                      />
+                      <label className="admin-mini-field">
+                        <span>Đoạn truyện {paragraphIndex + 1} (hiện trước câu {i + 1})</span>
+                        <textarea
+                          className="admin-input admin-textarea"
+                          rows={4}
+                          value={part.storyParagraphs?.[paragraphIndex] ?? ""}
+                          onChange={e => {
+                            const next = [...(part.storyParagraphs ?? ["", "", ""])];
+                            next[paragraphIndex] = e.target.value;
+                            onChange({ storyParagraphs: next });
+                          }}
+                        />
+                      </label>
+                    </div>
+                  )}
+                  <QuestionEditor
+                    question={q}
+                    index={i}
+                    onChange={patch => updateQuestion(i, patch)}
+                    seriesId={seriesId}
+                    locked
+                  />
+                </div>
+              );
+            })}
+          </div>
+        </>
       ) : (
-        <button type="button" className="admin-btn-secondary" onClick={() => setPickerOpen(true)}>
-          + Thêm câu hỏi
-        </button>
+        <>
+          {/* word-bank là TYPE câu hỏi (Part 1/2 — bắt buộc phải có bank để chấm điểm) thì luôn hiện
+              sẵn form soạn, không cho tắt. Còn lại chỉ là ngân hàng từ THAM KHẢO (vd Part 3) — thêm
+              checkbox bật/tắt, tick mới hiện form nhập, chưa tick chỉ là 1 dòng chữ gọn (yêu cầu người
+              dùng 2026-08-26). */}
+          {hasWordBankType ? (
+            <>
+              <WordBankEditor
+                words={part.wordBank ?? []}
+                onChange={wordBank => onChange({ wordBank })}
+                withImages={!!part.wordBankImages}
+              />
+              <ExampleEditor example={part.example} wordBank={part.wordBank} mode="word-bank" onChange={example => onChange({ example })} />
+            </>
+          ) : (
+            <>
+              <label className="admin-checkbox-row">
+                <input
+                  type="checkbox"
+                  checked={!!part.hasWordBank}
+                  onChange={e => onChange({ hasWordBank: e.target.checked })}
+                />
+                <span>🗂️ Dùng ngân hàng từ tham khảo cho Part này</span>
+              </label>
+              {part.hasWordBank && (
+                <WordBankEditor
+                  words={part.wordBank ?? []}
+                  onChange={wordBank => onChange({ wordBank })}
+                  withImages={!!part.wordBankImages}
+                />
+              )}
+            </>
+          )}
+          {/* Chỉ hiện Example dạng multiple-choice khi Part CHỈ CÓ đúng 1 dạng multiple-choice (vd
+              Part 2 Movers/Flyers) — Part vừa gapfill vừa multiple-choice (vd Part 3, đoạn văn điền từ
+              + câu chọn tiêu đề cuối) không có khái niệm "Example" tách riêng, "Example" ở đó chỉ là
+              nhãn của khung ngân hàng từ tham khảo (đã hiện qua WordBankEditor phía trên). */}
+          {hasMultipleChoiceType && !hasWordBankType && availableTypes.length === 1 && (
+            <ExampleEditor example={part.example} mode="multiple-choice" onChange={example => onChange({ example })} />
+          )}
+
+          <div className="admin-reading-question-list">
+            {questions.map((q, i) => (
+              <QuestionEditor
+                key={i}
+                question={q}
+                index={i}
+                onChange={patch => updateQuestion(i, patch)}
+                onDelete={() => deleteQuestion(i)}
+                onDuplicate={() => duplicateQuestion(i)}
+                wordBank={part.wordBank}
+                partPointsActive={part.partPoints != null}
+                seriesId={seriesId}
+              />
+            ))}
+          </div>
+
+          {availableTypes.length === 0 ? (
+            <p className="admin-hint">Dạng câu hỏi của Part này chưa được lập trình xong, sẽ bổ sung sau.</p>
+          ) : availableTypes.length === 1 ? (
+            // Part chỉ có đúng 1 dạng được phép (khung Flyers cố định) — bấm là thêm luôn, không cần
+            // hiện menu chọn dạng nữa (yêu cầu người dùng 2026-08-26: "ko chọn dạng câu hỏi nữa").
+            <button type="button" className="admin-btn-secondary" onClick={() => addQuestion(availableTypes[0].type)}>
+              + Thêm câu hỏi
+            </button>
+          ) : pickerOpen ? (
+            <fieldset className="admin-fieldset">
+              <legend>⚡ Chọn dạng câu hỏi</legend>
+              <div className="studio-action-grid">
+                {availableTypes.map(t => (
+                  <button
+                    key={t.type}
+                    type="button"
+                    className="admin-template-tile"
+                    onClick={() => addQuestion(t.type)}
+                  >
+                    <strong>{t.icon} {t.label}</strong>
+                    <span>{t.desc}</span>
+                  </button>
+                ))}
+              </div>
+              <button type="button" className="admin-link-btn" onClick={() => setPickerOpen(false)}>Huỷ</button>
+            </fieldset>
+          ) : (
+            <button type="button" className="admin-btn-secondary" onClick={() => setPickerOpen(true)}>
+              + Thêm câu hỏi
+            </button>
+          )}
+        </>
       )}
     </div>
   );
@@ -890,8 +1164,10 @@ function testStats(parts) {
       totalQuestions += q.type === "gapfill" ? (q.answers?.length ?? 0) : 1;
     }
     // part.partPoints (nếu có) là tổng điểm CỐ ĐỊNH cho cả Part, bỏ qua điểm riêng từng câu —
-    // khớp cách buildResults() ở ReadingRunner.jsx chấm điểm (xem effectiveQuestionPoints()).
-    totalPoints += part.partPoints != null ? part.partPoints : questions.reduce((sum, q) => sum + questionPoints(q), 0);
+    // khớp cách buildResults() ở ReadingRunner.jsx chấm điểm (xem effectiveQuestionPoints()). Câu
+    // "free-writing" (viết tự do, không chấm điểm) luôn loại khỏi tổng điểm.
+    const gradedQuestions = questions.filter(q => q.type !== "free-writing");
+    totalPoints += part.partPoints != null ? part.partPoints : gradedQuestions.reduce((sum, q) => sum + questionPoints(q), 0);
   }
   return { totalParts: parts.length, totalQuestions, totalPoints };
 }
@@ -1026,6 +1302,16 @@ function QuestionPreview({ question, qNumber }) {
       </div>
     );
   }
+  if (question.type === "free-writing") {
+    return (
+      <div className="reading-question reading-question-preview">
+        <QuestionBadge qNumber={qNumber} />
+        <div className="reading-question-body">
+          <div className="reading-freewrite-input reading-freewrite-preview" />
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="reading-question reading-question-preview">
       <QuestionBadge qNumber={qNumber} />
@@ -1052,8 +1338,21 @@ function QuestionPreview({ question, qNumber }) {
 // Xem trước TOÀN BỘ Test (mọi Part, không chỉ Part đang mở soạn) — cuộn riêng trong panel này,
 // để giáo viên xem được cả bài đang lên hình ra sao trong lúc soạn, giống hệt thứ tự học sinh
 // sẽ thấy (numberOffset cộng dồn qua từng Part y hệt ReadingRunner.jsx).
-function TestPreview({ parts, stats }) {
+function TestPreview({ parts, stats, activePartIndex }) {
   let numberOffset = 0;
+  const [showAll, setShowAll] = useState(true);
+  // Xem theo Part đang soạn chỉ có ý nghĩa khi thực sự có 1 Part đang mở — nếu không có (đóng hết)
+  // thì vẫn hiện toàn bộ, không để panel trống khó hiểu.
+  const canFilterByActive = activePartIndex !== null && activePartIndex !== undefined && !!parts[activePartIndex];
+  const visibleParts = showAll || !canFilterByActive ? parts : [parts[activePartIndex]];
+  const partOffsets = [];
+  {
+    let acc = 0;
+    for (const p of parts) {
+      partOffsets.push(acc);
+      acc += p.questions?.length ?? 0;
+    }
+  }
 
   return (
     <div className="admin-reading-preview-panel">
@@ -1064,35 +1363,102 @@ function TestPreview({ parts, stats }) {
         <span>Tổng điểm: <strong>{stats.totalPoints}</strong></span>
       </div>
 
-      <h3>Xem trước toàn bộ bài</h3>
-      {parts.length === 0 ? (
+      <div className="admin-reading-preview-head">
+        <h3>Xem trước bài</h3>
+        <div className="admin-reading-preview-mode-toggle">
+          <button
+            type="button"
+            className={`admin-pill-btn${showAll ? " is-active" : ""}`}
+            onClick={() => setShowAll(true)}
+          >
+            Toàn bộ bài
+          </button>
+          <button
+            type="button"
+            className={`admin-pill-btn${!showAll ? " is-active" : ""}`}
+            onClick={() => setShowAll(false)}
+            disabled={!canFilterByActive}
+            title={canFilterByActive ? undefined : "Mở 1 Part để xem riêng Part đó"}
+          >
+            Part đang soạn
+          </button>
+        </div>
+      </div>
+      {visibleParts.length === 0 ? (
         <p className="admin-muted-text">Chưa có Part nào để xem trước.</p>
       ) : (
-        parts.map((part, pi) => {
-          const partOffset = numberOffset;
-          numberOffset += part.questions?.length ?? 0;
+        <div className="admin-reading-preview-parts">
+        {visibleParts.map((part) => {
+          const pi = parts.indexOf(part);
+          const partOffset = partOffsets[pi] ?? 0;
           return (
             <div className="reading-part reading-part-preview" key={pi}>
               <div className="reading-part-head">
                 <h2>{part.title || `Part ${pi + 1}`}</h2>
                 {part.instruction && <p className="reading-part-instruction">{part.instruction}</p>}
-                {part.image && <img src={part.image} alt="" className="reading-part-img" />}
+                {part.fixedLayout !== "movers-part1" && part.image && (
+                  <img src={part.image} alt="" className="reading-part-img" />
+                )}
                 {part.caption && <p className="reading-part-caption">{part.caption}</p>}
               </div>
+              {part.fixedLayout === "movers-part1" && (part.partImages?.[0] || part.partImages?.[1]) && (
+                <div className="reading-part-images-pair">
+                  {part.partImages?.[0] && <img src={part.partImages[0]} alt="" />}
+                  {part.partImages?.[1] && <img src={part.partImages[1]} alt="" />}
+                </div>
+              )}
               <WordBankBox words={part.wordBank} />
-              <ExampleRow example={part.example} mode={part.allowedTypes?.includes("multiple-choice") ? "multiple-choice" : "word-bank"} />
+              {part.fixedLayout === "movers-part5" && (
+                <StoryParagraph text={part.storyParagraphs?.[0]} />
+              )}
+              {part.fixedLayout === "movers-part6" || part.fixedLayout === "movers-part5" ? (
+                <ExamplesPairRow examplesPair={part.examplesPair} />
+              ) : (
+                <ExampleRow
+                  example={part.example}
+                  mode={
+                    part.fixedLayout === "movers-part1"
+                      ? "table-row"
+                      : part.allowedTypes?.includes("multiple-choice")
+                        ? "multiple-choice"
+                        : "word-bank"
+                  }
+                />
+              )}
+              {(part.fixedLayout === "movers-part6" || part.fixedLayout === "movers-part5" || part.fixedLayout === "movers-part1") && (
+                <h3 className="reading-subheading">Questions</h3>
+              )}
               {!part.questions?.length ? (
                 <p className="admin-muted-text">Part này chưa có câu hỏi.</p>
-              ) : (
+              ) : part.fixedLayout === "movers-part1" ? (
                 <div className="reading-question-list">
                   {part.questions.map((q, i) => (
-                    <QuestionPreview key={i} question={q} qNumber={partOffset + i + 1} />
+                    <AnswerTableRow key={i} label={partOffset + i + 1} text={q.prompt} value={q.answer} readOnly />
                   ))}
+                </div>
+              ) : (
+                <div className="reading-question-list">
+                  {part.questions.map((q, i) => {
+                    const groupLabel =
+                      part.fixedLayout === "movers-part6" &&
+                      (i === 0 ? "Complete the sentences." : i === 2 ? "Answer the questions." : i === 4 ? "Now write two sentences about the picture." : null);
+                    const storyParagraphIndex =
+                      part.fixedLayout === "movers-part5" ? (i === 2 ? 1 : i === 5 ? 2 : null) : null;
+                    const storyBreak = storyParagraphIndex != null ? part.storyParagraphs?.[storyParagraphIndex] : null;
+                    return (
+                      <div className="reading-question-group" key={i}>
+                        {groupLabel && <h4 className="reading-group-label">{groupLabel}</h4>}
+                        {storyBreak && <StoryParagraph text={storyBreak} image={part.storyImages?.[storyParagraphIndex]} />}
+                        <QuestionPreview question={q} qNumber={partOffset + i + 1} />
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
           );
-        })
+        })}
+        </div>
       )}
     </div>
   );
@@ -1145,8 +1511,41 @@ export default function ReadingStudio({ accent, seriesId, title, onTitleChange, 
     function wordBankImagesMismatch(p, i) {
       return !!p.wordBankImages !== !!templates[i]?.wordBankImages;
     }
+    // 1 câu được coi là "rỗng" nếu chưa có nội dung thật ở BẤT KỲ field nào tuỳ loại — dùng để vá
+    // an toàn cả trường hợp Part đã lỡ có sẵn 1-2 câu trống trơn (vd bấm "+ Thêm câu hỏi" thử rồi
+    // bỏ đó) từ TRƯỚC KHI Part đó được gắn fixedLayout, không chỉ trường hợp questions:[] hoàn toàn
+    // (phát hiện thực tế 2026-08-27: Part 5 của Test đã tạo trước đó dính đúng ca này).
+    function isBlankQuestion(q) {
+      if (!q) return true;
+      switch (q.type) {
+        case "yesno": return !q.text;
+        case "gapfill": return !q.text && !(q.answers?.length);
+        case "short-answer": return !q.prompt && !q.answer;
+        case "multiple-choice": return !q.text && !(q.options ?? []).some(Boolean);
+        case "word-bank": return !q.text && !q.answer;
+        case "word-scramble": return !q.answer;
+        case "free-writing": return true;
+        default: return true;
+      }
+    }
+    // Vá riêng cho các Part có `fixedLayout` (Part 5/6 Movers) mới thêm sau — Test cũ đã lưu Part
+    // rỗng/chưa có nội dung thật (chưa có fixedLayout/examplesPair/câu cố định) từ trước khi format
+    // đó được lập trình xong. Chỉ vá khi Part CHƯA CÓ NỘI DUNG THẬT để không đụng vào nội dung giáo
+    // viên đã lỡ nhập bằng menu tự do trước đó.
+    function needsFixedLayout(p, i) {
+      return (
+        !!templates[i]?.fixedLayout &&
+        p.fixedLayout !== templates[i].fixedLayout &&
+        (p.questions ?? []).every(isBlankQuestion)
+      );
+    }
+
     const needsPatch = parts.some(
-      (p, i) => needsField(p, i, "allowedTypes") || needsField(p, i, "hasWordBank") || wordBankImagesMismatch(p, i)
+      (p, i) =>
+        needsField(p, i, "allowedTypes") ||
+        needsField(p, i, "hasWordBank") ||
+        wordBankImagesMismatch(p, i) ||
+        needsFixedLayout(p, i)
     );
     if (needsPatch) {
       onPartsChange(
@@ -1155,6 +1554,15 @@ export default function ReadingStudio({ accent, seriesId, title, onTitleChange, 
           if (needsField(p, i, "allowedTypes")) patch.allowedTypes = templates[i].allowedTypes;
           if (needsField(p, i, "hasWordBank")) patch.hasWordBank = templates[i].hasWordBank;
           if (wordBankImagesMismatch(p, i)) patch.wordBankImages = !!templates[i]?.wordBankImages;
+          if (needsFixedLayout(p, i)) {
+            const seeded = blankPartsFromTemplates([templates[i]])[0];
+            patch.fixedLayout = seeded.fixedLayout;
+            patch.questions = seeded.questions;
+            patch.examplesPair = seeded.examplesPair;
+            patch.storyParagraphs = seeded.storyParagraphs;
+            patch.storyImages = seeded.storyImages;
+            patch.partImages = seeded.partImages;
+          }
           return Object.keys(patch).length ? { ...p, ...patch } : p;
         })
       );
@@ -1257,7 +1665,7 @@ export default function ReadingStudio({ accent, seriesId, title, onTitleChange, 
           )}
         </div>
 
-        <TestPreview parts={parts} stats={testStats(parts)} />
+        <TestPreview parts={parts} stats={testStats(parts)} activePartIndex={openPartIndex} />
       </div>
     </div>
   );

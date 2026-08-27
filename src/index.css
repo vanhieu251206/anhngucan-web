@@ -1054,10 +1054,17 @@ button { font-family: inherit; }
 }
 .reading-part-head h2 { font-family: var(--font-display); margin: 0 0 4px; font-size: 1.2rem; }
 .reading-part-instruction {
+  /* flex-basis 100% ép xuống HÀNG RIÊNG dưới tên Part, không nằm chung dòng với h2 dù đủ chỗ ngang
+     (yêu cầu người dùng 2026-08-27) — trước đó flex-wrap chỉ xuống dòng khi hết chỗ, có Part tên
+     ngắn (vd "Part 1") khiến câu hướng dẫn bị đẩy lên nằm cùng hàng với tên Part. */
+  flex: 1 1 100%;
   color: var(--color-primary-dark); font-style: italic; margin: 0; font-weight: 600;
 }
 .reading-part-img { flex: 1 1 100%; max-width: 100%; max-height: 260px; object-fit: contain; border-radius: 14px; margin-top: 4px; }
 .reading-part-caption { flex: 1 1 100%; margin: 2px 0 0; color: var(--color-text); font-weight: 600; }
+/* Movers Part 1 — 2 ảnh minh hoạ chung đặt CẠNH NHAU (khác mọi Part khác chỉ 1 ảnh) */
+.reading-part-images-pair { display: flex; gap: 14px; flex-wrap: wrap; }
+.reading-part-images-pair img { flex: 1 1 220px; min-width: 0; max-height: 260px; object-fit: contain; border-radius: 14px; }
 
 .reading-example-row { background: #fff8ec; border-style: dashed; }
 .reading-example-badge {
@@ -1065,6 +1072,50 @@ button { font-family: inherit; }
   font-family: var(--font-display); text-transform: uppercase; letter-spacing: 0.03em;
 }
 .reading-example-answer { font-weight: 700; color: var(--color-primary-dark); text-decoration: underline; }
+
+/* Movers Part 1 — vẫn thẻ ".reading-question" y hệt các Part khác (đồng bộ giao diện cả bài, xem
+   AnswerTableRow trong ReadingRunner.jsx), chỉ chia 2 cột CỐ ĐỊNH bên trong thẻ để chỗ trống điền
+   từ thẳng cột giữa các câu — chốt 2026-08-27. */
+.reading-answer-row {
+  display: grid; grid-template-columns: 1fr 170px; column-gap: 16px; align-items: center;
+}
+.reading-answer-row-text { margin: 0; }
+.reading-answer-row-answer { border-bottom: 2px dashed #d8cdb8; padding-bottom: 4px; min-height: 1.4em; }
+.reading-answer-row-value { font-weight: 700; color: var(--color-primary-dark); font-family: var(--font-display); }
+.reading-answer-input {
+  width: 100%; border: none; background: transparent; font-family: inherit; font-size: 1rem;
+  padding: 0; color: var(--color-ink);
+}
+.reading-answer-input:focus { outline: none; }
+@media (max-width: 560px) {
+  .reading-answer-row { grid-template-columns: 1fr; }
+  .reading-answer-row-answer { border-bottom-style: dashed; }
+}
+
+/* Movers Part 6 — 2 ví dụ mẫu cố định (ExamplesPairRow) + nhãn nhóm cố định ("Complete the
+   sentences." v.v — xem reading-group-label) chèn giữa danh sách câu hỏi (ReadingRunner.jsx +
+   ReadingStudio.jsx). .reading-subheading dùng cho "Examples"/"Questions" (nhãn to, khớp sách
+   gốc), .reading-group-label nhỏ hơn cho 3 nhóm con bên trong "Questions". */
+.reading-subheading {
+  font-family: var(--font-display); font-size: 1.05rem; margin: 4px 0 -6px; color: var(--color-ink);
+}
+.reading-examples-pair {
+  background: #fff8ec; border: 2px dashed var(--color-primary); border-radius: 14px;
+  padding: 14px 18px; display: flex; flex-direction: column; gap: 8px;
+}
+.reading-examples-pair .reading-subheading { margin: 0 0 2px; }
+.reading-example-line { margin: 0; font-size: 1.02rem; line-height: 1.5; }
+.reading-group-label {
+  font-family: var(--font-display); font-size: 0.95rem; margin: 4px 0 -6px; color: var(--color-primary-dark);
+}
+/* Movers Part 5 — từng đoạn truyện xen giữa câu hỏi, xem StoryParagraph trong ReadingRunner.jsx. */
+.reading-story-text { margin: 0; line-height: 1.6; white-space: pre-line; }
+.reading-freewrite-input {
+  width: 100%; border: 2px solid #ece6da; border-radius: 10px; background: #fff;
+  font-family: inherit; font-size: 1rem; padding: 10px 12px; resize: vertical;
+}
+.reading-freewrite-input:focus { outline: none; border-color: var(--color-primary); }
+.reading-freewrite-preview { height: 44px; background: repeating-linear-gradient(#fdf6e8, #fdf6e8 21px, #e6dfd0 22px); }
 
 .reading-wordbank-box {
   display: flex; flex-wrap: wrap; gap: 10px; padding: 14px 16px; margin: 14px 0;
@@ -1081,9 +1132,16 @@ button { font-family: inherit; }
   display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 8px 12px 10px;
   border-radius: 14px;
 }
-.reading-wordbank-chip-img { width: 64px; height: 64px; object-fit: cover; border-radius: 10px; }
+/* To hơn hẳn 64px cũ (yêu cầu người dùng 2026-08-27) — ảnh minh hoạ dạng thẻ (Flyers Part 1, Movers
+   Part 3) thường đã có sẵn chữ vẽ trong chính ảnh, cần đủ to để đọc được chữ đó, không chỉ để nhận
+   diện hình. */
+.reading-wordbank-chip-img { width: 128px; height: 108px; object-fit: cover; border-radius: 10px; }
 
 .reading-question-list { display: flex; flex-direction: column; gap: 16px; }
+/* Bọc groupLabel/storyBreak (đoạn truyện Part 5 Movers)/câu hỏi trong 1 nhóm — thiếu khoảng cách
+   trong chính nhóm này khiến đoạn truyện dính sát vào câu hỏi ngay sau nó (khoảng cách 16px của
+   .reading-question-list chỉ tách được GIỮA các nhóm, không tách được các phần TRONG 1 nhóm). */
+.reading-question-group { display: flex; flex-direction: column; gap: 14px; }
 /* Mỗi câu là 1 THẺ RIÊNG (nền tương phản + viền + đổ bóng nhẹ khi hover/focus) — trước đây chỉ là
    hàng chữ trần không có ranh giới, khó phân biệt từng câu (yêu cầu người dùng 2026-08-26: "làm
    giao diện bài này thật đẹp"). */
@@ -1434,6 +1492,14 @@ button { font-family: inherit; }
 }
 .review-badge-ok { color: var(--color-green); background: #e8f8ee; }
 .review-badge-hint { color: #b8860b; background: #fff6df; }
+/* Câu "viết tự do" (free-writing) không có đúng/sai — huy hiệu trung tính riêng + viền xám thay vì
+   xanh/vàng như các câu có chấm điểm (xem ReadingReportView.jsx). */
+.review-badge-neutral {
+  font-size: 0.78rem; font-weight: 700; padding: 3px 10px; border-radius: var(--radius-pill);
+  white-space: nowrap; color: var(--color-muted); background: #f1ebdd;
+}
+.review-item.is-ungraded { border-left-color: var(--color-muted, #7a756d); }
+.review-item.is-ungraded .review-item-status { background: var(--color-muted, #7a756d); }
 
 /* Quá trình làm bài (nhiều lần thử) — nút gấp/mở + danh sách từng lần thử dạng timeline dọc, chỉ
    hiện khi câu đó có >1 lần thử (xem `history` trong recordAttempt() ở SceneRunner.jsx). */
@@ -2412,6 +2478,16 @@ button { font-family: inherit; }
   display: flex; flex-wrap: wrap; gap: 10px 18px; background: var(--admin-card-bg);
   border: 1px solid var(--admin-border); border-radius: 10px; padding: 12px 14px; font-size: 0.85rem;
 }
+.admin-reading-preview-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: 26px; margin-bottom: 14px; }
+.admin-reading-preview-head h3 { margin: 0; }
+.admin-reading-preview-parts { display: flex; flex-direction: column; gap: 20px; }
+.admin-reading-preview-mode-toggle { display: flex; gap: 8px; }
+.admin-reading-preview-mode-toggle .admin-pill-btn { padding: 6px 14px; font-size: 0.78rem; }
+.admin-reading-preview-mode-toggle .admin-pill-btn.is-active {
+  background: var(--accent, var(--admin-accent)); border-color: var(--accent, var(--admin-accent)); color: #fff;
+}
+.admin-reading-preview-mode-toggle .admin-pill-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.admin-reading-preview-mode-toggle .admin-pill-btn:disabled:hover { transform: none; box-shadow: var(--admin-shadow-sm); }
 .reading-part-preview { background: var(--admin-card-bg); border: 1px solid var(--admin-border); border-radius: 12px; padding: 18px; box-shadow: var(--admin-shadow-sm); }
 .reading-question-preview .reading-yesno-btn { cursor: default; }
 .reading-scramble-tile-preview { cursor: default; opacity: 0.9; display: inline-flex; align-items: center; justify-content: center; }
@@ -2435,6 +2511,17 @@ button { font-family: inherit; }
 .admin-gap-insert-btn { align-self: flex-start; margin-top: 8px; padding: 7px 14px; font-size: 0.82rem; }
 
 .admin-reading-question-list { display: flex; flex-direction: column; gap: 14px; }
+/* Nhãn nhóm cố định của Movers Part 6 trong CMS (khớp reading-subheading/reading-group-label ở
+   màn học sinh) — chỉ để định hướng giáo viên, không phải trường dữ liệu. */
+.admin-reading-group-heading { font-family: var(--font-display); font-size: 0.95rem; margin: 0 0 8px; color: var(--admin-text); }
+.admin-reading-group-heading-sub { font-size: 0.85rem; color: var(--admin-accent); margin-top: 10px; }
+.admin-reading-story-break { display: flex; flex-direction: column; gap: 10px; margin-bottom: 10px; }
+/* Movers Part 1 — 2 ảnh minh hoạ chung đặt CẠNH NHAU (khác Part 6 chỉ 1 ảnh) */
+.admin-reading-image-pair { display: flex; gap: 14px; flex-wrap: wrap; }
+.admin-reading-image-pair > * { flex: 1 1 220px; min-width: 0; }
+@media (max-width: 640px) {
+  .admin-reading-image-pair { flex-direction: column; }
+}
 .admin-reading-question-card {
   border: 1px solid var(--admin-border); border-radius: 12px; padding: 14px 16px;
   display: flex; flex-direction: column; gap: 12px; background: var(--admin-sidebar-active-bg);

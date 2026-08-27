@@ -16,6 +16,7 @@ export const READING_TYPE_META = {
   "word-scramble": { label: "Xáo chữ cái", icon: "🔤" },
   "multiple-choice": { label: "Chọn đáp án", icon: "🔘" },
   "word-bank": { label: "Chọn từ", icon: "🗂️" },
+  "free-writing": { label: "Viết tự do", icon: "✍️" },
 };
 
 // items: mảng do buildReadingResults() ở ReadingRunner.jsx tạo ra — mỗi phần tử đã tính sẵn
@@ -24,11 +25,14 @@ export const READING_TYPE_META = {
 export default function ReadingReportView({ items, earnedPoints, totalPoints, elapsedMs, onDone }) {
   const [filter, setFilter] = useState("all"); // all | wrong
 
-  const correctCount = items.filter(it => it.isCorrect).length;
-  const reviewCount = items.length - correctCount;
+  // Câu "viết tự do" (ungraded, xem FreeWritingQuestion trong ReadingRunner.jsx) không có đúng/sai
+  // — loại khỏi thống kê Đúng/Cần luyện thêm, vẫn hiện trong danh sách "Tất cả" để giáo viên đọc.
+  const gradedItems = items.filter(it => !it.ungraded);
+  const correctCount = gradedItems.filter(it => it.isCorrect).length;
+  const reviewCount = gradedItems.length - correctCount;
   const pct = totalPoints > 0 ? Math.round((earnedPoints / totalPoints) * 100) : 0;
   const tier = reviewTier(pct);
-  const visibleItems = filter === "wrong" ? items.filter(it => !it.isCorrect) : items;
+  const visibleItems = filter === "wrong" ? items.filter(it => !it.ungraded && !it.isCorrect) : items;
 
   return (
     <div className={`sentence-box review-screen ${tier.className}`}>
@@ -98,6 +102,20 @@ export default function ReadingReportView({ items, earnedPoints, totalPoints, el
               {visibleItems.map(item => {
                 const meta = READING_TYPE_META[item.question.type] ?? { label: item.question.type, icon: "❓" };
                 const questionLabel = item.question.text || item.question.prompt?.replace("___", "____") || "";
+                if (item.ungraded) {
+                  return (
+                    <div className="review-item is-ungraded" key={item.qNumber}>
+                      <div className="review-item-status" aria-hidden="true">✍️</div>
+                      <div className="review-item-body">
+                        <div className="review-item-head">
+                          <span className="review-item-type">{meta.icon} Câu {item.qNumber} · {meta.label}</span>
+                          <span className="review-badge-neutral">Cần giáo viên chấm</span>
+                        </div>
+                        <div className="review-item-said">Bé viết: "{item.studentAnswer}"</div>
+                      </div>
+                    </div>
+                  );
+                }
                 return (
                   <div className={`review-item${item.isCorrect ? " is-correct" : " is-hint"}`} key={item.qNumber}>
                     <div className="review-item-status" aria-hidden="true">{item.isCorrect ? "✓" : "!"}</div>
