@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from "react";
 import ReadingReportView from "./ReadingReportView.jsx";
+import { incrementAttempt } from "../lib/attempts.js";
 
 // Runner học sinh cho Reading & Writing — 1 TRANG SCROLL DÀI duy nhất cho cả Test (mọi Part nối
 // tiếp nhau), có sidebar trái "Danh sách câu hỏi" để nhảy nhanh đến từng câu, giống bố cục các
@@ -324,6 +325,91 @@ export function WordBankBox({ words }) {
   );
 }
 
+// Khung ngân hàng đáp án ĐẦY ĐỦ CÂU, đánh chữ A-H (Flyers Part 2) — khác WordBankBox (Part 1, chip
+// từ ngắn nằm ngang): đây là danh sách DỌC, mỗi dòng 1 câu trả lời đầy đủ kèm chữ cái, khớp đúng
+// khung "A/B/C.../H" trong sách gốc. Chữ cái tính theo VỊ TRÍ trong mảng (không lưu riêng).
+export function LetteredAnswerBox({ items }) {
+  if (!items?.length) return null;
+  return (
+    <div className="reading-letterbank-box">
+      {items.map((it, i) => (
+        <div className="reading-letterbank-row" key={i}>
+          <span className="reading-letterbank-letter">{optionLetter(i)}</span>
+          <span className="reading-letterbank-text">{bankLabel(it) || <em>(chưa nhập)</em>}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Dropdown TỰ DỰNG (không dùng <select> mặc định trình duyệt) — bấm vào ô hiện tại thì danh sách
+// đáp án xổ ra NGAY BÊN DƯỚI (đẩy nội dung phía sau xuống, không phải popup nổi của trình duyệt),
+// chọn xong thu gọn lại chỉ còn đáp án đã chọn (yêu cầu người dùng 2026-08-31, thay cho <select>
+// mặc định vốn mở popup theo kiểu riêng của từng hệ điều hành/trình duyệt).
+function LetterDropdown({ value, onChange, wordBank }) {
+  const [open, setOpen] = useState(false);
+  const selectedIndex = (wordBank ?? []).findIndex(w => bankLabel(w) === value);
+  return (
+    <span className="reading-letter-dropdown">
+      <button
+        type="button"
+        className={`reading-letter-dropdown-trigger${open ? " is-open" : ""}`}
+        onClick={() => setOpen(o => !o)}
+      >
+        {selectedIndex >= 0 ? (
+          <>
+            <span className="reading-letterbank-letter">{optionLetter(selectedIndex)}</span>
+            {value}
+          </>
+        ) : (
+          <span className="reading-letter-dropdown-placeholder">— Chọn đáp án —</span>
+        )}
+        <span className="reading-letter-dropdown-caret">{open ? "▲" : "▼"}</span>
+      </button>
+      {open && (
+        <div className="reading-letter-dropdown-list">
+          {(wordBank ?? []).map((w, i) => (
+            <button
+              type="button"
+              key={i}
+              className={`reading-letter-dropdown-option${bankLabel(w) === value ? " is-selected" : ""}`}
+              onClick={() => {
+                onChange(bankLabel(w));
+                setOpen(false);
+              }}
+            >
+              <span className="reading-letterbank-letter">{optionLetter(i)}</span>
+              {bankLabel(w) || <em>(chưa nhập)</em>}
+            </button>
+          ))}
+        </div>
+      )}
+    </span>
+  );
+}
+
+// 1 câu hỏi Part 2 Flyers — hiện câu hỏi rồi CHỌN 1 đáp án trong ngân hàng chung qua LetterDropdown
+// (bấm vào ô thì cả 8 đáp án xổ ra NGAY BÊN DƯỚI, chọn xong thu gọn lại còn đúng đáp án đã chọn) —
+// KHÔNG hiện tên người hỏi/người trả lời nữa (yêu cầu người dùng 2026-08-31). readOnly dùng cho
+// dòng Example (đáp án đã có sẵn, chỉ hiện chữ, không chọn được).
+export function ConversationSelectRow({ askerText, value, onChange, wordBank, readOnly, badge, id }) {
+  return (
+    <div className="reading-question" id={id}>
+      {badge}
+      <div className="reading-question-body">
+        <p className="reading-question-text">{askerText}</p>
+        <div className="reading-conversation-line">
+          {readOnly ? (
+            <span className="reading-answer-row-value">{value}</span>
+          ) : (
+            <LetterDropdown value={value} onChange={onChange} wordBank={wordBank} />
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Dòng "Example" mẫu trước các câu hỏi thật — chỉ minh hoạ cách làm, KHÔNG tính điểm, KHÔNG tương
 // tác được (khớp sách gốc luôn có sẵn 1 ví dụ đã điền đáp án). Dùng cho type word-bank.
 // mode="multiple-choice" (Movers Part 2...) hiện luôn 3 đáp án, đáp án đúng khoanh sẵn — khớp cách
@@ -441,17 +527,17 @@ export function StoryParagraph({ text, image }) {
 
 // Câu viết tự do — Movers Part 6 câu 5-6 ("Now write two sentences about the picture."), KHÔNG có
 // đáp án đúng/sai, chỉ ghi lại nội dung học sinh viết để giáo viên đọc lại (xem ReadingReportView.jsx).
-function FreeWritingQuestion({ question, qNumber, value, onChange }) {
+function FreeWritingQuestion({ question, qNumber, value, onChange, rows = 2, placeholder = "Viết 1 câu về bức tranh..." }) {
   return (
     <div className="reading-question" id={`rq-${qNumber}`}>
       <QuestionBadge qNumber={qNumber} />
       <div className="reading-question-body">
         <textarea
           className="reading-freewrite-input"
-          rows={2}
+          rows={rows}
           value={value ?? ""}
           onChange={e => onChange(e.target.value)}
-          placeholder="Viết 1 câu về bức tranh..."
+          placeholder={placeholder}
         />
       </div>
     </div>
@@ -717,7 +803,7 @@ function buildResults(flat, answers) {
 
 // Component chính — hiện TOÀN BỘ Test (mọi Part nối tiếp) trên 1 trang cuộn được, nộp bài 1 lần
 // rồi chuyển hẳn sang màn tổng kết (không còn chấm màu ngay trong lúc làm — cùng luồng Speaking).
-export default function ReadingRunner({ parts, onFinish }) {
+export default function ReadingRunner({ parts, onFinish, studentUid, seriesId, level, testId }) {
   const flat = useMemo(() => flattenQuestions(parts), [parts]);
   // answers[partIndex][qIndex] = giá trị trả lời — giữ cấu trúc lồng theo Part/câu để khớp đúng
   // dữ liệu gốc (parts[].questions[]), dễ tính điểm theo từng Part nếu cần sau này.
@@ -739,6 +825,9 @@ export default function ReadingRunner({ parts, onFinish }) {
   function submit() {
     setConfirmingSubmit(false);
     setResults(buildResults(flat, answers));
+    // Tính 1 lượt nộp bài (chốt 2026-08-27, xem lib/attempts.js) — chỉ khi có studentUid (học
+    // sinh đã đăng nhập thật, không phải admin/teacher tự test).
+    if (studentUid) incrementAttempt({ uid: studentUid, mode: "reading", testId, seriesId, level });
   }
 
   if (!flat.length) return null;
@@ -782,18 +871,36 @@ export default function ReadingRunner({ parts, onFinish }) {
             )}
             {/* Part 3 Movers: khung "Example" (ngân hàng từ CÓ ẢNH) nằm GIỮA đoạn truyện gapfill và
                 câu chọn tiêu đề, KHÔNG ở đầu Part như mọi Part khác — render bên trong danh sách câu
-                hỏi bên dưới (xem exampleBreakEl), không hiện ở đây. */}
-            {part.fixedLayout !== "movers-part3" && <WordBankBox words={part.wordBank} />}
-            {part.fixedLayout === "movers-part5" && (
-              <StoryParagraph text={part.storyParagraphs?.[0]} />
+                hỏi bên dưới (xem exampleBreakEl), không hiện ở đây. Part 2 Flyers: ngân hàng đáp án
+                hiện dạng danh sách DỌC đánh chữ A-H (LetteredAnswerBox), khác chip ngang thường. */}
+            {part.fixedLayout === "flyers-part2" ? (
+              <LetteredAnswerBox items={part.wordBank} />
+            ) : part.fixedLayout === "flyers-part3" ? (
+              <>
+                <h3 className="reading-subheading">Example</h3>
+                <WordBankBox words={part.wordBank} />
+              </>
+            ) : (
+              part.fixedLayout !== "movers-part3" && <WordBankBox words={part.wordBank} />
             )}
-            {part.fixedLayout === "movers-part6" || part.fixedLayout === "movers-part5" ? (
+            {part.fixedLayout === "movers-part5" || part.fixedLayout === "flyers-part5" ? (
+              <StoryParagraph text={part.storyParagraphs?.[0]} />
+            ) : null}
+            {part.fixedLayout === "movers-part6" || part.fixedLayout === "movers-part5" || part.fixedLayout === "flyers-part5" ? (
               <ExamplesPairRow examplesPair={part.examplesPair} />
-            ) : part.fixedLayout === "movers-part3" ? null : (
+            ) : part.fixedLayout === "movers-part3" || part.fixedLayout === "flyers-part3" ? null : part.fixedLayout === "flyers-part2" ? (
+              <ConversationSelectRow
+                askerText={part.example?.text}
+                value={part.example?.answer}
+                wordBank={part.wordBank}
+                readOnly
+                badge={<div className="reading-question-badge reading-example-badge">Example</div>}
+              />
+            ) : (
               <ExampleRow
                 example={part.example}
                 mode={
-                  part.fixedLayout === "movers-part1"
+                  part.fixedLayout === "movers-part1" || part.fixedLayout === "flyers-part1"
                     ? "table-row"
                     : part.allowedTypes?.includes("multiple-choice")
                       ? "multiple-choice"
@@ -801,7 +908,7 @@ export default function ReadingRunner({ parts, onFinish }) {
                 }
               />
             )}
-            {(part.fixedLayout === "movers-part6" || part.fixedLayout === "movers-part5" || part.fixedLayout === "movers-part1") && (
+            {["movers-part6", "movers-part5", "movers-part1", "flyers-part1", "flyers-part2", "flyers-part5"].includes(part.fixedLayout) && (
               <h3 className="reading-subheading">Questions</h3>
             )}
             <div className="reading-question-list">
@@ -861,7 +968,7 @@ export default function ReadingRunner({ parts, onFinish }) {
                       question={q}
                       qNumber={qNumber}
                       values={value ?? []}
-                      hideImage={part.fixedLayout === "movers-part3"}
+                      hideImage={part.fixedLayout === "movers-part3" || part.fixedLayout === "flyers-part3"}
                       onChange={(gapIndex, val) =>
                         setAnswer(partIndex, qIndex, (() => {
                           const cur = [...(value ?? [])];
@@ -869,6 +976,27 @@ export default function ReadingRunner({ parts, onFinish }) {
                           return cur;
                         })())
                       }
+                    />
+                  );
+                } else if (q.type === "word-bank" && part.fixedLayout === "flyers-part1") {
+                  body = (
+                    <AnswerTableRow
+                      id={`rq-${qNumber}`}
+                      label={qNumber}
+                      text={q.text}
+                      value={value}
+                      onChange={val => setAnswer(partIndex, qIndex, val)}
+                    />
+                  );
+                } else if (q.type === "word-bank" && part.fixedLayout === "flyers-part2") {
+                  body = (
+                    <ConversationSelectRow
+                      id={`rq-${qNumber}`}
+                      badge={<QuestionBadge qNumber={qNumber} />}
+                      askerText={q.text}
+                      value={value}
+                      wordBank={part.wordBank}
+                      onChange={val => setAnswer(partIndex, qIndex, val)}
                     />
                   );
                 } else if (q.type === "word-bank") {
@@ -905,6 +1033,12 @@ export default function ReadingRunner({ parts, onFinish }) {
                       qNumber={qNumber}
                       value={value}
                       onChange={val => setAnswer(partIndex, qIndex, val)}
+                      rows={part.fixedLayout === "flyers-part7" ? 6 : 2}
+                      placeholder={
+                        part.fixedLayout === "flyers-part7"
+                          ? "Viết câu chuyện dựa theo 3 bức tranh (từ 20 từ trở lên)..."
+                          : "Viết 1 câu về bức tranh..."
+                      }
                     />
                   );
                 } else if (part.fixedLayout === "movers-part1") {

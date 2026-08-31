@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import ImageUploadField from "./ImageUploadField.jsx";
 import { useConfirm } from "./ConfirmDialog.jsx";
-import { WORD_SCRAMBLE_DEFAULT_TEXT, scrambleWord, questionPoints, QuestionBadge, WordBankBox, ExampleRow, ExamplesPairRow, StoryParagraph, AnswerTableRow, optionLetter, bankLabel, bankImage } from "../ReadingRunner.jsx";
+import { WORD_SCRAMBLE_DEFAULT_TEXT, scrambleWord, questionPoints, QuestionBadge, WordBankBox, ExampleRow, ExamplesPairRow, StoryParagraph, AnswerTableRow, LetteredAnswerBox, ConversationSelectRow, optionLetter, bankLabel, bankImage } from "../ReadingRunner.jsx";
 
 // Mỗi loại câu hỏi gắn với `series` — danh sách seriesId được PHÉP dùng type này. Khi soạn bài,
 // menu "+ Thêm câu hỏi" chỉ hiện type khớp seriesId của bài đang soạn (xem questionTypesFor()) —
@@ -14,7 +14,7 @@ const QUESTION_TYPES = [
   { type: "word-scramble", icon: "🔤", label: "Xáo chữ cái đoán từ vựng", desc: "Xem ảnh, ghép lại các ô chữ cái bị xáo trộn thành đúng từ", series: ["starters"] },
   { type: "multiple-choice", icon: "🔘", label: "Chọn 1 đáp án đúng", desc: "Hiện nhiều đáp án (radio), học sinh chọn 1 đáp án đúng", series: ["flyers", "movers"] },
   { type: "word-bank", icon: "🗂️", label: "Chọn từ trong ngân hàng từ", desc: "Đọc câu, gõ đúng từ có trong ngân hàng từ chung của cả Part", series: ["flyers"] },
-  { type: "free-writing", icon: "✍️", label: "Viết tự do (không chấm điểm)", desc: "Học sinh tự viết 1 câu về bức tranh — không có đáp án đúng/sai, giáo viên tự đọc/chấm sau", series: ["movers"] },
+  { type: "free-writing", icon: "✍️", label: "Viết tự do (không chấm điểm)", desc: "Học sinh tự viết 1 câu về bức tranh — không có đáp án đúng/sai, giáo viên tự đọc/chấm sau", series: ["movers", "flyers"] },
 ];
 
 // Khung 7 Part cố định của 1 Test Reading & Writing Flyers thật (Cambridge YLE) — tạo sẵn tự động
@@ -24,42 +24,80 @@ const QUESTION_TYPES = [
 // có 1 lựa chọn, hoặc thu hẹp menu khi Part có nhiều hơn 1 dạng (vd Part 3: vừa gapfill vừa multiple-
 // choice). Part 7 (viết đoạn văn tự do, "story-writing") CHƯA lập trình xong — để trống tạm thời.
 const FLYERS_PART_TEMPLATES = [
+  // Part 1: format CỐ ĐỊNH — ngân hàng từ CHỈ CHỮ (không ảnh, các màu chữ trong sách chỉ là trang
+  // trí/random, không mang ý nghĩa) bày trước, đúng 10 câu định nghĩa ↔ 1 từ điền vào chỗ trống +
+  // 1 Example, layout hiển thị THẲNG CỘT y hệt Movers Part 1 (`AnswerTableRow`) để đồng bộ giao
+  // diện toàn bài (chốt 2026-08-31, xem ảnh sách thật).
   {
     title: "Part 1 – Reading and Writing",
     instruction: "Look and read. Choose the correct words and write them on the lines. There is one example.",
     allowedTypes: ["word-bank"],
-    wordBankImages: true,
+    wordBankImages: false,
+    fixedLayout: "flyers-part1",
   },
+  // Part 2: format CỐ ĐỊNH — 1 ảnh chung + 1 câu dẫn (`part.caption`) + ĐÚNG 8 đáp án đầy đủ câu
+  // dùng chung (khoá cứng số lượng, không phải từ ngắn như Part 1) + 1 Example + 5 câu — người trả
+  // lời CHỌN đáp án qua dropdown tự dựng (không hiện tên nhân vật, không gõ tay chữ cái) — chốt
+  // 2026-08-31.
   {
     title: "Part 2 – Reading and Writing",
     instruction: "Read the conversation. Choose the correct answer. Write a letter (A-H) for each answer. You do not need to use all the letters. There is one example.",
     allowedTypes: ["word-bank"],
+    fixedLayout: "flyers-part2",
   },
+  // Part 3: format CỐ ĐỊNH — 1 ảnh chung + khung "Example" (ngân hàng từ CHỈ CHỮ, không ảnh, số từ
+  // KHÔNG khoá cứng vì có thể đổi theo Test) NẰM Ở ĐẦU Part (khác Movers Part 3 để giữa đoạn truyện
+  // và câu chọn tiêu đề) + ĐÚNG 2 câu: (1) gapfill 1 đoạn truyện, chỗ trống ĐẦU TIÊN là ví dụ có sẵn
+  // (`firstGapIsExample`, y hệt Movers Part 4) rồi mới tới 5 chỗ trống thật (1)-(5), (2) multiple-
+  // choice chọn tiêu đề 3 lựa chọn KHÔNG chữ A/B/C (`hideLetters: true`, y hệt Movers Part 3) — chốt
+  // 2026-08-31.
   {
     title: "Part 3 – Reading and Writing",
-    instruction: "Read the story. Choose a word for each gap, then choose the best name for the story.",
+    instruction: "Read the story. Choose a word from the box. Write the correct word next to numbers 1-5. There is one example.",
     allowedTypes: ["gapfill", "multiple-choice"],
     hasWordBank: true,
+    fixedLayout: "flyers-part3",
   },
+  // Part 4: CƠ CHẾ Y HỆT Movers Part 4 (1 đoạn văn gapfill, chỗ trống đầu là ví dụ có sẵn, mỗi chỗ
+  // trống có ĐÚNG 3 lựa chọn bấm chọn — `gapMode: "choices"`) — tái dùng thẳng cùng giá trị
+  // `fixedLayout: "movers-part4"` để thừa hưởng nguyên xi code đã có (PartEditor/ReadingRunner/
+  // TestPreview đều dò theo TYPE của chuỗi này, không phân biệt series) thay vì viết lại — chốt
+  // 2026-08-31, xem ảnh sách Flyers Part 4 khớp 100% ý tưởng Movers Part 4.
   {
     title: "Part 4 – Reading and Writing",
     instruction: "Read the text. Choose the right words and write them on the lines.",
     allowedTypes: ["gapfill"],
+    fixedLayout: "movers-part4",
   },
+  // Part 5: format CỐ ĐỊNH — khác hẳn Movers Part 5 (KHÔNG xen kẽ đoạn truyện giữa câu hỏi, KHÔNG
+  // nhiều ảnh theo đoạn): 1 ảnh chung + TOÀN BỘ truyện hiện liền 1 khối (nhiều đoạn cách nhau bằng
+  // dòng trống) TRƯỚC "Examples", rồi mới tới "Questions" — đúng 2 Examples (`examplesPair`) + 7
+  // câu `short-answer` liền mạch không chia nhóm/không xen truyện — chốt 2026-08-31.
   {
     title: "Part 5 – Reading and Writing",
-    instruction: "Look at the picture and read the story. Write some words to complete the sentences. You can use 1, 2, 3 or 4 words.",
+    instruction: "Look at the picture and read the story. Write some words to complete the sentences about the story. You can use 1, 2, 3 or 4 words.",
     allowedTypes: ["short-answer"],
+    fixedLayout: "flyers-part5",
   },
+  // Part 6: CƠ CHẾ Y HỆT Movers/Flyers Part 4 (1 đoạn văn gapfill, chỗ trống đầu là ví dụ có sẵn) —
+  // khác Part 4 ở chỗ KHÔNG có 3 lựa chọn cho mỗi chỗ trống (gõ tự do, `gapMode` mặc định "free"),
+  // và đây là 1 LÁ THƯ (không phải "diary") — tái dùng thẳng `fixedLayout: "movers-part4"` — chốt
+  // 2026-08-31.
   {
     title: "Part 6 – Reading and Writing",
-    instruction: "Read the diary and write the missing words. Write one word on each line.",
+    instruction: "Read the letter and write the missing words. Write one word on each line.",
     allowedTypes: ["gapfill"],
+    fixedLayout: "movers-part4",
   },
+  // Part 7: format CỐ ĐỊNH — 1 ảnh chung (giáo viên tự ghép/cắt gộp 3 tranh sách thành 1 ảnh rồi
+  // upload, không cần 3 ô ảnh riêng — chốt 2026-08-31) + ĐÚNG 1 câu viết tự do (`free-writing`,
+  // không chấm điểm đúng/sai, giáo viên tự đọc sau), khung nhập to hơn bình thường (viết cả đoạn,
+  // không phải 1 câu).
   {
     title: "Part 7 – Reading and Writing",
     instruction: "Look at the three pictures. Write about this story. Write 20 or more words.",
-    allowedTypes: ["story-writing"],
+    allowedTypes: ["free-writing"],
+    fixedLayout: "flyers-part7",
   },
 ];
 
@@ -208,6 +246,42 @@ function blankPartsFromTemplates(templates) {
       ];
       base.storyParagraphs = ["", "", ""];
       base.storyImages = ["", "", ""];
+    }
+    // Part 1 Flyers: đúng 10 câu word-bank CỐ ĐỊNH, dùng chung 1 ngân hàng từ (thường 15 từ, 5 từ
+    // dư làm nhiễu) — KHÔNG ảnh riêng từng câu, KHÔNG ảnh trong ngân hàng từ (chốt 2026-08-31).
+    if (t.fixedLayout === "flyers-part1") {
+      base.questions = Array.from({ length: 10 }, () => blankQuestion("word-bank"));
+    }
+    // Part 2 Flyers: mỗi câu hỏi luôn CHỌN 1 trong ĐÚNG 8 đáp án chung (ngân hàng đáp án đầy đủ
+    // câu, không phải từ ngắn — khoá cứng 8 ô, không cho thêm/xoá) qua dropdown tự dựng (bấm xổ ra
+    // cả 8, chọn xong thu gọn còn đúng đáp án đã chọn, không hiện tên nhân vật — chốt 2026-08-31).
+    // Câu dẫn (`part.caption`) nhập theo từng Test.
+    if (t.fixedLayout === "flyers-part2") {
+      base.wordBank = Array.from({ length: 8 }, () => "");
+      base.questions = Array.from({ length: 5 }, () => blankQuestion("word-bank"));
+    }
+    // Part 3 Flyers: ĐÚNG 2 câu CỐ ĐỊNH — (1) gapfill, chỗ trống đầu tiên là ví dụ có sẵn, (2)
+    // multiple-choice chọn tiêu đề 3 lựa chọn không chữ A/B/C.
+    if (t.fixedLayout === "flyers-part3") {
+      base.questions = [
+        { ...blankQuestion("gapfill"), firstGapIsExample: true },
+        { ...blankQuestion("multiple-choice"), hideLetters: true },
+      ];
+    }
+    // Part 5 Flyers: 1 khối truyện duy nhất (khác Movers Part 5 chia 3 đoạn xen câu hỏi) + 2
+    // Examples + ĐÚNG 7 câu short-answer liền mạch.
+    if (t.fixedLayout === "flyers-part5") {
+      base.storyParagraphs = [""];
+      base.examplesPair = [
+        { prompt: "", answer: "" },
+        { prompt: "", answer: "" },
+      ];
+      base.questions = Array.from({ length: 7 }, () => blankQuestion("short-answer"));
+    }
+    // Part 7 Flyers: ĐÚNG 1 câu viết tự do CỐ ĐỊNH — 1 ảnh chung (part.image, giáo viên tự ghép 3
+    // tranh sách thành 1 ảnh), không chấm điểm.
+    if (t.fixedLayout === "flyers-part7") {
+      base.questions = [blankQuestion("free-writing")];
     }
     return base;
   });
@@ -403,6 +477,34 @@ function WordBankEditor({ words, onChange, withImages = false }) {
       <button type="button" className="admin-link-btn" onClick={() => onChange([...words, withImages ? { text: "", image: null } : ""])}>
         + Thêm từ
       </button>
+    </fieldset>
+  );
+}
+
+// Ngân hàng đáp án ĐỦ CÂU, khoá CỐ ĐỊNH đúng 8 ô A-H (Flyers Part 2) — khác WordBankEditor (Part 1,
+// tự do thêm/xoá/dán hàng loạt): ở đây KHÔNG cho thêm/xoá, giáo viên chỉ điền nội dung từng ô, chữ
+// cái tự hiện theo vị trí (optionLetter), không gõ tay.
+function LetteredBankEditor({ items, onChange }) {
+  const list = items?.length ? items : Array.from({ length: 8 }, () => "");
+  function setItem(i, val) {
+    const next = [...list];
+    next[i] = val;
+    onChange(next);
+  }
+  return (
+    <fieldset className="admin-fieldset">
+      <legend>🗂️ Ngân hàng đáp án dùng chung (A-H)</legend>
+      {list.map((it, i) => (
+        <div className="admin-mc-option-row" key={i}>
+          <span className="reading-mc-option-letter">{optionLetter(i)}</span>
+          <input
+            className="admin-input"
+            value={bankLabel(it)}
+            onChange={e => setItem(i, e.target.value)}
+            placeholder={`Đáp án ${optionLetter(i)}`}
+          />
+        </div>
+      ))}
     </fieldset>
   );
 }
@@ -667,7 +769,7 @@ function ExamplesPairEditor({ examplesPair, onChange }) {
   );
 }
 
-function QuestionEditor({ question, index, onChange, onDelete, onDuplicate, wordBank, partPointsActive, seriesId, locked }) {
+function QuestionEditor({ question, index, onChange, onDelete, onDuplicate, wordBank, partPointsActive, seriesId, locked, hideImage }) {
   const info = typeInfo(question.type);
   return (
     <div className="admin-reading-question-card">
@@ -752,8 +854,10 @@ function QuestionEditor({ question, index, onChange, onDelete, onDuplicate, word
           {/* locked=true VÀ KHÔNG phải Part 4 (Movers Part 3) — đoạn truyện gapfill không có ảnh
               riêng, sách gốc chỉ hiện ảnh trong khung "Example" (ngân hàng từ có ảnh). Part 4 tuy
               cũng `locked` nhưng vẫn giữ ảnh riêng của chính câu gapfill đó (khác Part 3) — dùng
-              `question.firstGapIsExample` (chỉ Part 4 seed field này) để phân biệt — chốt 2026-08-27. */}
-          {(!locked || question.firstGapIsExample) && (
+              `question.firstGapIsExample` (chỉ Part 4 seed field này) để phân biệt — chốt 2026-08-27.
+              `hideImage` (Part 3 Flyers) ép tắt hẳn dù `firstGapIsExample` cũng true ở đó — Part 3
+              Flyers đã có `part.image` chung, không cần thêm ảnh riêng câu gapfill — chốt 2026-08-31. */}
+          {!hideImage && (!locked || question.firstGapIsExample) && (
             <ImageUploadField
               label="Ảnh minh hoạ"
               value={question.image}
@@ -962,7 +1066,9 @@ function PartEditor({ part, onChange, seriesId }) {
       {/* Box xem trước ngân hàng từ NGAY ĐẦU Part — hiện bất kể checkbox bật/tắt, miễn đã có từ nào
           (giáo viên thấy trước đúng vị trí/hình dạng học sinh sẽ thấy — yêu cầu người dùng
           2026-08-26). */}
-      {(part.wordBank?.length ?? 0) > 0 && <WordBankBox words={part.wordBank} />}
+      {part.fixedLayout === "flyers-part2"
+        ? (part.wordBank?.length ?? 0) > 0 && <LetteredAnswerBox items={part.wordBank} />
+        : (part.wordBank?.length ?? 0) > 0 && <WordBankBox words={part.wordBank} />}
 
       <label className="admin-mini-field">
         <span>Tên Part</span>
@@ -985,7 +1091,7 @@ function PartEditor({ part, onChange, seriesId }) {
           đậm gạch chân ngay trên tranh minh hoạ), nên field ảnh chung render RIÊNG bên trong nhánh
           movers-part5 dưới đây thay vì ở đây, còn mọi loại Part khác vẫn giữ đúng thứ tự cũ (ảnh
           ngay sau câu hướng dẫn) — chốt 2026-08-27. */}
-      {part.fixedLayout !== "movers-part5" && part.fixedLayout !== "movers-part1" && (
+      {part.fixedLayout !== "movers-part5" && part.fixedLayout !== "movers-part1" && part.fixedLayout !== "flyers-part1" && (
         <ImageUploadField
           label="Ảnh minh hoạ chung cho cả Part (tuỳ chọn)"
           value={part.image}
@@ -1011,6 +1117,100 @@ function PartEditor({ part, onChange, seriesId }) {
           </div>
           <ExampleEditor example={part.example} mode="plain" onChange={example => onChange({ example })} />
           <h3 className="admin-reading-group-heading">Questions</h3>
+          <div className="admin-reading-question-list">
+            {questions.map((q, i) => (
+              <QuestionEditor
+                key={i}
+                question={q}
+                index={i}
+                onChange={patch => updateQuestion(i, patch)}
+                seriesId={seriesId}
+                locked
+              />
+            ))}
+          </div>
+        </>
+      ) : part.fixedLayout === "flyers-part2" ? (
+        <>
+          <label className="admin-mini-field">
+            <span>Câu dẫn (giới thiệu ngữ cảnh)</span>
+            <input
+              className="admin-input"
+              value={part.caption ?? ""}
+              onChange={e => onChange({ caption: e.target.value })}
+              placeholder="vd: Helen is talking to a man about his castle. What does the man say?"
+            />
+          </label>
+          <LetteredBankEditor items={part.wordBank} onChange={wordBank => onChange({ wordBank })} />
+          <fieldset className="admin-fieldset">
+            <legend>💡 Câu ví dụ mẫu (Example)</legend>
+            <label className="admin-mini-field">
+              <span>Câu hỏi của người hỏi</span>
+              <input
+                className="admin-input"
+                value={part.example?.text ?? ""}
+                onChange={e => onChange({ example: { ...(part.example ?? {}), text: e.target.value } })}
+                placeholder="vd: Please can I ask you some questions about your castle? It's for my homework."
+              />
+            </label>
+            <label className="admin-mini-field">
+              <span>Đáp án đúng (chọn trong ngân hàng đáp án)</span>
+              <select
+                className="admin-input"
+                value={part.example?.answer ?? ""}
+                onChange={e => onChange({ example: { ...(part.example ?? {}), answer: e.target.value } })}
+              >
+                <option value="">— Chọn đáp án —</option>
+                {(part.wordBank ?? []).map((w, i) => (
+                  <option key={i} value={bankLabel(w)}>{optionLetter(i)}  {bankLabel(w) || `(đáp án ${optionLetter(i)} chưa nhập)`}</option>
+                ))}
+              </select>
+            </label>
+          </fieldset>
+          <h3 className="admin-reading-group-heading">Questions</h3>
+          <div className="admin-reading-question-list">
+            {questions.map((q, i) => (
+              <QuestionEditor
+                key={i}
+                question={q}
+                index={i}
+                onChange={patch => updateQuestion(i, patch)}
+                wordBank={part.wordBank}
+                seriesId={seriesId}
+                locked
+              />
+            ))}
+          </div>
+        </>
+      ) : part.fixedLayout === "flyers-part5" ? (
+        <>
+          <label className="admin-mini-field">
+            <span>Toàn bộ câu chuyện (các đoạn cách nhau bằng dòng trống)</span>
+            <textarea
+              className="admin-input admin-textarea"
+              rows={10}
+              value={part.storyParagraphs?.[0] ?? ""}
+              onChange={e => onChange({ storyParagraphs: [e.target.value] })}
+              placeholder="vd: Last Wednesday morning, Daisy got out of bed..."
+            />
+          </label>
+          <ExamplesPairEditor examplesPair={part.examplesPair} onChange={examplesPair => onChange({ examplesPair })} />
+          <h3 className="admin-reading-group-heading">Questions</h3>
+          <div className="admin-reading-question-list">
+            {questions.map((q, i) => (
+              <QuestionEditor
+                key={i}
+                question={q}
+                index={i}
+                onChange={patch => updateQuestion(i, patch)}
+                seriesId={seriesId}
+                locked
+              />
+            ))}
+          </div>
+        </>
+      ) : part.fixedLayout === "flyers-part7" ? (
+        <>
           <div className="admin-reading-question-list">
             {questions.map((q, i) => (
               <QuestionEditor
@@ -1167,14 +1367,15 @@ function PartEditor({ part, onChange, seriesId }) {
                 wordBank={part.wordBank}
                 partPointsActive={part.partPoints != null}
                 seriesId={seriesId}
-                locked={["movers-part2", "movers-part3", "movers-part4"].includes(part.fixedLayout)}
+                locked={["movers-part2", "movers-part3", "movers-part4", "flyers-part1", "flyers-part3"].includes(part.fixedLayout)}
+                hideImage={part.fixedLayout === "flyers-part3" && q.type === "gapfill"}
               />
             ))}
           </div>
 
-          {/* Part 2/3/4 Movers: số câu CỐ ĐỊNH theo đề thật (chốt 2026-08-27) — không cho thêm/xoá
-              câu nữa, ẩn hẳn "+ Thêm câu hỏi"/menu chọn dạng. */}
-          {["movers-part2", "movers-part3", "movers-part4"].includes(part.fixedLayout) ? null : availableTypes.length === 0 ? (
+          {/* Part 2/3/4 Movers, Part 1 Flyers: số câu CỐ ĐỊNH theo đề thật (chốt 2026-08-27/31) —
+              không cho thêm/xoá câu nữa, ẩn hẳn "+ Thêm câu hỏi"/menu chọn dạng. */}
+          {["movers-part2", "movers-part3", "movers-part4", "flyers-part1", "flyers-part3"].includes(part.fixedLayout) ? null : availableTypes.length === 0 ? (
             <p className="admin-hint">Dạng câu hỏi của Part này chưa được lập trình xong, sẽ bổ sung sau.</p>
           ) : availableTypes.length === 1 ? (
             // Part chỉ có đúng 1 dạng được phép (khung Flyers cố định) — bấm là thêm luôn, không cần
@@ -1490,17 +1691,34 @@ function TestPreview({ parts, stats, activePartIndex }) {
                   {part.partImages?.[1] && <img src={part.partImages[1]} alt="" />}
                 </div>
               )}
-              {part.fixedLayout !== "movers-part3" && <WordBankBox words={part.wordBank} />}
-              {part.fixedLayout === "movers-part5" && (
-                <StoryParagraph text={part.storyParagraphs?.[0]} />
+              {part.fixedLayout === "flyers-part2" ? (
+                <LetteredAnswerBox items={part.wordBank} />
+              ) : part.fixedLayout === "flyers-part3" ? (
+                <>
+                  <h3 className="reading-subheading">Example</h3>
+                  <WordBankBox words={part.wordBank} />
+                </>
+              ) : (
+                part.fixedLayout !== "movers-part3" && <WordBankBox words={part.wordBank} />
               )}
-              {part.fixedLayout === "movers-part6" || part.fixedLayout === "movers-part5" ? (
+              {part.fixedLayout === "movers-part5" || part.fixedLayout === "flyers-part5" ? (
+                <StoryParagraph text={part.storyParagraphs?.[0]} />
+              ) : null}
+              {part.fixedLayout === "movers-part6" || part.fixedLayout === "movers-part5" || part.fixedLayout === "flyers-part5" ? (
                 <ExamplesPairRow examplesPair={part.examplesPair} />
-              ) : part.fixedLayout === "movers-part3" ? null : (
+              ) : part.fixedLayout === "movers-part3" || part.fixedLayout === "flyers-part3" ? null : part.fixedLayout === "flyers-part2" ? (
+                <ConversationSelectRow
+                  askerText={part.example?.text}
+                  value={part.example?.answer}
+                  wordBank={part.wordBank}
+                  readOnly
+                  badge={<div className="reading-question-badge reading-example-badge">Example</div>}
+                />
+              ) : (
                 <ExampleRow
                   example={part.example}
                   mode={
-                    part.fixedLayout === "movers-part1"
+                    part.fixedLayout === "movers-part1" || part.fixedLayout === "flyers-part1"
                       ? "table-row"
                       : part.allowedTypes?.includes("multiple-choice")
                         ? "multiple-choice"
@@ -1508,7 +1726,7 @@ function TestPreview({ parts, stats, activePartIndex }) {
                   }
                 />
               )}
-              {(part.fixedLayout === "movers-part6" || part.fixedLayout === "movers-part5" || part.fixedLayout === "movers-part1") && (
+              {["movers-part6", "movers-part5", "movers-part1", "flyers-part1", "flyers-part2", "flyers-part5"].includes(part.fixedLayout) && (
                 <h3 className="reading-subheading">Questions</h3>
               )}
               {!part.questions?.length ? (
@@ -1517,6 +1735,25 @@ function TestPreview({ parts, stats, activePartIndex }) {
                 <div className="reading-question-list">
                   {part.questions.map((q, i) => (
                     <AnswerTableRow key={i} label={partOffset + i + 1} text={q.prompt} value={q.answer} readOnly />
+                  ))}
+                </div>
+              ) : part.fixedLayout === "flyers-part1" ? (
+                <div className="reading-question-list">
+                  {part.questions.map((q, i) => (
+                    <AnswerTableRow key={i} label={partOffset + i + 1} text={q.text} value={q.answer} readOnly />
+                  ))}
+                </div>
+              ) : part.fixedLayout === "flyers-part2" ? (
+                <div className="reading-question-list">
+                  {part.questions.map((q, i) => (
+                    <ConversationSelectRow
+                      key={i}
+                      badge={<QuestionBadge qNumber={partOffset + i + 1} />}
+                      askerText={q.text}
+                      value={q.answer}
+                      wordBank={part.wordBank}
+                      readOnly
+                    />
                   ))}
                 </div>
               ) : (
@@ -1545,7 +1782,7 @@ function TestPreview({ parts, stats, activePartIndex }) {
                         <QuestionPreview
                           question={q}
                           qNumber={partOffset + i + 1}
-                          hideImage={part.fixedLayout === "movers-part3" && q.type === "gapfill"}
+                          hideImage={(part.fixedLayout === "movers-part3" || part.fixedLayout === "flyers-part3") && q.type === "gapfill"}
                         />
                       </div>
                     );
@@ -1564,7 +1801,7 @@ function TestPreview({ parts, stats, activePartIndex }) {
 // Màn soạn 1 Test Reading & Writing — cấu trúc 2 tầng: Test → nhiều Part → mỗi Part nhiều câu hỏi
 // (3 loại). Bố cục 2 cột: form soạn bên trái, xem trước trực tiếp + thông tin chung bên phải —
 // theo góp ý người dùng (quen mắt với bố cục CMS của YourHomework).
-export default function ReadingStudio({ accent, seriesId, title, onTitleChange, parts, onPartsChange, onBack, onSave, saving, saved }) {
+export default function ReadingStudio({ accent, seriesId, title, onTitleChange, parts, onPartsChange, maxAttempts, onMaxAttemptsChange, onBack, onSave, saving, saved }) {
   const confirm = useConfirm();
   const [openPartIndex, setOpenPartIndex] = useState(parts.length ? 0 : null);
   // Movers/Flyers có sẵn khung Part cố định (SERIES_PART_TEMPLATES, số Part khớp đúng đề thật của
@@ -1709,6 +1946,12 @@ export default function ReadingStudio({ accent, seriesId, title, onTitleChange, 
             patch.storyParagraphs = seeded.storyParagraphs;
             patch.storyImages = seeded.storyImages;
             patch.partImages = seeded.partImages;
+            // Chỉ ép cỡ ngân hàng từ về 8 ô rỗng khi CHƯA có từ thật nào — tránh xoá mất ngân hàng
+            // từ giáo viên đã lỡ nhập trước khi Part 2 Flyers được khoá fixedLayout (bài học mục 5
+            // Reading-CMS-Kinh-nghiem.md: không ép vá khi Part đã có nội dung thật).
+            if (seeded.wordBank && !(p.wordBank ?? []).some(w => bankLabel(w))) {
+              patch.wordBank = seeded.wordBank;
+            }
           }
           return Object.keys(patch).length ? { ...p, ...patch } : p;
         })
@@ -1745,6 +1988,17 @@ export default function ReadingStudio({ accent, seriesId, title, onTitleChange, 
           onChange={e => onTitleChange(e.target.value)}
           placeholder="Tên Test"
         />
+        <label className="studio-max-attempts" title="Số lần tối đa 1 học sinh được nộp bài Test này — để trống nghĩa là không giới hạn.">
+          <span>Lượt làm tối đa</span>
+          <input
+            type="number"
+            min={1}
+            className="admin-input"
+            value={maxAttempts ?? ""}
+            onChange={e => onMaxAttemptsChange(e.target.value === "" ? null : Number(e.target.value))}
+            placeholder="Không giới hạn"
+          />
+        </label>
         <div className="studio-topbar-actions">
           {saved && <span className="admin-success">✓ Đã xuất bản</span>}
           <button className="admin-btn-primary" onClick={handlePublish} disabled={saving}>

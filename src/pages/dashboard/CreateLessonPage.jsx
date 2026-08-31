@@ -273,6 +273,7 @@ function SpeakingEditor({ series, level, uid }) {
   const [openTestId, setOpenTestId] = useState(null);
   const [scenes, setScenes] = useState([]);
   const [testTitle, setTestTitle] = useState("");
+  const [maxAttempts, setMaxAttempts] = useState(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
@@ -286,6 +287,7 @@ function SpeakingEditor({ series, level, uid }) {
     setOpenTestId(t.id);
     setTestTitle(full?.title ?? t.title ?? "");
     setScenes(full?.scenes ?? []);
+    setMaxAttempts(full?.maxAttempts ?? null);
     setSaved(false);
   }
   // Test nhúng cứng (yleData.js, hiện chỉ Starters cấp 1) luôn dùng id/order cố định "test1"/1 —
@@ -298,6 +300,7 @@ function SpeakingEditor({ series, level, uid }) {
     setOpenTestId(`test${nextOrder}`);
     setTestTitle(`Test ${nextOrder}`);
     setScenes([]);
+    setMaxAttempts(null);
     setSaved(false);
   }
 
@@ -338,7 +341,7 @@ function SpeakingEditor({ series, level, uid }) {
     setSaving(true);
     setSaved(false);
     const order = tests?.find(t => t.id === openTestId)?.order ?? (tests?.length ?? 0) + reservedTestSlots + 1;
-    await saveTest(series.id, level.number, openTestId, { title: testTitle, order, scenes }, uid);
+    await saveTest(series.id, level.number, openTestId, { title: testTitle, order, scenes, maxAttempts }, uid);
     setSaving(false);
     setSaved(true);
     reloadTests();
@@ -352,6 +355,8 @@ function SpeakingEditor({ series, level, uid }) {
         onTitleChange={setTestTitle}
         scenes={scenes}
         onScenesChange={setScenes}
+        maxAttempts={maxAttempts}
+        onMaxAttemptsChange={setMaxAttempts}
         onBack={() => setOpenTestId(null)}
         onSave={handleSaveTest}
         saving={saving}
@@ -412,6 +417,7 @@ function ReadingEditor({ series, level, uid }) {
   const [openTestId, setOpenTestId] = useState(null);
   const [parts, setParts] = useState([]);
   const [testTitle, setTestTitle] = useState("");
+  const [maxAttempts, setMaxAttempts] = useState(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
@@ -425,6 +431,7 @@ function ReadingEditor({ series, level, uid }) {
     setOpenTestId(t.id);
     setTestTitle(full?.title ?? t.title ?? "");
     setParts(full?.parts ?? []);
+    setMaxAttempts(full?.maxAttempts ?? null);
     setSaved(false);
   }
 
@@ -433,8 +440,22 @@ function ReadingEditor({ series, level, uid }) {
     setOpenTestId(`test${nextOrder}`);
     setTestTitle(`Test ${nextOrder}`);
     setParts([]);
+    setMaxAttempts(null);
     setSaved(false);
   }
+
+  function openNewTestNumbered(n) {
+    setOpenTestId(`test${n}`);
+    setTestTitle(`Test ${n}`);
+    setParts([]);
+    setMaxAttempts(null);
+    setSaved(false);
+  }
+
+  // Cambridge YLE Reading & Writing (Starters/Movers/Flyers) luôn có ĐÚNG 3 Test cố định mỗi cấp —
+  // hiện sẵn 3 thẻ Test 1/2/3 ngay từ đầu, giáo viên bấm thẳng vào để soạn, không cần bấm "Tạo Test
+  // mới" + không cho thêm/xoá Test ngoài 3 thẻ này (chốt 2026-08-30, áp dụng thêm cho Starters/Flyers).
+  const fixedTestCount = ["starters", "movers", "flyers"].includes(series.id) ? 3 : null;
 
   async function handleDeleteTest(id) {
     if (!(await confirm("Xoá Test này? Không hoàn tác được.", { danger: true }))) return;
@@ -450,7 +471,7 @@ function ReadingEditor({ series, level, uid }) {
     setSaved(false);
     try {
       const order = tests?.find(t => t.id === openTestId)?.order ?? (tests?.length ?? 0) + 1;
-      await saveReadingTest(series.id, level.number, openTestId, { title: testTitle, order, parts }, uid);
+      await saveReadingTest(series.id, level.number, openTestId, { title: testTitle, order, parts, maxAttempts }, uid);
       setSaved(true);
       reloadTests();
     } catch (err) {
@@ -471,6 +492,8 @@ function ReadingEditor({ series, level, uid }) {
         onTitleChange={setTestTitle}
         parts={parts}
         onPartsChange={setParts}
+        maxAttempts={maxAttempts}
+        onMaxAttemptsChange={setMaxAttempts}
         onBack={() => setOpenTestId(null)}
         onSave={handleSaveTest}
         saving={saving}
@@ -483,7 +506,34 @@ function ReadingEditor({ series, level, uid }) {
     <div className="admin-card">
       <h2>{series.title} {level.number} — Reading &amp; Writing</h2>
       {tests === null && <LoadingCard inline />}
-      {tests && (
+      {tests && fixedTestCount && (
+        <div className="admin-test-grid">
+          {Array.from({ length: fixedTestCount }, (_, i) => i + 1).map(n => {
+            const t = tests.find(t => t.id === `test${n}`);
+            return (
+              <div key={n} className="admin-test-card" style={{ "--accent": series.color }}>
+                <button
+                  className="admin-test-card-main"
+                  onClick={() => (t ? openTest(t) : openNewTestNumbered(n))}
+                >
+                  <span className="admin-test-card-icon">📖</span>
+                  <span className="admin-test-card-title">{t?.title ?? `Test ${n}`}</span>
+                  <span className="admin-scene-count-badge">
+                    {t ? `${t.parts?.length ?? 0} part` : "Chưa soạn"}
+                  </span>
+                </button>
+                {t && (
+                  <div className="admin-test-card-actions">
+                    <button className="admin-link-btn" onClick={() => openTest(t)}>Sửa</button>
+                    <button className="admin-link-btn admin-pill-btn-danger" onClick={() => handleDeleteTest(t.id)}>Xoá nội dung</button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+      {tests && !fixedTestCount && (
         <div className="admin-test-grid">
           {tests.map(t => (
             <div key={t.id} className="admin-test-card" style={{ "--accent": series.color }}>
@@ -504,7 +554,7 @@ function ReadingEditor({ series, level, uid }) {
           </button>
         </div>
       )}
-      {tests && tests.length === 0 && (
+      {tests && !fixedTestCount && tests.length === 0 && (
         <p className="admin-muted-text">Cấp độ này chưa có Test nào — bấm "Tạo Test mới" để bắt đầu soạn Part/câu hỏi.</p>
       )}
     </div>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { createTeacherAccount, listTeachers } from "../../lib/adminUsers.js";
+import PasswordInput from "../../components/PasswordInput.jsx";
 
 export default function TeacherAccountsPage() {
   const [teachers, setTeachers] = useState(null); // null = đang tải
@@ -76,9 +77,8 @@ export default function TeacherAccountsPage() {
             onChange={e => setEmail(e.target.value)}
             required
           />
-          <input
+          <PasswordInput
             className="admin-input"
-            type="password"
             placeholder="Mật khẩu (ít nhất 6 ký tự)"
             value={password}
             onChange={e => setPassword(e.target.value)}

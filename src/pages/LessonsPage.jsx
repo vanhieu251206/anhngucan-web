@@ -6,9 +6,9 @@ import { loadLevelContent } from "../lib/lessons.js";
 import ListeningMode from "../components/ListeningMode.jsx";
 import SceneRunner from "../components/SceneRunner.jsx";
 import ReadingRunner from "../components/ReadingRunner.jsx";
-import PasswordGate from "../components/PasswordGate.jsx";
 import { useAuth } from "../lib/authContext.jsx";
-import { isUnlockedInSession, lockSession } from "../lib/lessonAccess.js";
+import { getAttemptCount } from "../lib/attempts.js";
+import { getClassAssignment } from "../lib/classAssignments.js";
 import { readParams, setParams } from "../lib/urlState.js";
 
 const WIZARD_STEPS = ["Bộ đề", "Cấp độ", "Bài học"];
@@ -113,55 +113,22 @@ function SectionDivider({ onViewAll }) {
   );
 }
 
-// Màn nhập họ tên + lớp trước khi vào BẤT KỲ bài nào (Listening/Speaking/Reading & Writing, chỉ
-// guest/học sinh) — dùng để gắn tên/lớp vào báo cáo quá trình làm bài (speakingSessions, xem
-// SceneRunner.jsx + StudentResultsPage.jsx) và để giáo viên biết đúng học sinh lớp nào đang làm,
-// tránh nhầm lẫn khi nhiều lớp cùng dùng chung 1 mật khẩu (chốt 2026-08-26, áp dụng mọi dạng bài
-// thay vì chỉ riêng Speaking như trước).
-function NamePromptScreen({ seriesTitle, levelNumber, subtitle, initialName, initialClass, ctaLabel, onCancel, onStart }) {
-  const [name, setName] = useState(initialName || "");
-  const [studentClass, setStudentClass] = useState(initialClass || "");
-  const canSubmit = name.trim() && studentClass.trim();
-  function handleSubmit(e) {
-    e.preventDefault();
-    if (!canSubmit) return;
-    onStart(name, studentClass);
-  }
+// Màn chặn dùng chung cho 2 lý do: (1) hết lượt nộp bài tối đa của 1 Test (`test.maxAttempts`,
+// xem lib/attempts.js) — chỉ áp dụng Speaking/Reading (có nộp bài); (2) giáo viên CHƯA MỞ bài này
+// cho lớp của học sinh (`classAssignments/{className}`, xem lib/classAssignments.js) — áp dụng cả
+// Listening/Speaking/Reading, chốt 2026-08-27: "giáo viên phải mở mới cho vô làm".
+function BlockedScreen({ title, message, onBack }) {
   return (
     <div className="home-v2 lessons-screen-v2">
       <div className="name-prompt-shell">
         <div className="name-prompt-card">
-          <h2>Con tên gì, lớp mấy nhỉ? 🐝</h2>
-          <p className="admin-muted-text">
-            {seriesTitle} {levelNumber} · {subtitle}
-          </p>
-          <form onSubmit={handleSubmit}>
-            <input
-              className="name-prompt-input"
-              type="text"
-              value={name}
-              onChange={e => setName(e.target.value)}
-              placeholder="Nhập họ tên của con"
-              autoFocus
-              maxLength={60}
-            />
-            <input
-              className="name-prompt-input"
-              type="text"
-              value={studentClass}
-              onChange={e => setStudentClass(e.target.value)}
-              placeholder="Nhập lớp của con (vd: 3A)"
-              maxLength={30}
-            />
-            <div className="name-prompt-actions">
-              <button type="button" className="btn btn-secondary" onClick={onCancel}>
-                Quay lại
-              </button>
-              <button type="submit" className="btn btn-primary" disabled={!canSubmit}>
-                {ctaLabel}
-              </button>
-            </div>
-          </form>
+          <h2>{title}</h2>
+          <p className="admin-muted-text">{message}</p>
+          <div className="name-prompt-actions">
+            <button type="button" className="btn btn-primary" onClick={onBack}>
+              Quay lại
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -208,16 +175,18 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
   // Đang xem trang "Xem tất cả Test" của Speaking (khi 1 cấp độ có nhiều Test) — false = màn
   // "Bài học" gọn mặc định, chỉ hiện 2 Test đầu.
   const [viewAllTests, setViewAllTests] = useState(false);
-  const { isStaff, isAdmin } = useAuth();
-  // Báo cáo quá trình làm bài (chốt 2026-08-24, mở rộng 2026-08-26 sang MỌI dạng bài + thêm lớp):
-  // guest/học sinh phải nhập họ tên + lớp trước khi vào Listening/Speaking/Reading & Writing —
-  // admin/teacher tự test thì bỏ qua (không tạo session, xem SceneRunner.jsx). Tên/lớp lưu
-  // sessionStorage để không phải gõ lại mỗi bài, nhưng vẫn hiện lại màn xác nhận mỗi lần bắt đầu 1
-  // bài mới (phòng trường hợp đổi bé khác dùng chung thiết bị).
-  const [studentName, setStudentName] = useState(() => sessionStorage.getItem("student-name") ?? "");
-  const [studentClass, setStudentClass] = useState(() => sessionStorage.getItem("student-class") ?? "");
-  // Hành động đang chờ xác nhận tên/lớp: { type: "speaking"|"reading"|"listening", test? }
-  const [namePrompt, setNamePrompt] = useState(null);
+  const { user, isStaff, isAdmin, profile } = useAuth();
+  // Tên/lớp gắn vào báo cáo quá trình làm bài (speakingSessions, xem SceneRunner.jsx +
+  // StudentResultsPage.jsx) — từ 2026-08-27 lấy THẲNG từ hồ sơ tài khoản đã đăng nhập
+  // (users/{uid}.displayName/className, xem authContext.jsx), không còn gõ tay qua
+  // NamePromptScreen (đã bỏ hẳn — đăng nhập bắt buộc nên luôn có sẵn hồ sơ thật). Admin/teacher
+  // tự test dùng nhãn giả, không tạo session/tính lượt.
+  const studentName = isStaff ? (isAdmin ? "[Test - Admin]" : "[Test - Giáo viên]") : profile?.displayName ?? "";
+  const studentClass = isStaff ? "Admin" : profile?.className ?? "";
+  // Đang chặn học sinh vào bài: { title, message } — xem BlockedScreen (hết lượt nộp bài HOẶC
+  // giáo viên chưa mở bài này cho lớp).
+  const [blocked, setBlocked] = useState(null);
+  const [checkingAttempts, setCheckingAttempts] = useState(false);
 
   useEffect(() => {
     setParams({ level: level ? level.number : null, test: null });
@@ -237,13 +206,6 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
     if (match) setSelectedTest(match);
     initialUrlRef.current.delete("test");
   }, [content]);
-  // Guest/học sinh: khoá nội dung thật (Listening/Speaking) sau 1 mật khẩu chung, xem
-  // PasswordGate.jsx + lib/lessonAccess.js. Admin/teacher tự động bỏ qua màn khoá.
-  const [unlocked, setUnlocked] = useState(() => isStaff || isUnlockedInSession());
-  useEffect(() => {
-    if (isStaff) setUnlocked(true);
-  }, [isStaff]);
-
   // Tải nội dung thật (Firestore, fallback hardcode) ngay khi vào 1 cấp — dùng chung cho cả
   // Listening lẫn Speaking, hiện luôn cùng lúc trên 1 màn hình.
   useEffect(() => {
@@ -259,8 +221,7 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
     setSelectedTest(null);
   }, [level]);
 
-  // Rời khỏi màn "1 cấp độ" (đổi cấp khác / về bộ đề khác) — khoá lại nội dung, bắt nhập mật khẩu
-  // mỗi lần vào lại. Admin/teacher (isStaff) không bị ảnh hưởng, luôn bỏ qua màn khoá.
+  // Rời khỏi màn "1 cấp độ" (đổi cấp khác / về bộ đề khác) — quay lại màn chọn cấp.
   function backToLevelList() {
     stopCurrent();
     setSelectedTest(null);
@@ -269,46 +230,31 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
     setReadingActive(false);
     setListeningActive(false);
     setViewAllTests(false);
-    if (!isStaff) {
-      lockSession();
-      setUnlocked(false);
-    }
     setLevel(null);
   }
 
-  // Thoát khỏi bài Speaking toàn màn hình (SceneRunner), quay lại màn "Bài học" — khoá lại
-  // nội dung như khi rời hẳn cấp độ, để nhất quán với hành vi Listening.
+  // Thoát khỏi bài Speaking toàn màn hình (SceneRunner), quay lại màn "Bài học" — KHÔNG tính là
+  // 1 lượt nộp bài (bấm "Quay lại" giữa chừng khác với nộp bài thật, xem incrementAttempt() gọi
+  // trong SceneRunner.jsx khi thật sự hoàn thành).
   function exitSpeaking() {
     stopCurrent();
     setSpeakingActive(false);
     setSelectedTest(null);
     setViewAllTests(false);
-    if (!isStaff) {
-      lockSession();
-      setUnlocked(false);
-    }
   }
 
   // Thoát khỏi bài Reading & Writing toàn màn hình (ReadingRunner), quay lại màn "Bài học" —
-  // khoá lại nội dung như exitSpeaking/exitListening để nhất quán.
+  // tương tự exitSpeaking, KHÔNG tính lượt (lượt tính lúc bấm "Nộp bài" bên trong ReadingRunner).
   function exitReading() {
     stopCurrent();
     setReadingActive(false);
     setSelectedReadingTest(null);
-    if (!isStaff) {
-      lockSession();
-      setUnlocked(false);
-    }
   }
 
   // Thoát khỏi màn chi tiết Listening, quay lại màn "Bài học".
   function exitListening() {
     stopCurrent();
     setListeningActive(false);
-    if (!isStaff) {
-      lockSession();
-      setUnlocked(false);
-    }
   }
 
   // Cho phép bấm vào 1 bước ĐÃ hoàn thành trên thanh tiến trình (WizardSteps) để nhảy thẳng
@@ -362,30 +308,9 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
     );
   }
 
-  // ---------- Màn nhập tên + lớp trước khi vào bất kỳ bài nào (chỉ guest — xem NamePromptScreen) ----------
-  if (namePrompt) {
-    const subtitleByType = {
-      speaking: namePrompt.test?.title,
-      reading: namePrompt.test?.title,
-      listening: "Listening",
-    };
-    const ctaByType = {
-      speaking: "Bắt đầu luyện nói",
-      reading: "Bắt đầu làm bài",
-      listening: "Xem video",
-    };
-    return (
-      <NamePromptScreen
-        seriesTitle={series.title}
-        levelNumber={level.number}
-        subtitle={subtitleByType[namePrompt.type]}
-        ctaLabel={ctaByType[namePrompt.type]}
-        initialName={studentName}
-        initialClass={studentClass}
-        onCancel={() => setNamePrompt(null)}
-        onStart={confirmNamePrompt}
-      />
-    );
+  // ---------- Màn chặn (hết lượt nộp bài HOẶC giáo viên chưa mở bài này cho lớp) ----------
+  if (blocked) {
+    return <BlockedScreen title={blocked.title} message={blocked.message} onBack={() => setBlocked(null)} />;
   }
 
   // ---------- Bước 2: toàn bộ bài học của cấp độ (Listening + Speaking cùng lúc) ----------
@@ -408,6 +333,7 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
             progressKey={`${series.id}-${level.number}-${activeTest.id}`}
             studentName={studentName}
             studentClass={studentClass}
+            studentUid={!isStaff ? user?.uid : null}
             seriesId={series.id}
             level={level.number}
             testId={activeTest.id}
@@ -431,7 +357,14 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
           </span>
         </div>
         <div className="speaking-fullscreen-body reading-fullscreen-body">
-          <ReadingRunner parts={activeReadingTest.parts} onFinish={exitReading} />
+          <ReadingRunner
+            parts={activeReadingTest.parts}
+            onFinish={exitReading}
+            studentUid={!isStaff ? user?.uid : null}
+            seriesId={series.id}
+            level={level.number}
+            testId={activeReadingTest.id}
+          />
         </div>
       </div>
     );
@@ -479,17 +412,55 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
     );
   }
 
-  // Gộp chung 1 chỗ: bài nào cũng cần xác nhận tên+lớp trước khi bắt đầu (chỉ guest — admin/
-  // teacher tự test bỏ qua màn nhập, nhưng vẫn gắn nhãn riêng để phân biệt học sinh thật trong
-  // "Kết quả học sinh"). `type` khớp với `namePrompt.type`/performStart() bên dưới.
-  function requestStart(type, test) {
+  // Bấm vào 1 bài (Listening/Speaking/Reading) — học sinh (không phải admin/teacher) phải qua 2
+  // lớp kiểm tra trước khi vào: (1) giáo viên đã MỞ đúng bài này cho lớp mình chưa
+  // (classAssignments/{className}, xem lib/classAssignments.js — áp dụng CẢ 3 loại bài, chốt
+  // 2026-08-27); (2) riêng Speaking/Reading còn kiểm tra thêm số lượt đã nộp bài
+  // (test.maxAttempts). Admin/teacher luôn bỏ qua cả 2 lớp kiểm tra.
+  async function requestStart(type, test) {
     if (isStaff) {
-      setStudentName(isAdmin ? "[Test - Admin]" : "[Test - Giáo viên]");
-      setStudentClass("Admin");
       performStart(type, test);
       return;
     }
-    setNamePrompt({ type, test });
+    setCheckingAttempts(true);
+    try {
+      const assignment = await getClassAssignment(profile?.className);
+      // Hết hạn (assignment.expiresAt, giáo viên đặt lúc mở bài, tuỳ chọn) coi như CHƯA MỞ —
+      // giáo viên không cần nhớ bấm "Đóng" tay (chốt 2026-08-27).
+      const isExpired = assignment?.expiresAt && assignment.expiresAt.toDate() < new Date();
+      const isAssigned =
+        assignment &&
+        !isExpired &&
+        assignment.seriesId === series.id &&
+        assignment.level === level.number &&
+        assignment.mode === type &&
+        (type === "listening" || assignment.testId === test?.id);
+      if (!isAssigned) {
+        setBlocked({
+          title: "Chưa được mở bài này 🐝",
+          message: "Giáo viên chưa mở bài này cho lớp của con — hỏi giáo viên nhé.",
+        });
+        return;
+      }
+      // Số lượt tối đa: ưu tiên số RIÊNG cho lần mở bài này (assignment.maxAttempts), không có thì
+      // dùng số mặc định của cả Test (test.maxAttempts).
+      const maxAttempts = assignment.maxAttempts ?? test?.maxAttempts;
+      if ((type === "speaking" || type === "reading") && maxAttempts) {
+        const count = await getAttemptCount(user.uid, type, test.id);
+        if (count >= maxAttempts) {
+          setBlocked({
+            title: "Hết lượt làm bài rồi 🐝",
+            message: `"${test.title}" chỉ được làm tối đa ${maxAttempts} lượt — con đã nộp bài ${count}/${maxAttempts} lần. Nếu cần làm lại, hãy nhờ giáo viên hỗ trợ nhé.`,
+          });
+          return;
+        }
+      }
+    } catch {
+      // Không kiểm tra được (mất mạng...) — vẫn cho vào bài, không chặn oan học sinh vì lỗi mạng.
+    } finally {
+      setCheckingAttempts(false);
+    }
+    performStart(type, test);
   }
 
   function performStart(type, test) {
@@ -504,28 +475,14 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
     }
   }
 
-  // Xác nhận tên+lớp xong mới thực sự bắt đầu bài — lưu lại sessionStorage để lần sau không phải
-  // gõ lại (vẫn hiện màn này mỗi lần bắt đầu 1 bài mới, phòng đổi bé khác dùng chung thiết bị).
-  function confirmNamePrompt(name, cls) {
-    const trimmedName = name.trim();
-    const trimmedClass = cls.trim();
-    sessionStorage.setItem("student-name", trimmedName);
-    sessionStorage.setItem("student-class", trimmedClass);
-    setStudentName(trimmedName);
-    setStudentClass(trimmedClass);
-    const pending = namePrompt;
-    setNamePrompt(null);
-    if (pending) performStart(pending.type, pending.test);
-  }
-
   function testCard(t) {
     return lessonCard({
       key: t.id,
       banner: "Speaking",
       title: t.title,
       desc: "Luyện nói cùng giám khảo ong, đúng cấu trúc đề thi Cambridge YLE",
-      cta: t.scenes?.length ? "Bắt đầu luyện nói" : "Chưa có scene",
-      disabled: !t.scenes?.length,
+      cta: !t.scenes?.length ? "Chưa có scene" : checkingAttempts ? "Đang kiểm tra..." : "Bắt đầu luyện nói",
+      disabled: !t.scenes?.length || checkingAttempts,
       onClick: () => requestStart("speaking", t),
     });
   }
@@ -536,8 +493,8 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
       banner: "Đọc & Viết",
       title: t.title,
       desc: "Đọc & viết theo đúng đề thi Cambridge YLE",
-      cta: t.parts?.length ? "Bắt đầu làm bài" : "Chưa có Part",
-      disabled: !t.parts?.length,
+      cta: !t.parts?.length ? "Chưa có Part" : checkingAttempts ? "Đang kiểm tra..." : "Bắt đầu làm bài",
+      disabled: !t.parts?.length || checkingAttempts,
       onClick: () => requestStart("reading", t),
     });
   }
@@ -581,9 +538,7 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
       onStepClick={goToWizardStep}
       dark
     >
-      {!isStaff && !unlocked ? (
-        <PasswordGate onUnlock={() => setUnlocked(true)} />
-      ) : !content ? (
+      {!content ? (
         <ContentSkeleton />
       ) : (
         <>

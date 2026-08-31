@@ -4,9 +4,13 @@ function isSignedIn() {
   return request.auth != null;
 }
 
+// Dùng "(default)" thay vì $(database) — hàm này khai báo NGOÀI service cloud.firestore {},
+// biến $(database) chỉ tồn tại trong phạm vi match /databases/{database}/documents nên không hợp
+// lệ ở đây (lỗi thật khi dán qua Firebase Console: "Invalid variable name: database" — phát hiện
+// 2026-08-27). Project chỉ có đúng 1 database mặc định nên hardcode an toàn.
 function role() {
-  return isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid))
-    ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role
+  return isSignedIn() && exists(/databases/(default)/documents/users/$(request.auth.uid))
+    ? get(/databases/(default)/documents/users/$(request.auth.uid)).data.role
     : null;
 }
 
@@ -14,12 +18,20 @@ function isAdmin() {
   return role() == "admin";
 }
 
+function isStaff() {
+  return role() == "admin" || role() == "teacher";
+}
+
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    match /settings/access {
-      allow read: if true;
-      allow write: if isSignedIn();
+    // Đăng nhập bắt buộc (chốt 2026-08-27) — không còn guest/mật khẩu chung mở khoá bài học,
+    // "settings/access" đã bỏ hẳn cùng PasswordGate.jsx/lessonAccess.js.
+
+    // Mật khẩu chung ĐANG DÙNG cho toàn bộ tài khoản học sinh — CHỈ admin/teacher đọc/ghi được,
+    // học sinh không bao giờ được thấy field này (xem lib/adminUsers.js).
+    match /settings/studentAccess {
+      allow read, write: if isStaff();
     }
 
     match /users/{uid} {
@@ -27,18 +39,21 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // "lessons/**" trước đây cho phép BẤT KỲ ai đăng nhập ghi (isSignedIn()) — an toàn khi chỉ
+    // admin/teacher có tài khoản, nhưng từ khi học sinh cũng có tài khoản thật thì phải xiết lại
+    // chỉ staff mới ghi được, tránh học sinh gọi thẳng Firestore SDK sửa bài học (chốt 2026-08-27).
     match /lessons/{lessonId} {
       allow read: if true;
-      allow write: if isSignedIn();
+      allow write: if isStaff();
 
       match /tests/{testId} {
         allow read: if true;
-        allow write: if isSignedIn();
+        allow write: if isStaff();
       }
 
       match /readingTests/{testId} {
         allow read: if true;
-        allow write: if isSignedIn();
+        allow write: if isStaff();
       }
     }
 
@@ -58,6 +73,28 @@ service cloud.firestore {
         allow create: if true;
         allow update, delete: if false;
       }
+    }
+
+    // Đếm số lượt nộp bài/học sinh/Test — dùng chặn khi chạm test.maxAttempts (xem lib/attempts.js,
+    // CreateLessonPage.jsx). Học sinh chỉ được tăng ĐÚNG +1 trên đúng doc của CHÍNH MÌNH (uid khớp
+    // request.auth.uid) — không tự đặt lại/giảm lượt hay sửa lượt của em khác qua devtools được.
+    match /attempts/{attemptId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.count == 1;
+      allow update: if isSignedIn()
+        && resource.data.uid == request.auth.uid
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.count == resource.data.count + 1;
+      allow delete: if isStaff();
+    }
+
+    // "Giao bài cho lớp" — mỗi lớp chỉ 1 bài đang mở tại 1 thời điểm (xem lib/classAssignments.js,
+    // AssignmentsPage.jsx). Học sinh chỉ ĐỌC (để tự kiểm tra bài mình được vào), CHỈ staff mới ghi.
+    match /classAssignments/{className} {
+      allow read: if isSignedIn();
+      allow write: if isStaff();
     }
 
     match /{document=**} {

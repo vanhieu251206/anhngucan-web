@@ -1045,10 +1045,10 @@ button { font-family: inherit; }
 
 .reading-part {
   background: #fff; border-radius: var(--radius-lg); border: 2px solid #ece6da;
-  padding: 24px 26px 22px; display: flex; flex-direction: column; gap: 20px;
+  padding: 24px 26px 22px; display: flex; flex-direction: column; gap: 16px;
   box-shadow: var(--shadow-soft);
 }
-.reading-part-head { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 10px; border-bottom: 2px dashed #f1ebdd; padding-bottom: 14px; }
+.reading-part-head { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 10px; border-bottom: 2px dashed #f1ebdd; padding-bottom: 10px; }
 .reading-part-head::before {
   content: "📘"; font-size: 1.4rem; line-height: 1; flex-shrink: 0;
 }
@@ -1118,7 +1118,7 @@ button { font-family: inherit; }
 .reading-freewrite-preview { height: 44px; background: repeating-linear-gradient(#fdf6e8, #fdf6e8 21px, #e6dfd0 22px); }
 
 .reading-wordbank-box {
-  display: flex; flex-wrap: wrap; gap: 10px; padding: 14px 16px; margin: 14px 0;
+  display: flex; flex-wrap: wrap; gap: 16px; padding: 14px 16px; margin: 14px 0;
   background: #fff8ec; border: 2px dashed var(--color-primary); border-radius: 14px;
 }
 .reading-wordbank-chip {
@@ -1135,7 +1135,47 @@ button { font-family: inherit; }
 /* To hơn hẳn 64px cũ (yêu cầu người dùng 2026-08-27) — ảnh minh hoạ dạng thẻ (Flyers Part 1, Movers
    Part 3) thường đã có sẵn chữ vẽ trong chính ảnh, cần đủ to để đọc được chữ đó, không chỉ để nhận
    diện hình. */
-.reading-wordbank-chip-img { width: 128px; height: 108px; object-fit: cover; border-radius: 10px; }
+.reading-wordbank-chip-img { width: 260px; height: 210px; object-fit: cover; border-radius: 10px; }
+
+/* Flyers Part 2 — ngân hàng đáp án ĐỦ CÂU đánh chữ A-H, khác .reading-wordbank-box (chip ngang, từ
+   ngắn): đây là danh sách DỌC, mỗi dòng 1 câu trả lời đầy đủ + chữ cái, khớp khung sách gốc. */
+.reading-letterbank-box {
+  display: flex; flex-direction: column; gap: 10px; padding: 14px 18px; margin: 14px 0;
+  background: #fff8ec; border: 2px dashed var(--color-primary); border-radius: 14px;
+}
+.reading-letterbank-row { display: flex; gap: 10px; align-items: baseline; }
+.reading-letterbank-letter {
+  font-weight: 800; color: var(--color-primary-dark); font-family: var(--font-display); min-width: 20px;
+}
+.reading-letterbank-text { flex: 1; line-height: 1.5; }
+
+/* Flyers Part 2 — 1 lượt hội thoại 2 nhân vật, người trả lời chọn đáp án qua <select> (bấm xổ ra cả
+   ngân hàng đáp án, chọn xong thu gọn còn đúng đáp án đã chọn — hành vi mặc định của <select>). */
+.reading-conversation-line { margin: 0; line-height: 1.5; }
+.reading-conversation-line + .reading-conversation-line { margin-top: 4px; }
+
+/* Dropdown tự dựng (Flyers Part 2) — bấm vào ô hiện danh sách NGAY BÊN DƯỚI trong luồng trang
+   (không phải popup nổi của trình duyệt như <select> mặc định) — chốt 2026-08-31. */
+.reading-letter-dropdown { display: inline-flex; flex-direction: column; width: 100%; max-width: 420px; vertical-align: top; }
+.reading-letter-dropdown-trigger {
+  display: flex; align-items: center; gap: 8px; width: 100%; text-align: left;
+  font-family: inherit; font-size: 1rem; padding: 8px 12px; border-radius: 8px;
+  border: 2px solid #ece6da; background: #fff8ec; color: var(--color-ink); cursor: pointer;
+}
+.reading-letter-dropdown-trigger:hover, .reading-letter-dropdown-trigger.is-open { border-color: var(--color-primary); }
+.reading-letter-dropdown-placeholder { color: #a89b7f; }
+.reading-letter-dropdown-caret { margin-left: auto; font-size: 0.7rem; color: var(--color-primary-dark); flex-shrink: 0; }
+.reading-letter-dropdown-list {
+  display: flex; flex-direction: column; gap: 4px; margin-top: 6px; padding: 8px;
+  border: 2px solid #ece6da; border-radius: 10px; background: #fff;
+}
+.reading-letter-dropdown-option {
+  display: flex; align-items: center; gap: 8px; text-align: left; width: 100%;
+  padding: 8px 10px; border-radius: 8px; border: none; background: transparent;
+  font-family: inherit; font-size: 0.98rem; cursor: pointer; line-height: 1.4;
+}
+.reading-letter-dropdown-option:hover { background: #fff8ec; }
+.reading-letter-dropdown-option.is-selected { background: #fff0dc; font-weight: 700; }
 
 .reading-question-list { display: flex; flex-direction: column; gap: 16px; }
 /* Bọc groupLabel/storyBreak (đoạn truyện Part 5 Movers)/câu hỏi trong 1 nhóm — thiếu khoảng cách
@@ -1696,6 +1736,19 @@ button { font-family: inherit; }
   font-size: 1rem;
 }
 .auth-input:focus { outline: none; border-color: var(--color-primary); }
+
+/* Ô mật khẩu + nút hiện/ẩn (con mắt) dùng chung mọi nơi — xem PasswordInput.jsx. Input bên trong
+   giữ NGUYÊN class gốc (auth-input/admin-input...), wrapper chỉ thêm padding-right chừa chỗ nút. */
+.password-input-wrap { position: relative; display: block; width: 100%; }
+.password-input-wrap input { width: 100%; padding-right: 44px !important; }
+.password-input-toggle {
+  position: absolute; top: 50%; right: 8px; transform: translateY(-50%);
+  width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;
+  border: none; background: transparent; cursor: pointer; color: var(--color-muted, #8a8a9a);
+  border-radius: 50%; padding: 0;
+}
+.password-input-toggle:hover { background: rgba(0, 0, 0, 0.06); color: var(--color-primary); }
+.password-input-toggle svg { width: 19px; height: 19px; }
 .auth-error { color: var(--color-red, #e0503c); font-weight: 600; }
 .auth-hint { color: var(--color-muted); font-weight: 600; }
 .auth-success { color: var(--color-green, #3fa66a); font-weight: 600; }
@@ -2404,6 +2457,17 @@ button { font-family: inherit; }
    khiến quay lại sửa 1 scene cũ không còn biết ô nào là ô nào (đây là nguồn gây "rối" chính khi
    người dùng phản hồi form khó nhìn). */
 .admin-mini-field { display: flex; flex-direction: column; gap: 5px; }
+.admin-field-hint { font-size: 0.76rem; color: var(--admin-muted); line-height: 1.4; }
+
+/* "Giao bài cho lớp" (AssignmentsPage.jsx) — form nhiều ô chọn xếp LƯỚI thay vì cột dọc hẹp
+   (mặc định .admin-form max-width:360px khiến các ô như ngày-giờ bị bóp chật, chữ nhãn dài xuống
+   2 dòng — chốt 2026-08-27). */
+.assignment-form { max-width: none; }
+.assignment-form-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px 20px;
+  margin-bottom: 18px;
+}
+.assignment-form-grid-optional { max-width: 560px; }
 /* Field lẻ nằm trực tiếp trong form (không thuộc fieldset nào, vd "Gợi ý trả lời" ở scene mic) —
    vẫn bọc thẻ trắng + viền + bóng giống fieldset để nhất quán, tránh 1 dòng chữ trôi nổi giữa
    các khối có viền rõ ràng ở trên/dưới. */
@@ -2643,6 +2707,10 @@ button { font-family: inherit; }
   box-shadow: var(--admin-shadow-sm);
   flex-shrink: 0;
 }
+/* "Lượt làm tối đa" — nhãn nhỏ + ô số cạnh tên Test trong studio-topbar (chốt 2026-08-27, xem
+   TestStudio.jsx/ReadingStudio.jsx) */
+.studio-max-attempts { display: flex; align-items: center; gap: 8px; font-size: 0.82rem; color: var(--admin-text-muted, #6b7280); flex-shrink: 0; }
+.studio-max-attempts input { width: 110px; padding: 7px 10px; }
 .studio-title-input {
   flex: 1;
   min-width: 0;

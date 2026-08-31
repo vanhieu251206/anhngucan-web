@@ -1,12 +1,18 @@
 import { useEffect, useState } from "react";
 import { signInWithEmailAndPassword } from "firebase/auth";
-import { auth } from "../lib/firebase.js";
+import { doc, getDoc } from "firebase/firestore";
+import { auth, db } from "../lib/firebase.js";
+import PasswordInput from "../components/PasswordInput.jsx";
 
 const AUTH_BG = `${import.meta.env.BASE_URL}assets/img/backgrounds/auth-bg.jpg`;
+const STUDENT_EMAIL_DOMAIN = "hocsinh.local";
 
-// Đăng nhập cho admin/teacher (email/password). KHÔNG có đăng ký/quên mật khẩu ở Phase 1 —
-// tài khoản được admin tạo thủ công qua Firebase Console, xem docs/quy-trinh (nội bộ) hoặc
-// ghi chú trong CLAUDE.md.
+// Đăng nhập chung cho cả admin/teacher (email thật) LẪN học sinh (tên đăng nhập do CMS tự sinh,
+// không có "@" — tự nối "@hocsinh.local" trước khi gọi Firebase Auth, xem adminUsers.js). KHÔNG
+// có đăng ký/quên mật khẩu — tài khoản admin/teacher tạo thủ công qua Firebase Console/CMS, tài
+// khoản học sinh tạo hàng loạt qua CMS (StudentAccountsPage.jsx). Sau khi đăng nhập, đọc thẳng
+// role từ Firestore (không đợi AuthProvider ở App.jsx kịp cập nhật) để điều hướng đúng: học sinh
+// vào thẳng "lessons", admin/teacher vào "dashboard".
 export default function LoginPage({ onNavigate }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -26,11 +32,14 @@ export default function LoginPage({ onNavigate }) {
     e.preventDefault();
     setError("");
     setLoading(true);
+    const loginId = email.includes("@") ? email.trim() : `${email.trim()}@${STUDENT_EMAIL_DOMAIN}`;
     try {
-      await signInWithEmailAndPassword(auth, email, password);
-      onNavigate("dashboard");
+      const cred = await signInWithEmailAndPassword(auth, loginId, password);
+      const snap = await getDoc(doc(db, "users", cred.user.uid));
+      const role = snap.exists() ? snap.data().role : null;
+      onNavigate(role === "admin" || role === "teacher" ? "dashboard" : "lessons");
     } catch {
-      setError("Sai email hoặc mật khẩu. Thử lại nhé.");
+      setError("Sai tên đăng nhập/email hoặc mật khẩu. Thử lại nhé.");
     } finally {
       setLoading(false);
     }
@@ -46,21 +55,20 @@ export default function LoginPage({ onNavigate }) {
           </svg>
         </span>
         <h1 className="page-title">Đăng nhập</h1>
-        <p className="lead">Dành cho giáo viên/quản trị viên.</p>
+        <p className="lead">Học sinh dùng tên đăng nhập được cấp — giáo viên/quản trị viên dùng email.</p>
 
         <form className="auth-form" onSubmit={handleSubmit}>
           <input
             className="auth-input"
-            type="email"
-            placeholder="Email"
+            type="text"
+            placeholder="Email (giáo viên) hoặc tên đăng nhập (học sinh)"
             value={email}
             onChange={e => setEmail(e.target.value)}
             autoFocus
             required
           />
-          <input
+          <PasswordInput
             className="auth-input"
-            type="password"
             placeholder="Mật khẩu"
             value={password}
             onChange={e => setPassword(e.target.value)}

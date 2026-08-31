@@ -21,7 +21,7 @@ function initialNavFromUrl() {
 
 export default function App() {
   const [{ page, lessonSeriesId }, setNav] = useState(initialNavFromUrl);
-  const { isStaff, loading } = useAuth();
+  const { user, isStaff, loading } = useAuth();
 
   function setPage(next) {
     setNav(n => ({ ...n, page: next }));
@@ -56,12 +56,13 @@ export default function App() {
     return null;
   }
 
-  // "Cài đặt" (đổi mật khẩu chung) giờ nằm TRONG Dashboard (mục Sidebar), không còn là trang
-  // riêng — link/URL cũ (?page=settings) tự chuyển vào đúng chỗ thay vì vào trang trống.
+  // "Cài đặt" (đổi mật khẩu chung mở khoá bài học) đã BỎ HẲN cùng lối vào guest cũ (chốt
+  // 2026-08-27, xem StudentAccountsPage.jsx thay thế bằng mật khẩu chung cho tài khoản học sinh
+  // thật) — link/URL cũ (?page=settings) chuyển thẳng vào Dashboard mặc định thay vì trang trống.
   if (page === "settings" && isStaff) {
     return (
       <Suspense fallback={null}>
-        <DashboardPage onNavigate={setPage} initialSection="settings" />
+        <DashboardPage onNavigate={setPage} />
       </Suspense>
     );
   }
@@ -83,6 +84,24 @@ export default function App() {
   }
 
   if (page === "lessons") {
+    // Đăng nhập bắt buộc mới (chốt 2026-08-27) — không còn lối vào bằng mật khẩu chung (guest),
+    // chỉ tài khoản đã được cấp (admin/teacher/học sinh) mới xem được nội dung bài học. Chờ
+    // `loading` xong mới quyết định, tránh chớp qua LoginPage rồi lại nhảy vào Lessons khi Auth
+    // vừa xác thực lại phiên cũ lúc F5 (giống cách chặn "dashboard"/"settings" phía trên).
+    if (loading) return null;
+    if (!user) {
+      // LoginPage vốn được thiết kế để đặt DƯỚI Header (.login-screen trừ sẵn 72px chiều cao
+      // Header trong CSS) — thiếu Header ở đây từng để lộ khoảng trống trắng bên dưới màn đăng
+      // nhập (lỗi thực tế 2026-08-27), phải bọc y hệt route ?page=login gốc bên dưới.
+      return (
+        <>
+          <Header page="login" onNavigate={setPage} />
+          <main id="app">
+            <LoginPage onNavigate={setPage} />
+          </main>
+        </>
+      );
+    }
     return <LessonsPage initialSeriesId={lessonSeriesId} onNavigate={setPage} />;
   }
 

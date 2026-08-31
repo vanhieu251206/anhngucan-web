@@ -86,7 +86,7 @@ function extraFieldsOf(type) {
 // chọn hành động hay chưa. Sau đó mới đến việc chọn hành động (5 ô như cũ, nhưng nằm ngay trong
 // sidebar thay vì popover riêng) — chọn xong mới hiện tiếp phần nội dung/ảnh riêng của hành động
 // đó. Thay cho luồng cũ (bắt buộc chọn loại scene trước khi soạn được gì).
-export default function TestStudio({ accent, title, onTitleChange, scenes, onScenesChange, onBack, onSave, saving, saved }) {
+export default function TestStudio({ accent, title, onTitleChange, scenes, onScenesChange, maxAttempts, onMaxAttemptsChange, onBack, onSave, saving, saved }) {
   const { ref: previewAreaRef, width: previewAreaWidth } = usePreviewAreaWidth(PREVIEW_CARD_RATIO);
   const [selected, setSelected] = useState(scenes.length ? 0 : null);
   const [dragIndex, setDragIndex] = useState(null);
@@ -157,6 +157,17 @@ export default function TestStudio({ accent, title, onTitleChange, scenes, onSce
           onChange={e => onTitleChange(e.target.value)}
           placeholder="Tên Test"
         />
+        <label className="studio-max-attempts" title="Số lần tối đa 1 học sinh được nộp bài Test này — để trống nghĩa là không giới hạn.">
+          <span>Lượt làm tối đa</span>
+          <input
+            type="number"
+            min={1}
+            className="admin-input"
+            value={maxAttempts ?? ""}
+            onChange={e => onMaxAttemptsChange(e.target.value === "" ? null : Number(e.target.value))}
+            placeholder="Không giới hạn"
+          />
+        </label>
         <div className="studio-topbar-actions">
           {saved && <span className="admin-success">✓ Đã xuất bản</span>}
           <button className="admin-btn-primary" onClick={handlePublish} disabled={saving}>

@@ -7,7 +7,10 @@ const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
-  const [role, setRole] = useState(null); // null = guest (chưa đăng nhập/không có role)
+  const [role, setRole] = useState(null); // null = chưa đăng nhập/không có role
+  // Hồ sơ học sinh (displayName/className/username) đọc thẳng từ doc users/{uid} — dùng để tự
+  // điền tên/lớp khi vào bài (thay cho NamePromptScreen kiểu gõ tay đã bỏ, xem LessonsPage.jsx).
+  const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -17,15 +20,18 @@ export function AuthProvider({ children }) {
       setUser(firebaseUser);
       if (!firebaseUser) {
         setRole(null);
+        setProfile(null);
         setLoading(false);
         return;
       }
       try {
         const snap = await getDoc(doc(db, "users", firebaseUser.uid));
         setRole(snap.exists() ? snap.data().role : null);
+        setProfile(snap.exists() ? snap.data() : null);
       } catch {
-        // Đọc role lỗi (mất mạng...) — coi như guest, không chặn cả app.
+        // Đọc role lỗi (mất mạng...) — coi như chưa xác định, không chặn cả app.
         setRole(null);
+        setProfile(null);
       }
       setLoading(false);
     });
@@ -37,10 +43,12 @@ export function AuthProvider({ children }) {
   const value = {
     user,
     role,
+    profile,
     loading,
     isStaff,
     isAdmin: role === "admin",
     isTeacher: role === "teacher",
+    isStudent: role === "student",
     logout: () => signOut(auth),
   };
 

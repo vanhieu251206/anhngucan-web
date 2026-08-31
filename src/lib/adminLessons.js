@@ -37,12 +37,13 @@ export async function getTest(seriesId, level, testId) {
 
 // scenes PHẢI đã resolve hết ảnh/audio thành URL đầy đủ (Storage download URL) trước khi gọi
 // hàm này — đúng contract SceneRunner.jsx đang đọc, không lưu File/blob URL tạm vào Firestore.
-export async function saveTest(seriesId, level, testId, { title, order, scenes }, uid) {
+export async function saveTest(seriesId, level, testId, { title, order, scenes, maxAttempts }, uid) {
   await setDoc(doc(db, "lessons", lessonId(seriesId, level), "tests", testId), {
     testId,
     title,
     order,
     scenes,
+    maxAttempts: maxAttempts ?? null,
     updatedAt: serverTimestamp(),
     updatedBy: uid,
   });
@@ -69,12 +70,13 @@ export async function getReadingTest(seriesId, level, testId) {
 }
 
 // parts PHẢI đã resolve hết ảnh thành URL đầy đủ (Cloudinary) trước khi gọi hàm này, giống saveTest.
-export async function saveReadingTest(seriesId, level, testId, { title, order, parts }, uid) {
+export async function saveReadingTest(seriesId, level, testId, { title, order, parts, maxAttempts }, uid) {
   await setDoc(doc(db, "lessons", lessonId(seriesId, level), "readingTests", testId), {
     testId,
     title,
     order,
     parts,
+    maxAttempts: maxAttempts ?? null,
     updatedAt: serverTimestamp(),
     updatedBy: uid,
   });

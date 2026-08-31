@@ -6,6 +6,7 @@ import { SpeakingReportView } from "./SpeakingReportView.jsx";
 import { useAuth } from "../lib/authContext.jsx";
 import { logSpeechAttempt } from "../lib/speechLog.js";
 import { startSpeakingSession, finishSpeakingSession, logSpeakingEvent } from "../lib/speakingSessions.js";
+import { incrementAttempt } from "../lib/attempts.js";
 import { saveRecording, submitRun, getRunRecordings, cleanupExpiredAudio, isWithinViewWindow } from "../lib/audioReviewCache.js";
 
 // Lời khen dùng chung cho MỌI bài (không riêng lesson nào) — audio thật lấy từ
@@ -171,6 +172,7 @@ export default function SceneRunner({
   progressKey,
   studentName,
   studentClass,
+  studentUid,
   seriesId,
   level,
   testId,
@@ -256,6 +258,9 @@ export default function SceneRunner({
     if (isLast) {
       if (progressKey) sessionStorage.removeItem(PROGRESS_KEY_PREFIX + progressKey);
       finishSpeakingSession(sessionIdRef.current);
+      // Tính 1 lượt nộp bài (chốt 2026-08-27, xem lib/attempts.js) — chỉ khi có studentUid (học
+      // sinh đã đăng nhập thật, không phải admin/teacher tự test).
+      if (studentUid) incrementAttempt({ uid: studentUid, mode: "speaking", testId, seriesId, level });
       if (progressKey) submitRun(progressKey, runIdRef.current);
       setReviewOpen(true);
       return;
