@@ -101,7 +101,10 @@ export default function ReadingReportView({ items, earnedPoints, totalPoints, el
               )}
               {visibleItems.map(item => {
                 const meta = READING_TYPE_META[item.question.type] ?? { label: item.question.type, icon: "❓" };
-                const questionLabel = item.question.text || item.question.prompt?.replace("___", "____") || "";
+                // `questionLabel` do buildResults() dựng sẵn (vd gapfillReviewLabel() cho từng chỗ
+                // trống Reading Flyers, đánh dấu rõ đang chấm vị trí nào) — ưu tiên dùng thay vì tự
+                // suy ra từ question.text/prompt.
+                const questionLabel = item.questionLabel ?? (item.question.text || item.question.prompt?.replace("___", "____") || "");
                 if (item.ungraded) {
                   return (
                     <div className="review-item is-ungraded" key={item.qNumber}>

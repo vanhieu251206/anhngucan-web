@@ -45,11 +45,23 @@ export function gapPoints(question, blankCount) {
 // cách cũ (questionPoints(question)). Câu "free-writing" (viết tự do, không có đáp án đúng/sai —
 // Movers Part 6 câu 5-6) LUÔN 0 điểm và KHÔNG tính vào mẫu số chia đều của partPoints (yêu cầu
 // người dùng 2026-08-27).
-export function effectiveQuestionPoints(part, question) {
+export function effectiveQuestionPoints(part, question, isFlyers) {
   if (question.type === "free-writing") return 0;
+  // Reading Flyers (chốt 2026-09-02): mỗi Question — kể cả TỪNG chỗ trống gapfill được tách riêng
+  // (xem gapfillBlankCount()/flattenQuestions()) — luôn đúng 1 điểm cố định, bỏ hẳn partPoints/
+  // questionPoints (chỉ còn áp dụng cho Starters/Movers, giữ nguyên hành vi cũ).
+  if (isFlyers) return 1;
   const gradedCount = (part.questions ?? []).filter(q => q.type !== "free-writing").length;
   if (part.partPoints != null && gradedCount > 0) return part.partPoints / gradedCount;
   return questionPoints(question);
+}
+
+// Số chỗ trống THẬT (không tính chỗ trống ví dụ `firstGapIsExample`) của 1 câu gapfill — dùng để
+// tách mỗi chỗ trống thành 1 "Question N" riêng cho Reading Flyers (chốt 2026-09-02, yêu cầu người
+// dùng: "mỗi chỗ trống để điền, hoặc mỗi một chỗ chọn đáp án thì sẽ là một Question N").
+export function gapfillBlankCount(question) {
+  const offset = question.firstGapIsExample ? 1 : 0;
+  return Math.max((question.answers ?? []).length - offset, 0);
 }
 
 // Xáo chữ cái THẬT MẠNH: lặp lại tới khi KHÔNG CÒN chữ cái nào đứng đúng vị trí gốc (derangement),
@@ -72,21 +84,36 @@ export function scrambleWord(word) {
 }
 
 // Gộp mọi câu hỏi của mọi Part thành 1 danh sách phẳng, đánh số "Question N." liên tục xuyên suốt
-// Test — dùng để đồng bộ số thứ tự giữa nội dung chính và sidebar.
-function flattenQuestions(parts) {
+// Test — dùng để đồng bộ số thứ tự giữa nội dung chính và sidebar. Reading Flyers (`isFlyers`):
+// mỗi chỗ trống THẬT của 1 câu gapfill (xem gapfillBlankCount()) tách thành 1 phần tử riêng
+// (`gapIndex` = vị trí trong `question.answers`), mỗi phần tử là 1 "Question N" độc lập — khác
+// Starters/Movers vẫn gộp cả đoạn gapfill thành 1 Question duy nhất (`gapIndex: null`).
+function flattenQuestions(parts, isFlyers) {
   const flat = [];
   let n = 1;
   parts.forEach((part, partIndex) => {
     (part.questions ?? []).forEach((q, qIndex) => {
-      flat.push({ question: q, part, partIndex, qIndex, qNumber: n });
-      n += 1;
+      if (isFlyers && q.type === "gapfill") {
+        const offset = q.firstGapIsExample ? 1 : 0;
+        const answers = q.answers ?? [];
+        for (let gapIndex = offset; gapIndex < answers.length; gapIndex++) {
+          flat.push({ question: q, part, partIndex, qIndex, gapIndex, qNumber: n });
+          n += 1;
+        }
+      } else {
+        flat.push({ question: q, part, partIndex, qIndex, gapIndex: null, qNumber: n });
+        n += 1;
+      }
     });
   });
   return flat;
 }
 
-function isAnswered(question, value) {
-  if (question.type === "gapfill") return (value ?? []).some(v => (v ?? "").trim());
+function isAnswered(question, value, gapIndex) {
+  if (question.type === "gapfill") {
+    if (gapIndex != null) return !!(value?.[gapIndex] ?? "").toString().trim();
+    return (value ?? []).some(v => (v ?? "").trim());
+  }
   if (question.type === "multiple-choice") return value !== undefined && value !== null;
   return !!(value ?? "").toString().trim();
 }
@@ -125,13 +152,17 @@ function YesNoQuestion({ question, qNumber, value, onChange }) {
   );
 }
 
-function GapfillQuestion({ question, qNumber, values, onChange, hideImage }) {
+// `qNumbers` (map gapIndex -> qNumber): khi có (Reading Flyers), mỗi chỗ trống THẬT hiện badge
+// "Question N" riêng ngay tại vị trí chỗ trống thay cho nhãn "(N)" cũ, KHÔNG còn 1 badge chung cho
+// cả đoạn — chốt 2026-09-02. Khi không có (Starters/Movers), giữ nguyên hành vi cũ.
+function GapfillQuestion({ question, qNumber, qNumbers, values, onChange, hideImage }) {
   const segments = useMemo(() => splitGapfillText(question.text), [question.text]);
   const answers = question.answers ?? [];
+  const split = !!qNumbers;
 
   return (
-    <div className="reading-question" id={`rq-${qNumber}`}>
-      <QuestionBadge qNumber={qNumber} />
+    <div className="reading-question" id={split ? undefined : `rq-${qNumber}`}>
+      {!split && <QuestionBadge qNumber={qNumber} />}
       <div className="reading-question-body">
         {!hideImage && question.image && <img src={question.image} alt="" className="reading-question-img" />}
         <p className="reading-gapfill-text">
@@ -178,11 +209,16 @@ function GapfillQuestion({ question, qNumber, values, onChange, hideImage }) {
             // dòng tách rời trông rất rối (lỗi thực tế 2026-08-26, đoạn văn dài nhiều dòng).
             const numMatch = !question.firstGapIsExample && seg.match(/(\(\d+\))\s*$/);
             const prefix = numMatch ? seg.slice(0, numMatch.index) : seg;
-            const marker = numMatch ? numMatch[1] : question.firstGapIsExample ? `(${gapIndex})` : "";
+            const marker = split ? "" : numMatch ? numMatch[1] : question.firstGapIsExample ? `(${gapIndex})` : "";
             const choices = question.gapMode === "choices" ? question.gapOptions?.[gapIndex]?.options : null;
             return (
               <span key={i}>
                 {prefix}
+                {split && (
+                  <span className="reading-gap-inline-badge" id={`rq-${qNumbers[gapIndex]}`}>
+                    Question {qNumbers[gapIndex]}
+                  </span>
+                )}
                 {choices ? (
                   // Chế độ bấm chọn (khác gõ tự do) — 3 nút cho từng chỗ trống, bấm vào thì
                   // highlight (khớp đáp án đúng hay không tính lúc chấm điểm, không tô màu ngay khi
@@ -643,8 +679,8 @@ function QuestionListSidebar({ flat, answers }) {
     document.getElementById(`rq-${qNumber}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
-  const answeredCount = flat.filter(({ question, partIndex, qIndex }) =>
-    isAnswered(question, answers[partIndex]?.[qIndex])
+  const answeredCount = flat.filter(({ question, partIndex, qIndex, gapIndex }) =>
+    isAnswered(question, answers[partIndex]?.[qIndex], gapIndex)
   ).length;
   const pct = flat.length ? Math.round((answeredCount / flat.length) * 100) : 0;
 
@@ -658,8 +694,8 @@ function QuestionListSidebar({ flat, answers }) {
         <span>{answeredCount}/{flat.length} câu</span>
       </div>
       <div className="reading-sidebar-grid">
-        {flat.map(({ qNumber, question, partIndex, qIndex }) => {
-          const answered = isAnswered(question, answers[partIndex]?.[qIndex]);
+        {flat.map(({ qNumber, question, partIndex, qIndex, gapIndex }) => {
+          const answered = isAnswered(question, answers[partIndex]?.[qIndex], gapIndex);
           return (
             <button
               key={qNumber}
@@ -677,15 +713,57 @@ function QuestionListSidebar({ flat, answers }) {
   );
 }
 
+// Dựng lại đoạn văn gapfill cho màn tổng kết — chỉ 1 chỗ trống ĐANG chấm (gapIndex) được đánh dấu
+// nổi bật, các chỗ trống khác hiện ĐÁP ÁN ĐÚNG mờ đi làm ngữ cảnh — tránh tình trạng mỗi Question
+// (Reading Flyers, mỗi chỗ trống tách riêng — xem flattenQuestions()) đều hiện y hệt cả đoạn văn
+// dài, không phân biệt được đang chấm vị trí nào (phản hồi thực tế 2026-09-02).
+function gapfillReviewLabel(question, gapIndex) {
+  const segments = splitGapfillText(question.text);
+  return segments.map((seg, i) => {
+    const isLast = i === segments.length - 1;
+    if (isLast) return <span key={i}>{seg}</span>;
+    return (
+      <span key={i}>
+        {seg}
+        {i === gapIndex ? (
+          <mark className="review-gapfill-current">_____</mark>
+        ) : (
+          <span className="review-gapfill-context">{question.answers?.[i] || "___"}</span>
+        )}
+      </span>
+    );
+  });
+}
+
 // Chấm điểm TOÀN BỘ bài + dựng sẵn nội dung hiển thị cho từng câu (đáp án học sinh chọn/gõ vs đáp
 // án đúng) — dùng ngay khi bấm "Nộp bài", kết quả đưa thẳng vào ReadingReportView.jsx.
-function buildResults(flat, answers) {
+function buildResults(flat, answers, isFlyers) {
   let earnedPoints = 0;
   let totalPoints = 0;
-  const items = flat.map(({ question, part, partIndex, qIndex, qNumber }) => {
+  const items = flat.map(({ question, part, partIndex, qIndex, qNumber, gapIndex }) => {
     const value = answers[partIndex]?.[qIndex];
-    const qPoints = effectiveQuestionPoints(part, question);
+    const qPoints = effectiveQuestionPoints(part, question, isFlyers);
     totalPoints += qPoints;
+
+    // Reading Flyers: mỗi chỗ trống gapfill đã được tách thành 1 flat item riêng (gapIndex khác
+    // null) — chấm độc lập như 1 câu-1-đáp-án bình thường, KHÔNG gộp vào mảng `blanks[]` như
+    // Starters/Movers (chốt 2026-09-02).
+    if (question.type === "gapfill" && gapIndex != null) {
+      const correct = question.answers?.[gapIndex];
+      const isCorrect = normalizeAnswer(value?.[gapIndex]) === normalizeAnswer(correct);
+      const earned = isCorrect ? qPoints : 0;
+      earnedPoints += earned;
+      return {
+        qNumber,
+        question,
+        isCorrect,
+        earned,
+        total: qPoints,
+        studentAnswer: value?.[gapIndex]?.trim() || "(để trống)",
+        correctAnswer: correct,
+        questionLabel: gapfillReviewLabel(question, gapIndex),
+      };
+    }
 
     if (question.type === "yesno") {
       const isCorrect = value === question.answer;
@@ -804,7 +882,8 @@ function buildResults(flat, answers) {
 // Component chính — hiện TOÀN BỘ Test (mọi Part nối tiếp) trên 1 trang cuộn được, nộp bài 1 lần
 // rồi chuyển hẳn sang màn tổng kết (không còn chấm màu ngay trong lúc làm — cùng luồng Speaking).
 export default function ReadingRunner({ parts, onFinish, studentUid, seriesId, level, testId }) {
-  const flat = useMemo(() => flattenQuestions(parts), [parts]);
+  const isFlyers = seriesId === "flyers";
+  const flat = useMemo(() => flattenQuestions(parts, isFlyers), [parts, isFlyers]);
   // answers[partIndex][qIndex] = giá trị trả lời — giữ cấu trúc lồng theo Part/câu để khớp đúng
   // dữ liệu gốc (parts[].questions[]), dễ tính điểm theo từng Part nếu cần sau này.
   const [answers, setAnswers] = useState(() => parts.map(p => (p.questions ?? []).map(() => undefined)));
@@ -824,7 +903,7 @@ export default function ReadingRunner({ parts, onFinish, studentUid, seriesId, l
 
   function submit() {
     setConfirmingSubmit(false);
-    setResults(buildResults(flat, answers));
+    setResults(buildResults(flat, answers, isFlyers));
     // Tính 1 lượt nộp bài (chốt 2026-08-27, xem lib/attempts.js) — chỉ khi có studentUid (học
     // sinh đã đăng nhập thật, không phải admin/teacher tự test).
     if (studentUid) incrementAttempt({ uid: studentUid, mode: "reading", testId, seriesId, level });
@@ -833,7 +912,7 @@ export default function ReadingRunner({ parts, onFinish, studentUid, seriesId, l
   if (!flat.length) return null;
 
   const unansweredCount = flat.filter(
-    ({ question, partIndex, qIndex }) => !isAnswered(question, answers[partIndex]?.[qIndex])
+    ({ question, partIndex, qIndex, gapIndex }) => !isAnswered(question, answers[partIndex]?.[qIndex], gapIndex)
   ).length;
 
   if (results) {
@@ -913,7 +992,15 @@ export default function ReadingRunner({ parts, onFinish, studentUid, seriesId, l
             )}
             <div className="reading-question-list">
               {(part.questions ?? []).map((q, qIndex) => {
-                const { qNumber } = flat.find(f => f.partIndex === partIndex && f.qIndex === qIndex);
+                const entries = flat.filter(f => f.partIndex === partIndex && f.qIndex === qIndex);
+                const qNumber = entries[0].qNumber;
+                // Reading Flyers: mỗi chỗ trống THẬT của gapfill có 1 flat item riêng (gapIndex khác
+                // null) — dựng map gapIndex -> qNumber để GapfillQuestion hiện đúng "Question N" tại
+                // từng vị trí (chốt 2026-09-02).
+                const gapNumbers =
+                  isFlyers && q.type === "gapfill"
+                    ? Object.fromEntries(entries.map(e => [e.gapIndex, e.qNumber]))
+                    : null;
                 const value = answers[partIndex]?.[qIndex];
                 // 3 nhãn nhóm CỐ ĐỊNH của Movers Part 6, chèn đúng trước câu 0/2/4 (2 câu điền chỗ
                 // trống + 2 câu trả lời mở + 2 câu viết tự do) — khớp y hệt sách gốc.
@@ -967,6 +1054,7 @@ export default function ReadingRunner({ parts, onFinish, studentUid, seriesId, l
                     <GapfillQuestion
                       question={q}
                       qNumber={qNumber}
+                      qNumbers={gapNumbers}
                       values={value ?? []}
                       hideImage={part.fixedLayout === "movers-part3" || part.fixedLayout === "flyers-part3"}
                       onChange={(gapIndex, val) =>

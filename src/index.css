@@ -1267,6 +1267,17 @@ button { font-family: inherit; }
 .reading-gap-input:focus { outline: none; border-color: var(--color-primary-dark); background: #fff; }
 .reading-gap-input-preview { display: inline-block; width: 46px; }
 
+/* Reading Flyers (chốt 2026-09-02): mỗi chỗ trống gapfill hiện badge "Question N" riêng NGAY tại vị
+   trí chỗ trống (thay cho nhãn "(N)" cũ) — bản inline thu nhỏ của .reading-question-num, đặt được
+   giữa dòng chữ đoạn văn. */
+.reading-gap-inline-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  height: 24px; padding: 0 10px; margin: 0 4px 0 2px; border-radius: var(--radius-pill);
+  background: var(--color-primary); color: #fff; white-space: nowrap;
+  font-weight: 700; font-size: 0.78rem; font-family: var(--font-display);
+  box-shadow: 0 2px 6px rgba(255, 122, 69, 0.35); vertical-align: middle;
+}
+
 /* Xáo chữ cái đoán từ vựng — .reading-scramble-prompt = đề bài (từ đã xáo trộn, CHỈ ĐỌC), gồm các
    ô .reading-scramble-prompt-tile tĩnh. .reading-scramble-pin-row = dãy ô nhập kiểu mã PIN/OTP,
    mỗi ô 1 ký tự, gõ xong tự nhảy ô kế (xem WordScrambleQuestion trong ReadingRunner.jsx). */
@@ -1529,6 +1540,14 @@ button { font-family: inherit; }
 .review-item-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
 .review-item-type { font-size: 0.8rem; color: var(--color-muted); font-weight: 700; }
 .review-item-question { font-weight: 700; color: var(--color-ink); line-height: 1.35; }
+/* Màn tổng kết Reading Flyers (mỗi chỗ trống gapfill là 1 Question riêng) — chỉ chỗ trống ĐANG
+   chấm nổi bật, các chỗ trống khác trong đoạn hiện đáp án đúng mờ đi làm ngữ cảnh, xem
+   gapfillReviewLabel() trong ReadingRunner.jsx. */
+.review-gapfill-current {
+  background: var(--color-primary); color: #fff; font-weight: 800; padding: 1px 8px;
+  border-radius: var(--radius-pill); font-style: normal;
+}
+.review-gapfill-context { color: #9a9186; font-weight: 600; }
 .review-item-said { font-size: 0.9rem; color: var(--color-muted); font-style: italic; }
 
 /* Danh sách từng chỗ trống của câu gapfill trong màn tổng kết Reading (ReadingReportView.jsx) —

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import ImageUploadField from "./ImageUploadField.jsx";
 import { useConfirm } from "./ConfirmDialog.jsx";
-import { WORD_SCRAMBLE_DEFAULT_TEXT, scrambleWord, questionPoints, QuestionBadge, WordBankBox, ExampleRow, ExamplesPairRow, StoryParagraph, AnswerTableRow, LetteredAnswerBox, ConversationSelectRow, optionLetter, bankLabel, bankImage } from "../ReadingRunner.jsx";
+import { WORD_SCRAMBLE_DEFAULT_TEXT, scrambleWord, questionPoints, gapfillBlankCount, QuestionBadge, WordBankBox, ExampleRow, ExamplesPairRow, StoryParagraph, AnswerTableRow, LetteredAnswerBox, ConversationSelectRow, optionLetter, bankLabel, bankImage } from "../ReadingRunner.jsx";
 
 // Mỗi loại câu hỏi gắn với `series` — danh sách seriesId được PHÉP dùng type này. Khi soạn bài,
 // menu "+ Thêm câu hỏi" chỉ hiện type khớp seriesId của bài đang soạn (xem questionTypesFor()) —
@@ -1412,17 +1412,21 @@ function PartEditor({ part, onChange, seriesId }) {
   );
 }
 
-// Đếm tổng Part/câu/điểm của cả Test — mỗi chỗ trống gapfill tính là 1 câu riêng (khớp đúng cách
-// ReadingRunner.jsx chấm điểm phía học sinh), điểm cộng dồn theo questionPoints() (khớp cách
-// gapPoints() chia đều điểm gapfill), dùng cho khung "Thông tin chung" bên phải.
-function testStats(parts) {
+// Đếm tổng Part/câu/điểm của cả Test — mỗi chỗ trống THẬT của gapfill tính là 1 câu riêng (khớp
+// đúng cách ReadingRunner.jsx chấm điểm phía học sinh), dùng cho khung "Thông tin chung" bên phải.
+// Reading Flyers (`isFlyers`, chốt 2026-09-02): mỗi câu (kể cả từng chỗ trống gapfill) luôn 1 điểm
+// cố định, bỏ hẳn partPoints/questionPoints — Starters/Movers giữ nguyên cách tính cũ.
+function testStats(parts, isFlyers) {
   let totalQuestions = 0;
   let totalPoints = 0;
   for (const part of parts) {
     const questions = part.questions ?? [];
     for (const q of questions) {
-      totalQuestions += q.type === "gapfill" ? (q.answers?.length ?? 0) : 1;
+      const units = q.type === "gapfill" ? (isFlyers ? gapfillBlankCount(q) : (q.answers?.length ?? 0)) : 1;
+      totalQuestions += units;
+      if (isFlyers && q.type !== "free-writing") totalPoints += units;
     }
+    if (isFlyers) continue;
     // part.partPoints (nếu có) là tổng điểm CỐ ĐỊNH cho cả Part, bỏ qua điểm riêng từng câu —
     // khớp cách buildResults() ở ReadingRunner.jsx chấm điểm (xem effectiveQuestionPoints()). Câu
     // "free-writing" (viết tự do, không chấm điểm) luôn loại khỏi tổng điểm.
@@ -1472,7 +1476,7 @@ function WordScramblePreview({ question, qNumber }) {
   );
 }
 
-function QuestionPreview({ question, qNumber, hideImage }) {
+function QuestionPreview({ question, qNumber, qNumbers, hideImage }) {
   if (question.type === "yesno") {
     return (
       <div className="reading-question reading-question-preview">
@@ -1490,9 +1494,10 @@ function QuestionPreview({ question, qNumber, hideImage }) {
   }
   if (question.type === "gapfill") {
     const segments = (question.text ?? "").split("___");
+    const split = !!qNumbers;
     return (
       <div className="reading-question reading-question-preview">
-        <QuestionBadge qNumber={qNumber} />
+        {!split && <QuestionBadge qNumber={qNumber} />}
         <div className="reading-question-body">
           {!hideImage && question.image && <img src={question.image} alt="" className="reading-question-img" />}
           <p className="reading-gapfill-text">
@@ -1524,11 +1529,14 @@ function QuestionPreview({ question, qNumber, hideImage }) {
               }
               const numMatch = !isLast && !question.firstGapIsExample && seg.match(/(\(\d+\))\s*$/);
               const prefix = numMatch ? seg.slice(0, numMatch.index) : seg;
-              const marker = numMatch ? numMatch[1] : !isLast && question.firstGapIsExample ? `(${i})` : "";
+              const marker = split ? "" : numMatch ? numMatch[1] : !isLast && question.firstGapIsExample ? `(${i})` : "";
               const choices = !isLast && question.gapMode === "choices" ? question.gapOptions?.[i]?.options : null;
               return (
                 <span key={i}>
                   {prefix}
+                  {!isLast && split && (
+                    <span className="reading-gap-inline-badge">Question {qNumbers[i]}</span>
+                  )}
                   {!isLast && (choices ? (
                     <span className="reading-gap-choices">
                       {marker}
@@ -1622,20 +1630,31 @@ function QuestionPreview({ question, qNumber, hideImage }) {
 // Xem trước TOÀN BỘ Test (mọi Part, không chỉ Part đang mở soạn) — cuộn riêng trong panel này,
 // để giáo viên xem được cả bài đang lên hình ra sao trong lúc soạn, giống hệt thứ tự học sinh
 // sẽ thấy (numberOffset cộng dồn qua từng Part y hệt ReadingRunner.jsx).
-function TestPreview({ parts, stats, activePartIndex }) {
+function TestPreview({ parts, stats, activePartIndex, seriesId }) {
+  const isFlyers = seriesId === "flyers";
   let numberOffset = 0;
   const [showAll, setShowAll] = useState(true);
   // Xem theo Part đang soạn chỉ có ý nghĩa khi thực sự có 1 Part đang mở — nếu không có (đóng hết)
   // thì vẫn hiện toàn bộ, không để panel trống khó hiểu.
   const canFilterByActive = activePartIndex !== null && activePartIndex !== undefined && !!parts[activePartIndex];
   const visibleParts = showAll || !canFilterByActive ? parts : [parts[activePartIndex]];
+  // Số "đơn vị Question" của 1 câu — cho Reading Flyers, mỗi chỗ trống THẬT của gapfill tính riêng
+  // (chốt 2026-09-02, khớp gapfillBlankCount()/flattenQuestions() ở ReadingRunner.jsx).
+  const unitsOf = q => (isFlyers && q.type === "gapfill" ? gapfillBlankCount(q) : 1);
   const partOffsets = [];
   {
     let acc = 0;
     for (const p of parts) {
       partOffsets.push(acc);
-      acc += p.questions?.length ?? 0;
+      acc += (p.questions ?? []).reduce((sum, q) => sum + unitsOf(q), 0);
     }
+  }
+  // Offset TÍCH LUỸ theo từng câu bên trong 1 Part (cần khi 1 câu gapfill chiếm nhiều đơn vị số) —
+  // trả về số Question ĐẦU TIÊN của câu ở vị trí `qIndex` trong `questions`.
+  function questionOffset(questions, qIndex) {
+    let acc = 0;
+    for (let i = 0; i < qIndex; i++) acc += unitsOf(questions[i]);
+    return acc;
   }
 
   return (
@@ -1769,6 +1788,18 @@ function TestPreview({ parts, stats, activePartIndex }) {
                       part.fixedLayout === "movers-part3" &&
                       q.type === "multiple-choice" &&
                       part.questions.findIndex(qq => qq.type === "multiple-choice") === i;
+                    const qStart = partOffset + questionOffset(part.questions, i) + 1;
+                    const gapNumbers =
+                      isFlyers && q.type === "gapfill"
+                        ? (() => {
+                            const offset = q.firstGapIsExample ? 1 : 0;
+                            const answers = q.answers ?? [];
+                            const map = {};
+                            let n = qStart;
+                            for (let gi = offset; gi < answers.length; gi++) map[gi] = n++;
+                            return map;
+                          })()
+                        : null;
                     return (
                       <div className="reading-question-group" key={i}>
                         {groupLabel && <h4 className="reading-group-label">{groupLabel}</h4>}
@@ -1781,7 +1812,8 @@ function TestPreview({ parts, stats, activePartIndex }) {
                         )}
                         <QuestionPreview
                           question={q}
-                          qNumber={partOffset + i + 1}
+                          qNumber={qStart}
+                          qNumbers={gapNumbers}
                           hideImage={(part.fixedLayout === "movers-part3" || part.fixedLayout === "flyers-part3") && q.type === "gapfill"}
                         />
                       </div>
@@ -2066,7 +2098,7 @@ export default function ReadingStudio({ accent, seriesId, title, onTitleChange, 
           )}
         </div>
 
-        <TestPreview parts={parts} stats={testStats(parts)} activePartIndex={openPartIndex} />
+        <TestPreview parts={parts} stats={testStats(parts, seriesId === "flyers")} activePartIndex={openPartIndex} seriesId={seriesId} />
       </div>
     </div>
   );
