@@ -178,7 +178,30 @@ function ModePicker({ series, level, onPick }) {
   );
 }
 
+// Cambridge YLE Listening (Starters/Movers/Flyers) luôn có ĐÚNG 3 Test cố định mỗi cấp, mỗi Test
+// chia thành các bài nghe theo Part cố định — Starters 2 bài (Part 1&2, Part 3&4), Movers/Flyers
+// 3 bài (thêm Part 5) — nên khoá cứng đủ số ô + tiêu đề, giáo viên chỉ dán/upload video vào từng ô
+// (chốt 2026-09-04, cùng tinh thần khoá cứng 3 Test của Reading & Writing).
+const LISTENING_PART_LABELS = {
+  starters: ["Part 1 & 2", "Part 3 & 4"],
+  movers: ["Part 1 & 2", "Part 3 & 4", "Part 5"],
+  flyers: ["Part 1 & 2", "Part 3 & 4", "Part 5"],
+};
+
+function buildListeningTitles(series, level) {
+  const parts = LISTENING_PART_LABELS[series.id];
+  if (!parts) return null;
+  const titles = [];
+  for (let t = 1; t <= 3; t++) {
+    for (const part of parts) {
+      titles.push(`${series.title} ${level.number} - Test ${t} - ${part}`);
+    }
+  }
+  return titles;
+}
+
 function ListeningEditor({ series, level, uid }) {
+  const fixedTitles = buildListeningTitles(series, level);
   const [videos, setVideos] = useState([{ videoId: "", title: "" }]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -187,7 +210,16 @@ function ListeningEditor({ series, level, uid }) {
   useEffect(() => {
     setLoading(true);
     getListening(series.id, level.number).then(l => {
-      setVideos(l?.length ? l : [{ videoId: "", title: "" }]);
+      if (fixedTitles) {
+        // Ghép video đã lưu vào đúng ô theo tiêu đề cố định — video cũ không khớp (dữ liệu mẫu/placeholder
+        // cũ) sẽ không hiện lại, giáo viên nhập lại từ đầu (chốt cùng người dùng 2026-09-04).
+        setVideos(fixedTitles.map(title => ({
+          videoId: l?.find(v => v.title === title)?.videoId ?? "",
+          title,
+        })));
+      } else {
+        setVideos(l?.length ? l : [{ videoId: "", title: "" }]);
+      }
       setLoading(false);
     });
   }, [series.id, level.number]);
@@ -218,46 +250,78 @@ function ListeningEditor({ series, level, uid }) {
     <div className="admin-card">
       <h2>{series.title} {level.number} — Listening</h2>
       <form className="admin-form" onSubmit={handleSave}>
-        <p className="admin-hint">
-          Upload video lên Google Drive → chia sẻ "Bất kỳ ai có link" (chế độ Xem) → lấy ID từ link dạng
-          drive.google.com/file/d/<b>ID_Ở_ĐÂY</b>/view. Học sinh bấm nút sẽ mở video ở tab mới (không nhúng
-          trực tiếp trong trang) để tránh lỗi trình duyệt chặn cookie khi nhúng iframe. Có thể thêm nhiều
-          video cho 1 cấp độ (vd nhiều Test Listening khác nhau).
-        </p>
-        {videos.map((v, i) => (
-          <div className="admin-listening-row" key={i}>
-            <label>
-              Google Drive File ID
-              <input
-                className="admin-input"
-                placeholder="vd: 1AbCdEfGhIjKlMnOpQrStUvWxYz"
-                value={v.videoId}
-                onChange={e => updateVideo(i, { videoId: e.target.value })}
-              />
-            </label>
-            <label>
-              Tiêu đề hiển thị
-              <input
-                className="admin-input"
-                placeholder="vd: Starters 1 – Test 1"
-                value={v.title}
-                onChange={e => updateVideo(i, { title: e.target.value })}
-              />
-            </label>
-            {videos.length > 1 && (
-              <button
-                type="button"
-                className="admin-link-btn admin-pill-btn-danger"
-                onClick={() => removeVideo(i)}
-              >
-                Xoá video này
-              </button>
-            )}
-          </div>
-        ))}
-        <button type="button" className="admin-btn-secondary" onClick={addVideo}>
-          + Thêm video
-        </button>
+        {!fixedTitles && (
+          <p className="admin-hint">
+            Upload video lên Google Drive → chia sẻ "Bất kỳ ai có link" (chế độ Xem) → lấy ID từ link dạng
+            drive.google.com/file/d/<b>ID_Ở_ĐÂY</b>/view. Học sinh bấm nút sẽ mở video ở tab mới (không nhúng
+            trực tiếp trong trang) để tránh lỗi trình duyệt chặn cookie khi nhúng iframe.
+          </p>
+        )}
+        {fixedTitles ? (
+          Array.from({ length: 3 }, (_, t) => {
+            const parts = LISTENING_PART_LABELS[series.id];
+            const start = t * parts.length;
+            return (
+              <div className="admin-listening-test-group" key={t}>
+                <h3 className="admin-listening-test-heading">Test {t + 1}</h3>
+                <div className="admin-listening-test-grid">
+                  {parts.map((partLabel, pi) => {
+                    const i = start + pi;
+                    const v = videos[i];
+                    return (
+                      <label className="admin-listening-part-card" key={i}>
+                        <span className="admin-listening-part-label">{partLabel}</span>
+                        <input
+                          className="admin-input"
+                          placeholder="vd: 1AbCdEfGhIjKlMnOpQrStUvWxYz"
+                          value={v.videoId}
+                          onChange={e => updateVideo(i, { videoId: e.target.value })}
+                        />
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })
+        ) : (
+          <>
+            {videos.map((v, i) => (
+              <div className="admin-listening-row" key={i}>
+                <label>
+                  Google Drive File ID
+                  <input
+                    className="admin-input"
+                    placeholder="vd: 1AbCdEfGhIjKlMnOpQrStUvWxYz"
+                    value={v.videoId}
+                    onChange={e => updateVideo(i, { videoId: e.target.value })}
+                  />
+                </label>
+                <label>
+                  Tiêu đề hiển thị
+                  <input
+                    className="admin-input"
+                    placeholder="vd: Starters 1 – Test 1"
+                    value={v.title}
+                    onChange={e => updateVideo(i, { title: e.target.value })}
+                  />
+                </label>
+                {videos.length > 1 && (
+                  <button
+                    type="button"
+                    className="admin-link-btn admin-pill-btn-danger"
+                    onClick={() => removeVideo(i)}
+                  >
+                    Xoá video này
+                  </button>
+                )}
+              </div>
+            ))}
+            <button type="button" className="admin-btn-secondary" onClick={addVideo}>
+              + Thêm video
+            </button>
+          </>
+        )}
         <button className="admin-btn-primary" type="submit" disabled={saving}>
           {saving ? "Đang lưu..." : "Lưu"}
         </button>
