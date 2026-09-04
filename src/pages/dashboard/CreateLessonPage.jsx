@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { YLE_SERIES } from "../../lib/yleData.js";
+import { YLE_SERIES, LISTENING_PART_LABELS, buildListeningTitles as buildListeningTitlesShared } from "../../lib/yleData.js";
 import { useAuth } from "../../lib/authContext.jsx";
 import {
   saveListening, getListening, listTests, getTest, saveTest, deleteTest,
@@ -178,26 +178,10 @@ function ModePicker({ series, level, onPick }) {
   );
 }
 
-// Cambridge YLE Listening (Starters/Movers/Flyers) luôn có ĐÚNG 3 Test cố định mỗi cấp, mỗi Test
-// chia thành các bài nghe theo Part cố định — Starters 2 bài (Part 1&2, Part 3&4), Movers/Flyers
-// 3 bài (thêm Part 5) — nên khoá cứng đủ số ô + tiêu đề, giáo viên chỉ dán/upload video vào từng ô
-// (chốt 2026-09-04, cùng tinh thần khoá cứng 3 Test của Reading & Writing).
-const LISTENING_PART_LABELS = {
-  starters: ["Part 1 & 2", "Part 3 & 4"],
-  movers: ["Part 1 & 2", "Part 3 & 4", "Part 5"],
-  flyers: ["Part 1 & 2", "Part 3 & 4", "Part 5"],
-};
-
+// Nhãn Part + tiêu đề khoá cứng dùng chung với mock mặc định ở yleData.js (chốt 2026-09-04, cùng
+// tinh thần khoá cứng 3 Test của Reading & Writing) — giáo viên chỉ dán/upload video vào từng ô.
 function buildListeningTitles(series, level) {
-  const parts = LISTENING_PART_LABELS[series.id];
-  if (!parts) return null;
-  const titles = [];
-  for (let t = 1; t <= 3; t++) {
-    for (const part of parts) {
-      titles.push(`${series.title} ${level.number} - Test ${t} - ${part}`);
-    }
-  }
-  return titles;
+  return buildListeningTitlesShared(series.id, series.title, level.number);
 }
 
 function ListeningEditor({ series, level, uid }) {
