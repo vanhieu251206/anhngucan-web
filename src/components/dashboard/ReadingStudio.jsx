@@ -128,9 +128,11 @@ const MOVERS_PART_TEMPLATES = [
   // `hideLetters: true`) — thứ tự hiển thị: đoạn truyện TRƯỚC, khung "Example" (ngân hàng từ CÓ ẢNH,
   // `wordBankImages: true` — sách gốc có 9 ô ảnh+chữ) NẰM GIỮA đoạn truyện và câu chọn tiêu đề, khác
   // Part 1/2/5/6 (ảnh/ví dụ luôn ở đầu Part) — chốt 2026-08-27 sau khi xem ảnh sách thật.
+  // Chỗ trống ĐẦU TIÊN trong đoạn truyện cũng luôn là ví dụ có sẵn đáp án (vd "girls" trong Test 1),
+  // y hệt cơ chế `firstGapIsExample` của Part 4 — chốt 2026-09-04 sau khi đối chiếu ảnh sách thật.
   {
     title: "Part 3 – Reading and Writing",
-    instruction: "Read the story. Choose a word from the box. Write the correct word next to numbers 1-5. Then choose the best name for the story.",
+    instruction: "Read the story. Choose a word from the box. Write the correct word next to numbers 1-5. There is one example.",
     allowedTypes: ["gapfill", "multiple-choice"],
     hasWordBank: true,
     wordBankImages: true,
@@ -143,7 +145,7 @@ const MOVERS_PART_TEMPLATES = [
   // viên chỉ gõ "___" trơn vào đúng vị trí, hệ thống tự lo phần còn lại.
   {
     title: "Part 4 – Reading and Writing",
-    instruction: "Read the text. Write the missing words.",
+    instruction: "Read the text. Choose the right words and write them on the lines.",
     allowedTypes: ["gapfill"],
     fixedLayout: "movers-part4",
   },
@@ -210,7 +212,7 @@ function blankPartsFromTemplates(templates) {
     // đục lỗ), (2) multiple-choice chọn tiêu đề, 3 lựa chọn, KHÔNG chữ A/B/C (`hideLetters: true`).
     if (t.fixedLayout === "movers-part3") {
       base.questions = [
-        blankQuestion("gapfill"),
+        { ...blankQuestion("gapfill"), firstGapIsExample: true },
         { ...blankQuestion("multiple-choice"), hideLetters: true },
       ];
     }
@@ -244,8 +246,8 @@ function blankPartsFromTemplates(templates) {
         { prompt: "", answer: "" },
         { prompt: "", answer: "" },
       ];
-      base.storyParagraphs = ["", "", ""];
-      base.storyImages = ["", "", ""];
+      base.storyParagraphs = ["", "", "", ""];
+      base.storyImages = ["", "", "", ""];
     }
     // Part 1 Flyers: đúng 10 câu word-bank CỐ ĐỊNH, dùng chung 1 ngân hàng từ (thường 15 từ, 5 từ
     // dư làm nhiễu) — KHÔNG ảnh riêng từng câu, KHÔNG ảnh trong ngân hàng từ (chốt 2026-08-31).
@@ -1272,20 +1274,28 @@ function PartEditor({ part, onChange, seriesId }) {
           <h3 className="admin-reading-group-heading">Questions</h3>
           <div className="admin-reading-question-list">
             {questions.map((q, i) => {
-              const paragraphIndex = i === 2 ? 1 : i === 5 ? 2 : null;
+              // Sách thật có 4 đoạn truyện (không phải 3): đoạn 1 trước "Examples" (storyParagraphs[0],
+              // field riêng phía trên) + 3 đoạn xen giữa câu hỏi tại câu 1/3/6 (storyParagraphs[1]/[2]/[3])
+              // — bổ sung đoạn trước câu 1 (chốt 2026-09-04, phát hiện khi soạn nội dung thật Test 1: thiếu
+              // hẳn đoạn "'This is boring,' Sally said..." không có chỗ nhập). CHỈ đoạn trước câu 3/6 có
+              // ảnh riêng (storyImages, khớp đúng số ảnh sách gốc), đoạn trước câu 1 không có ảnh riêng.
+              const paragraphIndex = i === 0 ? 1 : i === 2 ? 2 : i === 5 ? 3 : null;
+              const hasImageSlot = i === 2 || i === 5;
               return (
                 <div key={i}>
                   {paragraphIndex != null && (
                     <div className="admin-reading-story-break">
-                      <ImageUploadField
-                        label={`Ảnh minh hoạ đoạn truyện ${paragraphIndex + 1} (tuỳ chọn)`}
-                        value={part.storyImages?.[paragraphIndex]}
-                        onChange={image => {
-                          const next = [...(part.storyImages ?? ["", "", ""])];
-                          next[paragraphIndex] = image;
-                          onChange({ storyImages: next });
-                        }}
-                      />
+                      {hasImageSlot && (
+                        <ImageUploadField
+                          label={`Ảnh minh hoạ đoạn truyện ${paragraphIndex + 1} (tuỳ chọn)`}
+                          value={part.storyImages?.[paragraphIndex]}
+                          onChange={image => {
+                            const next = [...(part.storyImages ?? ["", "", "", ""])];
+                            next[paragraphIndex] = image;
+                            onChange({ storyImages: next });
+                          }}
+                        />
+                      )}
                       <label className="admin-mini-field">
                         <span>Đoạn truyện {paragraphIndex + 1} (hiện trước câu {i + 1})</span>
                         <textarea
@@ -1293,7 +1303,7 @@ function PartEditor({ part, onChange, seriesId }) {
                           rows={4}
                           value={part.storyParagraphs?.[paragraphIndex] ?? ""}
                           onChange={e => {
-                            const next = [...(part.storyParagraphs ?? ["", "", ""])];
+                            const next = [...(part.storyParagraphs ?? ["", "", "", ""])];
                             next[paragraphIndex] = e.target.value;
                             onChange({ storyParagraphs: next });
                           }}
@@ -1350,9 +1360,23 @@ function PartEditor({ part, onChange, seriesId }) {
           {/* Chỉ hiện Example dạng multiple-choice khi Part CHỈ CÓ đúng 1 dạng multiple-choice (vd
               Part 2 Movers/Flyers) — Part vừa gapfill vừa multiple-choice (vd Part 3, đoạn văn điền từ
               + câu chọn tiêu đề cuối) không có khái niệm "Example" tách riêng, "Example" ở đó chỉ là
-              nhãn của khung ngân hàng từ tham khảo (đã hiện qua WordBankEditor phía trên). */}
+              nhãn của khung ngân hàng từ tham khảo (đã hiện qua WordBankEditor phía trên). Cùng điều
+              kiện này cũng cần 1 dòng "Câu dẫn" (vd "Fred and Vicky are talking about their pets.")
+              — Part 2 Movers có dòng giới thiệu ngữ cảnh này trong sách thật nhưng trước đây CMS chưa
+              có ô nhập (chỉ Flyers Part 2 có, xem branch flyers-part2 ở trên) — bổ sung 2026-09-04. */}
           {hasMultipleChoiceType && !hasWordBankType && availableTypes.length === 1 && (
-            <ExampleEditor example={part.example} mode="multiple-choice" onChange={example => onChange({ example })} />
+            <>
+              <label className="admin-mini-field">
+                <span>Câu dẫn (giới thiệu ngữ cảnh, tuỳ chọn)</span>
+                <input
+                  className="admin-input"
+                  value={part.caption ?? ""}
+                  onChange={e => onChange({ caption: e.target.value })}
+                  placeholder="vd: Fred and Vicky are talking about their pets."
+                />
+              </label>
+              <ExampleEditor example={part.example} mode="multiple-choice" onChange={example => onChange({ example })} />
+            </>
           )}
 
           <div className="admin-reading-question-list">
@@ -1631,7 +1655,8 @@ function QuestionPreview({ question, qNumber, qNumbers, hideImage }) {
 // để giáo viên xem được cả bài đang lên hình ra sao trong lúc soạn, giống hệt thứ tự học sinh
 // sẽ thấy (numberOffset cộng dồn qua từng Part y hệt ReadingRunner.jsx).
 function TestPreview({ parts, stats, activePartIndex, seriesId }) {
-  const isFlyers = seriesId === "flyers";
+  // Movers dùng chung quy tắc "mỗi chỗ trống = 1 Question riêng, 1 điểm" với Flyers (chốt 2026-09-04).
+  const isFlyers = seriesId === "flyers" || seriesId === "movers";
   let numberOffset = 0;
   const [showAll, setShowAll] = useState(true);
   // Xem theo Part đang soạn chỉ có ý nghĩa khi thực sự có 1 Part đang mở — nếu không có (đóng hết)
@@ -1782,7 +1807,7 @@ function TestPreview({ parts, stats, activePartIndex, seriesId }) {
                       part.fixedLayout === "movers-part6" &&
                       (i === 0 ? "Complete the sentences." : i === 2 ? "Answer the questions." : i === 4 ? "Now write two sentences about the picture." : null);
                     const storyParagraphIndex =
-                      part.fixedLayout === "movers-part5" ? (i === 2 ? 1 : i === 5 ? 2 : null) : null;
+                      part.fixedLayout === "movers-part5" ? (i === 0 ? 1 : i === 2 ? 2 : i === 5 ? 3 : null) : null;
                     const storyBreak = storyParagraphIndex != null ? part.storyParagraphs?.[storyParagraphIndex] : null;
                     const isFirstMultipleChoice =
                       part.fixedLayout === "movers-part3" &&
@@ -1836,6 +1861,10 @@ function TestPreview({ parts, stats, activePartIndex, seriesId }) {
 export default function ReadingStudio({ accent, seriesId, title, onTitleChange, parts, onPartsChange, maxAttempts, onMaxAttemptsChange, onBack, onSave, saving, saved }) {
   const confirm = useConfirm();
   const [openPartIndex, setOpenPartIndex] = useState(parts.length ? 0 : null);
+  // Ghi nhớ Part ĐÃ TỪNG mở gần nhất riêng (không reset về null khi đóng accordion lại) — nút "Xem
+  // theo Part đang soạn" ở TestPreview dựa vào đây thay vì openPartIndex, tránh bị khoá cứng (mờ
+  // nút, không bấm được) ngay khi giáo viên gập Part lại (bug thực tế 2026-09-04).
+  const [lastOpenPartIndex, setLastOpenPartIndex] = useState(parts.length ? 0 : null);
   // Movers/Flyers có sẵn khung Part cố định (SERIES_PART_TEMPLATES, số Part khớp đúng đề thật của
   // từng cấp) — giáo viên không tự thêm/xoá Part nữa, chỉ điền nội dung vào từng Part đã dựng sẵn
   // (yêu cầu người dùng 2026-08-26). Series khác (vd Starters) vẫn tự thêm/xoá Part như bình thường.
@@ -1846,10 +1875,12 @@ export default function ReadingStudio({ accent, seriesId, title, onTitleChange, 
     const next = [...parts, blankPart(parts.length + 1)];
     onPartsChange(next);
     setOpenPartIndex(next.length - 1);
+    setLastOpenPartIndex(next.length - 1);
   }
   function createTemplateParts() {
     onPartsChange(blankPartsFromTemplates(templates));
     setOpenPartIndex(0);
+    setLastOpenPartIndex(0);
   }
   // Mở 1 Test Movers/Flyers MỚI (chưa có Part nào) — tự tạo sẵn luôn khung Part mẫu, không bắt giáo
   // viên phải bấm nút "+ Tạo N Part chuẩn" thủ công nữa (yêu cầu người dùng 2026-08-26).
@@ -1858,6 +1889,7 @@ export default function ReadingStudio({ accent, seriesId, title, onTitleChange, 
     if (parts.length === 0) {
       onPartsChange(blankPartsFromTemplates(templates));
       setOpenPartIndex(0);
+      setLastOpenPartIndex(0);
       return;
     }
     // Vá dữ liệu Test đã tạo/lưu TRƯỚC KHI 1 Part nào đó được khoá `allowedTypes` trong code (vd
@@ -1932,9 +1964,13 @@ export default function ReadingStudio({ accent, seriesId, title, onTitleChange, 
     // thêm field CỜ, không đụng nội dung đoạn văn/đáp án đã gõ. LƯU Ý: nếu đoạn văn cũ đã gõ số thứ
     // tự "(1)/(2)"... bằng nút "+ Chèn chỗ trống" (đã bị bỏ), số cũ đó vẫn còn nằm trong text và có
     // thể không khớp với số TỰ ĐỘNG mới hiển thị — giáo viên cần tự xem lại/gõ lại đoạn văn.
+    // Part 3 Movers: chốt thêm 2026-09-04 (đối chiếu ảnh sách thật) rằng chỗ trống đầu tiên trong
+    // đoạn truyện cũng là ví dụ — CHỈ gắn cờ, KHÔNG tự sửa đoạn văn/đáp án: Test cũ (vd Test 1) đã
+    // gõ đáp án ví dụ ("girls") thành CHỮ THƯỜNG trong đoạn văn (không phải "___"), nên bật cờ này
+    // xong đoạn văn vẫn cần giáo viên tự thay chữ đó bằng "___" + dời lại đáp án ví dụ vào ô riêng.
     function needsPart4ExampleFlag(p, i) {
       return (
-        templates[i]?.fixedLayout === "movers-part4" &&
+        ["movers-part3", "movers-part4"].includes(templates[i]?.fixedLayout) &&
         (p.questions ?? []).some(q => q.type === "gapfill" && !q.firstGapIsExample)
       );
     }
@@ -2060,7 +2096,14 @@ export default function ReadingStudio({ accent, seriesId, title, onTitleChange, 
           )}
           {parts.map((part, i) => (
             <div key={i} className={`admin-reading-part${openPartIndex === i ? " is-open" : ""}`}>
-              <div className="admin-reading-part-head" onClick={() => setOpenPartIndex(openPartIndex === i ? null : i)}>
+              <div
+                className="admin-reading-part-head"
+                onClick={() => {
+                  const next = openPartIndex === i ? null : i;
+                  setOpenPartIndex(next);
+                  if (next !== null) setLastOpenPartIndex(next);
+                }}
+              >
                 <span className="admin-reading-part-chevron" aria-hidden="true">{openPartIndex === i ? "▾" : "▸"}</span>
                 <span className="admin-reading-part-title">{part.title || `Part ${i + 1}`}</span>
                 <span className="admin-scene-count-badge">{part.questions?.length ?? 0} câu</span>
@@ -2098,7 +2141,7 @@ export default function ReadingStudio({ accent, seriesId, title, onTitleChange, 
           )}
         </div>
 
-        <TestPreview parts={parts} stats={testStats(parts, seriesId === "flyers")} activePartIndex={openPartIndex} seriesId={seriesId} />
+        <TestPreview parts={parts} stats={testStats(parts, seriesId === "flyers" || seriesId === "movers")} activePartIndex={lastOpenPartIndex} seriesId={seriesId} />
       </div>
     </div>
   );

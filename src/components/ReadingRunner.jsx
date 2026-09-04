@@ -882,7 +882,10 @@ function buildResults(flat, answers, isFlyers) {
 // Component chính — hiện TOÀN BỘ Test (mọi Part nối tiếp) trên 1 trang cuộn được, nộp bài 1 lần
 // rồi chuyển hẳn sang màn tổng kết (không còn chấm màu ngay trong lúc làm — cùng luồng Speaking).
 export default function ReadingRunner({ parts, onFinish, studentUid, seriesId, level, testId }) {
-  const isFlyers = seriesId === "flyers";
+  // Movers dùng chung quy tắc tính điểm/đánh số theo từng chỗ trống với Flyers (chốt 2026-09-04:
+  // "mỗi chỗ trống điền từ hoặc chọn đáp án đều là một Question N, mỗi câu 1 điểm" — áp dụng luôn
+  // cho Movers, chỉ Starters còn giữ cách gộp cả câu gapfill thành 1 Question).
+  const isFlyers = seriesId === "flyers" || seriesId === "movers";
   const flat = useMemo(() => flattenQuestions(parts, isFlyers), [parts, isFlyers]);
   // answers[partIndex][qIndex] = giá trị trả lời — giữ cấu trúc lồng theo Part/câu để khớp đúng
   // dữ liệu gốc (parts[].questions[]), dễ tính điểm theo từng Part nếu cần sau này.
@@ -1013,14 +1016,18 @@ export default function ReadingRunner({ parts, onFinish, studentUid, seriesId, l
                         ? "Now write two sentences about the picture."
                         : null;
                 const groupHeader = groupLabel && <h4 className="reading-group-label">{groupLabel}</h4>;
-                // Movers Part 5: truyện chia 3 đoạn CỐ ĐỊNH, đoạn 2/3 chèn trước câu 3 (qIndex 2)
-                // và câu 6 (qIndex 5) — đoạn 1 đã hiện ở đầu Part (trên "Examples") phía trên.
+                // Movers Part 5: truyện chia 4 đoạn CỐ ĐỊNH — đoạn 1 đã hiện ở đầu Part (trên
+                // "Examples") phía trên; đoạn 2/3/4 chèn trước câu 1/3/6 (qIndex 0/2/5) — bổ sung
+                // đoạn trước câu 1 (chốt 2026-09-04, sách thật có đoạn "'This is boring,' Sally
+                // said..." xen giữa Examples và câu 1, trước đó code chỉ hỗ trợ 3 đoạn nên thiếu).
                 const storyParagraphIndex =
-                  part.fixedLayout === "movers-part5" && qIndex === 2
+                  part.fixedLayout === "movers-part5" && qIndex === 0
                     ? 1
-                    : part.fixedLayout === "movers-part5" && qIndex === 5
+                    : part.fixedLayout === "movers-part5" && qIndex === 2
                       ? 2
-                      : null;
+                      : part.fixedLayout === "movers-part5" && qIndex === 5
+                        ? 3
+                        : null;
                 const storyBreak = storyParagraphIndex != null ? part.storyParagraphs?.[storyParagraphIndex] : null;
                 const storyBreakEl = storyBreak && (
                   <StoryParagraph text={storyBreak} image={part.storyImages?.[storyParagraphIndex]} />
