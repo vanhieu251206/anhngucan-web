@@ -128,6 +128,37 @@ export function QuestionBadge({ qNumber }) {
   );
 }
 
+// Starters Part 1 — CÙNG schema dữ liệu với YesNoQuestion (type "yesno", answer "yes"/"no") nhưng
+// UI khác hẳn: chỉ 1 ô duy nhất, bấm lần lượt chuyển trống → ✓ (yes) → ✗ (no) → trống, khớp đúng
+// cách làm bài thật ("Put a tick (✓) or a cross (✗) in the box") thay vì 2 nút Yes/No tách biệt của
+// Part 2 (cũng type "yesno" nhưng câu hỏi khác dạng — xem YesNoQuestion).
+function TickCrossQuestion({ question, qNumber, value, onChange }) {
+  const display = value === "yes" ? "✓" : value === "no" ? "✗" : "";
+  function cycle() {
+    if (value === "yes") onChange("no");
+    else if (value === "no") onChange(undefined);
+    else onChange("yes");
+  }
+  return (
+    <div className="reading-question" id={`rq-${qNumber}`}>
+      <QuestionBadge qNumber={qNumber} />
+      <div className="reading-question-body reading-tickcross-body">
+        {question.image && <img src={question.image} alt="" className="reading-question-img" />}
+        <div className="reading-tickcross-side">
+          <p className="reading-question-text">{question.text}</p>
+          <button
+            type="button"
+            className={`reading-tickcross-btn${value ? " is-selected" : ""}${value === "no" ? " is-cross" : value === "yes" ? " is-tick" : ""}`}
+            onClick={cycle}
+          >
+            {display}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function YesNoQuestion({ question, qNumber, value, onChange }) {
   return (
     <div className="reading-question" id={`rq-${qNumber}`}>
@@ -484,6 +515,32 @@ export function AnswerTableRow({ label, text, value, onChange, readOnly, id }) {
 }
 
 export function ExampleRow({ example, mode }) {
+  // useMemo phải gọi KHÔNG ĐIỀU KIỆN (trước mọi return sớm) để không vi phạm rules of hooks — dùng
+  // ngay cả khi mode khác "word-scramble" (kết quả bỏ qua, chi phí không đáng kể).
+  const scrambled = useMemo(() => scrambleWord(example?.answer ?? ""), [example?.answer]);
+  // Starters Part 3 — ví dụ "lime" của sách gốc: ảnh + từ đã xáo trộn (CHỈ ĐỌC) + đáp án đã điền
+  // sẵn, khớp đúng cơ chế WordScrambleQuestion nhưng KHÔNG tương tác được (chốt 2026-09-06).
+  if (mode === "word-scramble") {
+    if (!example?.answer) return null;
+    return (
+      <div className="reading-question reading-example-row">
+        <div className="reading-question-badge reading-example-badge">Example</div>
+        <div className="reading-question-body">
+          {example.image && <img src={example.image} alt="" className="reading-question-img" />}
+          <div className="reading-scramble-prompt">
+            {scrambled.split("").map((c, i) => (
+              <span className="reading-scramble-prompt-tile" key={i}>{c}</span>
+            ))}
+          </div>
+          <div className="reading-scramble-pin-row">
+            {example.answer.split("").map((c, i) => (
+              <span className="reading-scramble-pin-input reading-scramble-answer-tile" key={i}>{c}</span>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
   if (!example?.text) return null;
   if (mode === "table-row") {
     return <AnswerTableRow label="Example" text={example.text} value={example.answer} readOnly />;
@@ -522,7 +579,11 @@ export function ExampleRow({ example, mode }) {
 // "Where is...?" và 1 câu điền từ có sẵn đáp án ("The ___ is..."), khác ExampleRow (chỉ 1 dòng,
 // dùng cho Part 1/2/3). CHỈ ĐỌC, không tính điểm, không tương tác — export dùng chung cho cả màn
 // học sinh (ReadingRunner) lẫn preview trong CMS (ReadingStudio.jsx).
-export function ExamplesPairRow({ examplesPair }) {
+// `mode` — "tickcross" (Starters Part 1: mỗi ví dụ có ảnh riêng + đáp án hiện dạng ✓/✗, khớp
+// TickCrossQuestion) hoặc "yesno" (Starters Part 2: đáp án hiện "Yes"/"No" viết hoa, khớp
+// YesNoQuestion) — mặc định (undefined, dùng cho Movers Part 5/6, Flyers Part 5, Starters Part 5)
+// giữ nguyên hành vi cũ: hiện thẳng `ex.answer` dạng chữ.
+export function ExamplesPairRow({ examplesPair, mode }) {
   const pair = examplesPair ?? [];
   if (!pair.some(ex => ex?.prompt)) return null;
   return (
@@ -530,17 +591,34 @@ export function ExamplesPairRow({ examplesPair }) {
       <h3 className="reading-subheading">Examples</h3>
       {pair.map((ex, i) => {
         if (!ex?.prompt) return null;
+        if (mode === "tickcross") {
+          return (
+            <div className="reading-question reading-example-row" key={i}>
+              <div className="reading-question-badge reading-example-badge">Example</div>
+              <div className="reading-question-body reading-tickcross-body">
+                {ex.image && <img src={ex.image} alt="" className="reading-question-img" />}
+                <div className="reading-tickcross-side">
+                  <p className="reading-question-text">{ex.prompt}</p>
+                  <span className={`reading-tickcross-btn is-selected${ex.answer === "no" ? " is-cross" : " is-tick"}`}>
+                    {ex.answer === "no" ? "✗" : "✓"}
+                  </span>
+                </div>
+              </div>
+            </div>
+          );
+        }
         const hasBlank = ex.prompt.includes("___");
+        const answerDisplay = mode === "yesno" ? (ex.answer === "no" ? "No" : "Yes") : ex.answer;
         return (
           <p className="reading-example-line" key={i}>
             {hasBlank
               ? ex.prompt.split("___").map((seg, si, arr) => (
                   <span key={si}>
                     {seg}
-                    {si < arr.length - 1 && <span className="reading-example-answer">{ex.answer}</span>}
+                    {si < arr.length - 1 && <span className="reading-example-answer">{answerDisplay}</span>}
                   </span>
                 ))
-              : <>{ex.prompt} <span className="reading-example-answer">{ex.answer}</span></>}
+              : <>{ex.prompt} <span className="reading-example-answer">{answerDisplay}</span></>}
           </p>
         );
       })}
@@ -977,8 +1055,13 @@ export default function ReadingRunner({ parts, onFinish, studentUid, seriesId, l
             {part.fixedLayout === "movers-part5" || part.fixedLayout === "flyers-part5" ? (
               <StoryParagraph text={part.storyParagraphs?.[0]} />
             ) : null}
-            {part.fixedLayout === "movers-part6" || part.fixedLayout === "movers-part5" || part.fixedLayout === "flyers-part5" ? (
-              <ExamplesPairRow examplesPair={part.examplesPair} />
+            {["movers-part6", "movers-part5", "flyers-part5", "starters-part2", "starters-part5"].includes(part.fixedLayout) ? (
+              <ExamplesPairRow
+                examplesPair={part.examplesPair}
+                mode={part.fixedLayout === "starters-part2" ? "yesno" : part.fixedLayout === "starters-part5" ? "open" : undefined}
+              />
+            ) : part.fixedLayout === "starters-part1" ? (
+              <ExamplesPairRow examplesPair={part.examplesPair} mode="tickcross" />
             ) : part.fixedLayout === "movers-part3" || part.fixedLayout === "flyers-part3" ? null : part.fixedLayout === "flyers-part2" ? (
               <ConversationSelectRow
                 askerText={part.example?.text}
@@ -993,13 +1076,15 @@ export default function ReadingRunner({ parts, onFinish, studentUid, seriesId, l
                 mode={
                   part.fixedLayout === "movers-part1" || part.fixedLayout === "flyers-part1"
                     ? "table-row"
-                    : part.allowedTypes?.includes("multiple-choice")
-                      ? "multiple-choice"
-                      : "word-bank"
+                    : part.fixedLayout === "starters-part3"
+                      ? "word-scramble"
+                      : part.allowedTypes?.includes("multiple-choice")
+                        ? "multiple-choice"
+                        : "word-bank"
                 }
               />
             )}
-            {["movers-part6", "movers-part5", "movers-part1", "flyers-part1", "flyers-part2", "flyers-part5"].includes(part.fixedLayout) && (
+            {["movers-part6", "movers-part5", "movers-part1", "flyers-part1", "flyers-part2", "flyers-part5", "starters-part1", "starters-part2", "starters-part3", "starters-part5"].includes(part.fixedLayout) && (
               <h3 className="reading-subheading">Questions</h3>
             )}
             <div className="reading-question-list">
@@ -1044,17 +1129,43 @@ export default function ReadingRunner({ parts, onFinish, studentUid, seriesId, l
                 // Flyers Part 3) — chốt 2026-09-05, không còn chèn giữa đoạn truyện và câu chọn tiêu
                 // đề như trước. `exampleBreakEl` giữ lại = false, không còn dùng.
                 const exampleBreakEl = null;
+                // Starters Part 5: 3 ảnh cảnh savanna đổi dần — ảnh 1 đã hiện ở đầu Part (part.image,
+                // dùng field chung có sẵn). Ảnh 2/3 (part.storyImages, mảng 2 phần tử) chèn NGAY
+                // TRƯỚC câu ở vị trí `part.storyBreakPoints` (mặc định [1,3] = trước câu 2 và câu 4,
+                // qIndex 0-based) — KHÔNG dùng lại storyParagraphs/storyImages 3 phần tử của Movers
+                // Part 5 (semantics khác hẳn, Part 5 Starters không có đoạn truyện chữ, chỉ có ảnh).
+                const startersBreakPoints = part.storyBreakPoints ?? [1, 3];
+                const startersImgIndex =
+                  part.fixedLayout === "starters-part5"
+                    ? qIndex === startersBreakPoints[0]
+                      ? 0
+                      : qIndex === startersBreakPoints[1]
+                        ? 1
+                        : null
+                    : null;
+                const startersImgEl =
+                  startersImgIndex != null && part.storyImages?.[startersImgIndex] ? (
+                    <img src={part.storyImages[startersImgIndex]} alt="" className="reading-part-img" />
+                  ) : null;
 
                 let body;
                 if (q.type === "yesno") {
-                  body = (
-                    <YesNoQuestion
-                      question={q}
-                      qNumber={qNumber}
-                      value={value}
-                      onChange={val => setAnswer(partIndex, qIndex, val)}
-                    />
-                  );
+                  body =
+                    part.fixedLayout === "starters-part1" ? (
+                      <TickCrossQuestion
+                        question={q}
+                        qNumber={qNumber}
+                        value={value}
+                        onChange={val => setAnswer(partIndex, qIndex, val)}
+                      />
+                    ) : (
+                      <YesNoQuestion
+                        question={q}
+                        qNumber={qNumber}
+                        value={value}
+                        onChange={val => setAnswer(partIndex, qIndex, val)}
+                      />
+                    );
                 } else if (q.type === "gapfill") {
                   body = (
                     <GapfillQuestion
@@ -1160,6 +1271,7 @@ export default function ReadingRunner({ parts, onFinish, studentUid, seriesId, l
                   <div className="reading-question-group" key={qIndex}>
                     {groupHeader}
                     {storyBreakEl}
+                    {startersImgEl}
                     {exampleBreakEl}
                     {body}
                   </div>

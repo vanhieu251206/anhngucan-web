@@ -1216,6 +1216,29 @@ button { font-family: inherit; }
 .reading-yesno-btn:active { transform: scale(0.96); }
 .reading-yesno-btn.is-selected { border-color: var(--color-primary); color: #fff; background: var(--color-primary); }
 
+/* Starters Part 1 — ảnh BÊN TRÁI, câu chữ + ô tích chọn xếp BÊN PHẢI (khớp bố cục sách gốc, khác
+   layout mặc định của .reading-question-body vốn xếp dọc từ trên xuống) — chốt 2026-09-06. */
+.reading-tickcross-body { flex-direction: row; align-items: center; gap: 16px; }
+.reading-tickcross-body .reading-question-img { max-height: 110px; flex-shrink: 0; }
+.reading-tickcross-side { display: flex; align-items: center; gap: 16px; flex: 1; min-width: 0; }
+.reading-tickcross-side .reading-question-text { flex: 1; min-width: 0; }
+
+/* Starters Part 1 — 1 ô duy nhất bấm để lần lượt chuyển trống → ✓ → ✗ → trống (khác Part 2 dùng 2
+   nút Yes/No riêng biệt, .reading-yesno-btn) — cùng schema dữ liệu yesno, chỉ khác UI hiển thị. */
+.reading-tickcross-btn {
+  width: 52px; height: 52px; border-radius: 14px; border: 2px solid #ece6da; background: #fff;
+  font-size: 1.6rem; font-weight: 800; cursor: pointer; align-self: flex-start;
+  display: flex; align-items: center; justify-content: center;
+  transition: transform 0.12s ease, border-color 0.12s ease, background 0.12s ease, color 0.12s ease;
+  color: var(--color-text-muted, #9a9184);
+}
+.reading-tickcross-btn:hover { border-color: var(--color-primary); }
+.reading-tickcross-btn:active { transform: scale(0.94); }
+.reading-tickcross-btn.is-tick { border-color: #4caf7d; color: #4caf7d; background: #eefaf3; }
+.reading-tickcross-btn.is-cross { border-color: #e0645a; color: #e0645a; background: #fdeeed; }
+.reading-tickcross-btn.is-selected.is-tick { background: #4caf7d; color: #fff; }
+.reading-tickcross-btn.is-selected.is-cross { background: #e0645a; color: #fff; }
+
 .reading-mc-options { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
 .reading-mc-option {
   display: flex; align-items: center; gap: 10px; padding: 9px 16px; border-radius: 12px;
@@ -1300,6 +1323,9 @@ button { font-family: inherit; }
   color: var(--color-ink); text-align: center; padding: 0;
 }
 .reading-scramble-pin-input:focus { outline: none; border-color: var(--color-primary); background: #fff; }
+/* Ô đáp án của dòng Example (Starters Part 3, xem ExampleRow mode="word-scramble") — đã điền sẵn,
+   CHỈ ĐỌC, tô xanh lá để phân biệt rõ với ô trắng học sinh tự gõ ở các câu thật bên dưới. */
+.reading-scramble-answer-tile { display: flex; align-items: center; justify-content: center; border-color: #4caf7d; background: #eefaf3; color: #2f8f5e; }
 .reading-scramble-clear {
   align-self: flex-start; border: none; background: none; color: var(--color-muted);
   font-size: 0.85rem; font-weight: 700; cursor: pointer; padding: 0;

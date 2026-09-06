@@ -174,10 +174,69 @@ const MOVERS_PART_TEMPLATES = [
   },
 ];
 
+// Starters có 5 Part/bài (khác Movers 6/Flyers 7). LẦN ĐẦU Starters có `fixedLayout` (trước đó CHỈ
+// có dạng câu hỏi tự do) — chốt 2026-09-06 sau khi đối chiếu ảnh sách + đáp án chính thức Test 1.
+// Part 1/2/5 đổi hẳn SHAPE dữ liệu (examplesPair có ảnh riêng, storyImages/storyBreakPoints mới) —
+// vì CHƯA có Test Starters nào từng xuất bản (xác nhận qua memory dự án), KHÔNG cần viết migration
+// vá dữ liệu cũ (mục 9 checklist Reading-CMS-Kinh-nghiem.md), chỉ cần seed đúng cho Test MỚI.
+const STARTERS_PART_TEMPLATES = [
+  // Part 1: format CỐ ĐỊNH — mỗi câu (kể cả 2 Example) có ẢNH RIÊNG (khác mọi Part khác vốn chỉ 1
+  // ảnh chung — sách thật mỗi câu định nghĩa đi kèm 1 tranh riêng), ĐÚNG 1 checkbox tick(✓)/cross(✗)
+  // duy nhất (KHÔNG phải 2 nút Yes/No như Part 2) — vẫn dùng CHUNG schema `yesno` (type/answer
+  // "yes"/"no"), chỉ khác UI hiển thị (xem TickCrossQuestion trong ReadingRunner.jsx). ĐÚNG 5 câu.
+  {
+    title: "Part 1 – Reading and Writing",
+    instruction: "Look and read. Put a tick (✓) or a cross (✗) in the box. There are two examples.",
+    allowedTypes: ["yesno"],
+    fixedLayout: "starters-part1",
+  },
+  // Part 2: format CỐ ĐỊNH — 1 ảnh chung (part.image) + ĐÚNG 5 câu `yesno` dùng UI 2 nút Yes/No
+  // BÌNH THƯỜNG (YesNoQuestion có sẵn, khác Part 1) + 2 Examples KHÔNG ảnh riêng.
+  {
+    title: "Part 2 – Reading and Writing",
+    instruction: "Look and read. Write yes or no.",
+    allowedTypes: ["yesno"],
+    fixedLayout: "starters-part2",
+  },
+  // Part 3: mỗi câu có ẢNH RIÊNG + type `word-scramble` đã có sẵn (bao phủ đủ: xem ảnh, gõ lại chữ
+  // đã xáo trộn) — chỉ cần khoá ĐÚNG 5 câu cố định (fixedLayout NHẸ, không đổi shape dữ liệu nào cả,
+  // xem mục 4 Reading-CMS-Kinh-nghiem.md — dùng để đồng bộ với các Part khác, dễ khoá thêm/xoá).
+  {
+    title: "Part 3 – Reading and Writing",
+    instruction: "Look at the pictures. Look at the letters. Write the words.",
+    allowedTypes: ["word-scramble"],
+    fixedLayout: "starters-part3",
+  },
+  // Part 4: CƠ CHẾ Y HỆT Movers/Flyers Part 4 (1 đoạn văn gapfill, chỗ trống đầu là ví dụ có sẵn,
+  // gõ tự do — KHÔNG có `gapMode: "choices"` ở Starters) — tái dùng thẳng `fixedLayout:
+  // "movers-part4"` (chốt theo đúng bài học mục 12 — không tạo key mới khi cơ chế giống hệt). Ngân
+  // hàng từ (8 từ) CÓ ẢNH riêng từng từ (`wordBankImages: true`, khác Movers/Flyers Part 4 không có
+  // ảnh trong ngân hàng từ) — sách Starters Part 4 thật mỗi từ trong khung đều kèm 1 tranh nhỏ.
+  {
+    title: "Part 4 – Reading and Writing",
+    instruction: "Read this. Choose a word from the box. Write the correct word next to numbers 1–5. There is one example.",
+    allowedTypes: ["gapfill"],
+    hasWordBank: true,
+    wordBankImages: true,
+    fixedLayout: "movers-part4",
+  },
+  // Part 5: 1 ảnh chung đầu tiên (part.image) + 2 ảnh RIÊNG chèn xen giữa câu hỏi (`part.storyImages`,
+  // mảng 2, vị trí chèn cấu hình qua `part.storyBreakPoints`, mặc định [1,3] = trước câu 2 và câu 4)
+  // — KHÔNG có đoạn truyện chữ nào (khác hẳn Movers/Flyers Part 5), chỉ ảnh + câu hỏi ĐÚNG 5 câu
+  // `short-answer` + 2 Examples (dạng câu hỏi mở, không ảnh riêng).
+  {
+    title: "Part 5 – Reading and Writing",
+    instruction: "Look at the pictures and read the questions. Write one-word answers.",
+    allowedTypes: ["short-answer"],
+    fixedLayout: "starters-part5",
+  },
+];
+
 // Map seriesId -> khung Part dựng sẵn (nếu có) — dùng cho nút "+ Tạo N Part mẫu" ở màn rỗng.
 const SERIES_PART_TEMPLATES = {
   flyers: FLYERS_PART_TEMPLATES,
   movers: MOVERS_PART_TEMPLATES,
+  starters: STARTERS_PART_TEMPLATES,
 };
 
 function blankPartsFromTemplates(templates) {
@@ -292,6 +351,41 @@ function blankPartsFromTemplates(templates) {
     if (t.fixedLayout === "flyers-part7") {
       base.questions = [blankQuestion("free-writing")];
     }
+    // Part 1 Starters: ĐÚNG 5 câu yesno CỐ ĐỊNH (UI tick/cross 1 ô, KHÔNG ảnh chung — mỗi câu tự có
+    // ảnh riêng qua QuestionEditor bình thường) + 2 Examples, MỖI ví dụ có ảnh riêng (`image`).
+    if (t.fixedLayout === "starters-part1") {
+      base.questions = Array.from({ length: 5 }, () => blankQuestion("yesno"));
+      base.examplesPair = [
+        { prompt: "", answer: "yes", image: null },
+        { prompt: "", answer: "no", image: null },
+      ];
+    }
+    // Part 2 Starters: ĐÚNG 5 câu yesno CỐ ĐỊNH (UI 2 nút Yes/No bình thường) + 2 Examples KHÔNG ảnh.
+    if (t.fixedLayout === "starters-part2") {
+      base.questions = Array.from({ length: 5 }, () => blankQuestion("yesno"));
+      base.examplesPair = [
+        { prompt: "", answer: "yes" },
+        { prompt: "", answer: "no" },
+      ];
+    }
+    // Part 3 Starters: ĐÚNG 5 câu word-scramble CỐ ĐỊNH, mỗi câu có ảnh riêng (đã có sẵn qua
+    // QuestionEditor bình thường, không cần field phụ nào mới) + 1 Example (từ "lime" trong sách
+    // gốc — ảnh + đáp án đã điền sẵn, KHÔNG tương tác được, xem ExampleRow mode="word-scramble").
+    if (t.fixedLayout === "starters-part3") {
+      base.questions = Array.from({ length: 5 }, () => blankQuestion("word-scramble"));
+      base.example = { image: null, answer: "" };
+    }
+    // Part 5 Starters: ĐÚNG 5 câu short-answer CỐ ĐỊNH + 2 Examples (câu hỏi mở, không ảnh) + 2 ảnh
+    // riêng chèn xen giữa câu hỏi (`storyImages`, ảnh đầu tiên dùng field chung `part.image` có sẵn).
+    if (t.fixedLayout === "starters-part5") {
+      base.questions = Array.from({ length: 5 }, () => blankQuestion("short-answer"));
+      base.examplesPair = [
+        { prompt: "", answer: "" },
+        { prompt: "", answer: "" },
+      ];
+      base.storyImages = ["", ""];
+      base.storyBreakPoints = [1, 3];
+    }
     return base;
   });
 }
@@ -332,6 +426,31 @@ function blankPart(order) {
 // chung của Part), "multiple-choice" lưu {text, options, answerIndex} y hệt 1 câu multiple-choice
 // thật (yêu cầu người dùng 2026-08-26, vd Movers Part 2 hội thoại 3 đáp án A/B/C).
 function ExampleEditor({ example, wordBank, mode, onChange }) {
+  // "word-scramble" (Starters Part 3 — ví dụ "lime" trong sách gốc): chỉ cần 1 ảnh + đáp án đúng,
+  // KHÔNG có câu mô tả (`text`) — ReadingRunner tự xáo chữ cái để hiển thị, giáo viên chỉ gõ từ
+  // đúng như bình thường (khớp ô "Nhập từ vựng" của QuestionEditor word-scramble).
+  if (mode === "word-scramble") {
+    const value = example ?? { image: null, answer: "" };
+    return (
+      <fieldset className="admin-fieldset">
+        <legend>💡 Câu ví dụ mẫu (Example)</legend>
+        <ImageUploadField
+          label="Ảnh minh hoạ ví dụ"
+          value={value.image}
+          onChange={image => onChange({ ...value, image })}
+        />
+        <label className="admin-mini-field">
+          <span>Nhập từ vựng</span>
+          <input
+            className="admin-input"
+            value={value.answer}
+            onChange={e => onChange({ ...value, answer: e.target.value.replace(/\s/g, "").toUpperCase() })}
+            placeholder="vd: LIME"
+          />
+        </label>
+      </fieldset>
+    );
+  }
   if (mode === "multiple-choice") {
     const value = example ?? { text: "", options: ["", "", ""], answerIndex: 0 };
     return (
@@ -729,22 +848,83 @@ function ShortAnswerPromptEditor({ value, onChange, showGapButton = true }) {
 // 2 ví dụ mẫu cố định của Movers Part 6 — xem ExamplesPairRow (ReadingRunner.jsx) cho phần hiển
 // thị học sinh, khớp đúng shape dữ liệu ({prompt, answer}). Ví dụ 1 luôn là câu hỏi vị trí kiểu
 // "Where is...?" (không có "___"), ví dụ 2 luôn là câu điền từ có sẵn đáp án (có "___").
-function ExamplesPairEditor({ examplesPair, onChange }) {
+// `mode`:
+// - "text" (mặc định, Movers Part 5/6 & Flyers Part 5) — ví dụ 1 kiểu câu hỏi vị trí (không có
+//   "___"), ví dụ 2 kiểu điền chỗ trống (có "___"), đáp án gõ tự do — GIỮ NGUYÊN hành vi cũ.
+// - "open" (Starters Part 5) — cả 2 ví dụ đều là câu hỏi mở (không phân biệt vị trí/điền chỗ trống),
+//   nhãn chung chung hơn, đáp án vẫn gõ tự do.
+// - "yesno" (Starters Part 2) — đáp án là radio Yes/No (không gõ tự do), không có ảnh riêng.
+// - "tickcross" (Starters Part 1) — như "yesno" nhưng nhãn ✓/✗ + có `withImages` (ảnh riêng từng ví
+//   dụ, khớp cách mỗi câu Part 1 đều có ảnh riêng).
+function ExamplesPairEditor({ examplesPair, onChange, mode = "text", withImages = false }) {
   const pair = examplesPair ?? [{ prompt: "", answer: "" }, { prompt: "", answer: "" }];
   function setEx(i, patch) {
     const next = pair.map((ex, idx) => (idx === i ? { ...ex, ...patch } : ex));
     onChange(next);
   }
+
+  if (mode === "yesno" || mode === "tickcross") {
+    return (
+      <fieldset className="admin-fieldset">
+        <legend>💡 2 ví dụ mẫu (Examples) — cố định luôn đúng 2 dòng</legend>
+        {[0, 1].map(i => (
+          <div className="admin-card-field-group" key={i}>
+            <strong>Ví dụ {i + 1}</strong>
+            {withImages && (
+              <ImageUploadField
+                label={`Ảnh cho ví dụ ${i + 1}`}
+                value={pair[i]?.image}
+                onChange={image => setEx(i, { image })}
+              />
+            )}
+            <label className="admin-mini-field">
+              <span>Câu / câu khẳng định</span>
+              <input
+                className="admin-input"
+                value={pair[i]?.prompt ?? ""}
+                onChange={e => setEx(i, { prompt: e.target.value })}
+                placeholder="vd: This is a foot."
+              />
+            </label>
+            <fieldset className="admin-fieldset">
+              <legend>Đáp án đúng</legend>
+              <div className="admin-yesno-picker">
+                <label className="admin-checkbox-row">
+                  <input
+                    type="radio"
+                    name={`examplepair-${mode}-${i}`}
+                    checked={pair[i]?.answer === "yes"}
+                    onChange={() => setEx(i, { answer: "yes" })}
+                  />
+                  <span>{mode === "tickcross" ? "✓ (Đúng)" : "Yes"}</span>
+                </label>
+                <label className="admin-checkbox-row">
+                  <input
+                    type="radio"
+                    name={`examplepair-${mode}-${i}`}
+                    checked={pair[i]?.answer === "no"}
+                    onChange={() => setEx(i, { answer: "no" })}
+                  />
+                  <span>{mode === "tickcross" ? "✗ (Sai)" : "No"}</span>
+                </label>
+              </div>
+            </fieldset>
+          </div>
+        ))}
+      </fieldset>
+    );
+  }
+
   return (
     <fieldset className="admin-fieldset">
       <legend>💡 2 ví dụ mẫu (Examples) — cố định luôn đúng 2 dòng</legend>
       <label className="admin-mini-field">
-        <span>Ví dụ 1 — câu hỏi vị trí (vd: Where is the tree with purple leaves?)</span>
+        <span>{mode === "open" ? "Ví dụ 1 — câu hỏi mở" : "Ví dụ 1 — câu hỏi vị trí (vd: Where is the tree with purple leaves?)"}</span>
         <input
           className="admin-input"
           value={pair[0]?.prompt ?? ""}
           onChange={e => setEx(0, { prompt: e.target.value })}
-          placeholder="Where is...?"
+          placeholder={mode === "open" ? "vd: Which animal is drinking?" : "Where is...?"}
         />
       </label>
       <label className="admin-mini-field">
@@ -753,16 +933,16 @@ function ExamplesPairEditor({ examplesPair, onChange }) {
           className="admin-input"
           value={pair[0]?.answer ?? ""}
           onChange={e => setEx(0, { answer: e.target.value })}
-          placeholder="vd: On the island."
+          placeholder={mode === "open" ? "vd: the hippo" : "vd: On the island."}
         />
       </label>
       <label className="admin-mini-field">
-        <span>Ví dụ 2 — câu điền từ (dùng ___ làm chỗ trống, vd: The ___ is holding some watermelon.)</span>
+        <span>{mode === "open" ? "Ví dụ 2 — câu hỏi mở" : "Ví dụ 2 — câu điền từ (dùng ___ làm chỗ trống, vd: The ___ is holding some watermelon.)"}</span>
         <input
           className="admin-input"
           value={pair[1]?.prompt ?? ""}
           onChange={e => setEx(1, { prompt: e.target.value })}
-          placeholder="The ___ is..."
+          placeholder={mode === "open" ? "vd: What are the children doing?" : "The ___ is..."}
         />
       </label>
       <label className="admin-mini-field">
@@ -771,7 +951,7 @@ function ExamplesPairEditor({ examplesPair, onChange }) {
           className="admin-input"
           value={pair[1]?.answer ?? ""}
           onChange={e => setEx(1, { answer: e.target.value })}
-          placeholder="vd: monkey"
+          placeholder={mode === "open" ? "vd: painting" : "vd: monkey"}
         />
       </label>
     </fieldset>
@@ -818,11 +998,16 @@ function QuestionEditor({ question, index, onChange, onDelete, onDuplicate, word
 
       {question.type === "yesno" && (
         <>
-          <ImageUploadField
-            label="Ảnh minh hoạ"
-            value={question.image}
-            onChange={image => onChange({ image })}
-          />
+          {/* hideImage=true (Starters Part 2) — cả Part dùng CHUNG 1 ảnh minh hoạ ở đầu PartEditor
+              (part.image), không cần ảnh riêng từng câu (khác Part 1, mỗi câu có ảnh riêng vì sách
+              thật in kèm 1 tranh cho từng câu định nghĩa). */}
+          {!hideImage && (
+            <ImageUploadField
+              label="Ảnh minh hoạ"
+              value={question.image}
+              onChange={image => onChange({ image })}
+            />
+          )}
           <label className="admin-mini-field">
             <span>Câu hỏi / câu khẳng định</span>
             <input
@@ -1100,13 +1285,17 @@ function PartEditor({ part, onChange, seriesId }) {
           đậm gạch chân ngay trên tranh minh hoạ), nên field ảnh chung render RIÊNG bên trong nhánh
           movers-part5 dưới đây thay vì ở đây, còn mọi loại Part khác vẫn giữ đúng thứ tự cũ (ảnh
           ngay sau câu hướng dẫn) — chốt 2026-08-27. */}
-      {part.fixedLayout !== "movers-part5" && part.fixedLayout !== "movers-part1" && part.fixedLayout !== "flyers-part1" && (
-        <ImageUploadField
-          label="Ảnh minh hoạ chung cho cả Part (tuỳ chọn)"
-          value={part.image}
-          onChange={image => onChange({ image })}
-        />
-      )}
+      {part.fixedLayout !== "movers-part5" &&
+        part.fixedLayout !== "movers-part1" &&
+        part.fixedLayout !== "flyers-part1" &&
+        part.fixedLayout !== "starters-part1" &&
+        part.fixedLayout !== "starters-part3" && (
+          <ImageUploadField
+            label="Ảnh minh hoạ chung cho cả Part (tuỳ chọn)"
+            value={part.image}
+            onChange={image => onChange({ image })}
+          />
+        )}
       {/* Ô nhập điểm chung cho cả Part đã chuyển lên thanh tiêu đề Part (xem admin-part-points-pill
           trong ReadingStudio component chính). */}
 
@@ -1216,6 +1405,122 @@ function PartEditor({ part, onChange, seriesId }) {
                 locked
               />
             ))}
+          </div>
+        </>
+      ) : part.fixedLayout === "starters-part1" ? (
+        <>
+          <ExamplesPairEditor
+            examplesPair={part.examplesPair}
+            onChange={examplesPair => onChange({ examplesPair })}
+            mode="tickcross"
+            withImages
+          />
+          <h3 className="admin-reading-group-heading">Questions</h3>
+          <div className="admin-reading-question-list">
+            {questions.map((q, i) => (
+              <QuestionEditor
+                key={i}
+                question={q}
+                index={i}
+                onChange={patch => updateQuestion(i, patch)}
+                seriesId={seriesId}
+                locked
+              />
+            ))}
+          </div>
+        </>
+      ) : part.fixedLayout === "starters-part2" ? (
+        <>
+          <ExamplesPairEditor
+            examplesPair={part.examplesPair}
+            onChange={examplesPair => onChange({ examplesPair })}
+            mode="yesno"
+          />
+          <h3 className="admin-reading-group-heading">Questions</h3>
+          <div className="admin-reading-question-list">
+            {questions.map((q, i) => (
+              <QuestionEditor
+                key={i}
+                question={q}
+                index={i}
+                onChange={patch => updateQuestion(i, patch)}
+                seriesId={seriesId}
+                locked
+                hideImage
+              />
+            ))}
+          </div>
+        </>
+      ) : part.fixedLayout === "starters-part5" ? (
+        <>
+          {/* Vị trí chèn ảnh 2/3 cấu hình được (giống storyBreakPoints Movers Part 5) — nhập số câu
+              1-based (vd "2" nghĩa là ảnh hiện ngay TRƯỚC câu số 2). Ảnh 1 dùng field ảnh chung ở
+              trên (part.image), không lặp lại ở đây. */}
+          <div className="admin-reading-story-break-config">
+            <label className="admin-mini-field">
+              <span>Ảnh 2 hiện trước câu số</span>
+              <input
+                type="number"
+                min={2}
+                max={5}
+                className="admin-input"
+                value={(part.storyBreakPoints?.[0] ?? 1) + 1}
+                onChange={e => {
+                  const next = [...(part.storyBreakPoints ?? [1, 3])];
+                  next[0] = Math.max(1, Number(e.target.value) - 1);
+                  onChange({ storyBreakPoints: next });
+                }}
+              />
+            </label>
+            <label className="admin-mini-field">
+              <span>Ảnh 3 hiện trước câu số</span>
+              <input
+                type="number"
+                min={2}
+                max={5}
+                className="admin-input"
+                value={(part.storyBreakPoints?.[1] ?? 3) + 1}
+                onChange={e => {
+                  const next = [...(part.storyBreakPoints ?? [1, 3])];
+                  next[1] = Math.max(1, Number(e.target.value) - 1);
+                  onChange({ storyBreakPoints: next });
+                }}
+              />
+            </label>
+          </div>
+          <ExamplesPairEditor
+            examplesPair={part.examplesPair}
+            onChange={examplesPair => onChange({ examplesPair })}
+            mode="open"
+          />
+          <h3 className="admin-reading-group-heading">Questions</h3>
+          <div className="admin-reading-question-list">
+            {questions.map((q, i) => {
+              const breakPoints = part.storyBreakPoints ?? [1, 3];
+              const imgIndex = i === breakPoints[0] ? 0 : i === breakPoints[1] ? 1 : null;
+              return (
+                <div key={i}>
+                  {imgIndex != null && (
+                    <ImageUploadField
+                      label={`Ảnh minh hoạ ${imgIndex + 2} (hiện trước câu ${i + 1})`}
+                      value={part.storyImages?.[imgIndex]}
+                      onChange={image => {
+                        const next = [...(part.storyImages ?? ["", ""])];
+                        next[imgIndex] = image;
+                        onChange({ storyImages: next });
+                      }}
+                    />
+                  )}
+                  <QuestionEditor
+                    question={q}
+                    index={i}
+                    onChange={patch => updateQuestion(i, patch)}
+                    seriesId={seriesId}
+                    locked
+                  />
+                </div>
+              );
+            })}
           </div>
         </>
       ) : part.fixedLayout === "flyers-part7" ? (
@@ -1377,7 +1682,11 @@ function PartEditor({ part, onChange, seriesId }) {
               sẵn form soạn, không cho tắt. Còn lại chỉ là ngân hàng từ THAM KHẢO (vd Part 3) — thêm
               checkbox bật/tắt, tick mới hiện form nhập, chưa tick chỉ là 1 dòng chữ gọn (yêu cầu người
               dùng 2026-08-26). */}
-          {hasWordBankType ? (
+          {part.fixedLayout === "starters-part3" ? (
+            // Part 3 Starters không có ngân hàng từ nào (mỗi câu tự đứng riêng, chỉ ảnh + xáo chữ
+            // cái) — chỉ cần Example "lime", bỏ hẳn khung ngân hàng từ tham khảo/checkbox bật-tắt.
+            <ExampleEditor example={part.example} mode="word-scramble" onChange={example => onChange({ example })} />
+          ) : hasWordBankType ? (
             <>
               <WordBankEditor
                 words={part.wordBank ?? []}
@@ -1439,15 +1748,15 @@ function PartEditor({ part, onChange, seriesId }) {
                 wordBank={part.wordBank}
                 partPointsActive={part.partPoints != null}
                 seriesId={seriesId}
-                locked={["movers-part2", "movers-part3", "movers-part4", "flyers-part1", "flyers-part3"].includes(part.fixedLayout)}
+                locked={["movers-part2", "movers-part3", "movers-part4", "flyers-part1", "flyers-part3", "starters-part3"].includes(part.fixedLayout)}
                 hideImage={(part.fixedLayout === "flyers-part3" || part.fixedLayout === "movers-part4") && q.type === "gapfill"}
               />
             ))}
           </div>
 
-          {/* Part 2/3/4 Movers, Part 1 Flyers: số câu CỐ ĐỊNH theo đề thật (chốt 2026-08-27/31) —
-              không cho thêm/xoá câu nữa, ẩn hẳn "+ Thêm câu hỏi"/menu chọn dạng. */}
-          {["movers-part2", "movers-part3", "movers-part4", "flyers-part1", "flyers-part3"].includes(part.fixedLayout) ? null : availableTypes.length === 0 ? (
+          {/* Part 2/3/4 Movers, Part 1 Flyers, Part 3 Starters: số câu CỐ ĐỊNH theo đề thật (chốt
+              2026-08-27/31/09-06) — không cho thêm/xoá câu nữa, ẩn hẳn "+ Thêm câu hỏi"/menu chọn dạng. */}
+          {["movers-part2", "movers-part3", "movers-part4", "flyers-part1", "flyers-part3", "starters-part3"].includes(part.fixedLayout) ? null : availableTypes.length === 0 ? (
             <p className="admin-hint">Dạng câu hỏi của Part này chưa được lập trình xong, sẽ bổ sung sau.</p>
           ) : availableTypes.length === 1 ? (
             // Part chỉ có đúng 1 dạng được phép (khung Flyers cố định) — bấm là thêm luôn, không cần
@@ -1548,8 +1857,26 @@ function WordScramblePreview({ question, qNumber }) {
   );
 }
 
-function QuestionPreview({ question, qNumber, qNumbers, hideImage }) {
+function QuestionPreview({ question, qNumber, qNumbers, hideImage, tickCross }) {
   if (question.type === "yesno") {
+    // tickCross=true (Starters Part 1) — preview 1 ô ✓/✗ duy nhất (TickCrossQuestion), khác Part 2
+    // dùng 2 nút Yes/No bình thường (nhánh dưới, giữ nguyên).
+    if (tickCross) {
+      return (
+        <div className="reading-question reading-question-preview">
+          <QuestionBadge qNumber={qNumber} />
+          <div className="reading-question-body reading-tickcross-body">
+            {question.image && <img src={question.image} alt="" className="reading-question-img" />}
+            <div className="reading-tickcross-side">
+              <p className="reading-question-text">{question.text || <em>(chưa nhập câu khẳng định)</em>}</p>
+              <span className={`reading-tickcross-btn is-selected${question.answer === "no" ? " is-cross" : " is-tick"}`}>
+                {question.answer === "no" ? "✗" : "✓"}
+              </span>
+            </div>
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="reading-question reading-question-preview">
         <QuestionBadge qNumber={qNumber} />
@@ -1796,8 +2123,13 @@ function TestPreview({ parts, stats, activePartIndex, seriesId }) {
               {part.fixedLayout === "movers-part5" || part.fixedLayout === "flyers-part5" ? (
                 <StoryParagraph text={part.storyParagraphs?.[0]} />
               ) : null}
-              {part.fixedLayout === "movers-part6" || part.fixedLayout === "movers-part5" || part.fixedLayout === "flyers-part5" ? (
-                <ExamplesPairRow examplesPair={part.examplesPair} />
+              {["movers-part6", "movers-part5", "flyers-part5", "starters-part2", "starters-part5"].includes(part.fixedLayout) ? (
+                <ExamplesPairRow
+                  examplesPair={part.examplesPair}
+                  mode={part.fixedLayout === "starters-part2" ? "yesno" : part.fixedLayout === "starters-part5" ? "open" : undefined}
+                />
+              ) : part.fixedLayout === "starters-part1" ? (
+                <ExamplesPairRow examplesPair={part.examplesPair} mode="tickcross" />
               ) : part.fixedLayout === "movers-part3" || part.fixedLayout === "flyers-part3" ? null : part.fixedLayout === "flyers-part2" ? (
                 <ConversationSelectRow
                   askerText={part.example?.text}
@@ -1812,13 +2144,15 @@ function TestPreview({ parts, stats, activePartIndex, seriesId }) {
                   mode={
                     part.fixedLayout === "movers-part1" || part.fixedLayout === "flyers-part1"
                       ? "table-row"
-                      : part.allowedTypes?.includes("multiple-choice")
-                        ? "multiple-choice"
-                        : "word-bank"
+                      : part.fixedLayout === "starters-part3"
+                        ? "word-scramble"
+                        : part.allowedTypes?.includes("multiple-choice")
+                          ? "multiple-choice"
+                          : "word-bank"
                   }
                 />
               )}
-              {["movers-part6", "movers-part5", "movers-part1", "flyers-part1", "flyers-part2", "flyers-part5"].includes(part.fixedLayout) && (
+              {["movers-part6", "movers-part5", "movers-part1", "flyers-part1", "flyers-part2", "flyers-part5", "starters-part1", "starters-part2", "starters-part3", "starters-part5"].includes(part.fixedLayout) && (
                 <h3 className="reading-subheading">Questions</h3>
               )}
               {!part.questions?.length ? (
@@ -1858,6 +2192,18 @@ function TestPreview({ parts, stats, activePartIndex, seriesId }) {
                     const storyParagraphIndex =
                       part.fixedLayout === "movers-part5" ? (i === breakPoints[0] ? 2 : i === breakPoints[1] ? 3 : null) : null;
                     const storyBreak = storyParagraphIndex != null ? part.storyParagraphs?.[storyParagraphIndex] : null;
+                    // Starters Part 5: ảnh 2/3 chèn theo `storyBreakPoints` (mặc định [1,3]) — khác
+                    // hẳn cơ chế storyParagraphs/storyImages 3 phần tử của Movers Part 5 (không có
+                    // đoạn truyện chữ ở Starters Part 5, chỉ ảnh).
+                    const startersBreakPoints = part.storyBreakPoints ?? [1, 3];
+                    const startersImgIndex =
+                      part.fixedLayout === "starters-part5"
+                        ? i === startersBreakPoints[0]
+                          ? 0
+                          : i === startersBreakPoints[1]
+                            ? 1
+                            : null
+                        : null;
                     // Khung "Example" của Part 3 Movers đã chuyển lên ĐẦU Part (giống Flyers Part 3)
                     // — chốt 2026-09-05, không còn chèn giữa danh sách câu hỏi nữa.
                     const qStart = partOffset + questionOffset(part.questions, i) + 1;
@@ -1876,11 +2222,15 @@ function TestPreview({ parts, stats, activePartIndex, seriesId }) {
                       <div className="reading-question-group" key={i}>
                         {groupLabel && <h4 className="reading-group-label">{groupLabel}</h4>}
                         {storyBreak && <StoryParagraph text={storyBreak} image={part.storyImages?.[storyParagraphIndex]} />}
+                        {startersImgIndex != null && part.storyImages?.[startersImgIndex] && (
+                          <img src={part.storyImages[startersImgIndex]} alt="" className="reading-part-img" />
+                        )}
                         <QuestionPreview
                           question={q}
                           qNumber={qStart}
                           qNumbers={gapNumbers}
                           hideImage={["movers-part3", "movers-part4", "flyers-part3"].includes(part.fixedLayout) && q.type === "gapfill"}
+                          tickCross={part.fixedLayout === "starters-part1"}
                         />
                       </div>
                     );
