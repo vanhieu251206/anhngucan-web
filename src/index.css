@@ -1222,6 +1222,7 @@ button { font-family: inherit; }
 .reading-tickcross-body .reading-question-img { max-height: 110px; flex-shrink: 0; }
 .reading-tickcross-side { display: flex; align-items: center; gap: 16px; flex: 1; min-width: 0; }
 .reading-tickcross-side .reading-question-text { flex: 1; min-width: 0; }
+.reading-tickcross-btns { display: flex; gap: 8px; flex-shrink: 0; }
 
 /* Starters Part 1 — 1 ô duy nhất bấm để lần lượt chuyển trống → ✓ → ✗ → trống (khác Part 2 dùng 2
    nút Yes/No riêng biệt, .reading-yesno-btn) — cùng schema dữ liệu yesno, chỉ khác UI hiển thị. */

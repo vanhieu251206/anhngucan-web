@@ -133,12 +133,9 @@ export function QuestionBadge({ qNumber }) {
 // cách làm bài thật ("Put a tick (✓) or a cross (✗) in the box") thay vì 2 nút Yes/No tách biệt của
 // Part 2 (cũng type "yesno" nhưng câu hỏi khác dạng — xem YesNoQuestion).
 function TickCrossQuestion({ question, qNumber, value, onChange }) {
-  const display = value === "yes" ? "✓" : value === "no" ? "✗" : "";
-  function cycle() {
-    if (value === "yes") onChange("no");
-    else if (value === "no") onChange(undefined);
-    else onChange("yes");
-  }
+  // 2 nút riêng ✓/✗ để bấm chọn thẳng (khác bản trước dùng 1 ô bấm xoay vòng — đổi lại theo phản
+  // hồi người dùng 2026-09-06, học sinh nhỏ tuổi dễ thao tác hơn với 2 nút rõ ràng, khớp cách chọn
+  // của Part 2 dù icon khác chữ Yes/No).
   return (
     <div className="reading-question" id={`rq-${qNumber}`}>
       <QuestionBadge qNumber={qNumber} />
@@ -146,13 +143,22 @@ function TickCrossQuestion({ question, qNumber, value, onChange }) {
         {question.image && <img src={question.image} alt="" className="reading-question-img" />}
         <div className="reading-tickcross-side">
           <p className="reading-question-text">{question.text}</p>
-          <button
-            type="button"
-            className={`reading-tickcross-btn${value ? " is-selected" : ""}${value === "no" ? " is-cross" : value === "yes" ? " is-tick" : ""}`}
-            onClick={cycle}
-          >
-            {display}
-          </button>
+          <div className="reading-tickcross-btns">
+            <button
+              type="button"
+              className={`reading-tickcross-btn is-tick${value === "yes" ? " is-selected" : ""}`}
+              onClick={() => onChange("yes")}
+            >
+              ✓
+            </button>
+            <button
+              type="button"
+              className={`reading-tickcross-btn is-cross${value === "no" ? " is-selected" : ""}`}
+              onClick={() => onChange("no")}
+            >
+              ✗
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -245,16 +251,16 @@ function GapfillQuestion({ question, qNumber, qNumbers, values, onChange, hideIm
             return (
               <span key={i}>
                 {prefix}
-                {split && (
-                  <span className="reading-gap-inline-badge" id={`rq-${qNumbers[gapIndex]}`}>
-                    Question {qNumbers[gapIndex]}
-                  </span>
-                )}
                 {choices ? (
                   // Chế độ bấm chọn (khác gõ tự do) — 3 nút cho từng chỗ trống, bấm vào thì
                   // highlight (khớp đáp án đúng hay không tính lúc chấm điểm, không tô màu ngay khi
                   // chọn — tránh lộ đáp án trước khi nộp bài).
                   <span className="reading-gap-choices">
+                    {split && (
+                      <span className="reading-gap-inline-badge" id={`rq-${qNumbers[gapIndex]}`}>
+                        Question {qNumbers[gapIndex]}
+                      </span>
+                    )}
                     {marker}
                     {choices.map((opt, ci) => (
                       <button
@@ -269,7 +275,15 @@ function GapfillQuestion({ question, qNumber, qNumbers, values, onChange, hideIm
                     ))}
                   </span>
                 ) : (
+                  // Badge "Question N" (Starters Part 4 khi tách từng chỗ trống) BỌC CHUNG với ô
+                  // nhập trong 1 span nowrap — tránh trình duyệt xuống dòng giữa badge và ô trống
+                  // thành 2 dòng tách rời (lỗi thực tế 2026-09-06, y hệt lỗi từng gặp với nhãn "(N)").
                   <span className="reading-gap-nowrap">
+                    {split && (
+                      <span className="reading-gap-inline-badge" id={`rq-${qNumbers[gapIndex]}`}>
+                        Question {qNumbers[gapIndex]}
+                      </span>
+                    )}
                     {marker}
                     <input
                       className="reading-gap-input"
@@ -960,10 +974,12 @@ function buildResults(flat, answers, isFlyers) {
 // Component chính — hiện TOÀN BỘ Test (mọi Part nối tiếp) trên 1 trang cuộn được, nộp bài 1 lần
 // rồi chuyển hẳn sang màn tổng kết (không còn chấm màu ngay trong lúc làm — cùng luồng Speaking).
 export default function ReadingRunner({ parts, onFinish, studentUid, seriesId, level, testId }) {
-  // Movers dùng chung quy tắc tính điểm/đánh số theo từng chỗ trống với Flyers (chốt 2026-09-04:
-  // "mỗi chỗ trống điền từ hoặc chọn đáp án đều là một Question N, mỗi câu 1 điểm" — áp dụng luôn
-  // cho Movers, chỉ Starters còn giữ cách gộp cả câu gapfill thành 1 Question).
-  const isFlyers = seriesId === "flyers" || seriesId === "movers";
+  // Movers/Starters dùng chung quy tắc tính điểm/đánh số theo từng chỗ trống với Flyers (chốt
+  // 2026-09-04, mở rộng cho Starters 2026-09-06: "mỗi chỗ trống điền từ hoặc chọn đáp án đều là 1
+  // Question N, mỗi câu 1 điểm" — áp dụng cho cả 3 series, không còn ai giữ cách gộp cả câu gapfill
+  // thành 1 Question nữa. Chỉ ảnh hưởng câu `gapfill` nhiều chỗ trống (Starters Part 4) — các câu
+  // khác (yesno/word-scramble/short-answer) vốn đã mặc định 1 điểm/câu nên không đổi hành vi).
+  const isFlyers = seriesId === "flyers" || seriesId === "movers" || seriesId === "starters";
   const flat = useMemo(() => flattenQuestions(parts, isFlyers), [parts, isFlyers]);
   // answers[partIndex][qIndex] = giá trị trả lời — giữ cấu trúc lồng theo Part/câu để khớp đúng
   // dữ liệu gốc (parts[].questions[]), dễ tính điểm theo từng Part nếu cần sau này.

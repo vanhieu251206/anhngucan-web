@@ -965,11 +965,10 @@ function QuestionEditor({ question, index, onChange, onDelete, onDuplicate, word
       <div className="admin-reading-question-head">
         <span className="admin-reading-question-num">Question {index + 1}</span>
         <span className="admin-reading-question-type">{info?.icon} {info?.label}</span>
-        {/* Movers/Flyers đã có ô "🏆 Điểm Part" chung cho cả Part (thanh tiêu đề Part) nên KHÔNG
-            hiện điểm riêng từng câu nữa, dù giáo viên đã nhập điểm Part hay chưa (yêu cầu người
-            dùng 2026-08-26: "tất cả các Part hiện đã có ô điểm rồi"). Series khác (Starters) vẫn
-            theo cơ chế cũ — chỉ ẩn khi Part đó có bật điểm chung. */}
-        {!(seriesId === "movers" || seriesId === "flyers" || partPointsActive) && (
+        {/* Movers/Flyers/Starters luôn chấm 1 điểm/câu (kể cả từng chỗ trống gapfill tách riêng —
+            xem effectiveQuestionPoints/isFlyers) nên ẩn hẳn ô điểm riêng từng câu, không phụ thuộc
+            điểm Part chung nữa (mở rộng cho Starters 2026-09-06, trước đó chỉ Movers/Flyers). */}
+        {!(seriesId === "movers" || seriesId === "flyers" || seriesId === "starters" || partPointsActive) && (
           <label className="admin-reading-question-points">
             Điểm
             <input
@@ -2030,8 +2029,9 @@ function QuestionPreview({ question, qNumber, qNumbers, hideImage, tickCross }) 
 // để giáo viên xem được cả bài đang lên hình ra sao trong lúc soạn, giống hệt thứ tự học sinh
 // sẽ thấy (numberOffset cộng dồn qua từng Part y hệt ReadingRunner.jsx).
 function TestPreview({ parts, stats, activePartIndex, seriesId }) {
-  // Movers dùng chung quy tắc "mỗi chỗ trống = 1 Question riêng, 1 điểm" với Flyers (chốt 2026-09-04).
-  const isFlyers = seriesId === "flyers" || seriesId === "movers";
+  // Movers/Starters dùng chung quy tắc "mỗi chỗ trống = 1 Question riêng, 1 điểm" với Flyers (chốt
+  // 2026-09-04, mở rộng Starters 2026-09-06).
+  const isFlyers = seriesId === "flyers" || seriesId === "movers" || seriesId === "starters";
   let numberOffset = 0;
   const [showAll, setShowAll] = useState(true);
   // Xem theo Part đang soạn chỉ có ý nghĩa khi thực sự có 1 Part đang mở — nếu không có (đóng hết)
@@ -2533,7 +2533,7 @@ export default function ReadingStudio({ accent, seriesId, title, onTitleChange, 
           )}
         </div>
 
-        <TestPreview parts={parts} stats={testStats(parts, seriesId === "flyers" || seriesId === "movers")} activePartIndex={lastOpenPartIndex} seriesId={seriesId} />
+        <TestPreview parts={parts} stats={testStats(parts, seriesId === "flyers" || seriesId === "movers" || seriesId === "starters")} activePartIndex={lastOpenPartIndex} seriesId={seriesId} />
       </div>
     </div>
   );
