@@ -125,9 +125,10 @@ const MOVERS_PART_TEMPLATES = [
   },
   // Part 3: format CỐ ĐỊNH — ĐÚNG 2 câu: (1) 1 đoạn truyện gapfill có 5 chỗ trống đánh số (1)-(5) +
   // (2) 1 câu multiple-choice "chọn tiêu đề đúng" 3 lựa chọn KHÔNG có chữ A/B/C (chỉ ô tick trống,
-  // `hideLetters: true`) — thứ tự hiển thị: đoạn truyện TRƯỚC, khung "Example" (ngân hàng từ CÓ ẢNH,
-  // `wordBankImages: true` — sách gốc có 9 ô ảnh+chữ) NẰM GIỮA đoạn truyện và câu chọn tiêu đề, khác
-  // Part 1/2/5/6 (ảnh/ví dụ luôn ở đầu Part) — chốt 2026-08-27 sau khi xem ảnh sách thật.
+  // `hideLetters: true`) — khung "Example" (ngân hàng từ) giờ nằm Ở ĐẦU Part (giống Flyers Part 3,
+  // chốt 2026-09-05), không còn nằm giữa đoạn truyện và câu chọn tiêu đề như trước. `wordBankImages`
+  // đã tắt (chốt 2026-09-05, người dùng yêu cầu bỏ hẳn ô ảnh riêng từng từ trong ngân hàng — dù sách
+  // gốc có 9 ô ảnh+chữ, CMS giờ chỉ cần chữ cho gọn).
   // Chỗ trống ĐẦU TIÊN trong đoạn truyện cũng luôn là ví dụ có sẵn đáp án (vd "girls" trong Test 1),
   // y hệt cơ chế `firstGapIsExample` của Part 4 — chốt 2026-09-04 sau khi đối chiếu ảnh sách thật.
   {
@@ -135,7 +136,7 @@ const MOVERS_PART_TEMPLATES = [
     instruction: "Read the story. Choose a word from the box. Write the correct word next to numbers 1-5. There is one example.",
     allowedTypes: ["gapfill", "multiple-choice"],
     hasWordBank: true,
-    wordBankImages: true,
+    wordBankImages: false,
     fixedLayout: "movers-part3",
   },
   // Part 4: format CỐ ĐỊNH — ĐÚNG 1 đoạn văn gapfill duy nhất. Chỗ trống "___" ĐẦU TIÊN luôn là ví
@@ -194,6 +195,7 @@ function blankPartsFromTemplates(templates) {
       caption: null,
       fixedLayout: t.fixedLayout ?? null,
       examplesPair: null,
+      storyBreakPoints: null,
       storyParagraphs: null,
       storyImages: null,
       partImages: null,
@@ -238,14 +240,19 @@ function blankPartsFromTemplates(templates) {
         { prompt: "", answer: "" },
       ];
     }
-    // Part 5 Movers: cấu trúc 7 câu điền chỗ trống CỐ ĐỊNH, chia 2+3+2 xen giữa 3 đoạn truyện —
-    // dựng sẵn 7 ô trống + 2 ví dụ mẫu trống + tiêu đề/3 đoạn truyện trống.
+    // Part 5 Movers: cấu trúc 7 câu điền chỗ trống CỐ ĐỊNH — dựng sẵn 7 ô trống + 2 ví dụ mẫu trống +
+    // đoạn truyện 1 (trước Examples, có thể chứa nhiều đoạn nhỏ) + 2 đoạn truyện xen giữa câu hỏi.
+    // Cách chia câu KHÁC NHAU giữa các Test thật (vd Test 1: 2+3+2 — 2 đoạn xen trước câu 3 và câu
+    // 6; Test 2: 1+3+3 — xen trước câu 2 và câu 5, phát hiện 2026-09-06 khi đối chiếu sách thật) —
+    // KHÔNG hard-code cứng 1 cách chia, dùng `storyBreakPoints` (mảng 2 số, giá trị = qIndex 0-based
+    // nơi chèn đoạn 2/3) để mỗi Test tự cấu hình đúng theo sách, mặc định [2,5] (khớp Test 1 cũ).
     if (t.fixedLayout === "movers-part5") {
       base.questions = Array.from({ length: 7 }, () => blankQuestion("short-answer"));
       base.examplesPair = [
         { prompt: "", answer: "" },
         { prompt: "", answer: "" },
       ];
+      base.storyBreakPoints = [2, 5];
       base.storyParagraphs = ["", "", "", ""];
       base.storyImages = ["", "", "", ""];
     }
@@ -1256,38 +1263,79 @@ function PartEditor({ part, onChange, seriesId }) {
             value={part.image}
             onChange={image => onChange({ image })}
           />
+          {/* Đoạn truyện 1: có thể chứa NHIỀU đoạn nhỏ (vd đoạn giới thiệu + đoạn "'This is boring,'
+              Sally said..." — cả 2 đều nằm trước "Examples") — gõ cách nhau 1 DÒNG TRỐNG để hiện
+              đúng thành từng đoạn tách biệt (không dồn thành 1 khối liền mạch, xem StoryParagraph
+              trong ReadingRunner.jsx, white-space: pre-line). Trước đó tách riêng "Đoạn truyện 2"
+              thành field khác gây rối vì cả 2 field cùng hiện ở 1 vị trí — gộp lại cho gọn (chốt
+              2026-09-06). */}
           <label className="admin-mini-field">
-            <span>Đoạn truyện 1 (hiện trước "Examples")</span>
+            <span>Đoạn truyện 1 (hiện trước "Examples" — nhiều đoạn thì cách nhau 1 dòng trống)</span>
             <textarea
               className="admin-input admin-textarea"
-              rows={4}
+              rows={7}
               value={part.storyParagraphs?.[0] ?? ""}
               onChange={e => {
-                const next = [...(part.storyParagraphs ?? ["", "", ""])];
+                const next = [...(part.storyParagraphs ?? ["", "", "", ""])];
                 next[0] = e.target.value;
                 onChange({ storyParagraphs: next });
               }}
-              placeholder="vd: Sally and her brother, Peter, live next to a lake..."
+              placeholder={"vd: Sally and her brother, Peter, live next to a lake...\n\n'This is boring,' Sally said..."}
             />
           </label>
+          {/* Vị trí chèn đoạn 2/3 KHÁC NHAU giữa các Test thật (vd Test 1: trước câu 3 và câu 6;
+              Test 2: trước câu 2 và câu 5) — giáo viên tự chỉnh số câu cho đúng sách đang soạn, thay
+              vì cố định cứng (chốt 2026-09-06, phát hiện khi soạn Test 2 thấy cách chia câu khác hẳn
+              Test 1). Nhập số câu 1-based (vd "3" nghĩa là đoạn hiện ngay TRƯỚC câu số 3). */}
+          <div className="admin-reading-story-break-config">
+            <label className="admin-mini-field">
+              <span>Đoạn 2 hiện trước câu số</span>
+              <input
+                type="number"
+                min={2}
+                max={7}
+                className="admin-input"
+                value={(part.storyBreakPoints?.[0] ?? 2) + 1}
+                onChange={e => {
+                  const next = [...(part.storyBreakPoints ?? [2, 5])];
+                  next[0] = Math.max(1, Number(e.target.value) - 1);
+                  onChange({ storyBreakPoints: next });
+                }}
+              />
+            </label>
+            <label className="admin-mini-field">
+              <span>Đoạn 3 hiện trước câu số</span>
+              <input
+                type="number"
+                min={2}
+                max={7}
+                className="admin-input"
+                value={(part.storyBreakPoints?.[1] ?? 5) + 1}
+                onChange={e => {
+                  const next = [...(part.storyBreakPoints ?? [2, 5])];
+                  next[1] = Math.max(1, Number(e.target.value) - 1);
+                  onChange({ storyBreakPoints: next });
+                }}
+              />
+            </label>
+          </div>
           <ExamplesPairEditor examplesPair={part.examplesPair} onChange={examplesPair => onChange({ examplesPair })} />
           <h3 className="admin-reading-group-heading">Questions</h3>
           <div className="admin-reading-question-list">
             {questions.map((q, i) => {
-              // Sách thật có 4 đoạn truyện (không phải 3): đoạn 1 trước "Examples" (storyParagraphs[0],
-              // field riêng phía trên) + 3 đoạn xen giữa câu hỏi tại câu 1/3/6 (storyParagraphs[1]/[2]/[3])
-              // — bổ sung đoạn trước câu 1 (chốt 2026-09-04, phát hiện khi soạn nội dung thật Test 1: thiếu
-              // hẳn đoạn "'This is boring,' Sally said..." không có chỗ nhập). CHỈ đoạn trước câu 3/6 có
-              // ảnh riêng (storyImages, khớp đúng số ảnh sách gốc), đoạn trước câu 1 không có ảnh riêng.
-              const paragraphIndex = i === 0 ? 1 : i === 2 ? 2 : i === 5 ? 3 : null;
-              const hasImageSlot = i === 2 || i === 5;
+              // Chỉ đoạn 2/3 chèn giữa câu hỏi, vị trí lấy từ `part.storyBreakPoints` (cấu hình được,
+              // xem 2 ô số phía trên) — đoạn 1 đã hiện ở trên (trước "Examples").
+              const breakPoints = part.storyBreakPoints ?? [2, 5];
+              const paragraphIndex = i === breakPoints[0] ? 2 : i === breakPoints[1] ? 3 : null;
+              const displayNum = i === breakPoints[0] ? 2 : i === breakPoints[1] ? 3 : null;
+              const hasImageSlot = i === breakPoints[0] || i === breakPoints[1];
               return (
                 <div key={i}>
                   {paragraphIndex != null && (
                     <div className="admin-reading-story-break">
                       {hasImageSlot && (
                         <ImageUploadField
-                          label={`Ảnh minh hoạ đoạn truyện ${paragraphIndex + 1} (tuỳ chọn)`}
+                          label={`Ảnh minh hoạ đoạn truyện ${displayNum} (tuỳ chọn)`}
                           value={part.storyImages?.[paragraphIndex]}
                           onChange={image => {
                             const next = [...(part.storyImages ?? ["", "", "", ""])];
@@ -1297,7 +1345,7 @@ function PartEditor({ part, onChange, seriesId }) {
                         />
                       )}
                       <label className="admin-mini-field">
-                        <span>Đoạn truyện {paragraphIndex + 1} (hiện trước câu {i + 1})</span>
+                        <span>Đoạn truyện {displayNum} (hiện trước câu {i + 1} — nhiều đoạn thì cách nhau 1 dòng trống)</span>
                         <textarea
                           className="admin-input admin-textarea"
                           rows={4}
@@ -1392,7 +1440,7 @@ function PartEditor({ part, onChange, seriesId }) {
                 partPointsActive={part.partPoints != null}
                 seriesId={seriesId}
                 locked={["movers-part2", "movers-part3", "movers-part4", "flyers-part1", "flyers-part3"].includes(part.fixedLayout)}
-                hideImage={part.fixedLayout === "flyers-part3" && q.type === "gapfill"}
+                hideImage={(part.fixedLayout === "flyers-part3" || part.fixedLayout === "movers-part4") && q.type === "gapfill"}
               />
             ))}
           </div>
@@ -1724,11 +1772,11 @@ function TestPreview({ parts, stats, activePartIndex, seriesId }) {
               <div className="reading-part-head">
                 <h2>{part.title || `Part ${pi + 1}`}</h2>
                 {part.instruction && <p className="reading-part-instruction">{part.instruction}</p>}
-                {part.fixedLayout !== "movers-part1" && part.image && (
-                  <img src={part.image} alt="" className="reading-part-img" />
-                )}
-                {part.caption && <p className="reading-part-caption">{part.caption}</p>}
               </div>
+              {part.fixedLayout !== "movers-part1" && part.image && (
+                <img src={part.image} alt="" className="reading-part-img" />
+              )}
+              {part.caption && <p className="reading-part-caption">{part.caption}</p>}
               {part.fixedLayout === "movers-part1" && (part.partImages?.[0] || part.partImages?.[1]) && (
                 <div className="reading-part-images-pair">
                   {part.partImages?.[0] && <img src={part.partImages[0]} alt="" />}
@@ -1737,13 +1785,13 @@ function TestPreview({ parts, stats, activePartIndex, seriesId }) {
               )}
               {part.fixedLayout === "flyers-part2" ? (
                 <LetteredAnswerBox items={part.wordBank} />
-              ) : part.fixedLayout === "flyers-part3" ? (
-                <>
+              ) : part.fixedLayout === "flyers-part3" || part.fixedLayout === "movers-part3" ? (
+                <div className="reading-example-block">
                   <h3 className="reading-subheading">Example</h3>
                   <WordBankBox words={part.wordBank} />
-                </>
+                </div>
               ) : (
-                part.fixedLayout !== "movers-part3" && <WordBankBox words={part.wordBank} />
+                <WordBankBox words={part.wordBank} />
               )}
               {part.fixedLayout === "movers-part5" || part.fixedLayout === "flyers-part5" ? (
                 <StoryParagraph text={part.storyParagraphs?.[0]} />
@@ -1806,13 +1854,12 @@ function TestPreview({ parts, stats, activePartIndex, seriesId }) {
                     const groupLabel =
                       part.fixedLayout === "movers-part6" &&
                       (i === 0 ? "Complete the sentences." : i === 2 ? "Answer the questions." : i === 4 ? "Now write two sentences about the picture." : null);
+                    const breakPoints = part.storyBreakPoints ?? [2, 5];
                     const storyParagraphIndex =
-                      part.fixedLayout === "movers-part5" ? (i === 0 ? 1 : i === 2 ? 2 : i === 5 ? 3 : null) : null;
+                      part.fixedLayout === "movers-part5" ? (i === breakPoints[0] ? 2 : i === breakPoints[1] ? 3 : null) : null;
                     const storyBreak = storyParagraphIndex != null ? part.storyParagraphs?.[storyParagraphIndex] : null;
-                    const isFirstMultipleChoice =
-                      part.fixedLayout === "movers-part3" &&
-                      q.type === "multiple-choice" &&
-                      part.questions.findIndex(qq => qq.type === "multiple-choice") === i;
+                    // Khung "Example" của Part 3 Movers đã chuyển lên ĐẦU Part (giống Flyers Part 3)
+                    // — chốt 2026-09-05, không còn chèn giữa danh sách câu hỏi nữa.
                     const qStart = partOffset + questionOffset(part.questions, i) + 1;
                     const gapNumbers =
                       isFlyers && q.type === "gapfill"
@@ -1829,17 +1876,11 @@ function TestPreview({ parts, stats, activePartIndex, seriesId }) {
                       <div className="reading-question-group" key={i}>
                         {groupLabel && <h4 className="reading-group-label">{groupLabel}</h4>}
                         {storyBreak && <StoryParagraph text={storyBreak} image={part.storyImages?.[storyParagraphIndex]} />}
-                        {isFirstMultipleChoice && (
-                          <div className="reading-part3-example-box">
-                            <h3 className="reading-subheading">Example</h3>
-                            <WordBankBox words={part.wordBank} />
-                          </div>
-                        )}
                         <QuestionPreview
                           question={q}
                           qNumber={qStart}
                           qNumbers={gapNumbers}
-                          hideImage={(part.fixedLayout === "movers-part3" || part.fixedLayout === "flyers-part3") && q.type === "gapfill"}
+                          hideImage={["movers-part3", "movers-part4", "flyers-part3"].includes(part.fixedLayout) && q.type === "gapfill"}
                         />
                       </div>
                     );
@@ -1949,13 +1990,14 @@ export default function ReadingStudio({ accent, seriesId, title, onTitleChange, 
       return FLAG_ONLY_FIXED_LAYOUTS.has(templates[i]?.fixedLayout) && p.fixedLayout !== templates[i].fixedLayout;
     }
 
-    // Part 3 Movers: câu gapfill (đoạn truyện) không còn field ảnh riêng (chốt 2026-08-27, xem mục
-    // 2 Reading-CMS-Kinh-nghiem.md) — Test cũ soạn TRƯỚC khi field này bị ẩn có thể vẫn còn lưu
+    // Part 3/4 Movers: câu gapfill không còn field ảnh riêng (Part 3 chốt 2026-08-27, Part 4 chốt
+    // 2026-09-05 — Part 4 đã có sẵn `part.image` chung cho cả Part, ô ảnh riêng của câu là thừa, xem
+    // mục 2 Reading-CMS-Kinh-nghiem.md). Test cũ soạn TRƯỚC khi field này bị ẩn có thể vẫn còn lưu
     // `question.image` cho câu gapfill, khiến ảnh cũ hiện sót lại dù CMS không còn ô nhập nữa. Xoá
     // sạch field đó (không đụng field nào khác của câu).
     function needsPart3ImageStrip(p, i) {
       return (
-        templates[i]?.fixedLayout === "movers-part3" &&
+        ["movers-part3", "movers-part4"].includes(templates[i]?.fixedLayout) &&
         (p.questions ?? []).some(q => q.type === "gapfill" && q.image)
       );
     }

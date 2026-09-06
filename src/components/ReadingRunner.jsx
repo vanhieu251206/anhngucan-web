@@ -940,11 +940,16 @@ export default function ReadingRunner({ parts, onFinish, studentUid, seriesId, l
             <div className="reading-part-head">
               <h2>{part.title}</h2>
               {part.instruction && <p className="reading-part-instruction">{part.instruction}</p>}
-              {part.fixedLayout !== "movers-part1" && part.image && (
-                <img src={part.image} alt="" className="reading-part-img" />
-              )}
-              {part.caption && <p className="reading-part-caption">{part.caption}</p>}
             </div>
+            {/* Ảnh/câu dẫn giờ nằm NGOÀI khung viền đứt của head (title+hướng dẫn), là 1 khối riêng
+                cùng cấp với Examples/đoạn truyện/câu hỏi bên dưới — mọi khoảng cách giữa các khối
+                trong 1 Part đều chỉ do `gap` của .reading-part quyết định (16px đồng nhất), không
+                còn cộng dồn thêm border/padding của head khiến khoảng trắng dưới ảnh to bất thường
+                so với các khoảng cách khác (phản hồi người dùng 2026-09-06, rà soát lại toàn bộ Part). */}
+            {part.fixedLayout !== "movers-part1" && part.image && (
+              <img src={part.image} alt="" className="reading-part-img" />
+            )}
+            {part.caption && <p className="reading-part-caption">{part.caption}</p>}
             {part.fixedLayout === "movers-part1" && (part.partImages?.[0] || part.partImages?.[1]) && (
               <div className="reading-part-images-pair">
                 {part.partImages?.[0] && <img src={part.partImages[0]} alt="" />}
@@ -957,14 +962,18 @@ export default function ReadingRunner({ parts, onFinish, studentUid, seriesId, l
                 hiện dạng danh sách DỌC đánh chữ A-H (LetteredAnswerBox), khác chip ngang thường. */}
             {part.fixedLayout === "flyers-part2" ? (
               <LetteredAnswerBox items={part.wordBank} />
-            ) : part.fixedLayout === "flyers-part3" ? (
-              <>
+            ) : part.fixedLayout === "flyers-part3" || part.fixedLayout === "movers-part3" ? (
+              <div className="reading-example-block">
                 <h3 className="reading-subheading">Example</h3>
                 <WordBankBox words={part.wordBank} />
-              </>
+              </div>
             ) : (
-              part.fixedLayout !== "movers-part3" && <WordBankBox words={part.wordBank} />
+              <WordBankBox words={part.wordBank} />
             )}
+            {/* Movers Part 5: đoạn truyện 1 (storyParagraphs[0]) có thể chứa NHIỀU đoạn nhỏ cách
+                nhau 1 dòng trống (vd đoạn giới thiệu + đoạn "'This is boring,' Sally said..." — cả
+                2 đều nằm trước "Examples") — StoryParagraph tự xuống dòng đúng theo input (xem
+                white-space: pre-line), không cần tách thành field riêng nữa (gộp lại 2026-09-06). */}
             {part.fixedLayout === "movers-part5" || part.fixedLayout === "flyers-part5" ? (
               <StoryParagraph text={part.storyParagraphs?.[0]} />
             ) : null}
@@ -1016,35 +1025,25 @@ export default function ReadingRunner({ parts, onFinish, studentUid, seriesId, l
                         ? "Now write two sentences about the picture."
                         : null;
                 const groupHeader = groupLabel && <h4 className="reading-group-label">{groupLabel}</h4>;
-                // Movers Part 5: truyện chia 4 đoạn CỐ ĐỊNH — đoạn 1 đã hiện ở đầu Part (trên
-                // "Examples") phía trên; đoạn 2/3/4 chèn trước câu 1/3/6 (qIndex 0/2/5) — bổ sung
-                // đoạn trước câu 1 (chốt 2026-09-04, sách thật có đoạn "'This is boring,' Sally
-                // said..." xen giữa Examples và câu 1, trước đó code chỉ hỗ trợ 3 đoạn nên thiếu).
+                // Movers Part 5: đoạn 1 đã hiện ở đầu Part (TRƯỚC "Examples", có thể chứa nhiều đoạn
+                // nhỏ cách nhau dòng trống). Đoạn 2/3 chèn giữa câu hỏi tại vị trí LẤY TỪ
+                // `part.storyBreakPoints` (mỗi Test thật chia câu khác nhau — Test 1: trước câu 3/6,
+                // Test 2: trước câu 2/5 — không còn cố định cứng qIndex 2/5, chốt 2026-09-06).
+                const breakPoints = part.storyBreakPoints ?? [2, 5];
                 const storyParagraphIndex =
-                  part.fixedLayout === "movers-part5" && qIndex === 0
-                    ? 1
-                    : part.fixedLayout === "movers-part5" && qIndex === 2
-                      ? 2
-                      : part.fixedLayout === "movers-part5" && qIndex === 5
-                        ? 3
-                        : null;
+                  part.fixedLayout === "movers-part5" && qIndex === breakPoints[0]
+                    ? 2
+                    : part.fixedLayout === "movers-part5" && qIndex === breakPoints[1]
+                      ? 3
+                      : null;
                 const storyBreak = storyParagraphIndex != null ? part.storyParagraphs?.[storyParagraphIndex] : null;
                 const storyBreakEl = storyBreak && (
                   <StoryParagraph text={storyBreak} image={part.storyImages?.[storyParagraphIndex]} />
                 );
-                // Part 3 Movers: khung "Example" (ngân hàng từ có ảnh) chèn NGAY TRƯỚC câu
-                // multiple-choice ĐẦU TIÊN — không cố định theo qIndex (khác Part 5/6) vì Test cũ có
-                // thể có số câu gapfill khác 1, dò theo TYPE để không lệch vị trí.
-                const isFirstMultipleChoice =
-                  part.fixedLayout === "movers-part3" &&
-                  q.type === "multiple-choice" &&
-                  (part.questions ?? []).findIndex(qq => qq.type === "multiple-choice") === qIndex;
-                const exampleBreakEl = isFirstMultipleChoice && (
-                  <div className="reading-part3-example-box">
-                    <h3 className="reading-subheading">Example</h3>
-                    <WordBankBox words={part.wordBank} />
-                  </div>
-                );
+                // Part 3 Movers: khung "Example" (ngân hàng từ có ảnh) đã chuyển lên ĐẦU Part (giống
+                // Flyers Part 3) — chốt 2026-09-05, không còn chèn giữa đoạn truyện và câu chọn tiêu
+                // đề như trước. `exampleBreakEl` giữ lại = false, không còn dùng.
+                const exampleBreakEl = null;
 
                 let body;
                 if (q.type === "yesno") {
@@ -1063,7 +1062,7 @@ export default function ReadingRunner({ parts, onFinish, studentUid, seriesId, l
                       qNumber={qNumber}
                       qNumbers={gapNumbers}
                       values={value ?? []}
-                      hideImage={part.fixedLayout === "movers-part3" || part.fixedLayout === "flyers-part3"}
+                      hideImage={["movers-part3", "movers-part4", "flyers-part3"].includes(part.fixedLayout)}
                       onChange={(gapIndex, val) =>
                         setAnswer(partIndex, qIndex, (() => {
                           const cur = [...(value ?? [])];
