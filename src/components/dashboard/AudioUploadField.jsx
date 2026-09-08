@@ -24,24 +24,25 @@ export default function AudioUploadField({ label, value, onChange }) {
   }
 
   return (
-    <div className="admin-upload-field">
+    <div className="admin-upload-field admin-audio-upload-field">
       {label && <span className="admin-upload-label">{label}</span>}
       {value && <audio src={value} controls className="admin-upload-preview-audio" />}
-      <input
-        className="admin-input"
-        type="url"
-        placeholder="Dán URL audio (.mp3...)"
-        value={value ?? ""}
-        onChange={e => onChange(e.target.value || null)}
-      />
-      <div className="admin-upload-actions">
+      <div className="admin-audio-input-row">
+        <input
+          className="admin-input admin-audio-input"
+          type="url"
+          placeholder="Dán URL audio (.mp3...)"
+          value={value ?? ""}
+          onChange={e => onChange(e.target.value || null)}
+        />
         <button
           type="button"
-          className="admin-upload-btn"
+          className="admin-audio-upload-btn"
           onClick={() => fileInputRef.current?.click()}
           disabled={uploading}
+          title="Chọn file để upload"
         >
-          {uploading ? "Đang tải lên..." : "Chọn file để upload"}
+          {uploading ? "…" : "📁 Chọn file"}
         </button>
         <input
           ref={fileInputRef}

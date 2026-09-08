@@ -2757,6 +2757,22 @@ button { font-family: inherit; }
 }
 .admin-upload-preview-audio { width: 100%; }
 .admin-upload-actions { display: flex; align-items: center; }
+
+/* AudioUploadField.jsx — bản gọn: thanh nghe lại thu nhỏ (không chiếm hẳn 1 hàng như mặc định
+   trình duyệt) + nút "Chọn file" lồng vào BÊN TRONG ô input URL (bấm audio.mp3 dán tay hay upload
+   đều nằm gọn 1 hàng, thay vì 1 nút to riêng 1 dòng bên dưới — phản hồi người dùng 2026-09-08). */
+.admin-audio-upload-field .admin-upload-preview-audio { max-width: 260px; height: 32px; }
+.admin-audio-input-row { position: relative; display: flex; }
+.admin-audio-input { flex: 1; padding-right: 92px; }
+.admin-audio-upload-btn {
+  position: absolute; top: 4px; right: 4px; bottom: 4px;
+  display: inline-flex; align-items: center; gap: 4px;
+  background: var(--admin-accent, #3b5bdb); color: #fff; border: none; border-radius: 7px;
+  padding: 0 12px; font-size: 0.78rem; font-weight: 600; cursor: pointer; white-space: nowrap;
+  transition: opacity 0.12s ease;
+}
+.admin-audio-upload-btn:hover { opacity: 0.88; }
+.admin-audio-upload-btn:disabled { opacity: 0.6; cursor: default; }
 .admin-upload-btn {
   background: #fff;
   color: var(--admin-accent);
@@ -2771,6 +2787,183 @@ button { font-family: inherit; }
 .admin-upload-btn:hover { background: rgba(59, 91, 219, 0.08); }
 .admin-upload-btn:disabled { opacity: 0.6; cursor: default; }
 .admin-upload-error { color: #d1435b; font-size: 0.82rem; }
+
+/* DictationStudio.jsx — CMS soạn bài Dictation (Nghe & gõ lại). */
+.admin-dictation-head { display: flex; align-items: center; gap: 14px; margin-bottom: 6px; flex-wrap: wrap; }
+.admin-dictation-title-input { flex: 1; min-width: 200px; font-weight: 700; font-size: 1.05rem; }
+.admin-dictation-bulk-bar {
+  display: flex; flex-wrap: wrap; gap: 20px; padding: 14px 16px; margin-bottom: 14px;
+  background: #f6f7fa; border: 1px dashed var(--admin-border); border-radius: 12px;
+}
+.admin-dictation-bulk-item { display: flex; flex-direction: column; gap: 6px; max-width: 320px; }
+.admin-dictation-bulk-hint { font-size: 0.78rem; color: #7a7f8c; }
+.admin-dictation-row { align-items: flex-start; }
+.admin-dictation-row-fields { flex: 1; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.admin-dictation-text-label { display: flex; flex-direction: column; gap: 4px; font-weight: 600; font-size: 0.85rem; }
+.admin-dictation-maxattempts { display: flex; flex-direction: column; gap: 6px; max-width: 320px; margin-top: 18px; font-weight: 600; font-size: 0.85rem; }
+.admin-dictation-footer { display: flex; align-items: center; gap: 14px; margin-top: 18px; }
+
+/* DictationRunner.jsx — màn học sinh làm bài Dictation, phong cách kiểu Duolingo giống Speaking/
+   Reading (thẻ tròn, linh vật ong, màu cam san hô/xanh ngọc của theme — xem mục 2 index.css).
+   Kích thước CHUẨN to hơn hẳn bản đầu (phản hồi người dùng 2026-09-08: "làm to hơn thay vì nhỏ như
+   vậy", màn hình desktop card quá bé so với khung) — card rộng tối đa 760px, mọi chữ/nút đều tăng
+   cỡ; @media (max-width: 640px) thu nhỏ lại vừa đủ để không tràn màn hình điện thoại. */
+/* Khung fullscreen (LessonsPage.jsx) căn GIỮA THEO CHIỀU DỌC — trước đây .reading-fullscreen-body
+   dùng chung (justify-content: flex-start) khiến card Dictation dính sát mép trên, để trống cả
+   khoảng lớn phía dưới trên màn hình laptop to (phản hồi người dùng 2026-09-08: "màn tổng thể bự
+   hơn... co giãn nhỏ lại theo kích thước thật của màn hình"). Không sửa thẳng .reading-fullscreen-
+   body (ReadingRunner cần sidebar ghim theo kiểu stretch/flex-start, đổi sẽ vỡ layout đó). */
+.dictation-fullscreen-body { display: flex; align-items: center; justify-content: center; }
+/* max-width dùng clamp() thay vì px cố định — card THẬT SỰ to hơn trên màn hình laptop/desktop
+   rộng thay vì luôn bị chặn cứng ở 760px dù còn dư rất nhiều khoảng trống 2 bên. */
+.dictation-runner { width: 100%; max-width: clamp(420px, 62vw, 980px); margin: 0 auto; display: flex; flex-direction: column; gap: 20px; padding: 28px 20px 40px; }
+.dictation-progress { display: flex; align-items: center; gap: 14px; }
+.dictation-progress-bar { flex: 1; height: 14px; border-radius: 999px; background: #f1ebdd; overflow: hidden; }
+.dictation-progress-fill { height: 100%; background: var(--color-primary); border-radius: 999px; transition: width 0.25s ease; }
+.dictation-progress-label { font-weight: 700; font-size: 1rem; color: var(--color-text, #3a3a3a); white-space: nowrap; }
+.dictation-progress-nav { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.dictation-nav-btn {
+  width: 34px; height: 34px; border-radius: 999px; border: none; cursor: pointer;
+  background: #fff; color: var(--color-text, #3a3a3a); font-size: 1.1rem; font-weight: 700;
+  box-shadow: var(--shadow-soft, 0 4px 12px rgba(0,0,0,0.1));
+  display: flex; align-items: center; justify-content: center; transition: background 0.12s ease, opacity 0.12s ease;
+}
+.dictation-nav-btn:hover:not(:disabled) { background: #f1ebdd; }
+.dictation-nav-btn:disabled { opacity: 0.35; cursor: default; }
+.dictation-card {
+  background: #fff; border-radius: var(--radius-card, 24px); box-shadow: var(--shadow-soft, 0 10px 30px rgba(0,0,0,0.12));
+  padding: 44px 40px; display: flex; flex-direction: column; align-items: center; gap: 20px; text-align: center;
+}
+.dictation-mascot { width: 108px; height: 108px; object-fit: contain; }
+.dictation-instruction { font-weight: 700; color: #333; margin: 0; font-size: 1.15rem; }
+.dictation-audio-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 12px; width: 100%; }
+/* AudioBar trong DictationRunner.jsx — thanh audio GỌN kiểu trình duyệt (play/pause + thời gian +
+   thanh tua bấm để tua), thay cho nút tròn to "▶ Nghe câu này" trước đây (chốt người dùng 2026-09-08). */
+.dictation-audio-bar {
+  display: flex; align-items: center; gap: 12px; flex: 1; min-width: 220px; max-width: 360px;
+  background: #f6f7fa; border-radius: 999px; padding: 8px 16px 8px 8px;
+}
+.dictation-audio-playbtn {
+  flex-shrink: 0; width: 40px; height: 40px; border-radius: 999px; border: none; cursor: pointer;
+  background: var(--color-secondary, #17b6a7); color: #fff; display: flex; align-items: center; justify-content: center;
+  transition: transform 0.12s ease;
+}
+.dictation-audio-playbtn:hover { transform: scale(1.06); }
+.dictation-audio-playbtn svg { width: 20px; height: 20px; }
+.dictation-audio-time { flex-shrink: 0; font-size: 0.85rem; font-weight: 700; color: #666; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.dictation-audio-track { flex: 1; height: 6px; border-radius: 999px; background: #dfe2ea; cursor: pointer; position: relative; }
+.dictation-audio-track-fill { height: 100%; border-radius: 999px; background: var(--color-secondary, #17b6a7); }
+/* SpeedDropdown trong DictationRunner.jsx — chọn tốc độ phát lại (0.5x/0.75x/1x/1.25x), khớp kiểu
+   dropdown "Speed: ...x" của trang tham khảo dailydictation.com (chốt người dùng 2026-09-08). */
+.dictation-speed-dropdown { position: relative; }
+.dictation-speed-btn {
+  display: inline-flex; align-items: center; gap: 6px; background: #fff; color: #555;
+  border: 2px solid #e2e5ec; border-radius: 999px; padding: 12px 20px; font-weight: 700; font-size: 1rem; cursor: pointer;
+  transition: border-color 0.12s ease, color 0.12s ease, background 0.12s ease;
+}
+.dictation-speed-btn[aria-expanded="true"] { border-color: var(--color-secondary, #17b6a7); color: var(--color-secondary, #17b6a7); background: #eefbfa; }
+.dictation-speed-menu {
+  position: absolute; top: calc(100% + 6px); left: 50%; transform: translateX(-50%); z-index: 20;
+  background: #fff; border-radius: 12px; box-shadow: var(--shadow-soft, 0 8px 24px rgba(0,0,0,0.15));
+  padding: 6px; display: flex; flex-direction: column; gap: 2px; min-width: 160px;
+}
+.dictation-speed-option {
+  background: none; border: none; text-align: left; padding: 9px 14px; border-radius: 8px; cursor: pointer;
+  font-size: 0.95rem; font-weight: 600; color: #444; white-space: nowrap;
+}
+.dictation-speed-option:hover { background: #f1ebdd; }
+.dictation-speed-option.is-selected { background: var(--color-secondary, #17b6a7); color: #fff; }
+.dictation-input {
+  width: 100%; box-sizing: border-box; border: 2px solid #e2e5ec; border-radius: 16px; padding: 18px 20px;
+  font-size: 1.3rem; text-align: center; font-family: var(--font-body, inherit); transition: border-color 0.12s ease;
+}
+.dictation-input:focus { outline: none; border-color: var(--color-primary); }
+.dictation-input.is-correct { border-color: #2fb872; background: #f0fbf4; }
+.dictation-input.is-wrong { border-color: #e0576b; background: #fdf1f2; }
+.dictation-feedback { width: 100%; border-radius: 14px; padding: 16px 20px; }
+.dictation-feedback.is-correct { background: #f0fbf4; }
+.dictation-feedback.is-wrong { background: #fdf1f2; }
+.dictation-feedback-label { margin: 0 0 6px; font-weight: 700; font-size: 1.05rem; }
+.dictation-feedback-answer { margin: 0; font-size: 1.2rem; }
+/* Panel che đáp án bằng "*" (maskedPreview trong DictationRunner.jsx) — hiện SỐNG theo từng lần gõ
+   lại khi trả lời sai, không lộ chữ thật, chỉ gợi ý cấu trúc/độ dài từng từ — khớp cơ chế
+   dailydictation.com (chốt người dùng 2026-09-08). */
+.dictation-feedback-masked { margin: 0; font-size: 1.25rem; letter-spacing: 0.5px; font-family: monospace; color: #444; word-break: break-word; }
+.dictation-word-ok { color: #2fb872; font-weight: 600; }
+.dictation-word-bad { color: #e0576b; font-weight: 700; text-decoration: underline wavy; }
+.dictation-actions { width: 100%; display: flex; justify-content: center; align-items: center; gap: 16px; flex-wrap: wrap; }
+.dictation-actions .btn { font-size: 1.1rem; padding: 14px 40px; }
+.dictation-skip-btn {
+  background: none; border: none; color: #888; font-weight: 700; font-size: 1rem; cursor: pointer;
+  padding: 10px 12px; text-decoration: underline;
+}
+.dictation-skip-btn:hover { color: #555; }
+
+.dictation-report { width: 100%; max-width: clamp(420px, 62vw, 980px); margin: 0 auto; padding: 36px 20px 70px; color: var(--color-text, #3a3a3a); }
+.dictation-report-title { margin: 0 0 8px; font-size: 1.6rem; }
+.dictation-report-score { font-size: 1.25rem; margin: 0 0 22px; }
+.dictation-report-list { list-style: none; margin: 0 0 26px; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.dictation-report-item {
+  display: flex; gap: 14px; align-items: flex-start; background: #fff; border-radius: 16px; padding: 16px 18px; color: #333;
+  border-left: 5px solid transparent;
+}
+.dictation-report-item.is-correct { border-left-color: #2fb872; }
+.dictation-report-item.is-wrong { border-left-color: #e0576b; }
+.dictation-report-icon { font-size: 1.3rem; font-weight: 700; flex-shrink: 0; }
+.dictation-report-item.is-correct .dictation-report-icon { color: #2fb872; }
+.dictation-report-item.is-wrong .dictation-report-icon { color: #e0576b; }
+.dictation-report-body { min-width: 0; }
+.dictation-report-answer { margin: 0; font-size: 1.1rem; }
+.dictation-report-typed { margin: 6px 0 0; font-size: 0.9rem; color: #777; font-style: italic; }
+.dictation-report-actions { display: flex; flex-wrap: wrap; gap: 14px; justify-content: center; }
+.dictation-report-done { font-size: 1.1rem; padding: 14px 40px; }
+
+/* Màn "Xem lại toàn bộ transcript" (TranscriptReview trong DictationRunner.jsx) — danh sách câu +
+   nút play riêng từng dòng, KHÔNG có thanh audio liên tục chạy xuyên suốt cả bài (chốt người dùng
+   2026-09-08 — audio lưu theo từng câu riêng lẻ qua CMS, ghép thành 1 track dài không đáng công). */
+.dictation-transcript { width: 100%; max-width: clamp(420px, 62vw, 980px); margin: 0 auto; padding: 28px 20px 70px; color: var(--color-text, #3a3a3a); }
+.dictation-transcript-head { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; }
+.dictation-transcript-back {
+  align-self: flex-start; background: none; border: none; color: var(--color-text, #3a3a3a); font-weight: 700; font-size: 0.95rem;
+  cursor: pointer; opacity: 0.7; padding: 4px 0;
+}
+.dictation-transcript-back:hover { opacity: 1; }
+.dictation-transcript-title { margin: 0; font-size: 1.4rem; }
+.dictation-transcript-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.dictation-transcript-row {
+  display: flex; align-items: center; gap: 14px; background: #fff; border-radius: 14px; padding: 12px 16px; color: #333;
+  transition: background 0.12s ease;
+}
+.dictation-transcript-row.is-playing { background: #eefbfa; }
+.dictation-transcript-play {
+  flex-shrink: 0; width: 40px; height: 40px; border-radius: 999px; border: none; cursor: pointer;
+  background: var(--color-secondary, #17b6a7); color: #fff; display: flex; align-items: center; justify-content: center;
+}
+.dictation-transcript-play svg { width: 20px; height: 20px; }
+.dictation-transcript-text { font-size: 1.05rem; }
+
+@media (max-width: 640px) {
+  .dictation-transcript { padding: 18px 12px 50px; }
+  .dictation-transcript-title { font-size: 1.15rem; }
+  .dictation-transcript-row { padding: 10px 12px; gap: 10px; }
+  .dictation-transcript-play { width: 34px; height: 34px; }
+  .dictation-transcript-text { font-size: 0.95rem; }
+}
+
+@media (max-width: 640px) {
+  .dictation-runner { padding: 18px 12px 50px; gap: 14px; }
+  .dictation-card { padding: 28px 18px; gap: 16px; border-radius: 18px; }
+  .dictation-mascot { width: 76px; height: 76px; }
+  .dictation-instruction { font-size: 1rem; }
+  .dictation-audio-bar { min-width: 0; width: 100%; max-width: none; padding: 6px 12px 6px 6px; }
+  .dictation-audio-playbtn { width: 34px; height: 34px; }
+  .dictation-audio-time { font-size: 0.75rem; }
+  .dictation-speed-btn { padding: 10px 16px; font-size: 0.9rem; }
+  .dictation-input { font-size: 1.1rem; padding: 14px 14px; }
+  .dictation-feedback-masked { font-size: 1.05rem; }
+  .dictation-actions .btn { width: 100%; padding: 14px 20px; }
+  .dictation-report-item { padding: 12px 14px; }
+}
 
 /* Bố cục form + xem trước 2 cột trong SceneEditorForm.jsx */
 .admin-scene-editor-split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 380px); gap: 22px; align-items: start; }

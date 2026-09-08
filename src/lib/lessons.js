@@ -48,5 +48,17 @@ export async function loadLevelContent(series, level) {
     // Lỗi mạng/Firestore — coi như chưa có gì mới, không chặn học.
   }
 
-  return { listening, tests, readingTests };
+  // Dictation (Nghe & gõ lại) — chưa có dữ liệu nhúng cứng (yleData.js), chỉ đọc từ Firestore.
+  let dictationTests = [];
+  try {
+    const dictationSnap = await getDocs(collection(db, "lessons", lessonId, "dictationTests"));
+    dictationTests = dictationSnap.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .filter(t => t.sentences?.length)
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  } catch {
+    // Lỗi mạng/Firestore — coi như chưa có gì mới, không chặn học.
+  }
+
+  return { listening, tests, readingTests, dictationTests };
 }

@@ -31,6 +31,15 @@ Bài học/
 # không thuộc sản phẩm deploy, không đẩy lên repo.
 docs/
 
+# Quy trình soạn bài Dictation (nguồn audio/script thô để Claude Code xử lý qua CMS) — cùng tinh
+# thần với Bài học/, chỉ hỗ trợ chuẩn bị dữ liệu nội bộ, không đẩy lên repo.
+Quy trình Dictation/
+
+# Audio đã cắt sẵn cho bài Dictation (nguồn từ audio sách gốc có bản quyền, xem scripts/dictation-
+# from-srt.local.mjs) — chỉ dùng để giáo viên tự tải thủ công vào CMS (Cloudinary), TUYỆT ĐỐI không
+# đẩy lên GitHub public.
+Bài Học Dictation/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

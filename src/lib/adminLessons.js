@@ -85,3 +85,36 @@ export async function saveReadingTest(seriesId, level, testId, { title, order, p
 export async function deleteReadingTest(seriesId, level, testId) {
   await deleteDoc(doc(db, "lessons", lessonId(seriesId, level), "readingTests", testId));
 }
+
+// Dictation (Nghe & gõ lại) — cấu trúc tương tự Reading/Speaking (subcollection riêng "dictationTests"
+// trong cùng 1 doc lesson), mỗi Test chứa `sentences: [{ text, audioUrl }]`, phát từng câu 1 rồi học
+// sinh gõ lại đúng câu vừa nghe (không phải audio gốc sách có bản quyền — audio tự thu/TTS do giáo
+// viên upload qua Cloudinary).
+export async function listDictationTests(seriesId, level) {
+  const snap = await getDocs(collection(db, "lessons", lessonId(seriesId, level), "dictationTests"));
+  return snap.docs
+    .map(d => ({ id: d.id, ...d.data() }))
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+}
+
+export async function getDictationTest(seriesId, level, testId) {
+  const snap = await getDoc(doc(db, "lessons", lessonId(seriesId, level), "dictationTests", testId));
+  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+}
+
+// sentences PHẢI đã resolve hết audio thành URL đầy đủ (Cloudinary) trước khi gọi hàm này, giống saveTest.
+export async function saveDictationTest(seriesId, level, testId, { title, order, sentences, maxAttempts }, uid) {
+  await setDoc(doc(db, "lessons", lessonId(seriesId, level), "dictationTests", testId), {
+    testId,
+    title,
+    order,
+    sentences,
+    maxAttempts: maxAttempts ?? null,
+    updatedAt: serverTimestamp(),
+    updatedBy: uid,
+  });
+}
+
+export async function deleteDictationTest(seriesId, level, testId) {
+  await deleteDoc(doc(db, "lessons", lessonId(seriesId, level), "dictationTests", testId));
+}

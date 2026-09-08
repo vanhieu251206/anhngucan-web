@@ -55,6 +55,11 @@ service cloud.firestore {
         allow read: if true;
         allow write: if isStaff();
       }
+
+      match /dictationTests/{testId} {
+        allow read: if true;
+        allow write: if isStaff();
+      }
     }
 
     match /speechLogs/{logId} {

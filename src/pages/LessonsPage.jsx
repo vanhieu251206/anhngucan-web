@@ -6,6 +6,7 @@ import { loadLevelContent } from "../lib/lessons.js";
 import ListeningMode from "../components/ListeningMode.jsx";
 import SceneRunner from "../components/SceneRunner.jsx";
 import ReadingRunner from "../components/ReadingRunner.jsx";
+import DictationRunner from "../components/DictationRunner.jsx";
 import { useAuth } from "../lib/authContext.jsx";
 import { getAttemptCount } from "../lib/attempts.js";
 import { getClassAssignment } from "../lib/classAssignments.js";
@@ -165,11 +166,14 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
   const [content, setContent] = useState(null); // { listening, tests, readingTests } — đọc qua lib/lessons.js
   const [selectedTest, setSelectedTest] = useState(null);
   const [selectedReadingTest, setSelectedReadingTest] = useState(null);
+  const [selectedDictationTest, setSelectedDictationTest] = useState(null);
   // true khi đang chạy bài Speaking toàn màn hình (SceneRunner) — không còn bước "Chọn dạng bài"
   // riêng, Listening + Speaking hiện luôn cùng lúc trên màn hình chọn cấp độ (xem yêu cầu rút gọn).
   const [speakingActive, setSpeakingActive] = useState(false);
   // true khi đang chạy bài Reading & Writing toàn màn hình (ReadingRunner).
   const [readingActive, setReadingActive] = useState(false);
+  // true khi đang chạy bài Dictation toàn màn hình (DictationRunner).
+  const [dictationActive, setDictationActive] = useState(false);
   // true khi đang xem chi tiết Listening (bấm vào thẻ Listening trên màn "Bài học").
   const [listeningActive, setListeningActive] = useState(false);
   // Đang xem trang "Xem tất cả Test" của Speaking (khi 1 cấp độ có nhiều Test) — false = màn
@@ -226,8 +230,10 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
     stopCurrent();
     setSelectedTest(null);
     setSelectedReadingTest(null);
+    setSelectedDictationTest(null);
     setSpeakingActive(false);
     setReadingActive(false);
+    setDictationActive(false);
     setListeningActive(false);
     setViewAllTests(false);
     setLevel(null);
@@ -251,6 +257,14 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
     setSelectedReadingTest(null);
   }
 
+  // Thoát khỏi bài Dictation toàn màn hình (DictationRunner), quay lại màn "Bài học" — tương tự
+  // exitReading, KHÔNG tính lượt (lượt tính lúc bấm "Xem kết quả" bên trong DictationRunner).
+  function exitDictation() {
+    stopCurrent();
+    setDictationActive(false);
+    setSelectedDictationTest(null);
+  }
+
   // Thoát khỏi màn chi tiết Listening, quay lại màn "Bài học".
   function exitListening() {
     stopCurrent();
@@ -272,6 +286,10 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
   const readingTests = content?.readingTests ?? [];
   const autoReadingTest = readingTests.length === 1 ? readingTests[0] : null;
   const activeReadingTest = selectedReadingTest ?? autoReadingTest;
+
+  const dictationTests = content?.dictationTests ?? [];
+  const autoDictationTest = dictationTests.length === 1 ? dictationTests[0] : null;
+  const activeDictationTest = selectedDictationTest ?? autoDictationTest;
 
   // ---------- Bước 1: chọn cấp độ ----------
   if (!level) {
@@ -299,7 +317,7 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
               <div className="content-card-v2-body">
                 <span className="level-card-badge">{l.number}</span>
                 <h3>{series.title} {l.number}</h3>
-                <p className="series-levels">Listening · Speaking</p>
+                <p className="series-levels">Listening · Speaking · Dictation</p>
               </div>
             </button>
           ))}
@@ -364,6 +382,32 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
             seriesId={series.id}
             level={level.number}
             testId={activeReadingTest.id}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  // ---------- Bài Dictation toàn màn hình (DictationRunner) ----------
+  if (dictationActive && activeDictationTest?.sentences?.length) {
+    return (
+      <div className="reading-fullscreen">
+        <div className="speaking-fullscreen-topbar">
+          <button className="speaking-fullscreen-back" onClick={exitDictation}>
+            ⬅ Quay lại
+          </button>
+          <span className="speaking-fullscreen-title">
+            {series.title} {level.number} · {activeDictationTest.title}
+          </span>
+        </div>
+        <div className="speaking-fullscreen-body reading-fullscreen-body dictation-fullscreen-body">
+          <DictationRunner
+            sentences={activeDictationTest.sentences}
+            onFinish={exitDictation}
+            studentUid={!isStaff ? user?.uid : null}
+            seriesId={series.id}
+            level={level.number}
+            testId={activeDictationTest.id}
           />
         </div>
       </div>
@@ -445,7 +489,7 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
       // Số lượt tối đa: ưu tiên số RIÊNG cho lần mở bài này (assignment.maxAttempts), không có thì
       // dùng số mặc định của cả Test (test.maxAttempts).
       const maxAttempts = assignment.maxAttempts ?? test?.maxAttempts;
-      if ((type === "speaking" || type === "reading") && maxAttempts) {
+      if ((type === "speaking" || type === "reading" || type === "dictation") && maxAttempts) {
         const count = await getAttemptCount(user.uid, type, test.id);
         if (count >= maxAttempts) {
           setBlocked({
@@ -470,6 +514,9 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
     } else if (type === "reading") {
       setSelectedReadingTest(test);
       setReadingActive(true);
+    } else if (type === "dictation") {
+      setSelectedDictationTest(test);
+      setDictationActive(true);
     } else if (type === "listening") {
       setListeningActive(true);
     }
@@ -496,6 +543,18 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
       cta: !t.parts?.length ? "Chưa có Part" : checkingAttempts ? "Đang kiểm tra..." : "Bắt đầu làm bài",
       disabled: !t.parts?.length || checkingAttempts,
       onClick: () => requestStart("reading", t),
+    });
+  }
+
+  function dictationTestCard(t) {
+    return lessonCard({
+      key: t.id,
+      banner: "Dictation",
+      title: t.title,
+      desc: "Nghe từng câu rồi gõ lại đúng như con nghe được",
+      cta: !t.sentences?.length ? "Chưa có câu" : checkingAttempts ? "Đang kiểm tra..." : "Bắt đầu luyện nghe",
+      disabled: !t.sentences?.length || checkingAttempts,
+      onClick: () => requestStart("dictation", t),
     });
   }
 
@@ -563,6 +622,16 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
               <InfoCard text="Bài Reading & Writing cấp độ này chưa có dữ liệu thật." />
             ) : (
               <div className="content-grid content-grid-4">{readingTests.slice(0, 3).map(readingTestCard)}</div>
+            )}
+          </LessonSection>
+
+          <SectionDivider />
+
+          <LessonSection title="Dictation">
+            {dictationTests.length === 0 ? (
+              <InfoCard text="Bài Dictation cấp độ này chưa có dữ liệu thật." />
+            ) : (
+              <div className="content-grid content-grid-4">{dictationTests.slice(0, 3).map(dictationTestCard)}</div>
             )}
           </LessonSection>
         </>

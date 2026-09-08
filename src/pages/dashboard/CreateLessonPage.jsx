@@ -4,9 +4,11 @@ import { useAuth } from "../../lib/authContext.jsx";
 import {
   saveListening, getListening, listTests, getTest, saveTest, deleteTest,
   listReadingTests, getReadingTest, saveReadingTest, deleteReadingTest,
+  listDictationTests, getDictationTest, saveDictationTest, deleteDictationTest,
 } from "../../lib/adminLessons.js";
 import TestStudio from "../../components/dashboard/TestStudio.jsx";
 import ReadingStudio from "../../components/dashboard/ReadingStudio.jsx";
+import DictationStudio from "../../components/dashboard/DictationStudio.jsx";
 import { useConfirm } from "../../components/dashboard/ConfirmDialog.jsx";
 import { readParams, setParams } from "../../lib/urlState.js";
 
@@ -14,6 +16,7 @@ const MODE_INFO = {
   listening: { label: "Listening", icon: "🎧", desc: "Video nghe" },
   speaking: { label: "Speaking", icon: "🎤", desc: "Luyện nói theo scene" },
   reading: { label: "Reading & Writing", icon: "📖", desc: "Đọc & Viết" },
+  dictation: { label: "Dictation", icon: "✍️", desc: "Nghe & gõ lại" },
 };
 
 // Đọc bước đang soạn (bộ đề/cấp/loại bài) từ URL (?cSeries=...&cLevel=...&cMode=...) — để F5
@@ -23,7 +26,7 @@ function initialStepFromUrl() {
   const p = readParams();
   const series = YLE_SERIES.find(s => s.id === p.get("cSeries")) ?? null;
   const level = series?.levels.find(l => String(l.number) === p.get("cLevel")) ?? null;
-  const mode = level && ["listening", "speaking", "reading"].includes(p.get("cMode")) ? p.get("cMode") : null;
+  const mode = level && ["listening", "speaking", "reading", "dictation"].includes(p.get("cMode")) ? p.get("cMode") : null;
   return { series, level: level ?? null, mode };
 }
 
@@ -81,6 +84,9 @@ export default function CreateLessonPage() {
       )}
       {series && level && mode === "reading" && (
         <ReadingEditor series={series} level={level} uid={user.uid} />
+      )}
+      {series && level && mode === "dictation" && (
+        <DictationEditor series={series} level={level} uid={user.uid} />
       )}
     </div>
   );
@@ -604,6 +610,113 @@ function ReadingEditor({ series, level, uid }) {
       )}
       {tests && !fixedTestCount && tests.length === 0 && (
         <p className="admin-muted-text">Cấp độ này chưa có Test nào — bấm "Tạo Test mới" để bắt đầu soạn Part/câu hỏi.</p>
+      )}
+    </div>
+  );
+}
+
+function DictationEditor({ series, level, uid }) {
+  const confirm = useConfirm();
+  const [tests, setTests] = useState(null);
+  const [openTestId, setOpenTestId] = useState(null);
+  const [sentences, setSentences] = useState([]);
+  const [testTitle, setTestTitle] = useState("");
+  const [maxAttempts, setMaxAttempts] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  function reloadTests() {
+    listDictationTests(series.id, level.number).then(setTests);
+  }
+  useEffect(reloadTests, [series.id, level.number]);
+
+  async function openTest(t) {
+    const full = await getDictationTest(series.id, level.number, t.id);
+    setOpenTestId(t.id);
+    setTestTitle(full?.title ?? t.title ?? "");
+    setSentences(full?.sentences ?? []);
+    setMaxAttempts(full?.maxAttempts ?? null);
+    setSaved(false);
+  }
+
+  function openNewTest() {
+    const nextOrder = (tests?.length ?? 0) + 1;
+    setOpenTestId(`test${nextOrder}`);
+    setTestTitle(`Test ${nextOrder}`);
+    setSentences([]);
+    setMaxAttempts(null);
+    setSaved(false);
+  }
+
+  async function handleDeleteTest(id) {
+    if (!(await confirm("Xoá Test này? Không hoàn tác được.", { danger: true }))) return;
+    try {
+      await deleteDictationTest(series.id, level.number, id);
+      reloadTests();
+    } catch (err) {
+      alert(`Không xoá được Test: ${err.message}`);
+    }
+  }
+  async function handleSaveTest() {
+    setSaving(true);
+    setSaved(false);
+    try {
+      const order = tests?.find(t => t.id === openTestId)?.order ?? (tests?.length ?? 0) + 1;
+      await saveDictationTest(series.id, level.number, openTestId, { title: testTitle, order, sentences, maxAttempts }, uid);
+      setSaved(true);
+      reloadTests();
+    } catch (err) {
+      alert(`Không xuất bản được: ${err.message}`);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (openTestId) {
+    return (
+      <DictationStudio
+        accent={series.color}
+        title={testTitle}
+        onTitleChange={setTestTitle}
+        sentences={sentences}
+        onSentencesChange={setSentences}
+        maxAttempts={maxAttempts}
+        onMaxAttemptsChange={setMaxAttempts}
+        onBack={() => setOpenTestId(null)}
+        onSave={handleSaveTest}
+        saving={saving}
+        saved={saved}
+      />
+    );
+  }
+
+  return (
+    <div className="admin-card">
+      <h2>{series.title} {level.number} — Dictation</h2>
+      {tests === null && <LoadingCard inline />}
+      {tests && (
+        <div className="admin-test-grid">
+          {tests.map(t => (
+            <div key={t.id} className="admin-test-card" style={{ "--accent": series.color }}>
+              <button className="admin-test-card-main" onClick={() => openTest(t)}>
+                <span className="admin-test-card-icon">✍️</span>
+                <span className="admin-test-card-title">{t.title}</span>
+                <span className="admin-scene-count-badge">{t.sentences?.length ?? 0} câu</span>
+              </button>
+              <div className="admin-test-card-actions">
+                <button className="admin-link-btn" onClick={() => openTest(t)}>Sửa</button>
+                <button className="admin-link-btn admin-pill-btn-danger" onClick={() => handleDeleteTest(t.id)}>Xoá</button>
+              </div>
+            </div>
+          ))}
+          <button className="admin-test-card admin-test-card-add" onClick={openNewTest}>
+            <span className="admin-test-card-add-icon">+</span>
+            <span>Tạo Test mới</span>
+          </button>
+        </div>
+      )}
+      {tests && tests.length === 0 && (
+        <p className="admin-muted-text">Cấp độ này chưa có Test nào — bấm "Tạo Test mới" để bắt đầu soạn câu Dictation.</p>
       )}
     </div>
   );
