@@ -60,7 +60,11 @@ const SERIES_INFO = {
     speakingNote: "",
   },
   ielts: {
-    ready: false,
+    // Mở khoá thẻ theo yêu cầu người dùng 2026-09-09 — mới chỉ có mục Reading (2 thẻ LUYỆN ĐỀ/
+    // ĐỌC HIỂU dạng placeholder, xem LessonsPage.jsx), Listening/Speaking/Dictation chưa làm
+    // nhưng VẪN hiện đủ 4 dòng kỹ năng ở thẻ trang chủ để khớp chiều cao lưới với các thẻ khác
+    // (chỉ để 1 dòng "reading" làm card bị lùn hẳn so với card bên cạnh, phá nhịp lưới 2x2).
+    ready: true,
     accent: "#1F3A63",
     difficulty: "Nâng cao",
     difficultyLevel: 5,

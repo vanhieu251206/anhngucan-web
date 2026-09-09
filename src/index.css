@@ -3298,4 +3298,62 @@ button.wizard-step:focus-visible { outline: 3px solid var(--color-secondary); ou
   color: var(--admin-text); font-variant-numeric: tabular-nums;
 }
 .admin-empty-state-title { font-weight: 700; color: var(--admin-text); font-size: 1rem; margin: 0; }
+
+/* ---------- IELTS Reading · mục "ĐỌC HIỂU" (IeltsReadingPassage.jsx) — bám sát bảng 2 cột
+   Passage/Vocabulary trong file Word gốc, khác ReadingRunner (không chấm điểm, chỉ để đọc). */
+.ielts-passage-screen {
+  position: fixed; inset: 0; z-index: 1000;
+  background: var(--color-bg);
+  display: flex; flex-direction: column;
+  overflow-y: auto;
+}
+.ielts-passage-topbar {
+  flex-shrink: 0; display: flex; align-items: center; justify-content: space-between;
+  gap: 14px; margin: 12px 16px;
+}
+.ielts-toggle-vi { flex-shrink: 0; white-space: nowrap; }
+.ielts-passage-body {
+  max-width: 980px; width: 100%; margin: 0 auto; padding: 8px 20px 60px;
+}
+.ielts-passage-header { text-align: center; margin-bottom: 26px; }
+.ielts-passage-header h1 {
+  font-family: var(--font-display); font-size: clamp(1.25rem, 2.4vw, 1.7rem);
+  margin: 0 0 6px; color: var(--color-ink); text-transform: uppercase;
+}
+.ielts-passage-title-vi { color: var(--color-muted); font-weight: 600; margin: 0; }
+.ielts-passage-table {
+  background: #fff; border: 1px solid #f1ebdd; border-radius: var(--radius-card);
+  box-shadow: var(--shadow-soft); overflow: hidden;
+}
+.ielts-passage-table-head {
+  display: grid; grid-template-columns: 3fr 2fr;
+  background: var(--color-primary); color: #fff;
+  font-family: var(--font-display); font-weight: 800; text-transform: uppercase;
+  font-size: 0.9rem; letter-spacing: 0.03em;
+}
+.ielts-passage-table-head span { padding: 12px 18px; }
+.ielts-sentence-row {
+  display: grid; grid-template-columns: 3fr 2fr;
+  border-top: 1px solid #f1ebdd;
+}
+.ielts-sentence-main { padding: 16px 18px; border-right: 1px solid #f1ebdd; }
+.ielts-sentence-en {
+  display: block; text-align: left; background: none; border: none; padding: 0;
+  cursor: pointer; color: var(--color-ink); line-height: 1.55; font-size: 0.98rem;
+}
+.ielts-sentence-en:hover { color: var(--color-primary); }
+.ielts-sentence-vi {
+  margin: 8px 0 0; color: var(--color-muted); font-style: italic; line-height: 1.5;
+}
+.ielts-sentence-vocab { padding: 16px 18px; background: #fbf8f1; }
+.ielts-vocab-item { margin: 0 0 8px; font-size: 0.86rem; line-height: 1.4; }
+.ielts-vocab-item:last-child { margin-bottom: 0; }
+.ielts-vocab-term { color: var(--color-ink); font-weight: 600; }
+.ielts-vocab-arrow { color: var(--color-muted); margin: 0 5px; }
+.ielts-vocab-meaning { color: var(--color-primary); font-weight: 600; }
+@media (max-width: 760px) {
+  .ielts-passage-table-head { display: none; }
+  .ielts-sentence-row { grid-template-columns: 1fr; }
+  .ielts-sentence-main { border-right: none; border-bottom: 1px solid #f1ebdd; }
+}
 .admin-empty-state-actions { margin-top: 6px; }

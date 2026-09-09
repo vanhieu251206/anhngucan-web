@@ -6,6 +6,8 @@ import { loadLevelContent } from "../lib/lessons.js";
 import ListeningMode from "../components/ListeningMode.jsx";
 import SceneRunner from "../components/SceneRunner.jsx";
 import ReadingRunner from "../components/ReadingRunner.jsx";
+import IeltsReadingPassage from "../components/IeltsReadingPassage.jsx";
+import { IELTS_READING_COMPREHENSION } from "../lib/ieltsReadingData.js";
 import DictationRunner from "../components/DictationRunner.jsx";
 import { useAuth } from "../lib/authContext.jsx";
 import { getAttemptCount } from "../lib/attempts.js";
@@ -161,6 +163,8 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
   const initialUrlRef = useRef(readParams());
   const [level, setLevel] = useState(() => {
     const n = Number(initialUrlRef.current.get("level"));
+    // Series chỉ có 1 cấp (hiện tại: IELTS) → tự chọn luôn, không hiện bước "Chọn cấp độ".
+    if (series.levels.length === 1) return series.levels[0];
     return series.levels.find(l => l.number === n) ?? null;
   });
   const [content, setContent] = useState(null); // { listening, tests, readingTests } — đọc qua lib/lessons.js
@@ -176,6 +180,9 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
   const [dictationActive, setDictationActive] = useState(false);
   // true khi đang xem chi tiết Listening (bấm vào thẻ Listening trên màn "Bài học").
   const [listeningActive, setListeningActive] = useState(false);
+  // Bài "ĐỌC HIỂU" IELTS đang mở (xem lib/ieltsReadingData.js) — màn tĩnh riêng, không qua
+  // requestStart()/attempts vì không chấm điểm, không phải "nộp bài".
+  const [activeIeltsPassage, setActiveIeltsPassage] = useState(null);
   // Đang xem trang "Xem tất cả Test" của Speaking (khi 1 cấp độ có nhiều Test) — false = màn
   // "Bài học" gọn mặc định, chỉ hiện 2 Test đầu.
   const [viewAllTests, setViewAllTests] = useState(false);
@@ -236,7 +243,9 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
     setDictationActive(false);
     setListeningActive(false);
     setViewAllTests(false);
-    setLevel(null);
+    // Series chỉ có 1 cấp (IELTS) không có màn "Chọn cấp độ" để quay lại → về thẳng trang chủ.
+    if (series.levels.length === 1) onNavigate("home");
+    else setLevel(null);
   }
 
   // Thoát khỏi bài Speaking toàn màn hình (SceneRunner), quay lại màn "Bài học" — KHÔNG tính là
@@ -329,6 +338,11 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
   // ---------- Màn chặn (hết lượt nộp bài HOẶC giáo viên chưa mở bài này cho lớp) ----------
   if (blocked) {
     return <BlockedScreen title={blocked.title} message={blocked.message} onBack={() => setBlocked(null)} />;
+  }
+
+  // ---------- Bài "ĐỌC HIỂU" IELTS đang mở ----------
+  if (activeIeltsPassage) {
+    return <IeltsReadingPassage passage={activeIeltsPassage} onBack={() => setActiveIeltsPassage(null)} />;
   }
 
   // ---------- Bước 2: toàn bộ bài học của cấp độ (Listening + Speaking cùng lúc) ----------
@@ -576,6 +590,8 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
     );
   }
 
+  const isIelts = series.id === "ielts";
+
   const listeningCard = lessonCard({
     key: "listening",
     banner: "Listening",
@@ -589,9 +605,9 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
   return (
     <LessonShell
       step={2}
-      title={`${series.title} · Cấp ${level.number}`}
-      subtitle="Toàn bộ bài học đã có của cấp độ này"
-      backLabel="Cấp khác"
+      title={isIelts ? series.title : `${series.title} · Cấp ${level.number}`}
+      subtitle={isIelts ? "Chọn mục muốn luyện" : "Toàn bộ bài học đã có của cấp độ này"}
+      backLabel={isIelts ? "Bộ đề khác" : "Cấp khác"}
       onBack={backToLevelList}
       onNavigate={onNavigate}
       onStepClick={goToWizardStep}
@@ -599,6 +615,29 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
     >
       {!content ? (
         <ContentSkeleton />
+      ) : isIelts ? (
+        <LessonSection title="Reading">
+          <div className="content-grid content-grid-4">
+            {lessonCard({
+              key: "luyen-de",
+              banner: "LUYỆN ĐỀ",
+              title: "Luyện đề IELTS Reading",
+              desc: "Làm full test 3 passage, đủ dạng câu hỏi như đề thi thật",
+              cta: "Sắp có",
+              disabled: true,
+              onClick: () => {},
+            })}
+            {lessonCard({
+              key: "doc-hieu",
+              banner: "ĐỌC HIỂU",
+              title: IELTS_READING_COMPREHENSION[0].titleEn,
+              desc: "Đọc từng câu kèm dịch nghĩa + từ vựng/từ đồng nghĩa — bấm vào câu để xem bản dịch",
+              cta: "Bắt đầu đọc",
+              disabled: false,
+              onClick: () => setActiveIeltsPassage(IELTS_READING_COMPREHENSION[0]),
+            })}
+          </div>
+        </LessonSection>
       ) : (
         <>
           <LessonSection title="Listening">

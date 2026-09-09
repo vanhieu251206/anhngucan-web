@@ -50,11 +50,23 @@ function buildSeries(id, title, color) {
   };
 }
 
+// IELTS KHÔNG chia cấp độ (Band) như YLE — chốt với người dùng 2026-09-09: chỉ 1 "cấp" ẩn
+// (level 1), rồi bên trong chia thẳng theo mục kỹ năng. Hiện chỉ có Reading, chia 2 mục
+// LUYỆN ĐỀ (full test) / ĐỌC HIỂU (bài tập kỹ năng rời) — xem LessonsPage.jsx `isIelts`.
+function buildIeltsSeries() {
+  return {
+    id: "ielts",
+    title: "IELTS",
+    color: "#1F3A63",
+    levels: [{ id: "ielts-1", number: 1, listening: [], speaking: [] }],
+  };
+}
+
 export const YLE_SERIES = [
   buildSeries("kids", "Kids", "#F2A93B"),
   buildSeries("starters", "Starters", "#FF7A45"),
   buildSeries("movers", "Movers", "#2FB6C4"),
   buildSeries("flyers", "Flyers", "#4CAF7D"),
   buildSeries("ket-pet", "KET / PET", "#8B5CF6"),
-  buildSeries("ielts", "IELTS", "#1F3A63"),
+  buildIeltsSeries(),
 ];
