@@ -60,5 +60,32 @@ export async function loadLevelContent(series, level) {
     // Lỗi mạng/Firestore — coi như chưa có gì mới, không chặn học.
   }
 
-  return { listening, tests, readingTests, dictationTests };
+  // ĐỌC HIỂU (IELTS) — chỉ đọc từ Firestore (soạn qua CMS, xem ComprehensionEditor trong
+  // CreateLessonPage.jsx), không còn nhúng cứng ieltsReadingData.js (đã đẩy bài mẫu thành 1 bài
+  // thật trong CMS, giáo viên bấm "Nhập bài mẫu có sẵn" rồi Xuất bản — chốt 2026-09-10).
+  let comprehensionTests = [];
+  try {
+    const compSnap = await getDocs(collection(db, "lessons", lessonId, "comprehensionTests"));
+    comprehensionTests = compSnap.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .filter(t => t.sentences?.length)
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  } catch {
+    // Lỗi mạng/Firestore — coi như chưa có gì mới, không chặn học.
+  }
+
+  // LUYỆN ĐỀ (IELTS Reading full test) — chỉ đọc từ Firestore, nội dung do giáo viên tự soạn qua
+  // CMS (PracticeStudio.jsx), Claude không nhúng sẵn đề thi thật (xem adminLessons.js).
+  let practiceTests = [];
+  try {
+    const practiceSnap = await getDocs(collection(db, "lessons", lessonId, "practiceTests"));
+    practiceTests = practiceSnap.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .filter(t => t.passages?.length)
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  } catch {
+    // Lỗi mạng/Firestore — coi như chưa có gì mới, không chặn học.
+  }
+
+  return { listening, tests, readingTests, dictationTests, comprehensionTests, practiceTests };
 }

@@ -2286,6 +2286,7 @@ button { font-family: inherit; }
   justify-content: center;
   margin-top: 16px;
 }
+.admin-import-json-btn-row { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
 .admin-input {
   border: 1.5px solid #c7cbd6;
   border-radius: 9px;
@@ -2803,6 +2804,14 @@ button { font-family: inherit; }
 .admin-dictation-maxattempts { display: flex; flex-direction: column; gap: 6px; max-width: 320px; margin-top: 18px; font-weight: 600; font-size: 0.85rem; }
 .admin-dictation-footer { display: flex; align-items: center; gap: 14px; margin-top: 18px; }
 
+/* ComprehensionStudio.jsx — soạn bài "ĐỌC HIỂU" IELTS (câu + dịch + từ vựng/đồng nghĩa). */
+.admin-comprehension-vocab-box {
+  display: flex; flex-direction: column; gap: 8px;
+  background: #f8f9fb; border: 1px solid var(--admin-border); border-radius: 10px; padding: 10px 12px;
+}
+.admin-comprehension-vocab-row { display: grid; grid-template-columns: 1.4fr 1fr auto; gap: 8px; align-items: center; }
+.admin-comprehension-add-vocab { align-self: flex-start; }
+
 /* DictationRunner.jsx — màn học sinh làm bài Dictation, phong cách kiểu Duolingo giống Speaking/
    Reading (thẻ tròn, linh vật ong, màu cam san hô/xanh ngọc của theme — xem mục 2 index.css).
    Kích thước CHUẨN to hơn hẳn bản đầu (phản hồi người dùng 2026-09-08: "làm to hơn thay vì nhỏ như
@@ -3311,7 +3320,22 @@ button.wizard-step:focus-visible { outline: 3px solid var(--color-secondary); ou
   flex-shrink: 0; display: flex; align-items: center; justify-content: space-between;
   gap: 14px; margin: 12px 16px;
 }
+.ielts-passage-topbar-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.ielts-fontsize-control { display: flex; align-items: center; gap: 2px; border: 2px solid #ece6da; border-radius: var(--radius-pill); padding: 3px; background: #fff; }
+.ielts-fontsize-btn {
+  border: none; background: none; cursor: pointer; border-radius: var(--radius-pill);
+  padding: 6px 12px; font-weight: 700; color: var(--color-muted); line-height: 1;
+}
+.ielts-fontsize-btn-sm { font-size: 0.75rem; }
+.ielts-fontsize-btn-md { font-size: 0.95rem; }
+.ielts-fontsize-btn-lg { font-size: 1.2rem; }
+.ielts-fontsize-btn.is-active { background: var(--color-primary); color: #fff; }
 .ielts-toggle-vi { flex-shrink: 0; white-space: nowrap; }
+.ielts-full-audio { display: block; width: 100%; max-width: 980px; margin: 0 auto 26px; }
+.ielts-full-audio-empty {
+  max-width: 980px; margin: 0 auto 26px; text-align: center;
+  color: var(--color-muted); font-style: italic;
+}
 .ielts-passage-body {
   max-width: 980px; width: 100%; margin: 0 auto; padding: 8px 20px 60px;
 }
@@ -3339,14 +3363,17 @@ button.wizard-step:focus-visible { outline: 3px solid var(--color-secondary); ou
 .ielts-sentence-main { padding: 16px 18px; border-right: 1px solid #f1ebdd; }
 .ielts-sentence-en {
   display: block; text-align: left; background: none; border: none; padding: 0;
-  cursor: pointer; color: var(--color-ink); line-height: 1.55; font-size: 0.98rem;
+  cursor: pointer; color: var(--color-ink); line-height: 1.55;
+  font-size: calc(0.98rem * var(--ielts-font-scale, 1));
+  font-weight: 700;
 }
 .ielts-sentence-en:hover { color: var(--color-primary); }
 .ielts-sentence-vi {
   margin: 8px 0 0; color: var(--color-muted); font-style: italic; line-height: 1.5;
+  font-size: calc(1rem * var(--ielts-font-scale, 1));
 }
 .ielts-sentence-vocab { padding: 16px 18px; background: #fbf8f1; }
-.ielts-vocab-item { margin: 0 0 8px; font-size: 0.86rem; line-height: 1.4; }
+.ielts-vocab-item { margin: 0 0 8px; font-size: calc(0.86rem * var(--ielts-font-scale, 1)); line-height: 1.4; }
 .ielts-vocab-item:last-child { margin-bottom: 0; }
 .ielts-vocab-term { color: var(--color-ink); font-weight: 600; }
 .ielts-vocab-arrow { color: var(--color-muted); margin: 0 5px; }
@@ -3357,3 +3384,98 @@ button.wizard-step:focus-visible { outline: 3px solid var(--color-secondary); ou
   .ielts-sentence-main { border-right: none; border-bottom: 1px solid #f1ebdd; }
 }
 .admin-empty-state-actions { margin-top: 6px; }
+
+/* PracticeStudio.jsx — soạn Test "LUYỆN ĐỀ" IELTS (nhiều passage, nhiều nhóm câu hỏi). */
+.admin-practice-passage {
+  border: 1px solid var(--admin-border); border-radius: 14px; padding: 16px;
+  margin: 16px 0; display: flex; flex-direction: column; gap: 10px; background: #fff;
+}
+.admin-practice-paragraph-row { display: flex; gap: 8px; align-items: flex-start; }
+.admin-practice-paragraph-row .admin-textarea { flex: 1; }
+.admin-practice-groups-label { margin-top: 10px; }
+.admin-practice-group {
+  border: 1px dashed var(--admin-border); border-radius: 12px; padding: 12px;
+  display: flex; flex-direction: column; gap: 8px; background: #f8f9fb;
+}
+.admin-practice-group-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.admin-practice-type-select { max-width: 260px; }
+.admin-practice-question-row {
+  display: flex; align-items: flex-start; gap: 10px;
+  border-top: 1px solid var(--admin-border); padding-top: 10px;
+}
+.admin-practice-option-row { display: flex; align-items: center; gap: 8px; }
+.admin-practice-option-row .admin-input { flex: 1; }
+.admin-practice-timelimit { display: flex; flex-direction: column; gap: 6px; max-width: 320px; margin: 12px 0; font-weight: 600; font-size: 0.85rem; }
+.admin-practice-add-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+/* OcrImportPanel.jsx — nút nhận diện chữ từ ảnh (tesseract.js), dùng chung nhiều nơi trong CMS. */
+.admin-ocr-panel { display: inline-flex; flex-direction: column; gap: 6px; }
+.admin-ocr-btn { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.admin-ocr-btn.is-busy { opacity: 0.75; cursor: wait; }
+
+/* IeltsPracticeRunner.jsx — màn học sinh làm bài Luyện đề: timer + sidebar điều hướng bên phải,
+   2 cột cuộn riêng (đoạn văn | câu hỏi), đúng bố cục các trang luyện thi IELTS phổ biến. */
+.ielts-practice-screen {
+  position: fixed; inset: 0; z-index: 1000; background: var(--color-bg);
+  display: flex; flex-direction: column;
+}
+.ielts-practice-topbar {
+  flex-shrink: 0; display: flex; align-items: center; justify-content: space-between;
+  gap: 14px; padding: 12px 20px; border-bottom: 1px solid #f1ebdd; background: #fff;
+}
+.ielts-practice-title { font-family: var(--font-display); font-size: 1.1rem; margin: 0; flex: 1; text-align: center; }
+.ielts-practice-highlight-toggle { display: flex; align-items: center; gap: 6px; font-size: 0.85rem; font-weight: 600; white-space: nowrap; }
+.ielts-practice-body { flex: 1; display: flex; flex-direction: column; min-height: 0; padding-right: 260px; }
+.ielts-practice-passage-tabs { flex-shrink: 0; display: flex; gap: 8px; padding: 10px 20px; border-bottom: 1px solid #f1ebdd; background: #fbf8f1; }
+.ielts-practice-tab {
+  border: none; background: #ece6da; color: var(--color-ink); font-weight: 700;
+  padding: 8px 16px; border-radius: var(--radius-pill); cursor: pointer;
+}
+.ielts-practice-tab.is-active { background: var(--color-primary); color: #fff; }
+.ielts-practice-columns { flex: 1; display: grid; grid-template-columns: 1fr 1fr; min-height: 0; }
+.ielts-practice-passage-col, .ielts-practice-questions-col {
+  overflow-y: auto; padding: 20px 24px; line-height: 1.7;
+}
+.ielts-practice-passage-col { border-right: 1px solid #f1ebdd; background: #fdfcf9; }
+.ielts-practice-passage-col h2 { font-family: var(--font-display); margin-top: 0; }
+.ielts-practice-note { font-style: italic; color: var(--color-muted); }
+.ielts-practice-highlight { background: #ffe58a; }
+.ielts-practice-group { margin-bottom: 24px; }
+.ielts-practice-instruction { font-weight: 700; margin-bottom: 12px; }
+.ielts-practice-question {
+  display: flex; gap: 12px; padding: 12px 0; border-top: 1px solid #f1ebdd;
+}
+.ielts-practice-question:first-child { border-top: none; }
+.ielts-practice-qnum {
+  flex-shrink: 0; width: 26px; height: 26px; border-radius: 50%; background: #ece6da;
+  color: var(--color-ink); font-weight: 700; display: flex; align-items: center; justify-content: center;
+  font-size: 0.82rem;
+}
+.ielts-practice-qbody { flex: 1; display: flex; flex-direction: column; gap: 6px; }
+.ielts-practice-option { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.ielts-practice-question.is-correct { background: #e5f5ec; border-radius: 10px; padding-left: 8px; }
+.ielts-practice-question.is-wrong { background: #fdeaea; border-radius: 10px; padding-left: 8px; }
+.ielts-practice-correct-answer { color: var(--color-green); font-weight: 700; font-size: 0.85rem; margin: 0; }
+.ielts-practice-sidebar {
+  position: fixed; top: 66px; right: 0; bottom: 0; width: 260px;
+  border-left: 1px solid #f1ebdd; background: #fff; padding: 20px; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 16px;
+}
+.ielts-practice-timer { display: flex; flex-direction: column; gap: 4px; }
+.ielts-practice-timer strong { font-family: var(--font-display); font-size: 1.5rem; }
+.ielts-practice-submit { width: 100%; }
+.ielts-practice-score { font-weight: 800; font-size: 1.1rem; text-align: center; }
+.ielts-practice-navgrid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+.ielts-practice-navbtn {
+  border: 1px solid #ece6da; background: #fff; border-radius: 8px; padding: 8px 0;
+  font-weight: 700; cursor: pointer; color: var(--color-ink);
+}
+.ielts-practice-navbtn.is-answered { background: #eef2ff; border-color: #c7d2fe; }
+.ielts-practice-navbtn.is-correct { background: #e5f5ec; border-color: var(--color-green); }
+.ielts-practice-navbtn.is-wrong { background: #fdeaea; border-color: #e0554f; }
+@media (max-width: 900px) {
+  .ielts-practice-body { padding-right: 0; }
+  .ielts-practice-columns { grid-template-columns: 1fr; }
+  .ielts-practice-passage-col { border-right: none; border-bottom: 1px solid #f1ebdd; }
+  .ielts-practice-sidebar { position: static; width: auto; border-left: none; border-top: 1px solid #f1ebdd; }
+}

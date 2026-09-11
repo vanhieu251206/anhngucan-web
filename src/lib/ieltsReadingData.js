@@ -8,6 +8,10 @@ export const IELTS_READING_COMPREHENSION = [
     id: "test2-passage1",
     titleEn: "SHEET GLASS MANUFACTURE: THE FLOAT PROCESS",
     titleVi: "SẢN XUẤT KÍNH TẤM: QUY TRÌNH NỔI",
+    // File audio đọc toàn bộ bài (giọng đọc tự thu/tự tạo, KHÔNG phải audio gốc có bản quyền của
+    // đề thi) — dán URL sau khi upload qua Cloudinary (giống cơ chế AudioUploadField ở CMS Reading
+    // YLE), xem CLAUDE.md mục 2. Để trống thì màn ĐỌC HIỂU chỉ hiện nút xem bản tiếng Anh đầy đủ.
+    audioUrl: "",
     sentences: [
       { en: "Glass, which has been made since the time of the Mesopotamians /ˌmesəpəˈteɪmiənz/ and Egyptians /ɪˈdʒɪpʃənz/, is little more than a mixture /ˈmɪkstʃə/ of sand, soda ash and lime.", vi: "Thủy tinh, vốn đã được sản xuất từ thời người Lưỡng Hà và người Ai Cập, về cơ bản chỉ là một hỗn hợp gồm cát, tro soda và vôi.", vocab: [
         { termDef: "be little more than = be essentially / be basically", meaning: "về cơ bản chỉ là" },

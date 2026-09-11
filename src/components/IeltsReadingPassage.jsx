@@ -34,8 +34,52 @@ function SentenceRow({ sentence, showAllVi }) {
   );
 }
 
+// 3 cỡ chữ cho khung đọc — lưu lại lựa chọn qua localStorage (chỉ ảnh hưởng trình duyệt đó,
+// không đồng bộ nhiều thiết bị) để lần sau vào lại không phải chọn lại.
+const FONT_SIZES = [
+  { key: "sm", label: "A", scale: 0.88 },
+  { key: "md", label: "A", scale: 1 },
+  { key: "lg", label: "A", scale: 1.18 },
+];
+
+function FontSizeControl({ size, onChange }) {
+  return (
+    <div className="ielts-fontsize-control" role="group" aria-label="Cỡ chữ">
+      {FONT_SIZES.map(f => (
+        <button
+          key={f.key}
+          type="button"
+          className={`ielts-fontsize-btn ielts-fontsize-btn-${f.key}${size === f.key ? " is-active" : ""}`}
+          onClick={() => onChange(f.key)}
+          aria-pressed={size === f.key}
+        >
+          {f.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export default function IeltsReadingPassage({ passage, onBack }) {
   const [showAllVi, setShowAllVi] = useState(false);
+  const [fontSize, setFontSize] = useState(() => {
+    try {
+      return localStorage.getItem("ielts-reading-fontsize") ?? "md";
+    } catch {
+      return "md";
+    }
+  });
+
+  function changeFontSize(key) {
+    setFontSize(key);
+    try {
+      localStorage.setItem("ielts-reading-fontsize", key);
+    } catch {
+      // localStorage có thể bị chặn (chế độ ẩn danh...) — không chặn tính năng, chỉ không nhớ lựa chọn.
+    }
+  }
+
+  const scale = FONT_SIZES.find(f => f.key === fontSize)?.scale ?? 1;
 
   return (
     <div className="ielts-passage-screen">
@@ -43,20 +87,29 @@ export default function IeltsReadingPassage({ passage, onBack }) {
         <button className="speaking-fullscreen-back" onClick={onBack}>
           ⬅ Quay lại
         </button>
-        <button
-          type="button"
-          className="btn btn-secondary ielts-toggle-vi"
-          onClick={() => setShowAllVi(v => !v)}
-        >
-          {showAllVi ? "Ẩn bản dịch" : "Hiện tất cả bản dịch"}
-        </button>
+        <div className="ielts-passage-topbar-actions">
+          <FontSizeControl size={fontSize} onChange={changeFontSize} />
+          <button
+            type="button"
+            className="btn btn-secondary ielts-toggle-vi"
+            onClick={() => setShowAllVi(v => !v)}
+          >
+            {showAllVi ? "Ẩn bản dịch" : "Hiện tất cả bản dịch"}
+          </button>
+        </div>
       </div>
 
-      <div className="ielts-passage-body">
+      <div className="ielts-passage-body" style={{ "--ielts-font-scale": scale }}>
         <header className="ielts-passage-header">
           <h1>{passage.titleEn}</h1>
           <p className="ielts-passage-title-vi">{passage.titleVi}</p>
         </header>
+
+        {passage.audioUrl ? (
+          <audio className="ielts-full-audio" src={passage.audioUrl} controls />
+        ) : (
+          <p className="ielts-full-audio-empty">Chưa có file audio đọc toàn bài cho phần này.</p>
+        )}
 
         <div className="ielts-passage-table">
           <div className="ielts-passage-table-head">

@@ -5,10 +5,15 @@ import {
   saveListening, getListening, listTests, getTest, saveTest, deleteTest,
   listReadingTests, getReadingTest, saveReadingTest, deleteReadingTest,
   listDictationTests, getDictationTest, saveDictationTest, deleteDictationTest,
+  listComprehensionTests, getComprehensionTest, saveComprehensionTest, deleteComprehensionTest,
+  listPracticeTests, getPracticeTest, savePracticeTest, deletePracticeTest,
 } from "../../lib/adminLessons.js";
 import TestStudio from "../../components/dashboard/TestStudio.jsx";
 import ReadingStudio from "../../components/dashboard/ReadingStudio.jsx";
 import DictationStudio from "../../components/dashboard/DictationStudio.jsx";
+import ComprehensionStudio from "../../components/dashboard/ComprehensionStudio.jsx";
+import PracticeStudio from "../../components/dashboard/PracticeStudio.jsx";
+import { IELTS_READING_COMPREHENSION } from "../../lib/ieltsReadingData.js";
 import { useConfirm } from "../../components/dashboard/ConfirmDialog.jsx";
 import { readParams, setParams } from "../../lib/urlState.js";
 
@@ -17,7 +22,20 @@ const MODE_INFO = {
   speaking: { label: "Speaking", icon: "🎤", desc: "Luyện nói theo scene" },
   reading: { label: "Reading & Writing", icon: "📖", desc: "Đọc & Viết" },
   dictation: { label: "Dictation", icon: "✍️", desc: "Nghe & gõ lại" },
+  comprehension: { label: "Đọc hiểu", icon: "📘", desc: "Câu + dịch + từ vựng (IELTS)" },
+  practice: { label: "Luyện đề", icon: "📝", desc: "Full test nhiều passage, nhiều dạng câu hỏi (IELTS)" },
 };
+// IELTS không chia cấp độ (chỉ 1 level ẩn) và hiện có mục Đọc hiểu + Luyện đề — xem yleData.js
+// `buildIeltsSeries()` + LessonsPage.jsx `isIelts` (chốt 2026-09-10).
+const MODES_BY_SERIES = {
+  ielts: ["comprehension", "practice"],
+};
+function modesForSeries(series) {
+  return (MODES_BY_SERIES[series.id] ?? ["listening", "speaking", "reading", "dictation"]).map(key => [
+    key,
+    MODE_INFO[key],
+  ]);
+}
 
 // Đọc bước đang soạn (bộ đề/cấp/loại bài) từ URL (?cSeries=...&cLevel=...&cMode=...) — để F5
 // quay lại đúng chỗ đang soạn thay vì luôn về bước "Chọn bộ đề" đầu tiên (phản hồi người dùng
@@ -41,7 +59,8 @@ export default function CreateLessonPage() {
     );
   }, [series, level, mode]);
 
-  function setSeries(s) { setStep({ series: s, level: null, mode: null }); }
+  // Series chỉ có 1 cấp (IELTS) → tự chọn luôn, không hiện bước "Chọn cấp độ".
+  function setSeries(s) { setStep({ series: s, level: s.levels.length === 1 ? s.levels[0] : null, mode: null }); }
   function setLevel(l) { setStep(st => ({ ...st, level: l, mode: null })); }
   function setMode(m) { setStep(st => ({ ...st, mode: m })); }
 
@@ -58,7 +77,7 @@ export default function CreateLessonPage() {
       active: !level,
     });
   }
-  if (series && level) {
+  if (series && level && series.levels.length > 1) {
     crumbs.push({
       label: `Cấp ${level.number}`,
       accent: series.color,
@@ -87,6 +106,12 @@ export default function CreateLessonPage() {
       )}
       {series && level && mode === "dictation" && (
         <DictationEditor series={series} level={level} uid={user.uid} />
+      )}
+      {series && level && mode === "comprehension" && (
+        <ComprehensionEditor series={series} level={level} uid={user.uid} />
+      )}
+      {series && level && mode === "practice" && (
+        <PracticeEditor series={series} level={level} uid={user.uid} />
       )}
     </div>
   );
@@ -168,7 +193,7 @@ function ModePicker({ series, level, onPick }) {
     <div className="admin-card">
       <h2>{series.title} {level.number}</h2>
       <div className="admin-picker-grid admin-picker-grid-modes">
-        {Object.entries(MODE_INFO).map(([key, info]) => (
+        {modesForSeries(series).map(([key, info]) => (
           <button
             key={key}
             className="admin-picker-tile admin-picker-tile-mode"
@@ -717,6 +742,281 @@ function DictationEditor({ series, level, uid }) {
       )}
       {tests && tests.length === 0 && (
         <p className="admin-muted-text">Cấp độ này chưa có Test nào — bấm "Tạo Test mới" để bắt đầu soạn câu Dictation.</p>
+      )}
+    </div>
+  );
+}
+
+function ComprehensionEditor({ series, level, uid }) {
+  const confirm = useConfirm();
+  const [tests, setTests] = useState(null);
+  const [openTestId, setOpenTestId] = useState(null);
+  const [titleEn, setTitleEn] = useState("");
+  const [titleVi, setTitleVi] = useState("");
+  const [audioUrl, setAudioUrl] = useState("");
+  const [sentences, setSentences] = useState([]);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  function reloadTests() {
+    listComprehensionTests(series.id, level.number).then(setTests);
+  }
+  useEffect(reloadTests, [series.id, level.number]);
+
+  // Tự xuất bản luôn bài mẫu (ieltsReadingData.js) ngay khi vào màn này — chỉ chạy nếu bài đó
+  // CHƯA có trong Firestore (không ghi đè bản đã sửa tay), theo yêu cầu người dùng 2026-09-10
+  // ("xuất bản luôn"): Claude không bấm được nút trong trình duyệt của người dùng, nhưng có thể
+  // tự publish ngay khi màn CMS này (đã đăng nhập admin/teacher) được mở lên.
+  useEffect(() => {
+    if (!tests) return;
+    const missing = IELTS_READING_COMPREHENSION.filter(seed => !tests.find(t => t.id === seed.id));
+    if (!missing.length) return;
+    (async () => {
+      for (let i = 0; i < missing.length; i++) {
+        const seed = missing[i];
+        await saveComprehensionTest(
+          series.id,
+          level.number,
+          seed.id,
+          { titleEn: seed.titleEn, titleVi: seed.titleVi, order: tests.length + i + 1, audioUrl: seed.audioUrl, sentences: seed.sentences },
+          uid
+        );
+      }
+      reloadTests();
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tests]);
+
+  async function openTest(t) {
+    const full = await getComprehensionTest(series.id, level.number, t.id);
+    setOpenTestId(t.id);
+    setTitleEn(full?.titleEn ?? t.titleEn ?? "");
+    setTitleVi(full?.titleVi ?? t.titleVi ?? "");
+    setAudioUrl(full?.audioUrl ?? "");
+    setSentences(full?.sentences ?? []);
+    setSaved(false);
+  }
+
+  function openNewTest() {
+    const nextOrder = (tests?.length ?? 0) + 1;
+    setOpenTestId(`passage${nextOrder}`);
+    setTitleEn("");
+    setTitleVi("");
+    setAudioUrl("");
+    setSentences([]);
+    setSaved(false);
+  }
+
+  // Nhập nhanh bài mẫu đã soạn sẵn (ieltsReadingData.js — trước đây nhúng cứng trực tiếp cho học
+  // sinh, giờ chuyển hẳn qua CMS) — mở thẳng vào ComprehensionStudio để xem/sửa lại trước khi bấm
+  // "Xuất bản", không tự ý ghi thẳng vào Firestore (cùng tinh thần "Nhập từ file JSON" của Speaking).
+  function importSeed(seed) {
+    const nextOrder = (tests?.length ?? 0) + 1;
+    setOpenTestId(seed.id ?? `passage${nextOrder}`);
+    setTitleEn(seed.titleEn ?? "");
+    setTitleVi(seed.titleVi ?? "");
+    setAudioUrl(seed.audioUrl ?? "");
+    setSentences(seed.sentences ?? []);
+    setSaved(false);
+  }
+
+  async function handleDeleteTest(id) {
+    if (!(await confirm("Xoá bài Đọc hiểu này? Không hoàn tác được.", { danger: true }))) return;
+    try {
+      await deleteComprehensionTest(series.id, level.number, id);
+      reloadTests();
+    } catch (err) {
+      alert(`Không xoá được: ${err.message}`);
+    }
+  }
+  async function handleSaveTest() {
+    setSaving(true);
+    setSaved(false);
+    try {
+      const order = tests?.find(t => t.id === openTestId)?.order ?? (tests?.length ?? 0) + 1;
+      await saveComprehensionTest(series.id, level.number, openTestId, { titleEn, titleVi, order, audioUrl, sentences }, uid);
+      setSaved(true);
+      reloadTests();
+    } catch (err) {
+      alert(`Không xuất bản được: ${err.message}`);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (openTestId) {
+    return (
+      <ComprehensionStudio
+        accent={series.color}
+        titleEn={titleEn}
+        onTitleEnChange={setTitleEn}
+        titleVi={titleVi}
+        onTitleViChange={setTitleVi}
+        audioUrl={audioUrl}
+        onAudioUrlChange={setAudioUrl}
+        sentences={sentences}
+        onSentencesChange={setSentences}
+        onBack={() => setOpenTestId(null)}
+        onSave={handleSaveTest}
+        saving={saving}
+        saved={saved}
+      />
+    );
+  }
+
+  return (
+    <div className="admin-card">
+      <h2>{series.title} — Đọc hiểu</h2>
+      {tests === null && <LoadingCard inline />}
+      {tests && (
+        <div className="admin-test-grid">
+          {tests.map(t => (
+            <div key={t.id} className="admin-test-card" style={{ "--accent": series.color }}>
+              <button className="admin-test-card-main" onClick={() => openTest(t)}>
+                <span className="admin-test-card-icon">📘</span>
+                <span className="admin-test-card-title">{t.titleEn || "(chưa đặt tiêu đề)"}</span>
+                <span className="admin-scene-count-badge">{t.sentences?.length ?? 0} câu</span>
+              </button>
+              <div className="admin-test-card-actions">
+                <button className="admin-link-btn" onClick={() => openTest(t)}>Sửa</button>
+                <button className="admin-link-btn admin-pill-btn-danger" onClick={() => handleDeleteTest(t.id)}>Xoá</button>
+              </div>
+            </div>
+          ))}
+          <button className="admin-test-card admin-test-card-add" onClick={openNewTest}>
+            <span className="admin-test-card-add-icon">+</span>
+            <span>Tạo bài mới</span>
+          </button>
+        </div>
+      )}
+      {tests && tests.length === 0 && (
+        <p className="admin-muted-text">Chưa có bài Đọc hiểu nào — bấm "Tạo bài mới" để bắt đầu soạn.</p>
+      )}
+      {tests && IELTS_READING_COMPREHENSION.some(seed => !tests.find(t => t.id === seed.id)) && (
+        <div className="admin-import-json-btn-row">
+          {IELTS_READING_COMPREHENSION.filter(seed => !tests.find(t => t.id === seed.id)).map(seed => (
+            <button
+              key={seed.id}
+              type="button"
+              className="admin-btn-secondary"
+              onClick={() => importSeed(seed)}
+            >
+              Nhập bài mẫu có sẵn: {seed.titleEn}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PracticeEditor({ series, level, uid }) {
+  const confirm = useConfirm();
+  const [tests, setTests] = useState(null);
+  const [openTestId, setOpenTestId] = useState(null);
+  const [title, setTitle] = useState("");
+  const [timeLimitMinutes, setTimeLimitMinutes] = useState(null);
+  const [passages, setPassages] = useState([]);
+  const [maxAttempts, setMaxAttempts] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  function reloadTests() {
+    listPracticeTests(series.id, level.number).then(setTests);
+  }
+  useEffect(reloadTests, [series.id, level.number]);
+
+  async function openTest(t) {
+    const full = await getPracticeTest(series.id, level.number, t.id);
+    setOpenTestId(t.id);
+    setTitle(full?.title ?? t.title ?? "");
+    setTimeLimitMinutes(full?.timeLimitMinutes ?? null);
+    setPassages(full?.passages ?? []);
+    setMaxAttempts(full?.maxAttempts ?? null);
+    setSaved(false);
+  }
+
+  function openNewTest() {
+    const nextOrder = (tests?.length ?? 0) + 1;
+    setOpenTestId(`test${nextOrder}`);
+    setTitle(`Test ${nextOrder}`);
+    setTimeLimitMinutes(60);
+    setPassages([]);
+    setMaxAttempts(null);
+    setSaved(false);
+  }
+
+  async function handleDeleteTest(id) {
+    if (!(await confirm("Xoá Test Luyện đề này? Không hoàn tác được.", { danger: true }))) return;
+    try {
+      await deletePracticeTest(series.id, level.number, id);
+      reloadTests();
+    } catch (err) {
+      alert(`Không xoá được: ${err.message}`);
+    }
+  }
+  async function handleSaveTest() {
+    setSaving(true);
+    setSaved(false);
+    try {
+      const order = tests?.find(t => t.id === openTestId)?.order ?? (tests?.length ?? 0) + 1;
+      await savePracticeTest(series.id, level.number, openTestId, { title, order, timeLimitMinutes, passages, maxAttempts }, uid);
+      setSaved(true);
+      reloadTests();
+    } catch (err) {
+      alert(`Không xuất bản được: ${err.message}`);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (openTestId) {
+    return (
+      <PracticeStudio
+        accent={series.color}
+        title={title}
+        onTitleChange={setTitle}
+        timeLimitMinutes={timeLimitMinutes}
+        onTimeLimitChange={setTimeLimitMinutes}
+        passages={passages}
+        onPassagesChange={setPassages}
+        maxAttempts={maxAttempts}
+        onMaxAttemptsChange={setMaxAttempts}
+        onBack={() => setOpenTestId(null)}
+        onSave={handleSaveTest}
+        saving={saving}
+        saved={saved}
+      />
+    );
+  }
+
+  return (
+    <div className="admin-card">
+      <h2>{series.title} — Luyện đề</h2>
+      {tests === null && <LoadingCard inline />}
+      {tests && (
+        <div className="admin-test-grid">
+          {tests.map(t => (
+            <div key={t.id} className="admin-test-card" style={{ "--accent": series.color }}>
+              <button className="admin-test-card-main" onClick={() => openTest(t)}>
+                <span className="admin-test-card-icon">📝</span>
+                <span className="admin-test-card-title">{t.title || "(chưa đặt tiêu đề)"}</span>
+                <span className="admin-scene-count-badge">{t.passages?.length ?? 0} passage</span>
+              </button>
+              <div className="admin-test-card-actions">
+                <button className="admin-link-btn" onClick={() => openTest(t)}>Sửa</button>
+                <button className="admin-link-btn admin-pill-btn-danger" onClick={() => handleDeleteTest(t.id)}>Xoá</button>
+              </div>
+            </div>
+          ))}
+          <button className="admin-test-card admin-test-card-add" onClick={openNewTest}>
+            <span className="admin-test-card-add-icon">+</span>
+            <span>Tạo Test mới</span>
+          </button>
+        </div>
+      )}
+      {tests && tests.length === 0 && (
+        <p className="admin-muted-text">Chưa có Test Luyện đề nào — bấm "Tạo Test mới" để bắt đầu soạn passage/câu hỏi.</p>
       )}
     </div>
   );

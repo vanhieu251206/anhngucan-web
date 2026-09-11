@@ -118,3 +118,76 @@ export async function saveDictationTest(seriesId, level, testId, { title, order,
 export async function deleteDictationTest(seriesId, level, testId) {
   await deleteDoc(doc(db, "lessons", lessonId(seriesId, level), "dictationTests", testId));
 }
+
+// ĐỌC HIỂU (IELTS Reading) — cấu trúc riêng (chốt 2026-09-10, khác Reading & Writing YLE ở trên):
+// mỗi bài chia thành `sentences: [{ en, vi, vocab: [{ termDef, meaning }] }]` (câu + dịch + từ vựng/
+// đồng nghĩa xuất hiện trong câu đó, đúng bố cục file Word gốc — xem IeltsReadingPassage.jsx) thay vì
+// `parts`/`questions` — mục này KHÔNG chấm điểm, chỉ để đọc. Có thêm `audioUrl` (giọng đọc tự thu/
+// tạo qua Cloudinary, không phải audio gốc đề thi có bản quyền).
+export async function listComprehensionTests(seriesId, level) {
+  const snap = await getDocs(collection(db, "lessons", lessonId(seriesId, level), "comprehensionTests"));
+  return snap.docs
+    .map(d => ({ id: d.id, ...d.data() }))
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+}
+
+export async function getComprehensionTest(seriesId, level, testId) {
+  const snap = await getDoc(doc(db, "lessons", lessonId(seriesId, level), "comprehensionTests", testId));
+  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+}
+
+export async function saveComprehensionTest(
+  seriesId, level, testId, { titleEn, titleVi, order, audioUrl, sentences }, uid
+) {
+  await setDoc(doc(db, "lessons", lessonId(seriesId, level), "comprehensionTests", testId), {
+    testId,
+    titleEn,
+    titleVi: titleVi ?? "",
+    order,
+    audioUrl: audioUrl ?? "",
+    sentences,
+    updatedAt: serverTimestamp(),
+    updatedBy: uid,
+  });
+}
+
+export async function deleteComprehensionTest(seriesId, level, testId) {
+  await deleteDoc(doc(db, "lessons", lessonId(seriesId, level), "comprehensionTests", testId));
+}
+
+// LUYỆN ĐỀ (IELTS Reading full test) — cấu trúc riêng, có chấm điểm (chốt 2026-09-10). Mỗi Test
+// gồm nhiều `passages`, mỗi passage có `title`, `note` (dòng "You should spend about 20 minutes...")
+// `paragraphs: string[]`, và `groups` (nhóm câu hỏi theo đúng cách đề thi thật nhóm — mỗi nhóm có
+// `instruction` + `type` ("multiple-choice" | "tfng" | "short-answer") + `questions`). KHÔNG chứa
+// nội dung sách có bản quyền nhúng sẵn — giáo viên tự gõ toàn bộ nội dung Test qua CMS
+// (PracticeStudio.jsx), Claude không tự điền nội dung đề thi thật (xem CLAUDE.md mục 1, 7).
+export async function listPracticeTests(seriesId, level) {
+  const snap = await getDocs(collection(db, "lessons", lessonId(seriesId, level), "practiceTests"));
+  return snap.docs
+    .map(d => ({ id: d.id, ...d.data() }))
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+}
+
+export async function getPracticeTest(seriesId, level, testId) {
+  const snap = await getDoc(doc(db, "lessons", lessonId(seriesId, level), "practiceTests", testId));
+  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+}
+
+export async function savePracticeTest(
+  seriesId, level, testId, { title, order, timeLimitMinutes, passages, maxAttempts }, uid
+) {
+  await setDoc(doc(db, "lessons", lessonId(seriesId, level), "practiceTests", testId), {
+    testId,
+    title,
+    order,
+    timeLimitMinutes: timeLimitMinutes ?? null,
+    passages,
+    maxAttempts: maxAttempts ?? null,
+    updatedAt: serverTimestamp(),
+    updatedBy: uid,
+  });
+}
+
+export async function deletePracticeTest(seriesId, level, testId) {
+  await deleteDoc(doc(db, "lessons", lessonId(seriesId, level), "practiceTests", testId));
+}
