@@ -50,15 +50,18 @@ function buildSeries(id, title, color) {
   };
 }
 
-// IELTS KHÔNG chia cấp độ (Band) như YLE — chốt với người dùng 2026-09-09: chỉ 1 "cấp" ẩn
-// (level 1), rồi bên trong chia thẳng theo mục kỹ năng. Hiện chỉ có Reading, chia 2 mục
-// LUYỆN ĐỀ (full test) / ĐỌC HIỂU (bài tập kỹ năng rời) — xem LessonsPage.jsx `isIelts`.
+// IELTS KHÔNG chia cấp độ (Band) như YLE — chốt với người dùng 2026-09-11: bấm vào thẻ IELTS ở
+// trang chủ vào thẳng "IELTS 8" (level ẩn số 8, đúng tên bộ đề Cambridge IELTS 8 đang soạn — sau
+// này thêm bộ khác thì thêm entry vào mảng `levels`, tái dùng đúng cơ chế chọn cấp độ của YLE thay
+// vì làm cơ chế "chọn bộ sách" riêng). Bên trong chia theo kỹ năng: READING/LISTENING (Test 1-4,
+// mỗi Test có Passage/Section riêng — xem LessonsPage.jsx `isIelts`), WRITING/SPEAKING (chưa làm,
+// chỉ hiện placeholder), DICTATION (dùng chung DictationEditor/DictationRunner với YLE).
 function buildIeltsSeries() {
   return {
     id: "ielts",
     title: "IELTS",
     color: "#1F3A63",
-    levels: [{ id: "ielts-1", number: 1, listening: [], speaking: [] }],
+    levels: [{ id: "ielts-8", number: 8, listening: [], speaking: [] }],
   };
 }
 

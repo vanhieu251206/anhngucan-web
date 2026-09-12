@@ -191,3 +191,38 @@ export async function savePracticeTest(
 export async function deletePracticeTest(seriesId, level, testId) {
   await deleteDoc(doc(db, "lessons", lessonId(seriesId, level), "practiceTests", testId));
 }
+
+// LISTENING (IELTS full test) — cấu trúc riêng (chốt 2026-09-11), song song với `practiceTests`
+// (Reading): mỗi Test gồm `sections` (Section 1-4), mỗi section có `title`, `audioUrl` (Cloudinary,
+// KHÔNG phải audio gốc đề thi có bản quyền), `note` (hướng dẫn chung, vd "Complete the notes
+// below...") và `groups` (nhóm câu hỏi, TÁI DÙNG đúng schema group của practiceTests: instruction +
+// type "multiple-choice"|"tfng"|"short-answer" + questions).
+export async function listIeltsListeningTests(seriesId, level) {
+  const snap = await getDocs(collection(db, "lessons", lessonId(seriesId, level), "listeningTests"));
+  return snap.docs
+    .map(d => ({ id: d.id, ...d.data() }))
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+}
+
+export async function getIeltsListeningTest(seriesId, level, testId) {
+  const snap = await getDoc(doc(db, "lessons", lessonId(seriesId, level), "listeningTests", testId));
+  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+}
+
+export async function saveIeltsListeningTest(
+  seriesId, level, testId, { title, order, sections, maxAttempts }, uid
+) {
+  await setDoc(doc(db, "lessons", lessonId(seriesId, level), "listeningTests", testId), {
+    testId,
+    title,
+    order,
+    sections,
+    maxAttempts: maxAttempts ?? null,
+    updatedAt: serverTimestamp(),
+    updatedBy: uid,
+  });
+}
+
+export async function deleteIeltsListeningTest(seriesId, level, testId) {
+  await deleteDoc(doc(db, "lessons", lessonId(seriesId, level), "listeningTests", testId));
+}

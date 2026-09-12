@@ -458,10 +458,16 @@ button { font-family: inherit; }
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
+  align-items: flex-start;
   max-width: 960px;
   margin: 0 auto;
 }
 .content-grid-4 > * { width: 210px; flex: 0 0 auto; }
+.content-grid-4-nowrap { flex-wrap: nowrap; }
+@media (max-width: 720px) {
+  .content-grid-4-nowrap { flex-wrap: wrap; }
+  .content-grid-4-nowrap > * { width: calc(50% - 16px); }
+}
 /* Thẻ bài học (Listening/Speaking/Reading & Writing) rộng hơn thẻ Cấp độ vuông — mỗi mục
    thường chỉ có 1-3 thẻ, thẻ hẹp 210px để lại khoảng trống tối rất rỗng bên phải. Căn trái
    theo tiêu đề mục (Listening/Speaking...) thay vì canh giữa cả khối như thẻ Cấp độ. */
@@ -490,6 +496,13 @@ button { font-family: inherit; }
 .content-card-v2.is-disabled { cursor: default; }
 .content-card-v2.is-disabled:hover { transform: none; }
 .content-card-v2-center { text-align: center; }
+.ielts-skill-tile { padding: 30px 18px; border-width: 3px; transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease; }
+.ielts-skill-tile:hover { border-color: var(--color-primary); box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12); }
+.ielts-skill-tile:focus-visible { outline: 3px solid var(--color-secondary); outline-offset: 2px; }
+.ielts-skill-tile-label {
+  display: block; font-family: var(--font-display); font-weight: 800; font-size: 1.2rem;
+  color: var(--accent); text-transform: uppercase; letter-spacing: 0.03em;
+}
 .card-banner-play { width: 18px; height: 18px; margin-left: auto; opacity: 0.9; }
 .lesson-card-cta {
   display: inline-block;
@@ -500,6 +513,28 @@ button { font-family: inherit; }
 .lesson-card-disabled { cursor: default; opacity: 0.6; }
 .lesson-card-disabled:hover { transform: none; }
 .lesson-card-disabled .lesson-card-cta { background: #e7e0cf; color: var(--color-muted); }
+.ielts-testpicker-tabs {
+  display: flex; gap: 8px; flex-wrap: wrap; justify-content: center;
+  margin: 0 auto 28px; max-width: 960px;
+}
+.ielts-testpicker-tab {
+  border: none; background: rgba(255,255,255,0.12); color: #fff; font-weight: 700;
+  padding: 10px 22px; border-radius: var(--radius-pill); cursor: pointer; font-size: 0.95rem;
+}
+.ielts-testpicker-tab.is-active { background: var(--color-primary); color: #fff; }
+.ielts-testpicker-tab.is-empty { opacity: 0.55; }
+.admin-testpicker-tabs { justify-content: flex-start; margin: 0 0 20px; max-width: none; }
+.admin-test-delete-link { margin-top: 16px; }
+.admin-testpicker-tabs .ielts-testpicker-tab { background: #f0f0f4; color: var(--admin-ink, #1f2937); }
+.admin-testpicker-tabs .ielts-testpicker-tab.is-active { background: var(--color-primary); color: #fff; }
+.admin-practice-section-title.is-focused {
+  color: #fff; background: var(--color-primary); border-top-color: var(--color-primary);
+  padding: 8px 10px; border-radius: 8px; animation: admin-focus-pulse 1.6s ease 2;
+}
+@keyframes admin-focus-pulse { 0%, 100% { box-shadow: none; } 50% { box-shadow: 0 0 0 4px rgba(245, 113, 31, 0.25); } }
+.lesson-card-split { cursor: default; }
+.lesson-card-split-ctas { display: flex; gap: 8px; margin-top: 12px; }
+.lesson-card-split-ctas .btn { flex: 1; padding: 8px 10px; font-size: 0.82rem; }
 
 .lesson-section { margin: 0 0 14px; }
 .lesson-section:last-child { margin-bottom: 0; }
@@ -2634,6 +2669,7 @@ button { font-family: inherit; }
 /* Dòng tick chọn ảnh/card object — bấm tick MỚI hiện ô tải/dán link ảnh bên dưới, thay vì
    dropdown chọn kiểu ẩn (phải mở ra mới thấy có lựa chọn nào), tick thấy ngay cả 2 lựa chọn cùng
    lúc và trạng thái đang bật ở đâu. */
+.admin-tfng-scheme-toggle { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; padding: 10px 12px; background: #f6f7fa; border-radius: 8px; }
 .admin-checkbox-row {
   display: flex;
   align-items: center;
@@ -2791,6 +2827,15 @@ button { font-family: inherit; }
 
 /* DictationStudio.jsx — CMS soạn bài Dictation (Nghe & gõ lại). */
 .admin-dictation-head { display: flex; align-items: center; gap: 14px; margin-bottom: 6px; flex-wrap: wrap; }
+/* PageHead sticky (PracticeStudio.jsx LuyenDePage) — dính cố định trên đầu .admin-card khi cuộn
+   trang dài, để nút "👁 Preview" luôn bấm được mà không cần cuộn lên lại. */
+.admin-page-head-sticky {
+  position: sticky; top: -26px; z-index: 5; background: var(--admin-card-bg);
+  margin: -26px -26px 14px; padding: 20px 26px 14px; border-bottom: 1px solid var(--admin-border);
+}
+.admin-preview-trigger { margin-left: auto; }
+.admin-page-head-save { white-space: nowrap; }
+.admin-page-head-saved { white-space: nowrap; }
 .admin-dictation-title-input { flex: 1; min-width: 200px; font-weight: 700; font-size: 1.05rem; }
 .admin-dictation-bulk-bar {
   display: flex; flex-wrap: wrap; gap: 20px; padding: 14px 16px; margin-bottom: 14px;
@@ -3390,22 +3435,143 @@ button.wizard-step:focus-visible { outline: 3px solid var(--color-secondary); ou
   border: 1px solid var(--admin-border); border-radius: 14px; padding: 16px;
   margin: 16px 0; display: flex; flex-direction: column; gap: 10px; background: #fff;
 }
+.admin-practice-section-title {
+  margin: 8px 0 0; padding-top: 14px; border-top: 2px solid var(--admin-border);
+  font-size: 0.95rem; letter-spacing: 0.02em; color: var(--color-primary);
+}
+.admin-practice-bulk-paste {
+  border: 1px solid var(--admin-border); border-radius: 12px; padding: 18px 20px;
+  display: flex; flex-direction: column; gap: 12px; background: #fff; box-shadow: var(--admin-shadow-sm);
+}
 .admin-practice-paragraph-row { display: flex; gap: 8px; align-items: flex-start; }
 .admin-practice-paragraph-row .admin-textarea { flex: 1; }
 .admin-practice-groups-label { margin-top: 10px; }
+/* Thẻ 1 nhóm câu hỏi — bo tròn/viền/đổ bóng giống ngôn ngữ chung của .admin-card (chốt 2026-09-12,
+   thay dashed+xám cũ trông như bản nháp bằng viền liền + nền trắng, khớp phần còn lại của CMS). */
 .admin-practice-group {
-  border: 1px dashed var(--admin-border); border-radius: 12px; padding: 12px;
-  display: flex; flex-direction: column; gap: 8px; background: #f8f9fb;
+  border: 2px solid var(--accent, var(--admin-accent)); border-radius: 14px; padding: 0 20px 18px;
+  display: flex; flex-direction: column; gap: 12px; background: #fff;
+  box-shadow: var(--admin-shadow-sm); transition: box-shadow 0.15s ease;
 }
-.admin-practice-group-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
-.admin-practice-type-select { max-width: 260px; }
+.admin-practice-group:hover { box-shadow: var(--admin-shadow-md); }
+/* Header riêng cho từng thẻ nhóm câu hỏi — nền màu nhạt theo accent để phân biệt rõ với phần nội
+   dung bên dưới, giống cặp header "Phần bài đọc"/"Phần câu hỏi" (chốt 2026-09-12). */
+.admin-practice-group-head {
+  display: flex; justify-content: space-between; align-items: center; gap: 10px;
+  margin: 0 -20px; padding: 12px 20px;
+  background: color-mix(in srgb, var(--accent, var(--admin-accent)) 10%, white);
+  border-bottom: 2px solid var(--accent, var(--admin-accent));
+  border-radius: 12px 12px 0 0;
+}
+.admin-practice-type-select { max-width: 320px; }
 .admin-practice-question-row {
   display: flex; align-items: flex-start; gap: 10px;
-  border-top: 1px solid var(--admin-border); padding-top: 10px;
+  border-top: 1px solid var(--admin-border); padding-top: 12px;
 }
+.admin-practice-question-row:first-of-type { border-top: none; padding-top: 0; }
 .admin-practice-option-row { display: flex; align-items: center; gap: 8px; }
 .admin-practice-option-row .admin-input { flex: 1; }
-.admin-practice-timelimit { display: flex; flex-direction: column; gap: 6px; max-width: 320px; margin: 12px 0; font-weight: 600; font-size: 0.85rem; }
+.admin-practice-timelimit { display: flex; flex-direction: column; gap: 6px; font-weight: 600; font-size: 0.85rem; }
+.admin-practice-page-label { font-weight: 700; font-size: 1.05rem; color: var(--accent, inherit); }
+/* Card chữ nhật to màu thương hiệu chia "Phần bài đọc"/"Phần câu hỏi" trong LuyenDePage (chốt
+   2026-09-12) — dùng --accent (series.color, xem PracticeStudio.jsx LuyenDePage style prop). */
+.admin-section-banner {
+  display: flex; align-items: center; gap: 10px; margin: 28px 0 16px;
+  padding: 14px 20px; border-radius: 12px; background: var(--accent, var(--admin-accent));
+  color: #fff; font-weight: 800; font-size: 1.05rem; letter-spacing: 0.01em;
+  box-shadow: var(--admin-shadow-sm);
+}
+.admin-section-banner:first-of-type { margin-top: 4px; }
+.admin-section-banner-icon { font-size: 1.2rem; }
+/* Hàng gom các field nhỏ (tên Test/thời gian/số lượt, tiêu đề EN/VI...) cùng 1 dòng thay vì xếp
+   dọc kéo dài trang — mỗi field co giãn theo min-width, tự xuống dòng khi màn hẹp. */
+.admin-practice-meta-row { display: flex; flex-wrap: wrap; gap: 16px 20px; align-items: flex-start; margin: 16px 0; }
+.admin-practice-meta-row > label,
+.admin-practice-meta-row > .admin-dictation-title-input { flex: 1 1 220px; min-width: 180px; margin: 0; }
+.admin-practice-meta-row .admin-practice-timelimit,
+.admin-practice-meta-row .admin-dictation-maxattempts { max-width: none; margin: 0; }
+.admin-practice-bulk-paste { margin: 4px 0 20px; }
+.admin-practice-groups-label { display: block; margin: 20px 0 10px; }
+/* TableDiagramEditor / MatchingEditor (PracticeStudio.jsx) — mỗi khối con (bảng/sơ đồ/đoạn văn/word
+   bank/danh sách ghép nối) dùng chung 1 "sub-panel" nhất quán: viền liền + nền trắng + bóng nhẹ,
+   khớp ngôn ngữ chung của CMS (chốt 2026-09-12, thay dashed+xám cũ trông thiếu hoàn thiện). */
+.admin-table-diagram-editor { display: flex; flex-direction: column; gap: 18px; margin: 10px 0; }
+.admin-table-editor, .admin-diagram-editor,
+.admin-paragraphs-editor, .admin-wordbank-editor, .admin-matching-items {
+  padding: 18px 20px; border: 1px solid var(--admin-border); border-radius: 12px; background: #fff;
+  box-shadow: var(--admin-shadow-sm); display: flex; flex-direction: column; gap: 12px;
+}
+.admin-matching-editor { display: flex; flex-direction: column; gap: 18px; margin: 10px 0; }
+.admin-table-colcount { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 0.85rem; max-width: 160px; }
+.admin-table-colcount .admin-input { width: 70px; }
+/* Bảng soạn thật (giống gõ trong Word) — <table> có viền thật thay vì các ô rời rạc kiểu form
+   (chốt 2026-09-12 theo yêu cầu người dùng: nhìn trực quan như 1 bảng, không phải 1 form nhiều ô). */
+.admin-editable-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.admin-editable-table th, .admin-editable-table td {
+  border: 1.5px solid var(--admin-border); padding: 0; vertical-align: top;
+}
+.admin-editable-table th { background: #f6f7fa; }
+.admin-editable-table-action-col { width: 48px; border: none !important; background: none !important; padding: 4px !important; text-align: center; }
+.admin-editable-table-input {
+  width: 100%; border: none; background: transparent; padding: 10px 12px; font-weight: 700;
+  font-family: inherit; font-size: 0.95rem; border-radius: 0;
+}
+.admin-editable-table-input:focus { outline: none; background: color-mix(in srgb, var(--admin-accent) 6%, white); }
+.admin-editable-table-header-input::placeholder { font-weight: 600; }
+.admin-editable-table .admin-blank-holder { gap: 0; }
+.admin-editable-table .admin-blank-holder textarea {
+  width: 100%; border: none; background: transparent; padding: 10px 12px; resize: vertical;
+  font-family: inherit; font-size: 0.95rem; border-radius: 0; min-height: 60px;
+}
+.admin-editable-table .admin-blank-holder textarea:focus { outline: none; background: color-mix(in srgb, var(--admin-accent) 6%, white); box-shadow: none; }
+.admin-editable-table .admin-blank-holder-answers { padding: 0 12px 10px; gap: 6px; }
+/* Nút xoá hàng/đoạn — hình vuông bo góc có icon, canh giữa theo chiều dọc của hàng thay vì link
+   chữ trôi nổi phía trên như cũ (chốt 2026-09-12). */
+.admin-row-delete-btn {
+  flex-shrink: 0; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;
+  border: 1px solid #fecaca; background: #fef2f2; color: #dc2626; border-radius: 10px;
+  font-size: 1rem; cursor: pointer; transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+.admin-row-delete-btn:hover { background: #fee2e2; border-color: #fca5a5; transform: translateY(-1px); }
+.admin-row-delete-btn:active { transform: translateY(0); }
+.admin-diagram-preview { position: relative; display: inline-block; max-width: 100%; margin: 8px 0; border-radius: 8px; overflow: hidden; box-shadow: var(--admin-shadow-sm); }
+.admin-diagram-preview img { display: block; max-width: 100%; max-height: 320px; border-radius: 8px; }
+.admin-diagram-point-marker {
+  position: absolute; transform: translate(-50%, -50%);
+  width: 22px; height: 22px; border-radius: 50%; background: var(--admin-accent); color: #fff;
+  font-weight: 700; font-size: 0.75rem; display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 0 0 2px #fff;
+}
+.admin-diagram-point-row {
+  display: flex; flex-wrap: wrap; gap: 14px; align-items: center;
+  padding: 10px 0; border-top: 1px solid var(--admin-border);
+}
+.admin-diagram-point-row:first-of-type { border-top: none; padding-top: 0; }
+.admin-diagram-point-row label { display: flex; flex-direction: column; gap: 3px; font-size: 0.8rem; font-weight: 600; }
+.admin-diagram-point-row .admin-input { width: 90px; }
+.admin-paragraph-row { display: flex; gap: 10px; align-items: flex-start; }
+.admin-paragraph-row > .admin-blank-holder { flex: 1; }
+/* BlankHolderEditor (PracticeStudio.jsx) — 1 ô/đoạn văn có thể chứa "___", đáp án nhập ngay dưới. */
+.admin-blank-holder { display: flex; flex-direction: column; gap: 8px; }
+.admin-blank-holder-answers { display: flex; flex-direction: column; gap: 6px; }
+.admin-blank-answer-input { border-color: var(--admin-accent) !important; background: color-mix(in srgb, var(--admin-accent) 6%, white); }
+/* Gọn 1 dòng: số câu + ô đáp án cùng hàng thay vì xếp chồng label/input (chốt 2026-09-12, đỡ chiếm
+   chiều cao ô bảng khi có nhiều chỗ trống). */
+.admin-blank-answer-row { display: flex; align-items: center; gap: 6px; }
+.admin-blank-answer-qnum {
+  flex-shrink: 0; font-size: 0.72rem; font-weight: 700; color: #fff; background: var(--admin-accent);
+  border-radius: 999px; padding: 1px 7px; white-space: nowrap;
+}
+.admin-blank-answer-row .admin-blank-answer-input { flex: 1; min-width: 0; }
+.admin-diagram-point-row .admin-blank-answer-qnum { align-self: center; }
+.admin-options-list { display: flex; flex-direction: column; gap: 10px; }
+.admin-options-list-row { display: flex; gap: 10px; align-items: center; }
+.admin-options-key { max-width: 90px; flex: none; text-align: center; font-weight: 700; }
+.admin-table-preview {
+  margin-top: 4px; padding: 16px 18px; border: 1px solid var(--admin-border); border-radius: 12px;
+  background: #fbfbfd; display: flex; flex-direction: column; gap: 10px; box-shadow: var(--admin-shadow-sm);
+}
+.admin-table-preview .ielts-practice-table { margin: 0; font-size: 0.9rem; }
 .admin-practice-add-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 
 /* OcrImportPanel.jsx — nút nhận diện chữ từ ảnh (tesseract.js), dùng chung nhiều nơi trong CMS. */
@@ -3425,7 +3591,17 @@ button.wizard-step:focus-visible { outline: 3px solid var(--color-secondary); ou
 }
 .ielts-practice-title { font-family: var(--font-display); font-size: 1.1rem; margin: 0; flex: 1; text-align: center; }
 .ielts-practice-highlight-toggle { display: flex; align-items: center; gap: 6px; font-size: 0.85rem; font-weight: 600; white-space: nowrap; }
+.ielts-practice-readmode-toggle { display: flex; gap: 4px; background: #f6f2e6; border-radius: var(--radius-pill); padding: 3px; }
+.ielts-practice-readmode-btn {
+  border: none; background: none; color: var(--color-muted); font-weight: 700; font-size: 0.82rem;
+  padding: 6px 12px; border-radius: var(--radius-pill); cursor: pointer; white-space: nowrap;
+}
+.ielts-practice-readmode-btn.is-active { background: #fff; color: var(--color-ink); box-shadow: var(--shadow-soft); }
+.ielts-practice-title-vi { color: var(--color-muted); font-weight: 700; margin: -6px 0 10px; }
 .ielts-practice-body { flex: 1; display: flex; flex-direction: column; min-height: 0; padding-right: 260px; }
+.ielts-practice-body.ielts-practice-body-solo { padding-right: 0; }
+.ielts-practice-columns.ielts-practice-columns-solo { grid-template-columns: 1fr; max-width: 860px; margin: 0 auto; width: 100%; }
+.ielts-practice-columns-solo .ielts-practice-passage-col { border-right: none; }
 .ielts-practice-passage-tabs { flex-shrink: 0; display: flex; gap: 8px; padding: 10px 20px; border-bottom: 1px solid #f1ebdd; background: #fbf8f1; }
 .ielts-practice-tab {
   border: none; background: #ece6da; color: var(--color-ink); font-weight: 700;
@@ -3434,14 +3610,17 @@ button.wizard-step:focus-visible { outline: 3px solid var(--color-secondary); ou
 .ielts-practice-tab.is-active { background: var(--color-primary); color: #fff; }
 .ielts-practice-columns { flex: 1; display: grid; grid-template-columns: 1fr 1fr; min-height: 0; }
 .ielts-practice-passage-col, .ielts-practice-questions-col {
-  overflow-y: auto; padding: 20px 24px; line-height: 1.7;
+  overflow-y: auto; padding: 24px 28px; line-height: 1.85; font-size: 1.05rem;
 }
 .ielts-practice-passage-col { border-right: 1px solid #f1ebdd; background: #fdfcf9; }
-.ielts-practice-passage-col h2 { font-family: var(--font-display); margin-top: 0; }
+.ielts-practice-passage-col h2 { font-family: var(--font-display); margin-top: 0; font-size: 1.75rem; line-height: 1.3; }
+.ielts-practice-passage-col p { margin: 0 0 16px; }
+.ielts-practice-passage-label { font-family: var(--font-display); font-weight: 800; letter-spacing: 0.02em; margin: 0 0 10px; font-size: 1.3rem; }
+.ielts-practice-passage-instruction { font-style: italic; margin: 0 0 18px; }
 .ielts-practice-note { font-style: italic; color: var(--color-muted); }
 .ielts-practice-highlight { background: #ffe58a; }
 .ielts-practice-group { margin-bottom: 24px; }
-.ielts-practice-instruction { font-weight: 700; margin-bottom: 12px; }
+.ielts-practice-instruction { font-weight: 700; margin-bottom: 12px; white-space: pre-line; }
 .ielts-practice-question {
   display: flex; gap: 12px; padding: 12px 0; border-top: 1px solid #f1ebdd;
 }
@@ -3456,6 +3635,51 @@ button.wizard-step:focus-visible { outline: 3px solid var(--color-secondary); ou
 .ielts-practice-question.is-correct { background: #e5f5ec; border-radius: 10px; padding-left: 8px; }
 .ielts-practice-question.is-wrong { background: #fdeaea; border-radius: 10px; padding-left: 8px; }
 .ielts-practice-correct-answer { color: var(--color-green); font-weight: 700; font-size: 0.85rem; margin: 0; }
+/* Dạng "Bảng / sơ đồ điền từ" (table-diagram) — dựng lại bảng thật + sơ đồ có input đè lên đúng
+   vị trí, thay cho danh sách câu hỏi phẳng, xem IeltsPracticeRunner.jsx `TableDiagramGroup`. */
+.ielts-practice-table-title { font-weight: 700; text-align: center; margin: 14px 0 8px; }
+.ielts-practice-table { width: 100%; border-collapse: collapse; margin: 4px 0 18px; font-size: 0.92rem; }
+.ielts-practice-table th, .ielts-practice-table td { border: 1.5px solid #d8d2c2; padding: 8px 10px; text-align: left; vertical-align: top; }
+.ielts-practice-table th { background: #f1ebdd; font-weight: 700; text-align: center; }
+.ielts-practice-inline-blank { display: inline-flex; align-items: center; gap: 4px; margin: 0 2px; }
+.ielts-practice-qnum-inline {
+  flex-shrink: 0; width: 20px; height: 20px; border-radius: 50%; background: #ece6da;
+  color: var(--color-ink); font-weight: 700; display: flex; align-items: center; justify-content: center;
+  font-size: 0.72rem;
+}
+/* Ô điền trực tiếp trong bảng/đoạn văn — hiện dạng đường gạch chân trống "________" để viết lên,
+   KHÔNG phải ô nhập có khung/viền như form (chốt 2026-09-12, theo yêu cầu người dùng: đúng cảm giác
+   điền vào chỗ trống trên giấy hơn là 1 ô input). */
+.ielts-practice-inline-input {
+  width: 120px; padding: 2px 2px 3px; font-size: 0.92rem; text-align: left;
+  border: none; border-bottom: 1.5px solid var(--color-ink); border-radius: 0;
+  background: transparent; box-shadow: none;
+}
+.ielts-practice-inline-input:focus { border-bottom-color: var(--color-primary); box-shadow: none; outline: none; }
+.ielts-practice-inline-input.is-correct { border-bottom-color: var(--color-green); color: var(--color-green); }
+.ielts-practice-inline-input.is-wrong { border-bottom-color: #d1435b; color: #d1435b; }
+/* Placeholder tĩnh "(36)___" trong bảng/đoạn văn — KHÔNG tương tác, ô nhập thật nằm riêng ở
+   .ielts-practice-answer-list bên dưới (chốt 2026-09-12, khớp UI tham khảo study4.vn). */
+.ielts-practice-blank-placeholder { white-space: nowrap; }
+.ielts-practice-blank-line { display: inline-block; width: 46px; border-bottom: 1.5px solid var(--color-ink); margin-left: 2px; vertical-align: middle; }
+.ielts-practice-answer-list { display: flex; flex-wrap: wrap; gap: 10px 18px; margin: 14px 0 18px; padding: 12px 14px; background: #f6f7fa; border-radius: 10px; }
+.ielts-practice-diagram { position: relative; display: block; width: 100%; margin: 10px 0; }
+.ielts-practice-diagram img { display: block; width: 100%; border-radius: 8px; }
+/* Neo số + đường điền BẮT ĐẦU tại đúng điểm giáo viên đặt (mũi tên chỉ vào), kéo dài sang PHẢI —
+   không căn giữa quanh điểm (trước đó tràn cả 2 bên, gần mép ảnh bị lệch/che mất, chốt 2026-09-12). */
+.ielts-practice-diagram-point { position: absolute; transform: translate(0, -50%); }
+.ielts-practice-table-answers { margin-top: 10px; display: flex; flex-direction: column; gap: 4px; }
+.ielts-practice-summary-paragraph { line-height: 1.9; }
+/* Dạng "matching" (Matching Headings / Classify) — xem IeltsPracticeRunner.jsx `MatchingGroup`. */
+.ielts-options-box { margin: 4px 0 16px; }
+.ielts-options-box.is-boxed { border: 1.5px solid var(--color-ink); padding: 14px 18px; border-radius: 4px; }
+.ielts-options-box-title { font-weight: 700; text-align: center; margin: 0 0 8px; }
+.ielts-options-box-grid { display: grid; grid-template-columns: 1fr; column-gap: 20px; }
+.ielts-options-box-row { margin: 0 0 4px; }
+@media (max-width: 520px) {
+  .ielts-options-box-grid { grid-template-columns: 1fr !important; }
+}
+.ielts-matching-example { font-style: italic; color: var(--color-muted); margin: 0 0 8px; }
 .ielts-practice-sidebar {
   position: fixed; top: 66px; right: 0; bottom: 0; width: 260px;
   border-left: 1px solid #f1ebdd; background: #fff; padding: 20px; overflow-y: auto;

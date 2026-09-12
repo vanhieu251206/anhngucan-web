@@ -28,6 +28,10 @@ export default function App() {
   }
 
   function goToLessons(seriesId = null) {
+    // Xoá sạch level/test còn sót trên URL từ lần vào Lessons trước — nếu không, bấm thẻ bộ đề ở
+    // Trang chủ sẽ nhảy thẳng vào đúng cấp độ/bài cũ thay vì hiện lại bước "Chọn cấp độ" (bug phát
+    // hiện 2026-09-11: bấm thẻ IELTS ở Trang chủ vào thẳng IELTS 8 vì URL còn ?level=8 cũ).
+    setParams({ level: null, test: null });
     setNav({ page: "lessons", lessonSeriesId: seriesId });
   }
 

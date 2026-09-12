@@ -6,8 +6,8 @@ import { loadLevelContent } from "../lib/lessons.js";
 import ListeningMode from "../components/ListeningMode.jsx";
 import SceneRunner from "../components/SceneRunner.jsx";
 import ReadingRunner from "../components/ReadingRunner.jsx";
-import IeltsReadingPassage from "../components/IeltsReadingPassage.jsx";
 import IeltsPracticeRunner from "../components/IeltsPracticeRunner.jsx";
+import IeltsListeningRunner from "../components/IeltsListeningRunner.jsx";
 import DictationRunner from "../components/DictationRunner.jsx";
 import { useAuth } from "../lib/authContext.jsx";
 import { getAttemptCount } from "../lib/attempts.js";
@@ -161,10 +161,12 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
   // Đọc cấp độ ban đầu từ URL (?level=..) — để F5 giữa lúc đang chọn bài không
   // bị bật về bước đầu (xem App.jsx cho phần trang tổng, src/lib/urlState.js cho cơ chế chung).
   const initialUrlRef = useRef(readParams());
+  const isIelts = series.id === "ielts";
   const [level, setLevel] = useState(() => {
     const n = Number(initialUrlRef.current.get("level"));
-    // Series chỉ có 1 cấp (hiện tại: IELTS) → tự chọn luôn, không hiện bước "Chọn cấp độ".
-    if (series.levels.length === 1) return series.levels[0];
+    // Series chỉ có 1 cấp → tự chọn luôn, không hiện bước "Chọn cấp độ" — TRỪ IELTS: dù hiện chỉ
+    // có 1 bộ (IELTS 8), vẫn hiện thẻ để bấm vào (sau này thêm IELTS 9, 10... — chốt 2026-09-11).
+    if (series.levels.length === 1 && !isIelts) return series.levels[0];
     return series.levels.find(l => l.number === n) ?? null;
   });
   const [content, setContent] = useState(null); // { listening, tests, readingTests } — đọc qua lib/lessons.js
@@ -180,12 +182,25 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
   const [dictationActive, setDictationActive] = useState(false);
   // true khi đang xem chi tiết Listening (bấm vào thẻ Listening trên màn "Bài học").
   const [listeningActive, setListeningActive] = useState(false);
-  // Bài "ĐỌC HIỂU" IELTS đang mở (xem lib/ieltsReadingData.js) — màn tĩnh riêng, không qua
-  // requestStart()/attempts vì không chấm điểm, không phải "nộp bài".
-  const [activeIeltsPassage, setActiveIeltsPassage] = useState(null);
-  // Test "LUYỆN ĐỀ" IELTS đang làm (xem lib/adminLessons.js `practiceTests`) — CÓ chấm điểm nhưng
-  // không qua attempts.js, cho làm lại thoải mái để luyện tập (chốt 2026-09-10).
+  // Test IELTS Reading đang XEM DANH SÁCH PASSAGE (đã bấm vào thẻ Test, chưa chọn Passage cụ thể)
+  // — đúng cây điều hướng Test → Passage giáo viên yêu cầu (chốt 2026-09-11), KHÁC với mở thẳng
+  // cả Test nhiều passage cùng lúc như trước.
+  // Test Reading đang chọn trong màn gộp Test+Passage (tab, không chuyển trang — chốt 2026-09-11
+  // rút gọn luồng chọn bài, trước đó tách 2 màn "Chọn Test" rồi "Chọn Passage" riêng).
+  const [selectedReadingTestN, setSelectedReadingTestN] = useState(1);
+  // Passage IELTS Reading đang làm (1 test "giả" chỉ chứa đúng 1 passage — xem
+  // lib/adminLessons.js `practiceTests`, mỗi passage gộp cả bài đọc+dịch+từ vựng lẫn câu hỏi chấm
+  // điểm) — không qua attempts.js, cho làm lại thoải mái để luyện tập (chốt 2026-09-10).
   const [activeIeltsPracticeTest, setActiveIeltsPracticeTest] = useState(null);
+  // "practice" (card LUYỆN ĐỀ, có giờ + câu hỏi chấm điểm) hoặc "comprehension" (card ĐỌC HIỂU,
+  // chỉ đọc từng câu + dịch + từ vựng) — mỗi Passage tách thành 2 card riêng (chốt 2026-09-11).
+  const [activeIeltsPracticeMode, setActiveIeltsPracticeMode] = useState("practice");
+  // Cùng cơ chế trên nhưng cho Listening: Test → Section.
+  const [pickingListeningTest, setPickingListeningTest] = useState(null);
+  const [activeIeltsListeningTest, setActiveIeltsListeningTest] = useState(null);
+  // Kỹ năng IELTS đang chọn (reading/listening/writing/speaking/dictation) — null = đang ở màn
+  // chọn kỹ năng (các thẻ Reading/Listening/.../ hiện ngay khi vào 1 bộ đề, chốt 2026-09-11).
+  const [selectedIeltsSkill, setSelectedIeltsSkill] = useState(null);
   // Đang xem trang "Xem tất cả Test" của Speaking (khi 1 cấp độ có nhiều Test) — false = màn
   // "Bài học" gọn mặc định, chỉ hiện 2 Test đầu.
   const [viewAllTests, setViewAllTests] = useState(false);
@@ -246,8 +261,13 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
     setDictationActive(false);
     setListeningActive(false);
     setViewAllTests(false);
-    // Series chỉ có 1 cấp (IELTS) không có màn "Chọn cấp độ" để quay lại → về thẳng trang chủ.
-    if (series.levels.length === 1) onNavigate("home");
+    setActiveIeltsPracticeTest(null);
+    setPickingListeningTest(null);
+    setActiveIeltsListeningTest(null);
+    setSelectedIeltsSkill(null);
+    // Series chỉ có 1 cấp và không phải IELTS → không có màn "Chọn cấp độ" để quay lại, về thẳng
+    // trang chủ. IELTS luôn có màn "Chọn cấp độ" (xem khởi tạo `level` ở trên).
+    if (series.levels.length === 1 && !isIelts) onNavigate("home");
     else setLevel(null);
   }
 
@@ -299,8 +319,8 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
   const autoReadingTest = readingTests.length === 1 ? readingTests[0] : null;
   const activeReadingTest = selectedReadingTest ?? autoReadingTest;
 
-  const comprehensionTests = content?.comprehensionTests ?? [];
   const practiceTests = content?.practiceTests ?? [];
+  const ieltsListeningTests = content?.ieltsListeningTests ?? [];
 
   const dictationTests = content?.dictationTests ?? [];
   const autoDictationTest = dictationTests.length === 1 ? dictationTests[0] : null;
@@ -312,7 +332,7 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
       <LessonShell
         step={1}
         title={series.title}
-        subtitle="Chọn cấp độ muốn luyện"
+        subtitle={isIelts ? "Chọn bộ đề muốn luyện" : "Chọn cấp độ muốn luyện"}
         backLabel="Bộ đề khác"
         onBack={() => onNavigate("home")}
         onNavigate={onNavigate}
@@ -332,7 +352,9 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
               <div className="content-card-v2-body">
                 <span className="level-card-badge">{l.number}</span>
                 <h3>{series.title} {l.number}</h3>
-                <p className="series-levels">Listening · Speaking · Dictation</p>
+                <p className="series-levels">
+                  {isIelts ? "Reading · Listening · Writing · Speaking · Dictation" : "Listening · Speaking · Dictation"}
+                </p>
               </div>
             </button>
           ))}
@@ -346,14 +368,56 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
     return <BlockedScreen title={blocked.title} message={blocked.message} onBack={() => setBlocked(null)} />;
   }
 
-  // ---------- Bài "ĐỌC HIỂU" IELTS đang mở ----------
-  if (activeIeltsPassage) {
-    return <IeltsReadingPassage passage={activeIeltsPassage} onBack={() => setActiveIeltsPassage(null)} />;
+  // ---------- Test IELTS Reading đang làm ----------
+  if (activeIeltsPracticeTest) {
+    return (
+      <IeltsPracticeRunner
+        test={activeIeltsPracticeTest}
+        mode={activeIeltsPracticeMode}
+        onBack={() => setActiveIeltsPracticeTest(null)}
+      />
+    );
   }
 
-  // ---------- Test "LUYỆN ĐỀ" IELTS đang làm ----------
-  if (activeIeltsPracticeTest) {
-    return <IeltsPracticeRunner test={activeIeltsPracticeTest} onBack={() => setActiveIeltsPracticeTest(null)} />;
+  // ---------- Test IELTS Listening đang làm ----------
+  if (activeIeltsListeningTest) {
+    return <IeltsListeningRunner test={activeIeltsListeningTest} onBack={() => setActiveIeltsListeningTest(null)} />;
+  }
+
+  // ---------- Chọn Section (đã bấm vào 1 Test Listening) ----------
+  if (pickingListeningTest) {
+    return (
+      <LessonShell
+        step={2}
+        title={`${series.title} ${level.number} · ${pickingListeningTest.title}`}
+        subtitle="Chọn Section muốn làm"
+        backLabel="Quay lại"
+        onBack={() => setPickingListeningTest(null)}
+        onNavigate={onNavigate}
+        onStepClick={goToWizardStep}
+        dark
+      >
+        <div className="content-grid content-grid-4">
+          {Array.from({ length: 4 }, (_, i) => i + 1).map(n => {
+            const s = pickingListeningTest.sections?.[n - 1];
+            return lessonCard({
+              key: `section${n}`,
+              banner: `Section ${n}`,
+              title: s?.title || `Section ${n}`,
+              desc: "Nghe + câu hỏi chấm điểm",
+              cta: s ? "Bắt đầu làm bài" : "Chưa có nội dung",
+              disabled: !s,
+              onClick: () =>
+                setActiveIeltsListeningTest({
+                  ...pickingListeningTest,
+                  title: `${pickingListeningTest.title} · Section ${n}`,
+                  sections: [s],
+                }),
+            });
+          })}
+        </div>
+      </LessonShell>
+    );
   }
 
   // ---------- Bước 2: toàn bộ bài học của cấp độ (Listening + Speaking cùng lúc) ----------
@@ -601,8 +665,6 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
     );
   }
 
-  const isIelts = series.id === "ielts";
-
   const listeningCard = lessonCard({
     key: "listening",
     banner: "Listening",
@@ -613,12 +675,187 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
     onClick: () => requestStart("listening"),
   });
 
+  // ---------- IELTS: màn chọn kỹ năng (Reading/Listening/Writing/Speaking/Dictation) ----------
+  // Chỉ hiện tên kỹ năng, không cần mô tả/CTA rườm rà (phản hồi người dùng 2026-09-11) — dùng
+  // đúng kiểu thẻ đơn giản như màn chọn cấp độ (content-card-v2-center).
+  const IELTS_SKILLS = [
+    { key: "reading", label: "Reading" },
+    { key: "listening", label: "Listening" },
+    { key: "writing", label: "Writing" },
+    { key: "speaking", label: "Speaking" },
+    { key: "dictation", label: "Dictation" },
+  ];
+  if (isIelts && !selectedIeltsSkill) {
+    return (
+      <LessonShell
+        step={2}
+        title={`${series.title} ${level.number}`}
+        subtitle="Chọn mục muốn luyện"
+        backLabel="Bộ đề khác"
+        onBack={backToLevelList}
+        onNavigate={onNavigate}
+        onStepClick={goToWizardStep}
+        dark
+      >
+        {/* Nhãn kỹ năng (Reading/Listening/...) cố định, không phụ thuộc `content` Firestore — hiện
+            ngay lập tức thay vì chờ tải xong mới hiện (bug phát hiện 2026-09-11: màn này bị đứng
+            khựng vài trăm ms sau khi bấm vào 1 cấp độ, dữ liệu thật chỉ cần có SAU khi bấm tiếp
+            vào 1 kỹ năng, ví dụ Reading). */}
+          <div className="content-grid content-grid-4">
+            {IELTS_SKILLS.map(s => (
+              <button
+                key={s.key}
+                className="content-card-v2 content-card-v2-center ielts-skill-tile"
+                onClick={() => setSelectedIeltsSkill(s.key)}
+                style={{ "--accent": series.color }}
+              >
+                <span className="ielts-skill-tile-label">{s.label}</span>
+              </button>
+            ))}
+          </div>
+      </LessonShell>
+    );
+  }
+
+  // ---------- IELTS Reading: màn chọn Test 1-4 ----------
+  if (isIelts && selectedIeltsSkill === "reading") {
+    return (
+      <LessonShell
+        step={2}
+        title={`${series.title} ${level.number} · Reading`}
+        subtitle="Chọn Test & Passage"
+        backLabel="Quay lại"
+        onBack={() => setSelectedIeltsSkill(null)}
+        onNavigate={onNavigate}
+        onStepClick={goToWizardStep}
+        dark
+      >
+        <div className="ielts-testpicker-tabs">
+          {Array.from({ length: 4 }, (_, i) => i + 1).map(n => {
+            const t = practiceTests.find(pt => pt.id === `test${n}`);
+            return (
+              <button
+                key={`reading-test-tab${n}`}
+                type="button"
+                className={`ielts-testpicker-tab${selectedReadingTestN === n ? " is-active" : ""}${!t ? " is-empty" : ""}`}
+                onClick={() => setSelectedReadingTestN(n)}
+              >
+                Test {n}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="content-grid content-grid-4">
+          {Array.from({ length: 3 }, (_, i) => i + 1).map(n => {
+            const test = practiceTests.find(pt => pt.id === `test${selectedReadingTestN}`);
+            const p = test?.passages?.[n - 1];
+            function openPassage(mode) {
+              setActiveIeltsPracticeMode(mode);
+              setActiveIeltsPracticeTest({
+                ...test,
+                title: `${test.title} · Passage ${n}`,
+                passages: [p],
+              });
+            }
+            return (
+              <div className="content-card-v2 lesson-card-split" key={`passage${n}`} style={{ "--accent": series.color }}>
+                <div className="card-banner-strip">
+                  <span>Passage {n}</span>
+                </div>
+                <div className="content-card-v2-body">
+                  {p ? (
+                    <div className="lesson-card-split-ctas">
+                      <button type="button" className="btn btn-secondary" onClick={() => openPassage("comprehension")}>Đọc hiểu</button>
+                      <button type="button" className="btn btn-primary" onClick={() => openPassage("practice")}>Luyện đề</button>
+                    </div>
+                  ) : (
+                    <span className="btn btn-primary lesson-card-cta" style={{ opacity: 0.6, cursor: "default" }}>Chưa có nội dung</span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </LessonShell>
+    );
+  }
+
+  // ---------- IELTS Listening: màn chọn Test 1-4 ----------
+  if (isIelts && selectedIeltsSkill === "listening") {
+    return (
+      <LessonShell
+        step={2}
+        title={`${series.title} ${level.number} · Listening`}
+        subtitle="Chọn Test muốn làm"
+        backLabel="Quay lại"
+        onBack={() => setSelectedIeltsSkill(null)}
+        onNavigate={onNavigate}
+        onStepClick={goToWizardStep}
+        dark
+      >
+        <div className="content-grid content-grid-4">
+          {Array.from({ length: 4 }, (_, i) => i + 1).map(n => {
+            const t = ieltsListeningTests.find(lt => lt.id === `test${n}`);
+            return lessonCard({
+              key: `listening-test${n}`,
+              banner: `Test ${n}`,
+              title: t?.title ?? `Listening Test ${n}`,
+              desc: "Nghe + câu hỏi chấm điểm, đủ dạng như đề thi thật",
+              cta: t ? "Bắt đầu làm bài" : "Chưa có nội dung",
+              disabled: !t,
+              onClick: () => setPickingListeningTest(t),
+            });
+          })}
+        </div>
+      </LessonShell>
+    );
+  }
+
+  // ---------- IELTS Writing/Speaking: chưa triển khai ----------
+  if (isIelts && (selectedIeltsSkill === "writing" || selectedIeltsSkill === "speaking")) {
+    return (
+      <LessonShell
+        step={2}
+        title={`${series.title} ${level.number} · ${selectedIeltsSkill === "writing" ? "Writing" : "Speaking"}`}
+        backLabel="Quay lại"
+        onBack={() => setSelectedIeltsSkill(null)}
+        onNavigate={onNavigate}
+        onStepClick={goToWizardStep}
+        dark
+      >
+        <InfoCard text="Sắp ra mắt — đang phát triển." />
+      </LessonShell>
+    );
+  }
+
+  // ---------- IELTS Dictation: dùng chung cơ chế với YLE ----------
+  if (isIelts && selectedIeltsSkill === "dictation") {
+    return (
+      <LessonShell
+        step={2}
+        title={`${series.title} ${level.number} · Dictation`}
+        backLabel="Quay lại"
+        onBack={() => setSelectedIeltsSkill(null)}
+        onNavigate={onNavigate}
+        onStepClick={goToWizardStep}
+        dark
+      >
+        {dictationTests.length === 0 ? (
+          <InfoCard text="Chưa có bài Dictation nào — vào Quản trị để soạn bài." />
+        ) : (
+          <div className="content-grid content-grid-4">{dictationTests.slice(0, 4).map(dictationTestCard)}</div>
+        )}
+      </LessonShell>
+    );
+  }
+
   return (
     <LessonShell
       step={2}
-      title={isIelts ? series.title : `${series.title} · Cấp ${level.number}`}
-      subtitle={isIelts ? "Chọn mục muốn luyện" : "Toàn bộ bài học đã có của cấp độ này"}
-      backLabel={isIelts ? "Bộ đề khác" : "Cấp khác"}
+      title={`${series.title} · Cấp ${level.number}`}
+      subtitle="Toàn bộ bài học đã có của cấp độ này"
+      backLabel="Cấp khác"
       onBack={backToLevelList}
       onNavigate={onNavigate}
       onStepClick={goToWizardStep}
@@ -626,36 +863,6 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
     >
       {!content ? (
         <ContentSkeleton />
-      ) : isIelts ? (
-        <LessonSection title="Reading">
-          <div className="content-grid content-grid-4">
-            {comprehensionTests.slice(0, 3).map(t =>
-              lessonCard({
-                key: t.id,
-                banner: "ĐỌC HIỂU",
-                title: t.titleEn,
-                desc: "Đọc từng câu kèm dịch nghĩa + từ vựng/từ đồng nghĩa — bấm vào câu để xem bản dịch",
-                cta: "Bắt đầu đọc",
-                disabled: false,
-                onClick: () => setActiveIeltsPassage(t),
-              })
-            )}
-            {practiceTests.slice(0, 3).map(t =>
-              lessonCard({
-                key: t.id,
-                banner: "LUYỆN ĐỀ",
-                title: t.title || "Luyện đề IELTS Reading",
-                desc: "Làm full test nhiều passage, đủ dạng câu hỏi như đề thi thật",
-                cta: "Bắt đầu làm bài",
-                disabled: false,
-                onClick: () => setActiveIeltsPracticeTest(t),
-              })
-            )}
-          </div>
-          {comprehensionTests.length === 0 && practiceTests.length === 0 && (
-            <InfoCard text="Chưa có bài nào — vào Quản trị để soạn bài." />
-          )}
-        </LessonSection>
       ) : (
         <>
           <LessonSection title="Listening">
