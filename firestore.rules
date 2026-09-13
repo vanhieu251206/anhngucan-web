@@ -63,6 +63,11 @@ service cloud.firestore {
         allow read: if true;
         allow write: if isStaff();
       }
+
+      match /vocabularyUnits/{unitId} {
+        allow read: if true;
+        allow write: if isStaff();
+      }
     }
 
     match /speechLogs/{logId} {

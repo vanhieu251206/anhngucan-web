@@ -463,6 +463,25 @@ button { font-family: inherit; }
   margin: 0 auto;
 }
 .content-grid-4 > * { width: 210px; flex: 0 0 auto; }
+/* Đúng 4 thẻ Grade KET/PET luôn nằm chung 1 hàng bất kể bề rộng khả dụng (khác content-grid-4
+   dùng flex-wrap, dễ bể hàng khi khu vực hiện có hẹp hơn 960px) — chốt người dùng 2026-09-14. */
+.ketpet-grade-grid {
+  grid-template-columns: repeat(4, 1fr);
+  max-width: 900px;
+  margin: 0 auto;
+}
+@media (max-width: 720px) {
+  .ketpet-grade-grid { grid-template-columns: repeat(2, 1fr); }
+}
+/* 16 Unit chia đúng lưới 4x4 cho cân đối (chốt người dùng 2026-09-14). */
+.ketpet-unit-grid {
+  grid-template-columns: repeat(4, 1fr);
+  max-width: 900px;
+  margin: 0 auto;
+}
+@media (max-width: 720px) {
+  .ketpet-unit-grid { grid-template-columns: repeat(2, 1fr); }
+}
 .content-grid-4-nowrap { flex-wrap: nowrap; }
 @media (max-width: 720px) {
   .content-grid-4-nowrap { flex-wrap: wrap; }
@@ -481,6 +500,8 @@ button { font-family: inherit; }
 .content-card-v2 {
   --accent: #ff7a45;
   position: relative;
+  display: flex;
+  flex-direction: column;
   background: #fff;
   border: 1px solid #f1ebdd;
   border-radius: var(--radius-card);
@@ -612,6 +633,9 @@ button { font-family: inherit; }
   padding: 12px 22px;
   display: flex;
   align-items: center;
+  /* Luôn cố định trên cùng của thẻ, không co giãn theo nội dung phần thân bên dưới — chốt
+     người dùng 2026-09-14: header thẻ không phụ thuộc nội dung. */
+  flex: 0 0 auto;
 }
 .card-banner-strip span {
   color: #fff;
@@ -621,7 +645,7 @@ button { font-family: inherit; }
   text-transform: uppercase;
   letter-spacing: 0.03em;
 }
-.content-card-v2-body { padding: clamp(14px, 2vh, 20px) 22px 22px; }
+.content-card-v2-body { padding: clamp(14px, 2vh, 20px) 22px 22px; flex: 1 1 auto; }
 .content-card-v2-center .content-card-v2-body { display: flex; flex-direction: column; align-items: center; }
 .card-meta-row { display: flex; align-items: center; gap: 8px; margin-top: 12px; }
 .card-badge-pill {
@@ -2512,7 +2536,7 @@ button { font-family: inherit; }
   padding-bottom: 14px;
   border-bottom: 1px solid var(--admin-border);
 }
-.admin-scene-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
+.admin-scene-list { list-style: none; padding: 0; margin: 0 0 14px; display: flex; flex-direction: column; gap: 8px; }
 .admin-scene-list-item {
   display: flex;
   align-items: center;
@@ -2834,6 +2858,16 @@ button { font-family: inherit; }
   margin: -26px -26px 14px; padding: 20px 26px 14px; border-bottom: 1px solid var(--admin-border);
 }
 .admin-preview-trigger { margin-left: auto; }
+/* Overlay Preview toàn màn hình dùng chung cho các Studio không có sẵn cơ chế preview riêng
+   (KetPetVocabularyStudio.jsx — chốt người dùng 2026-09-14). */
+.admin-preview-overlay {
+  position: fixed; inset: 0; z-index: 1200; background: #fff; overflow-y: auto;
+}
+.admin-preview-overlay-head {
+  position: sticky; top: 0; z-index: 1; display: flex; align-items: center; gap: 14px;
+  padding: 16px 26px; background: #fff; border-bottom: 1px solid var(--admin-border, #e4e7ee);
+}
+.admin-preview-overlay-body { padding: 32px clamp(18px, 4vw, 48px) 60px; background: #1b1a3a; min-height: calc(100% - 60px); }
 .admin-page-head-save { white-space: nowrap; }
 .admin-page-head-saved { white-space: nowrap; }
 .admin-dictation-title-input { flex: 1; min-width: 200px; font-weight: 700; font-size: 1.05rem; }
@@ -2938,6 +2972,38 @@ button { font-family: inherit; }
 .dictation-feedback.is-correct { background: #f0fbf4; }
 .dictation-feedback.is-wrong { background: #fdf1f2; }
 .dictation-feedback-label { margin: 0 0 6px; font-weight: 700; font-size: 1.05rem; }
+
+/* Vocabulary KET/PET (KetPetVocabularyRunner.jsx) — label gọn + ô nhập/lựa chọn, không chú thích
+   thêm (chốt người dùng 2026-09-14). */
+.vocab-runner { max-width: 720px; margin: 0 auto; display: flex; flex-direction: column; gap: 28px; }
+.vocab-empty { color: #cfcbe6; text-align: center; padding: 40px 0; }
+.vocab-block { background: #fff; border-radius: var(--radius-card); padding: 24px clamp(18px, 3vw, 32px); box-shadow: var(--shadow-soft); }
+.vocab-block-title { margin: 0 0 18px; font-family: var(--font-display); font-size: 1.05rem; color: #8B5CF6; text-transform: uppercase; letter-spacing: 0.02em; }
+.vocab-question { margin-bottom: 20px; }
+.vocab-question:last-child { margin-bottom: 0; }
+.vocab-question-text { margin: 0 0 10px; font-weight: 600; font-size: 1.02rem; }
+.vocab-options { display: flex; flex-direction: column; gap: 8px; }
+.vocab-option {
+  display: flex; align-items: center; gap: 10px; border: 2px solid #e2e5ec; border-radius: 12px;
+  padding: 10px 14px; cursor: pointer; transition: border-color 0.12s ease, background 0.12s ease;
+}
+.vocab-option.is-picked { border-color: var(--color-primary); }
+.vocab-option.is-correct { border-color: #2fb872; background: #f0fbf4; }
+.vocab-option.is-wrong { border-color: #e0576b; background: #fdf1f2; }
+.vocab-input {
+  width: 100%; box-sizing: border-box; border: 2px solid #e2e5ec; border-radius: 12px; padding: 12px 16px;
+  font-size: 1rem; font-family: var(--font-body, inherit); transition: border-color 0.12s ease;
+}
+.vocab-input:focus { outline: none; border-color: var(--color-primary); }
+.vocab-input.is-correct { border-color: #2fb872; background: #f0fbf4; }
+.vocab-input.is-wrong { border-color: #e0576b; background: #fdf1f2; }
+.vocab-answer-key { margin: 8px 0 0; font-size: 0.9rem; color: #666; }
+.vocab-footer { text-align: center; padding-bottom: 12px; }
+.vocab-score { font-weight: 800; font-size: 1.2rem; color: #fff; margin: 0 0 14px; }
+.vocab-submit-btn {
+  border: none; border-radius: var(--radius-pill); padding: 14px 36px; font-weight: 700; font-size: 1.05rem;
+  background: #8B5CF6; color: #fff; cursor: pointer;
+}
 .dictation-feedback-answer { margin: 0; font-size: 1.2rem; }
 /* Panel che đáp án bằng "*" (maskedPreview trong DictationRunner.jsx) — hiện SỐNG theo từng lần gõ
    lại khi trả lời sai, không lộ chữ thật, chỉ gợi ý cấu trúc/độ dài từng từ — khớp cơ chế
@@ -3452,6 +3518,7 @@ button.wizard-step:focus-visible { outline: 3px solid var(--color-secondary); ou
   border: 2px solid var(--accent, var(--admin-accent)); border-radius: 14px; padding: 0 20px 18px;
   display: flex; flex-direction: column; gap: 12px; background: #fff;
   box-shadow: var(--admin-shadow-sm); transition: box-shadow 0.15s ease;
+  margin-bottom: 24px;
 }
 .admin-practice-group:hover { box-shadow: var(--admin-shadow-md); }
 /* Header riêng cho từng thẻ nhóm câu hỏi — nền màu nhạt theo accent để phân biệt rõ với phần nội
@@ -3632,6 +3699,9 @@ button.wizard-step:focus-visible { outline: 3px solid var(--color-secondary); ou
 }
 .ielts-practice-qbody { flex: 1; display: flex; flex-direction: column; gap: 6px; }
 .ielts-practice-option { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+/* Danh sách đáp án dạng "Ghép nối / Chọn từ danh sách" (matching) — click chọn 1 chữ cái trong danh
+   sách chung thay vì dropdown, xem IeltsPracticeRunner.jsx `MatchingGroup`. */
+.ielts-practice-click-options { display: flex; flex-direction: column; gap: 4px; }
 .ielts-practice-question.is-correct { background: #e5f5ec; border-radius: 10px; padding-left: 8px; }
 .ielts-practice-question.is-wrong { background: #fdeaea; border-radius: 10px; padding-left: 8px; }
 .ielts-practice-correct-answer { color: var(--color-green); font-weight: 700; font-size: 0.85rem; margin: 0; }

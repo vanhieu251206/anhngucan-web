@@ -1,5 +1,6 @@
 import { useConfirm } from "./ConfirmDialog.jsx";
 import AudioUploadField from "./AudioUploadField.jsx";
+import { PageHead, PageHeadSaveButton } from "./AdminPageHead.jsx";
 
 // Màn soạn 1 Test IELTS Listening (Test 1-4 → Section 1-4, xem CreateLessonPage.jsx
 // `IeltsListeningEditor`) — mỗi section có audio (Cloudinary, KHÔNG phải audio gốc đề thi có
@@ -175,15 +176,15 @@ export default function ListeningTestStudio({
 
   return (
     <div className="admin-card" style={{ "--accent": accent }}>
-      <div className="admin-dictation-head">
-        <button type="button" className="admin-pill-btn" onClick={onBack}>← Quay lại danh sách Test</button>
+      <PageHead backLabel="← Quay lại danh sách Test" onBack={onBack}>
         <input
           className="admin-input admin-dictation-title-input"
           value={title}
           onChange={e => onTitleChange(e.target.value)}
           placeholder="Tên Test (vd: IELTS 8 - Listening Test 1)"
         />
-      </div>
+        <PageHeadSaveButton onSave={onSave} saving={saving} saved={saved} />
+      </PageHead>
 
       {(sections ?? []).map((s, i) => (
         <SectionEditor key={i} section={s} onChange={next => updateSection(i, next)} onRemove={() => removeSection(i)} />
@@ -201,13 +202,6 @@ export default function ListeningTestStudio({
           placeholder="Không giới hạn"
         />
       </label>
-
-      <div className="admin-dictation-footer">
-        <button className="admin-btn-primary" type="button" onClick={onSave} disabled={saving}>
-          {saving ? "Đang lưu..." : "Xuất bản"}
-        </button>
-        {saved && <p className="admin-success">✓ Đã lưu</p>}
-      </div>
     </div>
   );
 }

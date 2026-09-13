@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import AudioUploadField from "./AudioUploadField.jsx";
 import { useConfirm } from "./ConfirmDialog.jsx";
 import { uploadToCloudinary } from "../../lib/cloudinaryUpload.js";
+import { PageHead, PageHeadSaveButton } from "./AdminPageHead.jsx";
 
 // Sắp xếp file theo số đứng đầu/trong tên (1, 2, ..., 10, 11 — không phải thứ tự chữ cái
 // "1, 10, 11, 2..." của sort chuỗi thường) — giáo viên chỉ cần đặt tên file 1/2/3.../N, không cần
@@ -103,15 +104,15 @@ export default function DictationStudio({
 
   return (
     <div className="admin-card" style={{ "--accent": accent }}>
-      <div className="admin-dictation-head">
-        <button type="button" className="admin-pill-btn" onClick={onBack}>← Quay lại danh sách Test</button>
+      <PageHead backLabel="← Quay lại danh sách Test" onBack={onBack}>
         <input
           className="admin-input admin-dictation-title-input"
           value={title}
           onChange={e => onTitleChange(e.target.value)}
           placeholder="Tên Test (vd: Test 1)"
         />
-      </div>
+        <PageHeadSaveButton onSave={onSave} saving={saving} saved={saved} />
+      </PageHead>
 
       <p className="admin-hint">
         Mỗi câu gồm 1 file audio (KHÔNG dùng audio gốc sách có bản quyền — tự thu âm hoặc dùng
@@ -192,13 +193,6 @@ export default function DictationStudio({
           placeholder="Không giới hạn"
         />
       </label>
-
-      <div className="admin-dictation-footer">
-        <button className="admin-btn-primary" type="button" onClick={onSave} disabled={saving}>
-          {saving ? "Đang lưu..." : "Xuất bản"}
-        </button>
-        {saved && <p className="admin-success">✓ Đã lưu</p>}
-      </div>
     </div>
   );
 }

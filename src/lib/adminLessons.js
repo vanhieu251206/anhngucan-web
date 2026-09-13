@@ -226,3 +226,22 @@ export async function saveIeltsListeningTest(
 export async function deleteIeltsListeningTest(seriesId, level, testId) {
   await deleteDoc(doc(db, "lessons", lessonId(seriesId, level), "listeningTests", testId));
 }
+
+// KET/PET VOCABULARY — cấu trúc riêng theo Grade (6-9) → Unit (1-16), KHÁC Level/Test của YLE/IELTS
+// (chốt 2026-09-14, xem yleData.js KET_PET_GRADES/KET_PET_UNITS_PER_GRADE). Mỗi Unit gồm
+// `questions` — danh sách PHẲNG, mỗi câu TỰ chọn 1 trong 3 dạng ("multiple-choice"/"fill-blank"/
+// "translation", xem lib/ketPetVocabulary.js `QUESTION_TYPES`), không chia khung cố định (chốt
+// 2026-09-14, đổi từ thiết kế "blocks" ban đầu vì GV cần tự do trộn dạng theo từng câu).
+// Tái dùng `lessonId("ket-pet", grade)` sẵn có, subcollection "vocabularyUnits" docId "unit{n}".
+export async function getVocabularyUnit(grade, unit) {
+  const snap = await getDoc(doc(db, "lessons", lessonId("ket-pet", grade), "vocabularyUnits", `unit${unit}`));
+  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+}
+
+export async function saveVocabularyUnit(grade, unit, questions, uid) {
+  await setDoc(doc(db, "lessons", lessonId("ket-pet", grade), "vocabularyUnits", `unit${unit}`), {
+    questions,
+    updatedAt: serverTimestamp(),
+    updatedBy: uid,
+  });
+}

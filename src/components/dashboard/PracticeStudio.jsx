@@ -5,6 +5,7 @@ import IeltsPracticeRunner from "../IeltsPracticeRunner.jsx";
 import { parseQuestionLines } from "../../lib/ocrParse.js";
 import ImageUploadField from "./ImageUploadField.jsx";
 import { normalizeBlankHolder, countBlanks, groupQuestionCount } from "../../lib/tableDiagramBlanks.js";
+import { PageHead, PageHeadSaveButton } from "./AdminPageHead.jsx";
 
 // Màn soạn 1 Passage của Test IELTS Reading (Test 1-4 → Passage 1-3, xem CreateLessonPage.jsx
 // `IeltsReadingEditor`) — TÁCH THÀNH 2 TRANG RIÊNG theo yêu cầu người dùng (chốt 2026-09-11, đảo
@@ -23,7 +24,7 @@ const GROUP_TYPES = [
   { key: "short-answer", label: "Điền từ" },
   { key: "table-diagram", label: "Bảng điền từ" },
   { key: "diagram", label: "Điền trên ảnh" },
-  { key: "matching", label: "Ghép nối" },
+  { key: "matching", label: "Ghép nối / Chọn từ danh sách" },
 ];
 
 function blankQuestion(type) {
@@ -104,16 +105,10 @@ function PassageTitleFields({ passage, onChange }) {
     onChange({ ...passage, ...patch });
   }
   return (
-    <div className="admin-practice-meta-row">
-      <label className="admin-dictation-text-label">
-        Tiêu đề passage (tiếng Anh)
-        <input className="admin-input" value={passage.title} onChange={e => update({ title: e.target.value })} placeholder="vd: Sheet glass manufacture: the float process" />
-      </label>
-      <label className="admin-dictation-text-label">
-        Tiêu đề passage (tiếng Việt, không bắt buộc)
-        <input className="admin-input" value={passage.titleVi ?? ""} onChange={e => update({ titleVi: e.target.value })} placeholder="vd: Sản xuất kính tấm: quy trình nổi" />
-      </label>
-    </div>
+    <label className="admin-dictation-text-label">
+      Tiêu đề passage
+      <input className="admin-input" value={passage.title} onChange={e => update({ title: e.target.value })} placeholder="vd: Sheet glass manufacture: the float process" />
+    </label>
   );
 }
 
@@ -127,27 +122,6 @@ function SectionBanner({ icon, children }) {
     <div className="admin-section-banner">
       {icon && <span className="admin-section-banner-icon">{icon}</span>}
       {children}
-    </div>
-  );
-}
-
-function PageHead({ label, onBack, sticky, children }) {
-  return (
-    <div className={`admin-dictation-head${sticky ? " admin-page-head-sticky" : ""}`}>
-      <button type="button" className="admin-pill-btn" onClick={onBack}>← Quay lại danh sách Test</button>
-      <span className="admin-practice-page-label">{label}</span>
-      {children}
-    </div>
-  );
-}
-
-function SaveFooter({ onSave, saving, saved }) {
-  return (
-    <div className="admin-dictation-footer">
-      <button className="admin-btn-primary" type="button" onClick={onSave} disabled={saving}>
-        {saving ? "Đang lưu..." : "Xuất bản"}
-      </button>
-      {saved && <p className="admin-success">✓ Đã lưu</p>}
     </div>
   );
 }
@@ -206,7 +180,9 @@ export function ComprehensionPage({ accent, testLabel, passage, onPassageChange,
 
   return (
     <div className="admin-card" style={{ "--accent": accent }}>
-      <PageHead label={`${testLabel} — Đọc hiểu`} onBack={onBack} />
+      <PageHead label={`${testLabel} — Đọc hiểu`} backLabel="← Quay lại danh sách Test" onBack={onBack}>
+        <PageHeadSaveButton onSave={handleSaveClick} saving={saving} saved={saved} />
+      </PageHead>
       <PassageTitleFields passage={passage} onChange={onPassageChange} />
 
       <div className="admin-practice-bulk-paste">
@@ -286,8 +262,6 @@ export function ComprehensionPage({ accent, testLabel, passage, onPassageChange,
         ))}
       </ol>
       <button type="button" className="admin-btn-secondary" onClick={addSentence}>+ Thêm câu</button>
-
-      <SaveFooter onSave={handleSaveClick} saving={saving} saved={saved} />
     </div>
   );
 }
@@ -530,6 +504,50 @@ function DiagramEditor({ group, onChange, startNumber = 0 }) {
 // (chấm điểm, học sinh chọn đáp án trong `optionsList` bằng dropdown). `questions` được TỰ SINH lại
 // từ `items` (lọc bỏ example) mỗi khi sửa — KHÔNG tự gõ tay, để khớp đúng thứ tự với hệ thống đánh số
 // câu hỏi xuyên suốt Test (`flattenQuestions` trong IeltsPracticeRunner.jsx đọc `group.questions`).
+// Dán nhanh danh sách câu cần ghép — mỗi dòng 1 câu (không cần đánh số), THAY THẾ toàn bộ danh sách
+// mục hiện có (giữ đúng tinh thần đơn giản như parseBulkPassageText ở "Bài đọc") — đáp án (answerKey)
+// để trống, giáo viên tự chọn lại đáp án thật cho từng câu sau khi dán, xem CLAUDE.md mục 7 (không
+// tự đoán/bịa đáp án).
+function parseBulkMatchingText(text) {
+  return text.split("\n").map(l => l.trim()).filter(Boolean).map(label => ({ label, isExample: false, answerKey: "" }));
+}
+
+function BulkMatchingPaste({ onApply }) {
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState("");
+  return (
+    <div className="admin-ocr-panel">
+      {open ? (
+        <>
+          <textarea
+            className="admin-input admin-textarea"
+            rows={6}
+            value={text}
+            onChange={e => setText(e.target.value)}
+            placeholder={"Dán các câu cần ghép, mỗi dòng 1 câu — sẽ THAY THẾ toàn bộ danh sách hiện có"}
+          />
+          <div className="admin-practice-add-row">
+            <button
+              type="button"
+              className="admin-btn-secondary"
+              onClick={() => {
+                onApply(text);
+                setText("");
+                setOpen(false);
+              }}
+            >
+              Áp dụng
+            </button>
+            <button type="button" className="admin-link-btn" onClick={() => { setOpen(false); setText(""); }}>Huỷ</button>
+          </div>
+        </>
+      ) : (
+        <button type="button" className="admin-btn-secondary" onClick={() => setOpen(true)}>📋 Dán nhanh (mỗi dòng 1 câu)</button>
+      )}
+    </div>
+  );
+}
+
 function MatchingEditor({ group, onChange }) {
   const confirm = useConfirm();
   const items = group.items ?? [];
@@ -547,6 +565,12 @@ function MatchingEditor({ group, onChange }) {
   async function removeItem(ii) {
     if (!(await confirm("Xoá mục này?", { danger: true }))) return;
     commitItems(items.filter((_, idx) => idx !== ii));
+  }
+  async function applyBulkPaste(text) {
+    const parsed = parseBulkMatchingText(text);
+    if (parsed.length === 0) return;
+    if (items.length > 0 && !(await confirm("Dán nhanh sẽ thay thế toàn bộ danh sách mục hiện có. Tiếp tục?", { danger: true }))) return;
+    commitItems(parsed);
   }
 
   return (
@@ -566,6 +590,7 @@ function MatchingEditor({ group, onChange }) {
 
       <div className="admin-matching-items">
         <span className="admin-upload-label admin-practice-groups-label">Danh sách mục cần ghép</span>
+        <BulkMatchingPaste onApply={applyBulkPaste} />
         {items.map((it, ii) => (
           <div className="admin-practice-question-row" key={ii}>
             <span className="admin-scene-list-index">{ii + 1}</span>
@@ -767,8 +792,8 @@ export function LuyenDePage({
 
       <PassageTitleFields passage={passage} onChange={onPassageChange} />
 
-      <div className="admin-practice-bulk-paste">
-        <span className="admin-upload-label">Bài đọc (mỗi dòng = 1 đoạn)</span>
+      <label className="admin-dictation-text-label">
+        Bài đọc (mỗi dòng = 1 đoạn)
         <textarea
           className="admin-input admin-textarea"
           rows={10}
@@ -776,7 +801,7 @@ export function LuyenDePage({
           onChange={e => setBulkText(e.target.value)}
           placeholder={"Glass, which has been made since the time of the Mesopotamians and Egyptians...\nNevertheless, demand for flat glass was very high..."}
         />
-      </div>
+      </label>
 
       <SectionBanner icon="❓">Phần câu hỏi</SectionBanner>
       {(passage.groups ?? []).map((g, gi) => (
@@ -787,16 +812,16 @@ export function LuyenDePage({
             </select>
             <button type="button" className="admin-link-btn admin-pill-btn-danger" onClick={() => removeGroup(gi)}>Xoá nhóm</button>
           </div>
-          {g.type !== "table-diagram" && (
+          <label className="admin-dictation-text-label">
+            Yêu cầu đề bài (hiện phía trên nhóm câu hỏi, có thể xuống dòng)
             <textarea
               className="admin-input admin-textarea"
-              rows={2}
-              value={g.instruction}
+              rows={3}
+              value={g.instruction ?? ""}
               onChange={e => updateGroup(gi, { instruction: e.target.value })}
-              placeholder="Hướng dẫn chung của nhóm câu hỏi (vd: Choose the correct letter, A, B, C or D.)"
+              placeholder={"vd: Questions 14-18\nChoose FIVE letters, A-K.\nWhich FIVE of these beliefs about genius and giftedness are reported by the writer of the text?"}
             />
-          )}
-
+          </label>
           {g.type === "table-diagram" ? (
             <TableDiagramEditor
               group={g}

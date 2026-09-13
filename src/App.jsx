@@ -5,6 +5,7 @@ import LessonsPage from "./pages/LessonsPage.jsx";
 import AboutPage from "./pages/AboutPage.jsx";
 import ContactPage from "./pages/ContactPage.jsx";
 import LoginPage from "./pages/LoginPage.jsx";
+import KetPetPage from "./pages/KetPetPage.jsx";
 import { useAuth } from "./lib/authContext.jsx";
 import { readParams, setParams } from "./lib/urlState.js";
 
@@ -105,6 +106,11 @@ export default function App() {
           </main>
         </>
       );
+    }
+    // KET/PET dùng khung điều hướng riêng (Grade/Unit, xem KetPetPage.jsx) thay vì
+    // Level/Test/Part của LessonsPage.jsx — cấu trúc dữ liệu khác hẳn (chốt 2026-09-14).
+    if (lessonSeriesId === "ket-pet") {
+      return <KetPetPage onNavigate={setPage} />;
     }
     return <LessonsPage initialSeriesId={lessonSeriesId} onNavigate={setPage} />;
   }

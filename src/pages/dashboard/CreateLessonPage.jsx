@@ -13,6 +13,7 @@ import ReadingStudio from "../../components/dashboard/ReadingStudio.jsx";
 import DictationStudio from "../../components/dashboard/DictationStudio.jsx";
 import { ComprehensionPage, LuyenDePage } from "../../components/dashboard/PracticeStudio.jsx";
 import ListeningTestStudio from "../../components/dashboard/ListeningTestStudio.jsx";
+import KetPetContentPage from "./KetPetContentPage.jsx";
 import { useConfirm } from "../../components/dashboard/ConfirmDialog.jsx";
 import { readParams, setParams } from "../../lib/urlState.js";
 
@@ -45,7 +46,12 @@ function modesForSeries(series) {
 function initialStepFromUrl() {
   const p = readParams();
   const series = YLE_SERIES.find(s => s.id === p.get("cSeries")) ?? null;
-  const level = series?.levels.find(l => String(l.number) === p.get("cLevel")) ?? null;
+  // KET/PET không có `.levels` (Grade/Unit riêng, xem KetPetContentPage.jsx) — bỏ qua tra cứu
+  // level cho series này, tránh crash trắng trang khi F5 lại URL ?cSeries=ket-pet (lỗi thực tế
+  // 2026-09-14).
+  const level = series && series.id !== "ket-pet"
+    ? series.levels.find(l => String(l.number) === p.get("cLevel")) ?? null
+    : null;
   const mode = level && Object.keys(MODE_INFO).includes(p.get("cMode")) ? p.get("cMode") : null;
   return { series, level: level ?? null, mode };
 }
@@ -61,8 +67,11 @@ export default function CreateLessonPage() {
     );
   }, [series, level, mode]);
 
-  // Series chỉ có 1 cấp (IELTS) → tự chọn luôn, không hiện bước "Chọn cấp độ".
-  function setSeries(s) { setStep({ series: s, level: s.levels.length === 1 ? s.levels[0] : null, mode: null }); }
+  // Series chỉ có 1 cấp (IELTS) → tự chọn luôn, không hiện bước "Chọn cấp độ". KET/PET không có
+  // `.levels` (Grade/Unit riêng, xem KetPetContentPage.jsx) nên giữ level = null luôn.
+  function setSeries(s) {
+    setStep({ series: s, level: s.id === "ket-pet" || s.levels.length === 1 ? s.levels?.[0] ?? null : null, mode: null });
+  }
   function setLevel(l) { setStep(st => ({ ...st, level: l, mode: null })); }
   function setMode(m) { setStep(st => ({ ...st, mode: m })); }
 
@@ -79,7 +88,7 @@ export default function CreateLessonPage() {
       active: !level,
     });
   }
-  if (series && level && series.levels.length > 1) {
+  if (series && level && series.id !== "ket-pet" && series.levels.length > 1) {
     crumbs.push({
       label: `Cấp ${level.number}`,
       accent: series.color,
@@ -95,7 +104,8 @@ export default function CreateLessonPage() {
     <div>
       <Breadcrumb crumbs={crumbs} />
       {!series && <SeriesPicker onPick={setSeries} />}
-      {series && !level && <LevelPicker series={series} onPick={setLevel} />}
+      {series && series.id === "ket-pet" && <KetPetContentPage />}
+      {series && series.id !== "ket-pet" && !level && <LevelPicker series={series} onPick={setLevel} />}
       {series && level && !mode && <ModePicker series={series} level={level} onPick={setMode} />}
       {series && level && mode === "listening" && (
         <ListeningEditor series={series} level={level} uid={user.uid} />

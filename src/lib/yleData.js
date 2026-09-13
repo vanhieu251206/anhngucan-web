@@ -65,11 +65,22 @@ function buildIeltsSeries() {
   };
 }
 
+// KET/PET KHÔNG dùng cấu trúc Level/Test/Part như YLE — tổ chức theo Grade (6-9) → Unit (1-16) →
+// Vocabulary/Practice Test, giống chương trình SGK phổ thông chứ không theo format đề thi Cambridge
+// (chốt với người dùng 2026-09-14). Vì vậy chỉ giữ id/title/color để hiện thẻ ở Trang chủ, phần
+// điều hướng Grade/Unit nằm riêng ở KetPetPage.jsx (không đi qua LessonsPage.jsx như các bộ khác).
+const ketPetSeries = { id: "ket-pet", title: "KET / PET", color: "#8B5CF6" };
+
 export const YLE_SERIES = [
   buildSeries("kids", "Kids", "#F2A93B"),
   buildSeries("starters", "Starters", "#FF7A45"),
   buildSeries("movers", "Movers", "#2FB6C4"),
   buildSeries("flyers", "Flyers", "#4CAF7D"),
-  buildSeries("ket-pet", "KET / PET", "#8B5CF6"),
+  ketPetSeries,
   buildIeltsSeries(),
 ];
+
+// Grade 6-9, mỗi Grade 16 Unit — khung cố định dùng cho điều hướng KetPetPage.jsx (chưa có nội
+// dung thật, chỉ tạo cấu trúc trước theo yêu cầu người dùng 2026-09-14).
+export const KET_PET_GRADES = [6, 7, 8, 9];
+export const KET_PET_UNITS_PER_GRADE = 16;

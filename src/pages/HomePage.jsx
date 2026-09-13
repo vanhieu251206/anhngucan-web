@@ -51,13 +51,17 @@ const SERIES_INFO = {
     speakingNote: "",
   },
   "ket-pet": {
-    ready: false,
+    // Mở khoá thẻ theo yêu cầu người dùng 2026-09-14 — MỚI CHỈ có khung điều hướng Grade/Unit
+    // (KetPetPage.jsx), bên trong Vocabulary/Practice Test của từng Unit vẫn là placeholder
+    // "Sắp có", chưa có nội dung thật.
+    ready: true,
     accent: "#8B5CF6",
     difficulty: "Trung cấp",
     difficultyLevel: 4,
     icon: <><rect x="3" y="4" width="18" height="14" rx="2" /><path d="M3 9h18M8 4v14" /></>,
     listeningNote: "",
     speakingNote: "",
+    skills: ["vocabulary", "practice"],
   },
   ielts: {
     // Mở khoá thẻ theo yêu cầu người dùng 2026-09-09 — mới chỉ có mục Reading (2 thẻ LUYỆN ĐỀ/
@@ -80,9 +84,14 @@ const SKILL_ICONS = {
   listening: <path d="M4 14v-2a8 8 0 0 1 16 0v2M2 14h5v7H4a2 2 0 0 1-2-2v-5zM22 14h-5v7h3a2 2 0 0 0 2-2v-5z" />,
   speaking: <path d="M9 2h6v12a3 3 0 0 1-6 0zM5 11a7 7 0 0 0 14 0M12 18v4" />,
   dictation: <path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />,
+  vocabulary: <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V2H6.5A2.5 2.5 0 0 0 4 4.5v15zM4 19.5A2.5 2.5 0 0 0 6.5 22H20v-3" />,
+  practice: <path d="M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />,
 };
 const SKILLS_FULL = ["reading", "listening", "speaking", "dictation"];
-const SKILL_LABELS = { reading: "Reading", listening: "Listening", speaking: "Speaking", dictation: "Dictation" };
+const SKILL_LABELS = {
+  reading: "Reading", listening: "Listening", speaking: "Speaking", dictation: "Dictation",
+  vocabulary: "Vocabulary", practice: "Practice Test",
+};
 
 function SeriesModes({ skills }) {
   return (

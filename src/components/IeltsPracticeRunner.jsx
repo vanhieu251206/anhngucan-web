@@ -349,10 +349,20 @@ export function MatchingGroup({ g, gi, activePassage, flat, answers, submitted, 
             <span className="ielts-practice-qnum">{number}</span>
             <div className="ielts-practice-qbody">
               <p>{it.label}</p>
-              <select className="admin-input" value={value ?? ""} disabled={submitted} onChange={e => setAnswer(number, e.target.value)}>
-                <option value="" disabled>— Chọn —</option>
-                {(g.optionsList ?? []).map((o, oi) => <option key={oi} value={o.key}>{o.key}. {o.text}</option>)}
-              </select>
+              <div className="ielts-practice-click-options">
+                {(g.optionsList ?? []).map((o, oi) => (
+                  <label className="ielts-practice-option" key={oi}>
+                    <input
+                      type="radio"
+                      name={`q-${number}`}
+                      checked={value === o.key}
+                      disabled={submitted}
+                      onChange={() => setAnswer(number, o.key)}
+                    />
+                    {o.key}. {o.text}
+                  </label>
+                ))}
+              </div>
               {submitted && !correct && (
                 <p className="ielts-practice-correct-answer">Đáp án đúng: {String(it.answerKey ?? "").split("|")[0]}</p>
               )}
@@ -586,7 +596,9 @@ export default function IeltsPracticeRunner({ test, onBack, mode = "practice", r
           <div className="ielts-practice-questions-col">
             {(passage.groups ?? []).map((g, gi) => (
               <div className="ielts-practice-group" key={gi}>
-                {g.instruction && <p className="ielts-practice-instruction">{g.instruction}</p>}
+                {g.instruction && String(g.instruction).split("\n").map((line, li) => (
+                  <p className="ielts-practice-instruction" key={li}>{line}</p>
+                ))}
                 {g.type === "table-diagram" ? (
                   <TableDiagramGroup
                     g={g}
