@@ -210,14 +210,14 @@ const STARTERS_PART_TEMPLATES = [
   // Part 4: CƠ CHẾ Y HỆT Movers/Flyers Part 4 (1 đoạn văn gapfill, chỗ trống đầu là ví dụ có sẵn,
   // gõ tự do — KHÔNG có `gapMode: "choices"` ở Starters) — tái dùng thẳng `fixedLayout:
   // "movers-part4"` (chốt theo đúng bài học mục 12 — không tạo key mới khi cơ chế giống hệt). Ngân
-  // hàng từ (8 từ) CÓ ẢNH riêng từng từ (`wordBankImages: true`, khác Movers/Flyers Part 4 không có
-  // ảnh trong ngân hàng từ) — sách Starters Part 4 thật mỗi từ trong khung đều kèm 1 tranh nhỏ.
+  // hàng từ (8 từ) KHÔNG có ảnh riêng từng từ (`wordBankImages: false`, chốt lại — bỏ ô chèn ảnh
+  // dưới mỗi từ trong khung, giống Movers/Flyers Part 4).
   {
     title: "Part 4 – Reading and Writing",
     instruction: "Read this. Choose a word from the box. Write the correct word next to numbers 1–5. There is one example.",
     allowedTypes: ["gapfill"],
     hasWordBank: true,
-    wordBankImages: true,
+    wordBankImages: false,
     fixedLayout: "movers-part4",
   },
   // Part 5: 1 ảnh chung đầu tiên (part.image) + 2 ảnh RIÊNG chèn xen giữa câu hỏi (`part.storyImages`,
@@ -1290,7 +1290,7 @@ function PartEditor({ part, onChange, seriesId }) {
         part.fixedLayout !== "starters-part1" &&
         part.fixedLayout !== "starters-part3" && (
           <ImageUploadField
-            label="Ảnh minh hoạ chung cho cả Part (tuỳ chọn)"
+            label={part.fixedLayout === "starters-part5" ? "Ảnh minh hoạ 1" : "Ảnh minh hoạ chung cho cả Part (tuỳ chọn)"}
             value={part.image}
             onChange={image => onChange({ image })}
           />
