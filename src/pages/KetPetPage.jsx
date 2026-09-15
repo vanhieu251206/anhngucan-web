@@ -12,6 +12,7 @@ export default function KetPetPage({ onNavigate }) {
   const [grade, setGrade] = useState(null);
   const [unit, setUnit] = useState(null);
   const [vocabActive, setVocabActive] = useState(false);
+  const [practiceTestOpen, setPracticeTestOpen] = useState(false);
 
   if (vocabActive) {
     return (
@@ -25,12 +26,14 @@ export default function KetPetPage({ onNavigate }) {
   }
 
   function backLabel() {
+    if (practiceTestOpen) return `Grade ${grade} — Unit ${unit}`;
     if (unit != null) return `Grade ${grade}`;
     if (grade != null) return "KET / PET";
     return "Trang chủ";
   }
 
   function onBack() {
+    if (practiceTestOpen) return setPracticeTestOpen(false);
     if (unit != null) return setUnit(null);
     if (grade != null) return setGrade(null);
     onNavigate("home");
@@ -41,9 +44,12 @@ export default function KetPetPage({ onNavigate }) {
   if (grade != null && unit == null) {
     title = `Grade ${grade}`;
     subtitle = "Chọn Unit";
-  } else if (grade != null && unit != null) {
+  } else if (grade != null && unit != null && !practiceTestOpen) {
     title = `Grade ${grade} — Unit ${unit}`;
     subtitle = "";
+  } else if (practiceTestOpen) {
+    title = `Grade ${grade} — Unit ${unit} — Practice Test`;
+    subtitle = "Chọn Test";
   }
 
   return (
@@ -95,7 +101,7 @@ export default function KetPetPage({ onNavigate }) {
           </div>
         )}
 
-        {grade != null && unit != null && (
+        {grade != null && unit != null && !practiceTestOpen && (
           <div className="content-grid content-grid-2">
             <button
               type="button"
@@ -110,14 +116,34 @@ export default function KetPetPage({ onNavigate }) {
                 <span className="series-status is-ready">Đang mở</span>
               </div>
             </button>
-            <div className="content-card-v2 content-card-v2-center is-disabled" style={{ "--accent": "#8B5CF6" }}>
+            <button
+              type="button"
+              className="content-card-v2 content-card-v2-center"
+              style={{ "--accent": "#8B5CF6" }}
+              onClick={() => setPracticeTestOpen(true)}
+            >
               <div className="card-banner-strip">
                 <span>Practice Test</span>
               </div>
               <div className="content-card-v2-body">
-                <span className="series-status">Sắp có</span>
+                <span className="series-status is-ready">Đang mở</span>
               </div>
-            </div>
+            </button>
+          </div>
+        )}
+
+        {grade != null && unit != null && practiceTestOpen && (
+          <div className="content-grid content-grid-4">
+            {[1, 2, 3, 4].map(t => (
+              <div key={t} className="content-card-v2 content-card-v2-center is-disabled" style={{ "--accent": "#8B5CF6" }}>
+                <div className="card-banner-strip">
+                  <span>{`Test ${t}`}</span>
+                </div>
+                <div className="content-card-v2-body">
+                  <span className="series-status">Sắp có</span>
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>

@@ -14,13 +14,15 @@ export default function KetPetContentPage() {
   const { user } = useAuth();
   const [grade, setGrade] = useState(null);
   const [unit, setUnit] = useState(null);
+  const [mode, setMode] = useState(null); // "vocabulary" | "practice-test"
+  const [practiceTest, setPracticeTest] = useState(null); // 1-4
   const [questions, setQuestions] = useState(EMPTY_VOCAB_QUESTIONS);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
-    if (grade == null || unit == null) return;
+    if (grade == null || unit == null || mode !== "vocabulary") return;
     let cancelled = false;
     setLoading(true);
     setSaved(false);
@@ -30,7 +32,7 @@ export default function KetPetContentPage() {
       setLoading(false);
     });
     return () => { cancelled = true; };
-  }, [grade, unit]);
+  }, [grade, unit, mode]);
 
   async function handleSave() {
     setSaving(true);
@@ -63,9 +65,52 @@ export default function KetPetContentPage() {
         <h2>{`Grade ${grade} — chọn Unit`}</h2>
         <div className="admin-picker-grid">
           {Array.from({ length: KET_PET_UNITS_PER_GRADE }, (_, i) => i + 1).map(u => (
-            <button key={u} className="admin-picker-tile" style={{ "--accent": ACCENT }} onClick={() => setUnit(u)}>
+            <button key={u} className="admin-picker-tile" style={{ "--accent": ACCENT }} onClick={() => { setUnit(u); setMode(null); setPracticeTest(null); }}>
               <span className="admin-picker-tile-dot" />
               <span className="admin-picker-tile-title">{`Unit ${u}`}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (mode == null) {
+    return (
+      <div className="admin-card">
+        <button type="button" className="admin-pill-btn" onClick={() => setUnit(null)}>← Chọn Unit khác</button>
+        <h2>{`Grade ${grade} — Unit ${unit} — chọn dạng bài`}</h2>
+        <div className="admin-picker-grid">
+          <button className="admin-picker-tile" style={{ "--accent": ACCENT }} onClick={() => setMode("vocabulary")}>
+            <span className="admin-picker-tile-dot" />
+            <span className="admin-picker-tile-title">Vocabulary</span>
+          </button>
+          <button className="admin-picker-tile" style={{ "--accent": ACCENT }} onClick={() => setMode("practice-test")}>
+            <span className="admin-picker-tile-dot" />
+            <span className="admin-picker-tile-title">Practice Test</span>
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (mode === "practice-test" && practiceTest == null) {
+    return (
+      <div className="admin-card">
+        <button type="button" className="admin-pill-btn" onClick={() => setMode(null)}>← Chọn dạng bài khác</button>
+        <h2>{`Grade ${grade} — Unit ${unit} — Practice Test — chọn Test`}</h2>
+        <div className="admin-picker-grid">
+          {[1, 2, 3, 4].map(t => (
+            <button
+              key={t}
+              className="admin-picker-tile"
+              style={{ "--accent": ACCENT }}
+              disabled
+              title="Chưa thiết kế cơ chế Practice Test"
+              onClick={() => setPracticeTest(t)}
+            >
+              <span className="admin-picker-tile-dot" />
+              <span className="admin-picker-tile-title">{`Test ${t} (sắp có)`}</span>
             </button>
           ))}
         </div>
@@ -82,7 +127,7 @@ export default function KetPetContentPage() {
       unitTitle={`Unit ${unit}`}
       questions={questions}
       onQuestionsChange={setQuestions}
-      onBack={() => setUnit(null)}
+      onBack={() => setMode(null)}
       onSave={handleSave}
       saving={saving}
       saved={saved}
