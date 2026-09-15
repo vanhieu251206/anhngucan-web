@@ -53,6 +53,14 @@ export default function App() {
     return () => window.removeEventListener("popstate", onPopState);
   }, []);
 
+  // Vào thẳng ?page=login khi đã đăng nhập rồi (F5, mở lại tab cũ...) — tự đá sang khu vực đúng
+  // thay vì hiện lại form đăng nhập.
+  useEffect(() => {
+    if (page === "login" && !loading && user) {
+      setPage(isStaff ? "dashboard" : "lessons");
+    }
+  }, [page, loading, user, isStaff]);
+
   // F5 vào thẳng trang quản trị: Firebase Auth cần chút thời gian xác thực lại (loading=true lúc
   // đầu, isStaff tạm thời false) — chặn render ở đây thay vì để rớt xuống nhánh trang công khai
   // bên dưới rồi lại nhảy sang Dashboard ngay khi auth xong (gây "chớp" qua giao diện Trang chủ,
@@ -113,6 +121,10 @@ export default function App() {
       return <KetPetPage onNavigate={setPage} />;
     }
     return <LessonsPage initialSeriesId={lessonSeriesId} onNavigate={setPage} />;
+  }
+
+  if (page === "login" && loading) {
+    return null;
   }
 
   return (
