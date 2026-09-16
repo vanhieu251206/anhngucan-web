@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "../../lib/authContext.jsx";
 import { KET_PET_GRADES, KET_PET_UNITS_PER_GRADE } from "../../lib/yleData.js";
 import { getVocabularyUnit, saveVocabularyUnit, getKetPetPracticeTest, saveKetPetPracticeTest } from "../../lib/adminLessons.js";
-import KetPetVocabularyStudio, { EMPTY_VOCAB_QUESTIONS } from "../../components/dashboard/KetPetVocabularyStudio.jsx";
+import KetPetVocabularyStudio, { EMPTY_VOCAB_GROUPS } from "../../components/dashboard/KetPetVocabularyStudio.jsx";
 import KetPetPracticeTestStudio, { EMPTY_PRACTICE_TEST_GROUPS } from "../../components/dashboard/KetPetPracticeTestStudio.jsx";
 
 const ACCENT = "#8B5CF6";
@@ -16,7 +16,7 @@ export default function KetPetContentPage() {
   const [unit, setUnit] = useState(null);
   const [mode, setMode] = useState(null); // "vocabulary" | "practice-test"
   const [practiceTest, setPracticeTest] = useState(null); // 1-4
-  const [questions, setQuestions] = useState(EMPTY_VOCAB_QUESTIONS);
+  const [vocabGroups, setVocabGroups] = useState(EMPTY_VOCAB_GROUPS);
   const [groups, setGroups] = useState(EMPTY_PRACTICE_TEST_GROUPS);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -29,7 +29,7 @@ export default function KetPetContentPage() {
     setSaved(false);
     getVocabularyUnit(grade, unit).then(doc => {
       if (cancelled) return;
-      setQuestions(doc?.questions?.length ? doc.questions : EMPTY_VOCAB_QUESTIONS);
+      setVocabGroups(doc?.groups?.length ? doc.groups : EMPTY_VOCAB_GROUPS);
       setLoading(false);
     });
     return () => { cancelled = true; };
@@ -54,7 +54,7 @@ export default function KetPetContentPage() {
     if (mode === "practice-test") {
       await saveKetPetPracticeTest(grade, unit, practiceTest, groups, user.uid);
     } else {
-      await saveVocabularyUnit(grade, unit, questions, user.uid);
+      await saveVocabularyUnit(grade, unit, vocabGroups, user.uid);
     }
     setSaving(false);
     setSaved(true);
@@ -158,8 +158,8 @@ export default function KetPetContentPage() {
       accent={ACCENT}
       gradeTitle={`Grade ${grade}`}
       unitTitle={`Unit ${unit}`}
-      questions={questions}
-      onQuestionsChange={setQuestions}
+      groups={vocabGroups}
+      onGroupsChange={setVocabGroups}
       onBack={() => setMode(null)}
       onSave={handleSave}
       saving={saving}

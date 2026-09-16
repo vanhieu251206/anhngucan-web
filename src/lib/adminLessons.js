@@ -232,15 +232,17 @@ export async function deleteIeltsListeningTest(seriesId, level, testId) {
 // `questions` — danh sách PHẲNG, mỗi câu TỰ chọn 1 trong 3 dạng ("multiple-choice"/"fill-blank"/
 // "translation", xem lib/ketPetVocabulary.js `QUESTION_TYPES`), không chia khung cố định (chốt
 // 2026-09-14, đổi từ thiết kế "blocks" ban đầu vì GV cần tự do trộn dạng theo từng câu).
-// Tái dùng `lessonId("ket-pet", grade)` sẵn có, subcollection "vocabularyUnits" docId "unit{n}".
+// Tái dùng `lessonId("ket-pet", grade)` sẵn có, subcollection "vocabularyUnits" docId "unit{n}". Lưu
+// theo NHÓM câu hỏi (`groups`, xem lib/ketPetVocabulary.js `blankGroup`/`GROUP_TYPES` — đổi từ danh
+// sách câu hỏi phẳng `questions` sang nhóm, chốt người dùng 2026-09-17, cùng cơ chế Practice Test).
 export async function getVocabularyUnit(grade, unit) {
   const snap = await getDoc(doc(db, "lessons", lessonId("ket-pet", grade), "vocabularyUnits", `unit${unit}`));
   return snap.exists() ? { id: snap.id, ...snap.data() } : null;
 }
 
-export async function saveVocabularyUnit(grade, unit, questions, uid) {
+export async function saveVocabularyUnit(grade, unit, groups, uid) {
   await setDoc(doc(db, "lessons", lessonId("ket-pet", grade), "vocabularyUnits", `unit${unit}`), {
-    questions,
+    groups,
     updatedAt: serverTimestamp(),
     updatedBy: uid,
   });

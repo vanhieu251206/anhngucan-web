@@ -1,41 +1,68 @@
 import { useState } from "react";
 import { useConfirm } from "./ConfirmDialog.jsx";
 import { PageHead, PageHeadSaveButton } from "./AdminPageHead.jsx";
-import { QUESTION_TYPES, blankQuestion } from "../../lib/ketPetVocabulary.js";
+import { GROUP_TYPES, blankGroup, blankGroupQuestion, toRoman } from "../../lib/ketPetVocabulary.js";
 import KetPetVocabularyQuiz from "../KetPetVocabularyQuiz.jsx";
+import CommaListInput from "./CommaListInput.jsx";
 
-export const EMPTY_VOCAB_QUESTIONS = [];
+export const EMPTY_VOCAB_GROUPS = [];
 
-// Soạn Vocabulary cho 1 Unit KET/PET — danh sách câu hỏi PHẲNG, mỗi câu tự bấm "+ Thêm câu hỏi"
-// rồi CHỌN DẠNG riêng (trắc nghiệm / điền từ / dịch câu) thay vì 4 khung cố định như trước (chốt
-// người dùng 2026-09-14) — đổi dạng 1 câu đã có sẽ reset field của câu đó về dạng mới. Nút "Xuất
-// bản" dính cố định trên đầu (PageHead sticky) + Preview xem trước y hệt học sinh (dữ liệu đang
-// soạn dở, chưa cần lưu) — đồng bộ với LuyenDePage (PracticeStudio.jsx).
+// Soạn Vocabulary cho 1 Unit KET/PET — soạn theo NHÓM câu hỏi thứ tự I, II, III... (đổi từ danh sách
+// câu hỏi phẳng sang nhóm, chốt người dùng 2026-09-17, cùng khung "admin-practice-group" đã dùng cho
+// KetPetPracticeTestStudio.jsx): GV bấm "+ Thêm nhóm câu hỏi", CHỌN DẠNG cho cả nhóm (trắc nghiệm /
+// điền từ / điền từ khung cho sẵn / dịch câu), nhập hướng dẫn làm bài + đoạn văn dùng chung (nếu có)
+// + tổng điểm của nhóm, rồi bấm "+ Thêm câu" nhiều lần — mỗi câu thêm vào LUÔN theo đúng dạng của
+// nhóm (đổi dạng nhóm sẽ xoá hết câu cũ vì cấu trúc field khác nhau). Điểm mỗi câu = tổng điểm nhóm /
+// số câu.
 export default function KetPetVocabularyStudio({
-  accent, gradeTitle, unitTitle, questions, onQuestionsChange, onBack, onSave, saving, saved,
+  accent, gradeTitle, unitTitle, groups, onGroupsChange, onBack, onSave, saving, saved,
 }) {
   const confirm = useConfirm();
   const [previewOpen, setPreviewOpen] = useState(false);
 
-  function addQuestion() {
-    onQuestionsChange([...questions, blankQuestion("multiple-choice")]);
+  function addGroup() {
+    onGroupsChange([...groups, blankGroup("multiple-choice")]);
   }
-  function updateQuestion(qi, patch) {
-    onQuestionsChange(questions.map((q, i) => (i === qi ? { ...q, ...patch } : q)));
+  function updateGroup(gi, patch) {
+    onGroupsChange(groups.map((g, i) => (i === gi ? { ...g, ...patch } : g)));
   }
-  function changeType(qi, type) {
-    onQuestionsChange(questions.map((q, i) => (i === qi ? blankQuestion(type) : q)));
+  function changeGroupType(gi, type) {
+    onGroupsChange(groups.map((g, i) => (i === gi
+      ? { ...blankGroup(type), instruction: g.instruction, passage: g.passage }
+      : g)));
   }
-  async function removeQuestion(qi) {
+  async function removeGroup(gi) {
+    if (!(await confirm("Xoá cả nhóm câu hỏi này (và toàn bộ câu bên trong)?", { danger: true }))) return;
+    onGroupsChange(groups.filter((_, i) => i !== gi));
+  }
+  function moveGroup(gi, dir) {
+    const gj = gi + dir;
+    if (gj < 0 || gj >= groups.length) return;
+    const next = [...groups];
+    [next[gi], next[gj]] = [next[gj], next[gi]];
+    onGroupsChange(next);
+  }
+
+  function addQuestion(gi) {
+    const g = groups[gi];
+    updateGroup(gi, { questions: [...g.questions, blankGroupQuestion(g.type)] });
+  }
+  function updateQuestion(gi, qi, patch) {
+    const g = groups[gi];
+    updateGroup(gi, { questions: g.questions.map((q, i) => (i === qi ? { ...q, ...patch } : q)) });
+  }
+  async function removeQuestion(gi, qi) {
     if (!(await confirm("Xoá câu này?", { danger: true }))) return;
-    onQuestionsChange(questions.filter((_, i) => i !== qi));
+    const g = groups[gi];
+    updateGroup(gi, { questions: g.questions.filter((_, i) => i !== qi) });
   }
-  function moveQuestion(qi, dir) {
+  function moveQuestion(gi, qi, dir) {
+    const g = groups[gi];
     const qj = qi + dir;
-    if (qj < 0 || qj >= questions.length) return;
-    const next = [...questions];
+    if (qj < 0 || qj >= g.questions.length) return;
+    const next = [...g.questions];
     [next[qi], next[qj]] = [next[qj], next[qi]];
-    onQuestionsChange(next);
+    updateGroup(gi, { questions: next });
   }
 
   return (
@@ -45,102 +72,172 @@ export default function KetPetVocabularyStudio({
         <PageHeadSaveButton onSave={onSave} saving={saving} saved={saved} />
       </PageHead>
 
-      <ol className="admin-scene-list">
-        {questions.map((q, qi) => (
-          <li className="admin-scene-list-item" key={qi}>
-            <span className="admin-scene-list-index">{qi + 1}</span>
+      {groups.map((g, gi) => (
+        <div className="admin-practice-group" key={gi}>
+          <div className="admin-practice-group-head">
+            <span className="admin-practice-page-label">{`Nhóm ${toRoman(gi + 1)}`}</span>
+            {g.type !== "translation" && (
+              <div className="admin-practice-option-row admin-practice-group-points">
+                <label htmlFor={`vocab-group-points-${gi}`} style={{ whiteSpace: "nowrap" }}>Tổng điểm cả nhóm:</label>
+                <input
+                  id={`vocab-group-points-${gi}`}
+                  className="admin-input"
+                  type="number"
+                  min="0"
+                  step="0.5"
+                  style={{ maxWidth: 100 }}
+                  value={g.totalPoints}
+                  onChange={e => updateGroup(gi, { totalPoints: e.target.value === "" ? "" : Number(e.target.value) })}
+                />
+                <span style={{ fontSize: "0.85rem", color: "#777" }}>
+                  {g.questions.length > 0
+                    ? `= ${((Number(g.totalPoints) || 0) / g.questions.length).toFixed(2).replace(/\.?0+$/, "")} điểm/câu`
+                    : "(chưa có câu nào)"}
+                </span>
+              </div>
+            )}
+            <div className="admin-scene-list-actions">
+              <button type="button" className="admin-link-btn" onClick={() => moveGroup(gi, -1)} disabled={gi === 0}>↑</button>
+              <button type="button" className="admin-link-btn" onClick={() => moveGroup(gi, 1)} disabled={gi === groups.length - 1}>↓</button>
+              <button type="button" className="admin-link-btn admin-pill-btn-danger" onClick={() => removeGroup(gi)}>Xoá nhóm</button>
+            </div>
+          </div>
 
-            <div className="admin-dictation-row-fields">
-              <select
-                className="admin-input admin-practice-type-select"
-                value={q.type}
-                onChange={e => changeType(qi, e.target.value)}
-              >
-                {QUESTION_TYPES.map(t => (
-                  <option key={t.key} value={t.key}>{t.label}</option>
-                ))}
-              </select>
+          <select
+            className="admin-input admin-practice-type-select"
+            value={g.type}
+            onChange={e => changeGroupType(gi, e.target.value)}
+          >
+            {GROUP_TYPES.map(t => (
+              <option key={t.key} value={t.key}>{t.label}</option>
+            ))}
+          </select>
 
-              {q.type === "multiple-choice" && (
-                <>
-                  <input
-                    className="admin-input"
-                    value={q.text}
-                    onChange={e => updateQuestion(qi, { text: e.target.value })}
-                    placeholder="I really ______ playing football."
-                  />
-                  {q.options.map((opt, oi) => (
-                    <div className="admin-practice-option-row" key={oi}>
+          <input
+            className="admin-input"
+            value={g.instruction}
+            onChange={e => updateGroup(gi, { instruction: e.target.value })}
+            placeholder={`Hướng dẫn làm bài của nhóm ${toRoman(gi + 1)} (VD: Choose the correct word.)`}
+          />
+
+          <textarea
+            className="admin-input"
+            rows={2}
+            value={g.passage}
+            onChange={e => updateGroup(gi, { passage: e.target.value })}
+            placeholder="Đoạn văn dùng chung cho cả nhóm (tuỳ chọn)"
+          />
+
+          {g.type === "word-bank" && (
+            <CommaListInput
+              value={g.wordBank}
+              onChange={wordBank => updateGroup(gi, { wordBank })}
+              placeholder="Khung từ cho sẵn (word box), cách nhau bằng dấu phẩy — VD: shape, out, on, on"
+            />
+          )}
+
+          <ol className="admin-scene-list">
+            {g.questions.map((q, qi) => (
+              <li className="admin-scene-list-item" key={qi}>
+                <span className="admin-scene-list-index">{qi + 1}</span>
+
+                <div className="admin-dictation-row-fields">
+                  {g.type === "multiple-choice" && (
+                    <>
                       <input
-                        type="radio"
-                        name={`mc-${qi}`}
-                        checked={q.answerIndex === oi}
-                        onChange={() => updateQuestion(qi, { answerIndex: oi })}
+                        className="admin-input"
+                        value={q.text}
+                        onChange={e => updateQuestion(gi, qi, { text: e.target.value })}
+                        placeholder="I really ______ playing football."
+                      />
+                      {q.options.map((opt, oi) => (
+                        <div className="admin-practice-option-row" key={oi}>
+                          <input
+                            type="radio"
+                            name={`vocab-mc-${gi}-${qi}`}
+                            checked={q.answerIndex === oi}
+                            onChange={() => updateQuestion(gi, qi, { answerIndex: oi })}
+                          />
+                          <input
+                            className="admin-input"
+                            value={opt}
+                            onChange={e => {
+                              const next = [...q.options];
+                              next[oi] = e.target.value;
+                              updateQuestion(gi, qi, { options: next });
+                            }}
+                            placeholder={`Đáp án ${String.fromCharCode(65 + oi)}`}
+                          />
+                        </div>
+                      ))}
+                    </>
+                  )}
+
+                  {g.type === "fill-blank" && (
+                    <>
+                      <input
+                        className="admin-input"
+                        value={q.text}
+                        onChange={e => updateQuestion(gi, qi, { text: e.target.value })}
+                        placeholder="stay in ______"
+                      />
+                      <CommaListInput
+                        value={q.acceptedAnswers}
+                        onChange={acceptedAnswers => updateQuestion(gi, qi, { acceptedAnswers })}
+                        placeholder="Đáp án đúng, cách nhau bằng dấu phẩy nếu có nhiều cách viết"
+                      />
+                    </>
+                  )}
+
+                  {g.type === "word-bank" && (
+                    <>
+                      <input
+                        className="admin-input"
+                        value={q.text}
+                        onChange={e => updateQuestion(gi, qi, { text: e.target.value })}
+                        placeholder="stay in ______"
                       />
                       <input
                         className="admin-input"
-                        value={opt}
-                        onChange={e => {
-                          const next = [...q.options];
-                          next[oi] = e.target.value;
-                          updateQuestion(qi, { options: next });
-                        }}
-                        placeholder={`Đáp án ${String.fromCharCode(65 + oi)}`}
+                        value={q.answer}
+                        onChange={e => updateQuestion(gi, qi, { answer: e.target.value })}
+                        placeholder="Đáp án đúng (1 từ trong khung từ, VD: on)"
                       />
-                    </div>
-                  ))}
-                </>
-              )}
+                    </>
+                  )}
 
-              {q.type === "fill-blank" && (
-                <>
-                  <input
-                    className="admin-input"
-                    value={q.text}
-                    onChange={e => updateQuestion(qi, { text: e.target.value })}
-                    placeholder="stay in ______"
-                  />
-                  <input
-                    className="admin-input"
-                    value={(q.acceptedAnswers ?? []).join(", ")}
-                    onChange={e =>
-                      updateQuestion(qi, {
-                        acceptedAnswers: e.target.value.split(",").map(s => s.trim()).filter(Boolean),
-                      })
-                    }
-                    placeholder="Đáp án đúng, cách nhau bằng dấu phẩy nếu có nhiều cách viết"
-                  />
-                </>
-              )}
+                  {g.type === "translation" && (
+                    <>
+                      <input
+                        className="admin-input"
+                        value={q.prompt}
+                        onChange={e => updateQuestion(gi, qi, { prompt: e.target.value })}
+                        placeholder="Tôi thường đi chơi với bạn vào cuối tuần."
+                      />
+                      <input
+                        className="admin-input"
+                        value={q.sampleAnswer}
+                        onChange={e => updateQuestion(gi, qi, { sampleAnswer: e.target.value })}
+                        placeholder="I often hang out with my friends at weekends."
+                      />
+                    </>
+                  )}
+                </div>
 
-              {q.type === "translation" && (
-                <>
-                  <input
-                    className="admin-input"
-                    value={q.prompt}
-                    onChange={e => updateQuestion(qi, { prompt: e.target.value })}
-                    placeholder="Tôi thường đi chơi với bạn vào cuối tuần."
-                  />
-                  <input
-                    className="admin-input"
-                    value={q.sampleAnswer}
-                    onChange={e => updateQuestion(qi, { sampleAnswer: e.target.value })}
-                    placeholder="I often hang out with my friends at weekends."
-                  />
-                </>
-              )}
-            </div>
+                <div className="admin-scene-list-actions">
+                  <button type="button" className="admin-link-btn" onClick={() => moveQuestion(gi, qi, -1)} disabled={qi === 0}>↑</button>
+                  <button type="button" className="admin-link-btn" onClick={() => moveQuestion(gi, qi, 1)} disabled={qi === g.questions.length - 1}>↓</button>
+                  <button type="button" className="admin-link-btn admin-pill-btn-danger" onClick={() => removeQuestion(gi, qi)}>Xoá</button>
+                </div>
+              </li>
+            ))}
+          </ol>
 
-            <div className="admin-scene-list-actions">
-              <button type="button" className="admin-link-btn" onClick={() => moveQuestion(qi, -1)} disabled={qi === 0}>↑</button>
-              <button type="button" className="admin-link-btn" onClick={() => moveQuestion(qi, 1)} disabled={qi === questions.length - 1}>↓</button>
-              <button type="button" className="admin-link-btn admin-pill-btn-danger" onClick={() => removeQuestion(qi)}>Xoá</button>
-            </div>
-          </li>
-        ))}
-      </ol>
+          <button type="button" className="admin-btn-secondary" onClick={() => addQuestion(gi)}>+ Thêm câu</button>
+        </div>
+      ))}
 
-      <button type="button" className="admin-btn-secondary" onClick={addQuestion}>+ Thêm câu hỏi</button>
+      <button type="button" className="admin-btn-secondary" onClick={addGroup}>+ Thêm nhóm câu hỏi</button>
 
       {previewOpen && (
         <div className="admin-preview-overlay">
@@ -149,7 +246,7 @@ export default function KetPetVocabularyStudio({
             <strong>{unitTitle} — Vocabulary (xem trước)</strong>
           </div>
           <div className="admin-preview-overlay-body">
-            <KetPetVocabularyQuiz questions={questions} />
+            <KetPetVocabularyQuiz groups={groups} />
           </div>
         </div>
       )}

@@ -12,7 +12,7 @@ export default function KetPetVocabularyRunner({ grade, unit, onNavigate, onBack
   useEffect(() => {
     let cancelled = false;
     getVocabularyUnit(grade, unit).then(d => {
-      if (!cancelled) setDoc(d?.questions?.length ? d : null);
+      if (!cancelled) setDoc(d?.groups?.length ? d : null);
     });
     return () => { cancelled = true; };
   }, [grade, unit]);
@@ -34,7 +34,7 @@ export default function KetPetVocabularyRunner({ grade, unit, onNavigate, onBack
       <div className="content-grid-section content-grid-section-dark">
         {doc === undefined && <p className="vocab-empty">Đang tải...</p>}
         {doc === null && <p className="vocab-empty">Chưa có nội dung — quay lại sau nhé.</p>}
-        {doc && <KetPetVocabularyQuiz questions={doc.questions} />}
+        {doc && <KetPetVocabularyQuiz groups={doc.groups} />}
       </div>
     </div>
   );

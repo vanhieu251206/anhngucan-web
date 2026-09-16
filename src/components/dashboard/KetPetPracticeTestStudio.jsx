@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { useConfirm } from "./ConfirmDialog.jsx";
 import { PageHead, PageHeadSaveButton } from "./AdminPageHead.jsx";
-import { GROUP_TYPES, blankGroup, blankGroupQuestion, toRoman } from "../../lib/ketPetPracticeTest.js";
+import { GROUP_TYPES, SPLIT_QUESTION_TYPES, blankGroup, blankGroupQuestion, blankSplitQuestion, toRoman } from "../../lib/ketPetPracticeTest.js";
 import KetPetPracticeTestQuiz from "../KetPetPracticeTestQuiz.jsx";
+import CommaListInput from "./CommaListInput.jsx";
+import UnderlineTextInput from "./UnderlineTextInput.jsx";
 
 export const EMPTY_PRACTICE_TEST_GROUPS = [];
 
@@ -54,6 +56,13 @@ export default function KetPetPracticeTestStudio({
     if (!(await confirm("Xoá câu này?", { danger: true }))) return;
     const g = groups[gi];
     updateGroup(gi, { questions: g.questions.filter((_, i) => i !== qi) });
+  }
+  // Chỉ dùng cho nhóm "split-reading" — đổi dạng con của 1 câu cụ thể (khác các nhóm khác đổi dạng
+  // cả nhóm), giữ nguyên text nếu có để đỡ gõ lại.
+  function changeQuestionSubType(gi, qi, subType) {
+    const g = groups[gi];
+    const q = g.questions[qi];
+    updateQuestion(gi, qi, { ...blankSplitQuestion(subType), text: q.text ?? "" });
   }
   function moveQuestion(gi, qi, dir) {
     const g = groups[gi];
@@ -121,11 +130,21 @@ export default function KetPetPracticeTestStudio({
 
           <textarea
             className="admin-input"
-            rows={2}
+            rows={g.type === "split-reading" ? 8 : 2}
             value={g.passage}
             onChange={e => updateGroup(gi, { passage: e.target.value })}
-            placeholder="Đoạn văn dùng chung cho cả nhóm (tuỳ chọn — cho dạng đọc hiểu/điền từ đoạn văn)"
+            placeholder={g.type === "split-reading"
+              ? "Đoạn văn hiện bên TRÁI màn hình chia đôi khi học sinh làm bài"
+              : "Đoạn văn dùng chung cho cả nhóm (tuỳ chọn — cho dạng đọc hiểu/điền từ đoạn văn)"}
           />
+
+          {g.type === "word-bank" && (
+            <CommaListInput
+              value={g.wordBank}
+              onChange={wordBank => updateGroup(gi, { wordBank })}
+              placeholder="Khung từ cho sẵn (word box), cách nhau bằng dấu phẩy — VD: Ant, dog, cat, Turtle"
+            />
+          )}
 
           <ol className="admin-scene-list">
             {g.questions.map((q, qi) => (
@@ -164,6 +183,90 @@ export default function KetPetPracticeTestStudio({
                     </>
                   )}
 
+                  {g.type === "pronunciation-underline" && (
+                    <>
+                      {q.options.map((opt, oi) => (
+                        <div className="admin-practice-option-row" key={oi}>
+                          <input
+                            type="radio"
+                            name={`ketpet-pt-underline-${gi}-${qi}`}
+                            checked={q.answerIndex === oi}
+                            onChange={() => updateQuestion(gi, qi, { answerIndex: oi })}
+                          />
+                          <UnderlineTextInput
+                            value={opt}
+                            onChange={next => {
+                              const nextOptions = [...q.options];
+                              nextOptions[oi] = next;
+                              updateQuestion(gi, qi, { options: nextOptions });
+                            }}
+                            placeholder={`Đáp án ${String.fromCharCode(65 + oi)} — bôi đen chữ cần gạch chân rồi bấm U`}
+                          />
+                        </div>
+                      ))}
+                    </>
+                  )}
+
+                  {g.type === "split-reading" && (
+                    <>
+                      <select
+                        className="admin-input"
+                        style={{ maxWidth: 260 }}
+                        value={q.type}
+                        onChange={e => changeQuestionSubType(gi, qi, e.target.value)}
+                      >
+                        {SPLIT_QUESTION_TYPES.map(t => (
+                          <option key={t.key} value={t.key}>{t.label}</option>
+                        ))}
+                      </select>
+
+                      {q.type === "multiple-choice" ? (
+                        <>
+                          <input
+                            className="admin-input"
+                            value={q.text}
+                            onChange={e => updateQuestion(gi, qi, { text: e.target.value })}
+                            placeholder="1. Eating fruits and vegetables provides you _____ nutrients."
+                          />
+                          {q.options.map((opt, oi) => (
+                            <div className="admin-practice-option-row" key={oi}>
+                              <input
+                                type="radio"
+                                name={`ketpet-pt-split-mc-${gi}-${qi}`}
+                                checked={q.answerIndex === oi}
+                                onChange={() => updateQuestion(gi, qi, { answerIndex: oi })}
+                              />
+                              <input
+                                className="admin-input"
+                                value={opt}
+                                onChange={e => {
+                                  const next = [...q.options];
+                                  next[oi] = e.target.value;
+                                  updateQuestion(gi, qi, { options: next });
+                                }}
+                                placeholder={`Đáp án ${String.fromCharCode(65 + oi)}`}
+                              />
+                            </div>
+                          ))}
+                        </>
+                      ) : (
+                        <>
+                          <input
+                            className="admin-input"
+                            value={q.text}
+                            onChange={e => updateQuestion(gi, qi, { text: e.target.value })}
+                            placeholder="1. What does the writer think about breakfast?"
+                          />
+                          <CommaListInput
+                            value={q.acceptedAnswers}
+                            onChange={acceptedAnswers => updateQuestion(gi, qi, { acceptedAnswers })}
+                            placeholder="Đáp án đúng, cách nhau bằng dấu phẩy nếu có nhiều cách viết"
+                          />
+                        </>
+                      )}
+                    </>
+                  )}
+
                   {g.type === "fill-blank" && (
                     <>
                       <input
@@ -174,13 +277,31 @@ export default function KetPetPracticeTestStudio({
                       />
                       <input
                         className="admin-input"
-                        value={(q.acceptedAnswers ?? []).join(", ")}
-                        onChange={e =>
-                          updateQuestion(gi, qi, {
-                            acceptedAnswers: e.target.value.split(",").map(s => s.trim()).filter(Boolean),
-                          })
-                        }
+                        value={q.hint ?? ""}
+                        onChange={e => updateQuestion(gi, qi, { hint: e.target.value })}
+                        placeholder="Gợi ý hiện cạnh chỗ trống, tuỳ chọn (VD chia dạng từ: USE)"
+                      />
+                      <CommaListInput
+                        value={q.acceptedAnswers}
+                        onChange={acceptedAnswers => updateQuestion(gi, qi, { acceptedAnswers })}
                         placeholder="Đáp án đúng, cách nhau bằng dấu phẩy nếu có nhiều cách viết"
+                      />
+                    </>
+                  )}
+
+                  {g.type === "word-bank" && (
+                    <>
+                      <input
+                        className="admin-input"
+                        value={q.text}
+                        onChange={e => updateQuestion(gi, qi, { text: e.target.value })}
+                        placeholder="1. I love .............. because it's friendly."
+                      />
+                      <input
+                        className="admin-input"
+                        value={q.answer}
+                        onChange={e => updateQuestion(gi, qi, { answer: e.target.value })}
+                        placeholder="Đáp án đúng (1 từ trong khung từ, VD: dog)"
                       />
                     </>
                   )}
