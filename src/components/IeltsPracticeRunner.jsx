@@ -582,6 +582,7 @@ export default function IeltsPracticeRunner({ test, onBack, mode = "practice", r
             )}
             <h2>{passage.title}</h2>
             {passage.titleVi && <p className="ielts-practice-title-vi">{passage.titleVi}</p>}
+            {passage.audioUrl && <audio className="ielts-full-audio" src={passage.audioUrl} controls />}
             {readMode === "plain" ? (
               <HighlightablePassage
                 sentences={passage.sentences}

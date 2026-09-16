@@ -11,7 +11,8 @@ import {
 import TestStudio from "../../components/dashboard/TestStudio.jsx";
 import ReadingStudio from "../../components/dashboard/ReadingStudio.jsx";
 import DictationStudio from "../../components/dashboard/DictationStudio.jsx";
-import { ComprehensionPage, LuyenDePage } from "../../components/dashboard/PracticeStudio.jsx";
+import { LuyenDePage } from "../../components/dashboard/PracticeStudio.jsx";
+import ComprehensionStudio from "../../components/dashboard/ComprehensionStudio.jsx";
 import ListeningTestStudio from "../../components/dashboard/ListeningTestStudio.jsx";
 import KetPetContentPage from "./KetPetContentPage.jsx";
 import { useConfirm } from "../../components/dashboard/ConfirmDialog.jsx";
@@ -797,7 +798,7 @@ function IeltsReadingEditor({ series, level, uid }) {
     if (focus && nextPassages.length <= focus.passageIndex) {
       nextPassages = [...nextPassages];
       while (nextPassages.length <= focus.passageIndex) {
-        nextPassages.push({ title: "", titleVi: "", sentences: [], groups: [] });
+        nextPassages.push({ title: "", titleVi: "", audioUrl: "", sentences: [], groups: [] });
       }
     }
     setOpenTestId(t.id);
@@ -816,7 +817,7 @@ function IeltsReadingEditor({ series, level, uid }) {
     const nextPassages = [];
     if (focus) {
       while (nextPassages.length <= focus.passageIndex) {
-        nextPassages.push({ title: "", titleVi: "", sentences: [], groups: [] });
+        nextPassages.push({ title: "", titleVi: "", audioUrl: "", sentences: [], groups: [] });
       }
     }
     setPassages(nextPassages);
@@ -868,7 +869,7 @@ function IeltsReadingEditor({ series, level, uid }) {
 
   if (openTestId && focusTarget) {
     const passageIndex = focusTarget.passageIndex;
-    const passage = passages[passageIndex] ?? { title: "", titleVi: "", sentences: [], groups: [] };
+    const passage = passages[passageIndex] ?? { title: "", titleVi: "", audioUrl: "", sentences: [], groups: [] };
     function updatePassageAt(nextPassage) {
       const next = [...passages];
       next[passageIndex] = nextPassage;
@@ -877,11 +878,17 @@ function IeltsReadingEditor({ series, level, uid }) {
     const testLabel = `Test ${openTestId.replace("test", "")} — Passage ${passageIndex + 1}`;
     if (focusTarget.section === "comprehension") {
       return (
-        <ComprehensionPage
+        <ComprehensionStudio
           accent={series.color}
           testLabel={testLabel}
-          passage={passage}
-          onPassageChange={updatePassageAt}
+          titleEn={passage.title}
+          onTitleEnChange={title => updatePassageAt({ ...passage, title })}
+          titleVi={passage.titleVi}
+          onTitleViChange={titleVi => updatePassageAt({ ...passage, titleVi })}
+          audioUrl={passage.audioUrl}
+          onAudioUrlChange={audioUrl => updatePassageAt({ ...passage, audioUrl })}
+          sentences={passage.sentences}
+          onSentencesChange={sentences => updatePassageAt({ ...passage, sentences })}
           onBack={() => setOpenTestId(null)}
           onSave={handleSaveTest}
           saving={saving}

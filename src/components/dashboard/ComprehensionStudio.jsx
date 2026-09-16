@@ -1,5 +1,6 @@
 import AudioUploadField from "./AudioUploadField.jsx";
 import { useConfirm } from "./ConfirmDialog.jsx";
+import { PageHead, PageHeadSaveButton } from "./AdminPageHead.jsx";
 
 // Màn soạn 1 bài "ĐỌC HIỂU" IELTS Reading — khác ReadingStudio (Part/câu hỏi có chấm điểm):
 // đây là bài đọc TĨNH, chia theo từng câu = { en, vi, vocab: [{ termDef, meaning }] }, đúng bố cục
@@ -8,6 +9,7 @@ import { useConfirm } from "./ConfirmDialog.jsx";
 // Speaking", ĐỌC HIỂU là mục mới, chốt cấu trúc 2026-09-10).
 export default function ComprehensionStudio({
   accent,
+  testLabel,
   titleEn,
   onTitleEnChange,
   titleVi,
@@ -54,45 +56,50 @@ export default function ComprehensionStudio({
 
   return (
     <div className="admin-card" style={{ "--accent": accent }}>
-      <div className="admin-dictation-head">
-        <button type="button" className="admin-pill-btn" onClick={onBack}>← Quay lại danh sách bài</button>
+      <PageHead label={testLabel ? `${testLabel} — Đọc hiểu` : undefined} backLabel="← Quay lại danh sách Test" onBack={onBack}>
+        <PageHeadSaveButton onSave={onSave} saving={saving} saved={saved} />
+      </PageHead>
+
+      <div className="admin-comprehension-title-grid">
+        <label className="admin-dictation-text-label">
+          Tiêu đề (tiếng Anh)
+          <input
+            className="admin-input"
+            value={titleEn ?? ""}
+            onChange={e => onTitleEnChange(e.target.value)}
+            placeholder="vd: SHEET GLASS MANUFACTURE: THE FLOAT PROCESS"
+          />
+        </label>
+        <label className="admin-dictation-text-label">
+          Tiêu đề (tiếng Việt)
+          <input
+            className="admin-input"
+            value={titleVi ?? ""}
+            onChange={e => onTitleViChange(e.target.value)}
+            placeholder="vd: SẢN XUẤT KÍNH TẤM: QUY TRÌNH NỔI"
+          />
+        </label>
       </div>
 
-      <label className="admin-dictation-text-label">
-        Tiêu đề bài (tiếng Anh)
-        <input
-          className="admin-input"
-          value={titleEn}
-          onChange={e => onTitleEnChange(e.target.value)}
-          placeholder="vd: SHEET GLASS MANUFACTURE: THE FLOAT PROCESS"
-        />
-      </label>
-      <label className="admin-dictation-text-label">
-        Tiêu đề bài (tiếng Việt, không bắt buộc)
-        <input
-          className="admin-input"
-          value={titleVi}
-          onChange={e => onTitleViChange(e.target.value)}
-          placeholder="vd: SẢN XUẤT KÍNH TẤM: QUY TRÌNH NỔI"
-        />
-      </label>
-
       <AudioUploadField
-        label="Audio đọc toàn bài (giọng tự thu/tạo, KHÔNG dùng audio gốc đề thi có bản quyền)"
+        label="Audio đọc toàn bài"
         value={audioUrl}
         onChange={onAudioUrlChange}
       />
 
-      <p className="admin-hint">
-        Mỗi câu gồm: câu tiếng Anh, bản dịch tiếng Việt, và danh sách từ vựng/từ đồng nghĩa xuất
-        hiện trong câu đó (mỗi dòng: cụm từ = từ đồng nghĩa → nghĩa tiếng Việt).
-      </p>
-
-      <ol className="admin-scene-list">
+      <ol className="admin-comprehension-sentence-list">
         {(sentences ?? []).map((s, i) => (
-          <li className="admin-scene-list-item admin-dictation-row" key={i}>
-            <span className="admin-scene-list-index">{i + 1}</span>
-            <div className="admin-dictation-row-fields">
+          <li className="admin-comprehension-sentence-card" key={i}>
+            <div className="admin-comprehension-sentence-head">
+              <span className="admin-scene-list-index">{i + 1}</span>
+              <span className="admin-comprehension-sentence-head-title">Câu {i + 1}</span>
+              <div className="admin-scene-list-actions">
+                <button type="button" className="admin-link-btn" onClick={() => moveSentence(i, -1)} disabled={i === 0}>↑</button>
+                <button type="button" className="admin-link-btn" onClick={() => moveSentence(i, 1)} disabled={i === sentences.length - 1}>↓</button>
+                <button type="button" className="admin-link-btn admin-pill-btn-danger" onClick={() => removeSentence(i)}>Xoá câu</button>
+              </div>
+            </div>
+            <div className="admin-comprehension-sentence-body">
               <label className="admin-dictation-text-label">
                 Câu tiếng Anh
                 <textarea
@@ -115,7 +122,7 @@ export default function ComprehensionStudio({
               </label>
 
               <div className="admin-comprehension-vocab-box">
-                <span className="admin-upload-label">Từ vựng + từ đồng nghĩa trong câu này</span>
+                <span className="admin-upload-label">Từ vựng</span>
                 {(s.vocab ?? []).map((v, vi) => (
                   <div className="admin-comprehension-vocab-row" key={vi}>
                     <input
@@ -144,23 +151,11 @@ export default function ComprehensionStudio({
                 </button>
               </div>
             </div>
-            <div className="admin-scene-list-actions">
-              <button type="button" className="admin-link-btn" onClick={() => moveSentence(i, -1)} disabled={i === 0}>↑</button>
-              <button type="button" className="admin-link-btn" onClick={() => moveSentence(i, 1)} disabled={i === sentences.length - 1}>↓</button>
-              <button type="button" className="admin-link-btn admin-pill-btn-danger" onClick={() => removeSentence(i)}>Xoá câu</button>
-            </div>
           </li>
         ))}
       </ol>
 
       <button type="button" className="admin-btn-secondary" onClick={addSentence}>+ Thêm câu</button>
-
-      <div className="admin-dictation-footer">
-        <button className="admin-btn-primary" type="button" onClick={onSave} disabled={saving}>
-          {saving ? "Đang lưu..." : "Xuất bản"}
-        </button>
-        {saved && <p className="admin-success">✓ Đã lưu</p>}
-      </div>
     </div>
   );
 }

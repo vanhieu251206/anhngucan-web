@@ -2884,6 +2884,26 @@ button { font-family: inherit; }
 .admin-dictation-footer { display: flex; align-items: center; gap: 14px; margin-top: 18px; }
 
 /* ComprehensionStudio.jsx — soạn bài "ĐỌC HIỂU" IELTS (câu + dịch + từ vựng/đồng nghĩa). */
+.admin-comprehension-title-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;
+}
+@media (max-width: 720px) {
+  .admin-comprehension-title-grid { grid-template-columns: 1fr; }
+}
+/* Mỗi câu = 1 khung riêng biệt (chốt theo phản hồi người dùng 2026-09-16: cần "khung tổng thể"
+   để dễ nhận diện ranh giới từng câu, tránh nhìn rối khi bài có hàng chục câu) — thanh đầu đậm
+   màu accent chứa số thứ tự + nhãn + nút thao tác, thân bên dưới nền trắng chứa các trường nhập. */
+.admin-comprehension-sentence-list { list-style: none; padding: 0; margin: 16px 0; display: flex; flex-direction: column; gap: 16px; }
+.admin-comprehension-sentence-card {
+  border: 1.5px solid var(--admin-border); border-radius: 14px; overflow: hidden;
+  background: var(--admin-card-bg); box-shadow: var(--admin-shadow-sm);
+}
+.admin-comprehension-sentence-head {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px; background: var(--admin-sidebar-active-bg); border-bottom: 1.5px solid var(--admin-border);
+}
+.admin-comprehension-sentence-head-title { flex: 1; font-weight: 700; font-size: 0.88rem; color: var(--admin-text); }
+.admin-comprehension-sentence-body { display: flex; flex-direction: column; gap: 12px; padding: 16px; }
 .admin-comprehension-vocab-box {
   display: flex; flex-direction: column; gap: 8px;
   background: #f8f9fb; border: 1px solid var(--admin-border); border-radius: 10px; padding: 10px 12px;
@@ -3539,7 +3559,7 @@ button.wizard-step:focus-visible { outline: 3px solid var(--color-secondary); ou
 .admin-practice-option-row { display: flex; align-items: center; gap: 8px; }
 .admin-practice-option-row .admin-input { flex: 1; }
 .admin-practice-timelimit { display: flex; flex-direction: column; gap: 6px; font-weight: 600; font-size: 0.85rem; }
-.admin-practice-page-label { font-weight: 700; font-size: 1.05rem; color: var(--accent, inherit); }
+.admin-practice-page-label { flex: 1; font-weight: 700; font-size: 1.05rem; color: var(--accent, inherit); }
 /* Card chữ nhật to màu thương hiệu chia "Phần bài đọc"/"Phần câu hỏi" trong LuyenDePage (chốt
    2026-09-12) — dùng --accent (series.color, xem PracticeStudio.jsx LuyenDePage style prop). */
 .admin-section-banner {
