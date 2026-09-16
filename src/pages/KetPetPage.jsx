@@ -1,18 +1,18 @@
 import { useState } from "react";
 import Header from "../components/Header.jsx";
 import KetPetVocabularyRunner from "../components/KetPetVocabularyRunner.jsx";
+import KetPetPracticeTestRunner from "../components/KetPetPracticeTestRunner.jsx";
 import { KET_PET_GRADES, KET_PET_UNITS_PER_GRADE } from "../lib/yleData.js";
 
-// Khung điều hướng KET/PET: Grade (6-9) → Unit (1-16) → Vocabulary/Practice Test.
+// Khung điều hướng KET/PET: Grade (6-9) → Unit (1-16) → Vocabulary/Practice Test (Test 1-4).
 // KHÁC cấu trúc Level/Test/Part của YLE (Starters/Movers/Flyers) nên KHÔNG đi qua LessonsPage.jsx
 // — tổ chức theo chương trình SGK phổ thông (Grade/Unit), chốt với người dùng 2026-09-14.
-// MỚI CHỈ là khung điều hướng, Vocabulary/Practice Test của từng Unit vẫn là placeholder "Sắp có",
-// chưa có nội dung thật (tự biên soạn sau, không theo 1 sách cụ thể).
 export default function KetPetPage({ onNavigate }) {
   const [grade, setGrade] = useState(null);
   const [unit, setUnit] = useState(null);
   const [vocabActive, setVocabActive] = useState(false);
   const [practiceTestOpen, setPracticeTestOpen] = useState(false);
+  const [testNumber, setTestNumber] = useState(null);
 
   if (vocabActive) {
     return (
@@ -21,6 +21,18 @@ export default function KetPetPage({ onNavigate }) {
         unit={unit}
         onNavigate={onNavigate}
         onBack={() => setVocabActive(false)}
+      />
+    );
+  }
+
+  if (testNumber != null) {
+    return (
+      <KetPetPracticeTestRunner
+        grade={grade}
+        unit={unit}
+        testNumber={testNumber}
+        onNavigate={onNavigate}
+        onBack={() => setTestNumber(null)}
       />
     );
   }
@@ -135,14 +147,20 @@ export default function KetPetPage({ onNavigate }) {
         {grade != null && unit != null && practiceTestOpen && (
           <div className="content-grid content-grid-4">
             {[1, 2, 3, 4].map(t => (
-              <div key={t} className="content-card-v2 content-card-v2-center is-disabled" style={{ "--accent": "#8B5CF6" }}>
+              <button
+                key={t}
+                type="button"
+                className="content-card-v2 content-card-v2-center"
+                style={{ "--accent": "#8B5CF6" }}
+                onClick={() => setTestNumber(t)}
+              >
                 <div className="card-banner-strip">
                   <span>{`Test ${t}`}</span>
                 </div>
                 <div className="content-card-v2-body">
-                  <span className="series-status">Sắp có</span>
+                  <span className="series-status is-ready">Đang mở</span>
                 </div>
-              </div>
+              </button>
             ))}
           </div>
         )}

@@ -245,3 +245,22 @@ export async function saveVocabularyUnit(grade, unit, questions, uid) {
     updatedBy: uid,
   });
 }
+
+// KET/PET PRACTICE TEST — cùng Grade/Unit như Vocabulary ở trên, thêm chiều Test (1-4, cố định theo
+// BỔ SUNG.pdf). Mỗi Test là danh sách NHÓM câu hỏi theo thứ tự I/II/III... (lib/ketPetPracticeTest.js
+// `blankGroup`/`GROUP_TYPES` — đổi từ danh sách câu hỏi phẳng sang nhóm, chốt người dùng 2026-09-16),
+// lưu ở subcollection riêng "practiceTests" docId "unit{u}-test{t}" (đặt tên khác "practiceTests" của
+// IELTS ở trên vì khác collection cha `lessons/ket-pet-{grade}` nên không đụng nhau, nhưng đổi tên hàm
+// để tránh nhầm khi đọc code).
+export async function getKetPetPracticeTest(grade, unit, testNumber) {
+  const snap = await getDoc(doc(db, "lessons", lessonId("ket-pet", grade), "practiceTests", `unit${unit}-test${testNumber}`));
+  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+}
+
+export async function saveKetPetPracticeTest(grade, unit, testNumber, groups, uid) {
+  await setDoc(doc(db, "lessons", lessonId("ket-pet", grade), "practiceTests", `unit${unit}-test${testNumber}`), {
+    groups,
+    updatedAt: serverTimestamp(),
+    updatedBy: uid,
+  });
+}

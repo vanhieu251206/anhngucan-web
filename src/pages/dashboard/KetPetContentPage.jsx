@@ -1,15 +1,15 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../../lib/authContext.jsx";
 import { KET_PET_GRADES, KET_PET_UNITS_PER_GRADE } from "../../lib/yleData.js";
-import { getVocabularyUnit, saveVocabularyUnit } from "../../lib/adminLessons.js";
+import { getVocabularyUnit, saveVocabularyUnit, getKetPetPracticeTest, saveKetPetPracticeTest } from "../../lib/adminLessons.js";
 import KetPetVocabularyStudio, { EMPTY_VOCAB_QUESTIONS } from "../../components/dashboard/KetPetVocabularyStudio.jsx";
+import KetPetPracticeTestStudio, { EMPTY_PRACTICE_TEST_GROUPS } from "../../components/dashboard/KetPetPracticeTestStudio.jsx";
 
 const ACCENT = "#8B5CF6";
 
-// CMS soạn KET/PET — Grade (6-9) → Unit (1-16) → Vocabulary. Tách riêng khỏi CreateLessonPage.jsx
-// vì KET/PET không đi theo Level/Test như các bộ khác (xem yleData.js, App.jsx `ket-pet` branch).
-// MỚI CHỈ soạn được Vocabulary — Practice Test của Unit chưa thiết kế (còn placeholder ở
-// KetPetPage.jsx phía học sinh).
+// CMS soạn KET/PET — Grade (6-9) → Unit (1-16) → Vocabulary/Practice Test (Test 1-4). Tách riêng khỏi
+// CreateLessonPage.jsx vì KET/PET không đi theo Level/Test như các bộ khác (xem yleData.js, App.jsx
+// `ket-pet` branch).
 export default function KetPetContentPage() {
   const { user } = useAuth();
   const [grade, setGrade] = useState(null);
@@ -17,6 +17,7 @@ export default function KetPetContentPage() {
   const [mode, setMode] = useState(null); // "vocabulary" | "practice-test"
   const [practiceTest, setPracticeTest] = useState(null); // 1-4
   const [questions, setQuestions] = useState(EMPTY_VOCAB_QUESTIONS);
+  const [groups, setGroups] = useState(EMPTY_PRACTICE_TEST_GROUPS);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -34,10 +35,27 @@ export default function KetPetContentPage() {
     return () => { cancelled = true; };
   }, [grade, unit, mode]);
 
+  useEffect(() => {
+    if (grade == null || unit == null || mode !== "practice-test" || practiceTest == null) return;
+    let cancelled = false;
+    setLoading(true);
+    setSaved(false);
+    getKetPetPracticeTest(grade, unit, practiceTest).then(doc => {
+      if (cancelled) return;
+      setGroups(doc?.groups?.length ? doc.groups : EMPTY_PRACTICE_TEST_GROUPS);
+      setLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [grade, unit, mode, practiceTest]);
+
   async function handleSave() {
     setSaving(true);
     setSaved(false);
-    await saveVocabularyUnit(grade, unit, questions, user.uid);
+    if (mode === "practice-test") {
+      await saveKetPetPracticeTest(grade, unit, practiceTest, groups, user.uid);
+    } else {
+      await saveVocabularyUnit(grade, unit, questions, user.uid);
+    }
     setSaving(false);
     setSaved(true);
   }
@@ -105,12 +123,10 @@ export default function KetPetContentPage() {
               key={t}
               className="admin-picker-tile"
               style={{ "--accent": ACCENT }}
-              disabled
-              title="Chưa thiết kế cơ chế Practice Test"
               onClick={() => setPracticeTest(t)}
             >
               <span className="admin-picker-tile-dot" />
-              <span className="admin-picker-tile-title">{`Test ${t} (sắp có)`}</span>
+              <span className="admin-picker-tile-title">{`Test ${t}`}</span>
             </button>
           ))}
         </div>
@@ -119,6 +135,23 @@ export default function KetPetContentPage() {
   }
 
   if (loading) return <div className="admin-card">Đang tải...</div>;
+
+  if (mode === "practice-test") {
+    return (
+      <KetPetPracticeTestStudio
+        accent={ACCENT}
+        gradeTitle={`Grade ${grade}`}
+        unitTitle={`Unit ${unit}`}
+        testNumber={practiceTest}
+        groups={groups}
+        onGroupsChange={setGroups}
+        onBack={() => setPracticeTest(null)}
+        onSave={handleSave}
+        saving={saving}
+        saved={saved}
+      />
+    );
+  }
 
   return (
     <KetPetVocabularyStudio

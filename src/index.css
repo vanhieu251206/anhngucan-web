@@ -3002,6 +3002,10 @@ button { font-family: inherit; }
 .vocab-question { margin-bottom: 20px; }
 .vocab-question:last-child { margin-bottom: 0; }
 .vocab-question-text { margin: 0 0 10px; font-weight: 600; font-size: 1.02rem; }
+.vocab-passage { margin: 0 0 14px; padding: 14px 16px; background: #f6f4fc; border-left: 3px solid #8B5CF6; border-radius: 8px; font-size: 0.95rem; line-height: 1.6; white-space: pre-wrap; color: #333; }
+.vocab-group { margin-bottom: 28px; }
+.vocab-group:last-child { margin-bottom: 0; }
+.vocab-group-instruction { margin: 0 0 14px; font-family: var(--font-display); font-weight: 700; font-size: 1rem; color: #8B5CF6; }
 .vocab-options { display: flex; flex-direction: column; gap: 8px; }
 .vocab-option {
   display: flex; align-items: center; gap: 10px; border: 2px solid #e2e5ec; border-radius: 12px;
@@ -3551,6 +3555,8 @@ button.wizard-step:focus-visible { outline: 3px solid var(--color-secondary); ou
   border-radius: 12px 12px 0 0;
 }
 .admin-practice-type-select { max-width: 320px; }
+.admin-practice-group-points { flex: 1; justify-content: flex-end; flex-wrap: wrap; }
+.admin-practice-group-points .admin-input { width: auto; }
 .admin-practice-question-row {
   display: flex; align-items: flex-start; gap: 10px;
   border-top: 1px solid var(--admin-border); padding-top: 12px;
