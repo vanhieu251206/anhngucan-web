@@ -5,7 +5,6 @@ import { auth, db } from "../lib/firebase.js";
 import PasswordInput from "../components/PasswordInput.jsx";
 
 const AUTH_BG = `${import.meta.env.BASE_URL}assets/img/backgrounds/auth-bg.jpg`;
-const STUDENT_EMAIL_DOMAIN = "hocsinh.local";
 
 // Đăng nhập chung cho cả admin/teacher (email thật) LẪN học sinh (tên đăng nhập do CMS tự sinh,
 // không có "@" — tự nối "@hocsinh.local" trước khi gọi Firebase Auth, xem adminUsers.js). KHÔNG
@@ -32,14 +31,13 @@ export default function LoginPage({ onNavigate }) {
     e.preventDefault();
     setError("");
     setLoading(true);
-    const loginId = email.includes("@") ? email.trim() : `${email.trim()}@${STUDENT_EMAIL_DOMAIN}`;
-    try {
-      const cred = await signInWithEmailAndPassword(auth, loginId, password);
+        try {
+      const cred = await signInWithEmailAndPassword(auth, email.trim(), password);
       const snap = await getDoc(doc(db, "users", cred.user.uid));
       const role = snap.exists() ? snap.data().role : null;
       onNavigate(role === "admin" || role === "teacher" ? "dashboard" : "lessons");
     } catch {
-      setError("Sai tên đăng nhập/email hoặc mật khẩu. Thử lại nhé.");
+      setError("Sai email hoặc mật khẩu.");
     } finally {
       setLoading(false);
     }
@@ -48,20 +46,14 @@ export default function LoginPage({ onNavigate }) {
   return (
     <section className="login-screen" style={{ "--login-bg-image": `url(${AUTH_BG})` }}>
       <div className="password-gate-card login-card">
-        <span className="lessons-info-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-            <rect x="4" y="10" width="16" height="10" rx="2" />
-            <path d="M8 10V7a4 4 0 0 1 8 0v3" />
-          </svg>
-        </span>
         <h1 className="page-title">Đăng nhập</h1>
-        <p className="lead">Học sinh dùng tên đăng nhập được cấp — giáo viên/quản trị viên dùng email.</p>
+        <p className="lead">Dành riêng cho giáo viên và quản trị viên.</p>
 
         <form className="auth-form" onSubmit={handleSubmit}>
           <input
             className="auth-input"
-            type="text"
-            placeholder="Email (giáo viên) hoặc tên đăng nhập (học sinh)"
+            type="email"
+            placeholder="Email"
             value={email}
             onChange={e => setEmail(e.target.value)}
             autoFocus
