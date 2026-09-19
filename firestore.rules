@@ -25,6 +25,14 @@ service cloud.firestore {
       allow read, write: if isStaff();
     }
 
+    // Hash mật khẩu theo TỪNG BỘ ĐỀ (Starters/Movers/Flyers/...) — thay tài khoản học sinh (chốt
+    // 2026-09-17, xem lib/seriesAccess.js). Đọc công khai (học sinh chưa đăng nhập cần so khớp
+    // ngay trên trình duyệt), chỉ admin/teacher ghi được.
+    match /settings/seriesPasswords {
+      allow read: if true;
+      allow write: if isStaff();
+    }
+
     match /users/{uid} {
       allow read: if isSignedIn();
       allow write: if isAdmin();

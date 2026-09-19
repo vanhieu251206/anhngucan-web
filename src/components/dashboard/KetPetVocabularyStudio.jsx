@@ -4,16 +4,17 @@ import { PageHead, PageHeadSaveButton } from "./AdminPageHead.jsx";
 import { GROUP_TYPES, blankGroup, blankGroupQuestion, toRoman } from "../../lib/ketPetVocabulary.js";
 import KetPetVocabularyQuiz from "../KetPetVocabularyQuiz.jsx";
 import CommaListInput from "./CommaListInput.jsx";
+import UnderlineTextInput from "./UnderlineTextInput.jsx";
+import AudioUploadField from "./AudioUploadField.jsx";
 
 export const EMPTY_VOCAB_GROUPS = [];
 
 // Soạn Vocabulary cho 1 Unit KET/PET — soạn theo NHÓM câu hỏi thứ tự I, II, III... (đổi từ danh sách
 // câu hỏi phẳng sang nhóm, chốt người dùng 2026-09-17, cùng khung "admin-practice-group" đã dùng cho
-// KetPetPracticeTestStudio.jsx): GV bấm "+ Thêm nhóm câu hỏi", CHỌN DẠNG cho cả nhóm (trắc nghiệm /
-// điền từ / điền từ khung cho sẵn / dịch câu), nhập hướng dẫn làm bài + đoạn văn dùng chung (nếu có)
-// + tổng điểm của nhóm, rồi bấm "+ Thêm câu" nhiều lần — mỗi câu thêm vào LUÔN theo đúng dạng của
-// nhóm (đổi dạng nhóm sẽ xoá hết câu cũ vì cấu trúc field khác nhau). Điểm mỗi câu = tổng điểm nhóm /
-// số câu.
+// KetPetPracticeTestStudio.jsx): GV bấm "+ Thêm nhóm câu hỏi", CHỌN DẠNG cho cả nhóm, nhập hướng dẫn
+// làm bài + đoạn văn/audio dùng chung (nếu có) + tổng điểm của nhóm, rồi bấm "+ Thêm câu" nhiều lần —
+// mỗi câu thêm vào LUÔN theo đúng dạng của nhóm (đổi dạng nhóm sẽ xoá hết câu cũ vì cấu trúc field
+// khác nhau). Điểm mỗi câu = tổng điểm nhóm / số câu.
 export default function KetPetVocabularyStudio({
   accent, gradeTitle, unitTitle, groups, onGroupsChange, onBack, onSave, saving, saved,
 }) {
@@ -28,7 +29,7 @@ export default function KetPetVocabularyStudio({
   }
   function changeGroupType(gi, type) {
     onGroupsChange(groups.map((g, i) => (i === gi
-      ? { ...blankGroup(type), instruction: g.instruction, passage: g.passage }
+      ? { ...blankGroup(type), instruction: g.instruction, passage: g.passage, audioUrl: g.audioUrl }
       : g)));
   }
   async function removeGroup(gi) {
@@ -63,6 +64,23 @@ export default function KetPetVocabularyStudio({
     const next = [...g.questions];
     [next[qi], next[qj]] = [next[qj], next[qi]];
     updateGroup(gi, { questions: next });
+  }
+
+  // Chỉ dùng cho dạng "multiple-choice" — cho phép 2-4 đáp án (VD "Circle the correct option" chỉ có
+  // 2 lựa chọn, khác kiểu trắc nghiệm 4 đáp án thường).
+  function addOption(gi, qi) {
+    const q = groups[gi].questions[qi];
+    if (q.options.length >= 4) return;
+    updateQuestion(gi, qi, { options: [...q.options, ""] });
+  }
+  function removeOption(gi, qi) {
+    const q = groups[gi].questions[qi];
+    if (q.options.length <= 2) return;
+    const next = q.options.filter((_, i) => i !== q.options.length - 1);
+    updateQuestion(gi, qi, {
+      options: next,
+      answerIndex: q.answerIndex >= next.length ? 0 : q.answerIndex,
+    });
   }
 
   return (
@@ -120,6 +138,12 @@ export default function KetPetVocabularyStudio({
             placeholder={`Hướng dẫn làm bài của nhóm ${toRoman(gi + 1)} (VD: Choose the correct word.)`}
           />
 
+          <AudioUploadField
+            label="Audio bài nghe (tuỳ chọn — cho dạng Listening)"
+            value={g.audioUrl}
+            onChange={audioUrl => updateGroup(gi, { audioUrl })}
+          />
+
           <textarea
             className="admin-input"
             rows={2}
@@ -133,6 +157,14 @@ export default function KetPetVocabularyStudio({
               value={g.wordBank}
               onChange={wordBank => updateGroup(gi, { wordBank })}
               placeholder="Khung từ cho sẵn (word box), cách nhau bằng dấu phẩy — VD: shape, out, on, on"
+            />
+          )}
+
+          {g.type === "categorize" && (
+            <CommaListInput
+              value={g.columns}
+              onChange={columns => updateGroup(gi, { columns })}
+              placeholder="Tên các cột phân loại, cách nhau bằng dấu phẩy — VD: /ə/, /ɜː/"
             />
           )}
 
@@ -170,6 +202,34 @@ export default function KetPetVocabularyStudio({
                           />
                         </div>
                       ))}
+                      <div className="admin-practice-option-row">
+                        <button type="button" className="admin-link-btn" onClick={() => addOption(gi, qi)} disabled={q.options.length >= 4}>+ Thêm đáp án</button>
+                        <button type="button" className="admin-link-btn" onClick={() => removeOption(gi, qi)} disabled={q.options.length <= 2}>− Bớt đáp án</button>
+                      </div>
+                    </>
+                  )}
+
+                  {g.type === "pronunciation-underline" && (
+                    <>
+                      {q.options.map((opt, oi) => (
+                        <div className="admin-practice-option-row" key={oi}>
+                          <input
+                            type="radio"
+                            name={`vocab-underline-${gi}-${qi}`}
+                            checked={q.answerIndex === oi}
+                            onChange={() => updateQuestion(gi, qi, { answerIndex: oi })}
+                          />
+                          <UnderlineTextInput
+                            value={opt}
+                            onChange={next => {
+                              const nextOptions = [...q.options];
+                              nextOptions[oi] = next;
+                              updateQuestion(gi, qi, { options: nextOptions });
+                            }}
+                            placeholder={`Đáp án ${String.fromCharCode(65 + oi)} — bôi đen chữ cần gạch chân rồi bấm U`}
+                          />
+                        </div>
+                      ))}
                     </>
                   )}
 
@@ -202,6 +262,70 @@ export default function KetPetVocabularyStudio({
                         value={q.answer}
                         onChange={e => updateQuestion(gi, qi, { answer: e.target.value })}
                         placeholder="Đáp án đúng (1 từ trong khung từ, VD: on)"
+                      />
+                    </>
+                  )}
+
+                  {g.type === "categorize" && (
+                    <>
+                      <input
+                        className="admin-input"
+                        value={q.text}
+                        onChange={e => updateQuestion(gi, qi, { text: e.target.value })}
+                        placeholder="camera"
+                      />
+                      <select
+                        className="admin-input"
+                        style={{ maxWidth: 220 }}
+                        value={q.columnIndex}
+                        onChange={e => updateQuestion(gi, qi, { columnIndex: Number(e.target.value) })}
+                      >
+                        {(g.columns ?? []).map((c, ci) => (
+                          <option key={ci} value={ci}>{c || `Cột ${ci + 1}`}</option>
+                        ))}
+                      </select>
+                    </>
+                  )}
+
+                  {g.type === "true-false-table" && (
+                    <>
+                      <input
+                        className="admin-input"
+                        value={q.text}
+                        onChange={e => updateQuestion(gi, qi, { text: e.target.value })}
+                        placeholder="Mi started her hobby 3 years ago."
+                      />
+                      <div className="admin-practice-option-row">
+                        <label className="admin-practice-option-row" style={{ gap: 4 }}>
+                          <input type="radio" name={`vocab-tf-${gi}-${qi}`} checked={q.answer === true} onChange={() => updateQuestion(gi, qi, { answer: true })} /> True
+                        </label>
+                        <label className="admin-practice-option-row" style={{ gap: 4 }}>
+                          <input type="radio" name={`vocab-tf-${gi}-${qi}`} checked={q.answer === false} onChange={() => updateQuestion(gi, qi, { answer: false })} /> False
+                        </label>
+                      </div>
+                    </>
+                  )}
+
+                  {g.type === "reorder" && (
+                    <input
+                      className="admin-input"
+                      value={q.text}
+                      onChange={e => updateQuestion(gi, qi, { text: e.target.value })}
+                      placeholder={`Câu đúng ở vị trí ${String.fromCharCode(65 + qi)} trong hội thoại (nhập câu theo ĐÚNG thứ tự, hệ thống tự xáo khi học sinh làm bài)`}
+                    />
+                  )}
+
+                  {g.type === "word-scramble" && (
+                    <>
+                      <CommaListInput
+                        value={q.words}
+                        onChange={words => updateQuestion(gi, qi, { words })}
+                        placeholder="Các từ xáo trộn, cách nhau bằng dấu phẩy — VD: mother, likes, My, to, classical, music, Listening"
+                      />
+                      <CommaListInput
+                        value={q.acceptedAnswers}
+                        onChange={acceptedAnswers => updateQuestion(gi, qi, { acceptedAnswers })}
+                        placeholder="Câu đúng, cách nhau bằng dấu phẩy nếu có nhiều cách viết — VD: Listening to classical music is my mother's hobby."
                       />
                     </>
                   )}

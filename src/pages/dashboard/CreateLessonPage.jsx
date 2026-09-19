@@ -19,7 +19,7 @@ import { useConfirm } from "../../components/dashboard/ConfirmDialog.jsx";
 import { readParams, setParams } from "../../lib/urlState.js";
 
 const MODE_INFO = {
-  listening: { label: "Listening", icon: "🎧", desc: "Video nghe" },
+  listening: { label: "Listening", icon: "🎧", desc: "Luyện nghe (video) + Luyện đề" },
   speaking: { label: "Speaking", icon: "🎤", desc: "Luyện nói theo scene" },
   reading: { label: "Reading & Writing", icon: "📖", desc: "Đọc & Viết" },
   dictation: { label: "Dictation", icon: "✍️", desc: "Nghe & gõ lại" },
@@ -231,7 +231,47 @@ function buildListeningTitles(series, level) {
   return buildListeningTitlesShared(series.id, series.title, level.number);
 }
 
+// Listening của YLE chia 2 tab giống màn học sinh (LessonsPage.jsx): "Luyện nghe" (video Drive) và
+// "Luyện đề" (Test 1-3, chưa có dữ liệu — schema bài luyện đề chưa chốt nên chỉ giữ chỗ).
 function ListeningEditor({ series, level, uid }) {
+  const [tab, setTab] = useState("practice");
+  return (
+    <>
+      <div className="ielts-testpicker-tabs admin-testpicker-tabs">
+        {[
+          ["practice", "Luyện nghe"],
+          ["test", "Luyện đề"],
+        ].map(([key, label]) => (
+          <button
+            key={key}
+            type="button"
+            className={`ielts-testpicker-tab${tab === key ? " is-active" : ""}`}
+            onClick={() => setTab(key)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      {tab === "practice" ? (
+        <ListeningPracticeEditor series={series} level={level} uid={uid} />
+      ) : (
+        <div className="admin-card">
+          <h2>{series.title} {level.number} — Luyện đề Listening</h2>
+          <div className="admin-picker-grid">
+            {[1, 2, 3].map(n => (
+              <div key={n} className="admin-picker-tile" style={{ "--accent": series.color, opacity: 0.55 }}>
+                <span className="admin-picker-tile-title">Test {n}</span>
+              </div>
+            ))}
+          </div>
+          <p className="admin-muted-text">Sắp ra mắt — chưa có công cụ soạn bài luyện đề.</p>
+        </div>
+      )}
+    </>
+  );
+}
+
+function ListeningPracticeEditor({ series, level, uid }) {
   const fixedTitles = buildListeningTitles(series, level);
   const [videos, setVideos] = useState([{ videoId: "", title: "" }]);
   const [loading, setLoading] = useState(true);

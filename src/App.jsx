@@ -8,6 +8,9 @@ import LoginPage from "./pages/LoginPage.jsx";
 import KetPetPage from "./pages/KetPetPage.jsx";
 import { useAuth } from "./lib/authContext.jsx";
 import { readParams, setParams } from "./lib/urlState.js";
+import { YLE_SERIES } from "./lib/yleData.js";
+import { isUnlockedInSession } from "./lib/seriesAccess.js";
+import SeriesPasswordGate from "./components/SeriesPasswordGate.jsx";
 
 // Dashboard (CMS quản trị) chỉ admin/teacher dùng, học sinh không bao giờ vào — tách thành chunk
 // riêng (React.lazy) để 100 học sinh không phải tải kèm code CMS lúc mở app (xem audit P2).
@@ -23,6 +26,16 @@ function initialNavFromUrl() {
 export default function App() {
   const [{ page, lessonSeriesId }, setNav] = useState(initialNavFromUrl);
   const { user, isStaff, loading } = useAuth();
+  // Bộ đề đã mở khoá bằng mật khẩu trong PHIÊN này (chốt 2026-09-17: bỏ tài khoản học sinh, quay
+  // lại mật khẩu như PasswordGate cũ nhưng tách riêng theo từng bộ đề — xem lib/seriesAccess.js).
+  // Lưu bằng số đếm (không phải Set) để ép re-render khi SeriesPasswordGate mở khoá xong.
+  const [unlockTick, setUnlockTick] = useState(0);
+  const effectiveSeriesId = page === "lessons" ? lessonSeriesId || "starters" : null;
+  const gateSeries = effectiveSeriesId ? YLE_SERIES.find(s => s.id === effectiveSeriesId) : null;
+  // `unlockTick` không được đọc trong biểu thức dưới nhưng phải có trong closure để re-render sau
+  // khi setUnlockTick chạy (isUnlockedInSession() đọc sessionStorage, không phải state React).
+  void unlockTick;
+  const seriesUnlocked = effectiveSeriesId ? isUnlockedInSession(effectiveSeriesId) : true;
 
   function setPage(next) {
     setNav(n => ({ ...n, page: next }));
@@ -97,22 +110,21 @@ export default function App() {
   }
 
   if (page === "lessons") {
-    // Đăng nhập bắt buộc mới (chốt 2026-08-27) — không còn lối vào bằng mật khẩu chung (guest),
-    // chỉ tài khoản đã được cấp (admin/teacher/học sinh) mới xem được nội dung bài học. Chờ
-    // `loading` xong mới quyết định, tránh chớp qua LoginPage rồi lại nhảy vào Lessons khi Auth
-    // vừa xác thực lại phiên cũ lúc F5 (giống cách chặn "dashboard"/"settings" phía trên).
+    // Bỏ đăng nhập bắt buộc (chốt 2026-09-17) — quay lại mật khẩu như PasswordGate cũ, nhưng tách
+    // riêng theo TỪNG BỘ ĐỀ (Starters/Movers/Flyers/...) thay vì 1 mật khẩu chung toàn trung tâm,
+    // xem lib/seriesAccess.js. Admin/teacher đã đăng nhập (isStaff) bỏ qua hẳn màn này. Chờ
+    // `loading` xong mới quyết định để không chớp qua màn nhập mật khẩu ngay lúc Auth vừa xác thực
+    // lại phiên admin/teacher cũ lúc F5.
     if (loading) return null;
-    if (!user) {
-      // LoginPage vốn được thiết kế để đặt DƯỚI Header (.login-screen trừ sẵn 72px chiều cao
-      // Header trong CSS) — thiếu Header ở đây từng để lộ khoảng trống trắng bên dưới màn đăng
-      // nhập (lỗi thực tế 2026-08-27), phải bọc y hệt route ?page=login gốc bên dưới.
+    if (!isStaff && !seriesUnlocked && gateSeries) {
       return (
-        <>
-          <Header page="login" onNavigate={setPage} />
-          <main id="app">
-            <LoginPage onNavigate={setPage} />
-          </main>
-        </>
+        <SeriesPasswordGate
+          seriesId={gateSeries.id}
+          seriesTitle={gateSeries.title}
+          seriesColor={gateSeries.color}
+          onUnlock={() => setUnlockTick(t => t + 1)}
+          onBack={() => setPage("home")}
+        />
       );
     }
     // KET/PET dùng khung điều hướng riêng (Grade/Unit, xem KetPetPage.jsx) thay vì

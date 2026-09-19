@@ -4,8 +4,7 @@ import Sidebar from "../components/Sidebar.jsx";
 import OverviewPage from "./dashboard/OverviewPage.jsx";
 import CreateLessonPage from "./dashboard/CreateLessonPage.jsx";
 import TeacherAccountsPage from "./dashboard/TeacherAccountsPage.jsx";
-import StudentAccountsPage from "./dashboard/StudentAccountsPage.jsx";
-import AssignmentsPage from "./dashboard/AssignmentsPage.jsx";
+import SeriesPasswordsPage from "./dashboard/SeriesPasswordsPage.jsx";
 import StudentResultsPage from "./dashboard/StudentResultsPage.jsx";
 import SpeechLogsPage from "./dashboard/SpeechLogsPage.jsx";
 import { ConfirmProvider } from "../components/dashboard/ConfirmDialog.jsx";
@@ -14,19 +13,22 @@ import { readParams, setParams } from "../lib/urlState.js";
 const ADMIN_ITEMS = [
   { key: "overview", label: "Tổng quan" },
   { key: "create-lesson", label: "Tạo bài" },
+  { key: "series-passwords", label: "Mật khẩu bộ đề" },
   { key: "results", label: "Kết quả học sinh" },
-  { key: "students", label: "Tài khoản học sinh" },
-  { key: "assignments", label: "Giao bài cho lớp" },
   { key: "teachers", label: "Cấu hình tài khoản giáo viên" },
   { key: "speech-logs", label: "Log phát âm" },
 ];
-// Giáo viên cũng được soạn bài (create-lesson) và quản tài khoản học sinh như admin, chỉ không có
-// "Cấu hình tài khoản giáo viên" (chỉ admin mới tạo/quản được tài khoản giáo viên khác).
+// Giáo viên cũng được soạn bài (create-lesson) như admin, chỉ không có "Cấu hình tài khoản giáo
+// viên" (chỉ admin mới tạo/quản được tài khoản giáo viên khác).
+// Lưu ý: "results" đã BỎ khỏi luồng học sinh thật (chốt 2026-09-17, xem lib/seriesAccess.js —
+// học sinh giờ vào bằng mật khẩu theo bộ đề, không còn tài khoản/lớp), giữ lại nguyên trạng CMS
+// phòng khi cần dùng lại, không xoá. Mục "Tài khoản học sinh" và "Giao bài cho lớp" đã xoá hẳn
+// (không còn dùng, StudentAccountsPage.jsx/AssignmentsPage.jsx đã xoá — người dùng yêu cầu
+// 2026-09-17).
 const TEACHER_ITEMS = [
   { key: "create-lesson", label: "Tạo bài" },
+  { key: "series-passwords", label: "Mật khẩu bộ đề" },
   { key: "results", label: "Kết quả học sinh" },
-  { key: "students", label: "Tài khoản học sinh" },
-  { key: "assignments", label: "Giao bài cho lớp" },
 ];
 
 // Khu vực quản trị — layout TÁCH BIỆT hoàn toàn khỏi giao diện học sinh (không dùng
@@ -77,11 +79,10 @@ export default function DashboardPage({ onNavigate }) {
           <div className="admin-content">
             {section === "overview" && isAdmin && <OverviewPage />}
             {section === "create-lesson" && (isAdmin || isTeacher) && <CreateLessonPage />}
+            {section === "series-passwords" && (isAdmin || isTeacher) && <SeriesPasswordsPage />}
             {section === "teachers" && isAdmin && <TeacherAccountsPage />}
             {section === "speech-logs" && isAdmin && <SpeechLogsPage />}
             {section === "results" && (isAdmin || isTeacher) && <StudentResultsPage />}
-            {section === "students" && (isAdmin || isTeacher) && <StudentAccountsPage />}
-            {section === "assignments" && (isAdmin || isTeacher) && <AssignmentsPage />}
           </div>
         </div>
       </div>
