@@ -16,7 +16,7 @@ const CARD_RATIO = CARD_WIDTH / CARD_HEIGHT;
 // Xem trước Y HỆT giao diện thật học sinh sẽ thấy (dùng chung component/CSS với SceneRunner.jsx,
 // xem sceneVisuals.jsx) — vùng toạ độ (target/highlight/demoCard.target) sửa được TRỰC TIẾP bằng
 // cách kéo chuột ngay trên ảnh preview này, không qua ô nhập số riêng.
-function useRectDraw(onCommit) {
+export function useRectDraw(onCommit) {
   const [drag, setDrag] = useState(null);
   const stageRef = useRef(null);
 
@@ -60,7 +60,7 @@ function useRectDraw(onCommit) {
   return { stageRef, liveRect, handlers: { onPointerDown, onPointerMove, onPointerUp, onPointerLeave: onPointerUp } };
 }
 
-function RectOverlay({ rect, className = "part1-highlight" }) {
+export function RectOverlay({ rect, className = "part1-highlight" }) {
   if (!rect) return null;
   return (
     <div

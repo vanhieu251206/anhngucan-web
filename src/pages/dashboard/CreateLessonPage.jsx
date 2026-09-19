@@ -13,6 +13,7 @@ import ReadingStudio from "../../components/dashboard/ReadingStudio.jsx";
 import DictationStudio from "../../components/dashboard/DictationStudio.jsx";
 import { LuyenDePage } from "../../components/dashboard/PracticeStudio.jsx";
 import ComprehensionStudio from "../../components/dashboard/ComprehensionStudio.jsx";
+import StartersListeningExamStudio from "../../components/dashboard/StartersListeningExamStudio.jsx";
 import ListeningTestStudio from "../../components/dashboard/ListeningTestStudio.jsx";
 import KetPetContentPage from "./KetPetContentPage.jsx";
 import { useConfirm } from "../../components/dashboard/ConfirmDialog.jsx";
@@ -254,6 +255,8 @@ function ListeningEditor({ series, level, uid }) {
       </div>
       {tab === "practice" ? (
         <ListeningPracticeEditor series={series} level={level} uid={uid} />
+      ) : series.id === "starters" ? (
+        <StartersListeningExamStudio series={series} level={level} uid={uid} />
       ) : (
         <div className="admin-card">
           <h2>{series.title} {level.number} — Luyện đề Listening</h2>

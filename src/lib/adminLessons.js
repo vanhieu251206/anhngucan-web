@@ -266,3 +266,25 @@ export async function saveKetPetPracticeTest(grade, unit, testNumber, groups, ui
     updatedBy: uid,
   });
 }
+
+// ---------- Listening "Luyện đề" của YLE (chỉ Starters có, xem StartersListeningExamStudio.jsx) ----------
+// lessons/{seriesId-level}/listeningExamTests/{test1|test2|test3} — mỗi Test gồm `parts.part1..part4`,
+// Part 1 (nối tên–người: pairs khung toạ độ), Part 2 (viết tên/số), Part 3 (tick ảnh A/B/C), Part 4 (tô màu:
+// items khung + màu) — schema chi tiết xem các file dashboard/StartersListeningPart*Editor.jsx.
+export async function getListeningExamTest(seriesId, level, testId) {
+  const snap = await getDoc(doc(db, "lessons", lessonId(seriesId, level), "listeningExamTests", testId));
+  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+}
+
+export async function listListeningExamTests(seriesId, level) {
+  const snap = await getDocs(collection(db, "lessons", lessonId(seriesId, level), "listeningExamTests"));
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+export async function saveListeningExamTest(seriesId, level, testId, { title, parts }, uid) {
+  await setDoc(
+    doc(db, "lessons", lessonId(seriesId, level), "listeningExamTests", testId),
+    { testId, title, parts, updatedAt: serverTimestamp(), updatedBy: uid },
+    { merge: true },
+  );
+}

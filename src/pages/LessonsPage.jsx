@@ -9,6 +9,8 @@ import ReadingRunner from "../components/ReadingRunner.jsx";
 import IeltsPracticeRunner from "../components/IeltsPracticeRunner.jsx";
 import IeltsListeningRunner from "../components/IeltsListeningRunner.jsx";
 import DictationRunner from "../components/DictationRunner.jsx";
+import StartersListeningTestRunner, { testHasContent } from "../components/StartersListeningTestRunner.jsx";
+import { listListeningExamTests } from "../lib/adminLessons.js";
 import { useAuth } from "../lib/authContext.jsx";
 import { getAttemptCount } from "../lib/attempts.js";
 import { getClassAssignment } from "../lib/classAssignments.js";
@@ -156,6 +158,9 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
   const [listeningActive, setListeningActive] = useState(false);
   // Tab trong màn Listening: "practice" = Luyện nghe (video Drive), "test" = Luyện đề (Test 1-3).
   const [listeningTab, setListeningTab] = useState("practice");
+  // Luyện đề Listening (chỉ Starters có dữ liệu, xem StartersListeningExamStudio.jsx) — null = chưa tải.
+  const [examTests, setExamTests] = useState(null);
+  const [activeExamTest, setActiveExamTest] = useState(null);
   // Test IELTS Reading đang XEM DANH SÁCH PASSAGE (đã bấm vào thẻ Test, chưa chọn Passage cụ thể)
   // — đúng cây điều hướng Test → Passage giáo viên yêu cầu (chốt 2026-09-11), KHÁC với mở thẳng
   // cả Test nhiều passage cùng lúc như trước.
@@ -177,7 +182,7 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
   const [selectedIeltsSkill, setSelectedIeltsSkill] = useState(null);
   // Kỹ năng YLE đang chọn (listening/speaking/reading/dictation) — null = màn chọn kỹ năng.
   const [selectedSkill, setSelectedSkill] = useState(null);
-  const { user, isStaff, isAdmin, profile } = useAuth();
+  const { user, isStaff, isTester, isAdmin, profile } = useAuth();
   // Tên/lớp gắn vào báo cáo quá trình làm bài (speakingSessions, xem SceneRunner.jsx +
   // StudentResultsPage.jsx) — từ 2026-08-27 lấy THẲNG từ hồ sơ tài khoản đã đăng nhập
   // (users/{uid}.displayName/className, xem authContext.jsx), không còn gõ tay qua
@@ -222,6 +227,12 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
   useEffect(() => {
     setSelectedTest(null);
   }, [level]);
+
+  useEffect(() => {
+    if (!listeningActive || listeningTab !== "test" || !series || !level || series.id !== "starters") return;
+    setExamTests(null);
+    listListeningExamTests(series.id, level.number).then(setExamTests).catch(() => setExamTests([]));
+  }, [listeningActive, listeningTab, series, level]);
 
   // Rời khỏi màn "1 cấp độ" (đổi cấp khác / về bộ đề khác) — quay lại màn chọn cấp.
   function backToLevelList() {
@@ -274,6 +285,7 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
     stopCurrent();
     setListeningActive(false);
     setListeningTab("practice");
+    setActiveExamTest(null);
   }
 
   // Cho phép bấm vào 1 bước ĐÃ hoàn thành trên thanh tiến trình (WizardSteps) để nhảy thẳng
@@ -477,6 +489,27 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
   }
 
   // ---------- Chi tiết Listening (bấm vào thẻ Listening) ----------
+  // ---------- Luyện đề Listening (Starters) toàn màn hình, cuộn xuống như Reading & Writing ----------
+  if (listeningActive && activeExamTest) {
+    return (
+      <div className="reading-fullscreen">
+        <div className="speaking-fullscreen-topbar">
+          <button className="speaking-fullscreen-back" onClick={() => setActiveExamTest(null)}>
+            ⬅ Quay lại
+          </button>
+          <span className="speaking-fullscreen-title">
+            {series.title} {level.number} · {activeExamTest.title ?? "Luyện đề"}
+          </span>
+        </div>
+        <div className="speaking-fullscreen-body reading-fullscreen-body">
+          <div className="exam-fullscreen-inner">
+            <StartersListeningTestRunner test={activeExamTest} />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (listeningActive) {
     return (
       <LessonShell
@@ -512,16 +545,21 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
           )
         ) : (
           <div className="content-grid content-grid-4 yle-skill-grid yle-skill-grid-3">
-            {[1, 2, 3].map(n => (
-              <button
-                key={`listening-exam-test${n}`}
-                className="content-card-v2 content-card-v2-center ielts-skill-tile"
-                disabled
-                style={{ "--accent": series.color, opacity: 0.55, cursor: "default" }}
-              >
-                <span className="ielts-skill-tile-label">Test {n}</span>
-              </button>
-            ))}
+            {[1, 2, 3].map(n => {
+              const t = examTests?.find(x => x.id === `test${n}`);
+              const ready = testHasContent(t);
+              return (
+                <button
+                  key={`listening-exam-test${n}`}
+                  className="content-card-v2 content-card-v2-center ielts-skill-tile"
+                  disabled={!ready}
+                  onClick={() => setActiveExamTest(t)}
+                  style={{ "--accent": series.color, ...(ready ? {} : { opacity: 0.55, cursor: "default" }) }}
+                >
+                  <span className="ielts-skill-tile-label">Test {n}</span>
+                </button>
+              );
+            })}
           </div>
         )}
         </div>
@@ -566,7 +604,8 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
     // vào bằng mật khẩu theo bộ đề, KHÔNG còn tài khoản/hồ sơ lớp riêng từng em, nên bỏ qua hẳn 2
     // lớp kiểm tra cũ (giáo viên mở bài theo lớp + đếm lượt nộp bài theo tài khoản) — cả 2 đều cần
     // `user`/`profile.className` mà giờ không còn. Admin/teacher (isStaff) vẫn bỏ qua như cũ.
-    if (isStaff || !user) {
+    // Tài khoản đặc biệt (tester) cũng bỏ qua — làm được mọi bài, không ghi lịch sử (historyGuard).
+    if (isStaff || isTester || !user) {
       performStart(type, test);
       return;
     }
