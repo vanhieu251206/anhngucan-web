@@ -86,9 +86,9 @@ export default function KetPetVocabularyQuiz({ groups }) {
                       </>
                     )}
 
-                    {g.type === "pronunciation-underline" && (
+                    {g.type === "pronunciation-underline" && (<>
+                      <div className="reading-question-badge"><span className="reading-question-num">Question {qi + 1}</span></div>
                       <div className="vocab-options vocab-options-row">
-                        <span className="vocab-options-row-index">{qi + 1}.</span>
                         {q.options.map((opt, oi) => {
                           const picked = answers[`${gi}-${qi}`] === oi;
                           const showState = result != null;
@@ -115,7 +115,7 @@ export default function KetPetVocabularyQuiz({ groups }) {
                           );
                         })}
                       </div>
-                    )}
+                    </>)}
 
                     {g.type === "fill-blank" && (
                       <>

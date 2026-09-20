@@ -8,6 +8,15 @@ import UnderlineText from "./UnderlineText.jsx";
 // NHÓM câu hỏi thứ tự I, II, III... (chốt người dùng 2026-09-16) — mỗi nhóm hiện tiêu đề số La Mã +
 // hướng dẫn làm bài + đoạn văn dùng chung (nếu có), rồi tới các câu cùng dạng của nhóm đó, đánh số lại
 // từ 1 trong mỗi nhóm (giống đề thi thật, xem BỔ SUNG.pdf).
+// Nhãn "Question N" dùng lại đúng style của Reading (reading-question-badge/num trong index.css).
+function QBadge({ n }) {
+  return (
+    <div className="reading-question-badge">
+      <span className="reading-question-num">Question {n}</span>
+    </div>
+  );
+}
+
 export default function KetPetPracticeTestQuiz({ groups }) {
   const [answers, setAnswers] = useState({});
   const [result, setResult] = useState(null);
@@ -30,7 +39,7 @@ export default function KetPetPracticeTestQuiz({ groups }) {
     if (q.type === "multiple-choice") {
       return (
         <>
-          <p className="vocab-question-text">{qi + 1}. {q.text}</p>
+          <QBadge n={qi + 1} /><p className="vocab-question-text">{q.text}</p>
           <div className="vocab-options">
             {q.options.map((opt, oi) => {
               const picked = answers[`${gi}-${qi}`] === oi;
@@ -63,7 +72,7 @@ export default function KetPetPracticeTestQuiz({ groups }) {
     }
     return (
       <>
-        <p className="vocab-question-text">{qi + 1}. {q.text}</p>
+        <QBadge n={qi + 1} /><p className="vocab-question-text">{q.text}</p>
         <input
           className={"vocab-input" + (r === true ? " is-correct" : "") + (r === false ? " is-wrong" : "")}
           value={answers[`${gi}-${qi}`] ?? ""}
@@ -121,7 +130,7 @@ export default function KetPetPracticeTestQuiz({ groups }) {
                 <div className="vocab-question" key={qi}>
                   {g.type === "multiple-choice" && (
                     <>
-                      <p className="vocab-question-text">{qi + 1}. {q.text}</p>
+                      <QBadge n={qi + 1} /><p className="vocab-question-text">{q.text}</p>
                       <div className="vocab-options">
                         {q.options.map((opt, oi) => {
                           const picked = answers[`${gi}-${qi}`] === oi;
@@ -153,8 +162,9 @@ export default function KetPetPracticeTestQuiz({ groups }) {
                   )}
 
                   {g.type === "pronunciation-underline" && (
+                    <>
+                    <QBadge n={qi + 1} />
                     <div className="vocab-options vocab-options-row">
-                      <span className="vocab-options-row-index">{qi + 1}.</span>
                       {q.options.map((opt, oi) => {
                         const picked = answers[`${gi}-${qi}`] === oi;
                         const showState = result != null;
@@ -181,12 +191,14 @@ export default function KetPetPracticeTestQuiz({ groups }) {
                         );
                       })}
                     </div>
+                    </>
                   )}
 
                   {g.type === "fill-blank" && (
                     <>
+                      <QBadge n={qi + 1} />
                       <p className="vocab-question-text">
-                        {qi + 1}. {q.text}
+                        {q.text}
                         {q.hint && <span className="vocab-question-hint"> ({q.hint})</span>}
                       </p>
                       <input
@@ -204,7 +216,7 @@ export default function KetPetPracticeTestQuiz({ groups }) {
 
                   {g.type === "word-bank" && (
                     <>
-                      <p className="vocab-question-text">{qi + 1}. {q.text}</p>
+                      <QBadge n={qi + 1} /><p className="vocab-question-text">{q.text}</p>
                       <input
                         className={"vocab-input" + (r === true ? " is-correct" : "") + (r === false ? " is-wrong" : "")}
                         value={answers[`${gi}-${qi}`] ?? ""}
@@ -220,7 +232,7 @@ export default function KetPetPracticeTestQuiz({ groups }) {
 
                   {g.type === "open-ended" && (
                     <>
-                      <p className="vocab-question-text">{qi + 1}. {q.prompt}</p>
+                      <QBadge n={qi + 1} /><p className="vocab-question-text">{q.prompt}</p>
                       <input
                         className="vocab-input"
                         value={answers[`${gi}-${qi}`] ?? ""}

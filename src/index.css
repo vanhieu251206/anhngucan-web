@@ -3024,17 +3024,23 @@ button { font-family: inherit; }
 
 /* Vocabulary KET/PET (KetPetVocabularyRunner.jsx) — label gọn + ô nhập/lựa chọn, không chú thích
    thêm (chốt người dùng 2026-09-14). */
-.vocab-runner { max-width: 720px; margin: 0 auto; display: flex; flex-direction: column; gap: 28px; }
+.vocab-runner { width: 100%; max-width: 1080px; margin: 0 auto; display: flex; flex-direction: column; gap: 28px; }
 .vocab-empty { color: #cfcbe6; text-align: center; padding: 40px 0; }
 .vocab-block { background: #fff; border-radius: var(--radius-card); padding: 24px clamp(18px, 3vw, 32px); box-shadow: var(--shadow-soft); }
 .vocab-block-title { margin: 0 0 18px; font-family: var(--font-display); font-size: 1.05rem; color: #8B5CF6; text-transform: uppercase; letter-spacing: 0.02em; }
-.vocab-question { margin-bottom: 20px; }
+.vocab-question {
+  display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px; background: var(--color-bg);
+  border: 1.5px solid #f1ebdd; border-radius: 16px; padding: 16px 18px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
 .vocab-question:last-child { margin-bottom: 0; }
+.vocab-question:hover, .vocab-question:focus-within { border-color: #f3d9b8; box-shadow: var(--shadow-soft); }
+.vocab-question > .vocab-question-text { margin: 0; }
 .vocab-question-text { margin: 0 0 10px; font-weight: 600; font-size: 1.02rem; }
 .vocab-passage { margin: 0 0 14px; padding: 14px 16px; background: #f6f4fc; border-left: 3px solid #8B5CF6; border-radius: 8px; font-size: 0.95rem; line-height: 1.6; white-space: pre-wrap; color: #333; }
 .vocab-group { margin-bottom: 28px; }
 .vocab-group:last-child { margin-bottom: 0; }
-.vocab-group-instruction { margin: 0 0 14px; font-family: var(--font-display); font-weight: 700; font-size: 1rem; color: #8B5CF6; }
+.vocab-group-instruction { margin: 0 0 14px; font-family: var(--font-display); font-weight: 700; font-size: 1.05rem; color: var(--color-primary-dark); }
 .vocab-word-bank { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 14px; }
 .vocab-word-bank-item {
   border: 2px solid #8B5CF6; border-radius: 10px; padding: 6px 14px; font-weight: 600;
@@ -3053,14 +3059,16 @@ button { font-family: inherit; }
   .vocab-split-passage, .vocab-split-questions { max-height: none; overflow-y: visible; }
 }
 .vocab-options { display: flex; flex-direction: column; gap: 8px; }
-.vocab-options-row { flex-direction: row; flex-wrap: wrap; align-items: center; }
-.vocab-options-row .vocab-option { flex: 1 1 140px; }
-.vocab-options-row-index { font-weight: 700; margin-right: 4px; }
+.vocab-options-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 8px; }
+.vocab-options-row .vocab-option { min-width: 0; overflow-wrap: anywhere; }
 .vocab-option {
-  display: flex; align-items: center; gap: 10px; border: 2px solid #e2e5ec; border-radius: 12px;
-  padding: 10px 14px; cursor: pointer; transition: border-color 0.12s ease, background 0.12s ease;
+  display: flex; align-items: center; gap: 10px; border: 2px solid #ece6da; border-radius: 12px;
+  padding: 9px 16px; cursor: pointer; font-weight: 600; background: #fff;
+  transition: border-color 0.12s ease, background 0.12s ease;
 }
-.vocab-option.is-picked { border-color: var(--color-primary); }
+.vocab-option:hover { border-color: var(--color-primary); }
+.vocab-option input[type="radio"] { accent-color: var(--color-primary); width: 18px; height: 18px; flex-shrink: 0; }
+.vocab-option.is-picked { border-color: var(--color-primary); background: #fff8ec; }
 .vocab-option.is-correct { border-color: #2fb872; background: #f0fbf4; }
 .vocab-option.is-wrong { border-color: #e0576b; background: #fdf1f2; }
 .vocab-input {
