@@ -145,7 +145,7 @@ export default function KetPetPage({ onNavigate }) {
         )}
 
         {grade != null && unit != null && practiceTestOpen && (
-          <div className="content-grid content-grid-4">
+          <div className="content-grid content-grid-4 content-grid-4-nowrap">
             {[1, 2, 3, 4].map(t => (
               <button
                 key={t}
