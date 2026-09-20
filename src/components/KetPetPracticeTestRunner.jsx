@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import Header from "./Header.jsx";
+import { useAuth } from "../lib/authContext.jsx";
 import { incrementAttempt } from "../lib/attempts.js";
 import { saveTestResult } from "../lib/testResults.js";
 import { attemptKey } from "../lib/openings.js";
@@ -11,6 +12,8 @@ import { getKetPetPracticeTest } from "../lib/adminLessons.js";
 // KetPetPracticeTestQuiz.jsx (dùng chung với Preview trong CMS). Cho làm lại thoải mái (không giới
 // hạn lượt, không qua attempts.js).
 export default function KetPetPracticeTestRunner({ grade, unit, testNumber, onNavigate, onBack, ctx }) {
+  const { isStaff, isTester } = useAuth();
+  const canReview = isStaff || isTester; // hiện đáp án + cho làm lại: admin/giáo viên/tài khoản đặc biệt
   const [doc, setDoc] = useState(undefined); // undefined = đang tải, null = chưa có nội dung
 
   useEffect(() => {
@@ -50,7 +53,7 @@ export default function KetPetPracticeTestRunner({ grade, unit, testNumber, onNa
       <div className="content-grid-section content-grid-section-dark">
         {doc === undefined && <p className="vocab-empty">Đang tải...</p>}
         {doc === null && <p className="vocab-empty">Chưa có nội dung — quay lại sau nhé.</p>}
-        {doc && <KetPetPracticeTestQuiz groups={doc.groups} limitMinutes={ctx?.limitMinutes} canRetry={!ctx?.studentUid} onSubmitted={ctx ? handleSubmitted : undefined} />}
+        {doc && <KetPetPracticeTestQuiz groups={doc.groups} limitMinutes={ctx?.limitMinutes} canRetry={!ctx?.studentUid || canReview} revealAnswers={canReview} onSubmitted={ctx ? handleSubmitted : undefined} />}
       </div>
     </div>
   );

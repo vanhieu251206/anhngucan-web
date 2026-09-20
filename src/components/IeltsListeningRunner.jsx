@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import ExamTimer, { useExamTimer } from "./ExamTimer.jsx";
+import { useAuth } from "../lib/authContext.jsx";
 import { saveTestResult } from "../lib/testResults.js";
 import { incrementAttempt } from "../lib/attempts.js";
 import { attemptKey } from "../lib/openings.js";
@@ -44,7 +45,8 @@ export default function IeltsListeningRunner({ test, onBack, studentUid, student
   const [activeSection, setActiveSection] = useState(0);
   const [answers, setAnswers] = useState({});
   const [submitted, setSubmitted] = useState(false);
-  const reveal = false; // học sinh chỉ thấy điểm sau khi nộp, không hiện đáp án
+  const { isStaff, isTester } = useAuth();
+  const reveal = isStaff || isTester; // học sinh thật chỉ thấy điểm; admin/giáo viên/tài khoản đặc biệt thấy đáp án
   // Đồng hồ chung (ExamTimer.jsx): hết giờ tự nộp bài.
   const timer = useExamTimer({ limitMinutes: test.timeLimitMinutes, running: !submitted, onExpire: submitNow });
 

@@ -1,5 +1,7 @@
 import { useMemo, useRef, useState } from "react";
 import TestScoreReport from "./TestScoreReport.jsx";
+import ReadingReportView from "./ReadingReportView.jsx";
+import { useAuth } from "../lib/authContext.jsx";
 import { saveTestResult } from "../lib/testResults.js";
 import { attemptKey } from "../lib/openings.js";
 import ExamTimer, { useExamTimer } from "./ExamTimer.jsx";
@@ -991,6 +993,8 @@ export default function ReadingRunner({ parts, onFinish, studentUid, seriesId, l
   // Question N, mỗi câu 1 điểm" — áp dụng cho cả 3 series, không còn ai giữ cách gộp cả câu gapfill
   // thành 1 Question nữa. Chỉ ảnh hưởng câu `gapfill` nhiều chỗ trống (Starters Part 4) — các câu
   // khác (yesno/word-scramble/short-answer) vốn đã mặc định 1 điểm/câu nên không đổi hành vi).
+  const { isStaff, isTester } = useAuth();
+  const canReview = isStaff || isTester; // báo cáo chấm đầy đủ cho admin/giáo viên/tài khoản đặc biệt
   const isFlyers = seriesId === "flyers" || seriesId === "movers" || seriesId === "starters";
   const flat = useMemo(() => flattenQuestions(parts, isFlyers), [parts, isFlyers]);
   // answers[partIndex][qIndex] = giá trị trả lời — giữ cấu trúc lồng theo Part/câu để khớp đúng
@@ -1030,6 +1034,18 @@ export default function ReadingRunner({ parts, onFinish, studentUid, seriesId, l
   const unansweredCount = flat.filter(
     ({ question, partIndex, qIndex, gapIndex }) => !isAnswered(question, answers[partIndex]?.[qIndex], gapIndex)
   ).length;
+
+  if (results && canReview) {
+    return (
+      <ReadingReportView
+        items={results.items}
+        earnedPoints={results.earnedPoints}
+        totalPoints={results.totalPoints}
+        elapsedMs={timer.getElapsedMs()}
+        onDone={onFinish}
+      />
+    );
+  }
 
   if (results) {
     return (

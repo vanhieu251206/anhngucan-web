@@ -1,6 +1,6 @@
 import { initializeApp, deleteApp } from "firebase/app";
 import { getAuth, createUserWithEmailAndPassword, signOut } from "firebase/auth";
-import { doc, setDoc, getDoc, collection, query, where, getDocs, serverTimestamp } from "firebase/firestore";
+import { doc, setDoc, getDoc, updateDoc, deleteDoc, collection, query, where, getDocs, serverTimestamp } from "firebase/firestore";
 import { db } from "./firebase.js";
 
 // Domain giả cho tài khoản học sinh — Firebase Auth bắt buộc định dạng email, học sinh (trẻ em)
@@ -83,6 +83,19 @@ export async function listTeachers() {
 export async function listTesters() {
   const snap = await getDocs(query(collection(db, "users"), where("role", "==", "tester")));
   return snap.docs.map(d => ({ uid: d.id, ...d.data() }));
+}
+
+// KHOÁ: đặt cờ disabled trên hồ sơ — học sinh bị đăng xuất và không đăng nhập lại được (LoginPage.jsx +
+// authContext.jsx kiểm tra). Mở khoá: bỏ cờ. Không có Admin SDK nên không khoá được ở tầng Firebase Auth.
+export async function setStudentDisabled(uid, disabled) {
+  await updateDoc(doc(db, "users", uid), { disabled });
+}
+
+// XOÁ: xoá hồ sơ Firestore (mất tên/lớp/quyền → không dùng được nữa, kể cả đang đăng nhập). Tài khoản trong
+// Firebase Auth vẫn còn (client không xoá được tài khoản người khác) — dọn thêm ở Firebase Console →
+// Authentication nếu muốn. Kết quả/lượt làm cũ giữ nguyên.
+export async function deleteStudent(uid) {
+  await deleteDoc(doc(db, "users", uid));
 }
 
 export async function listStudents({ className } = {}) {

@@ -8,7 +8,7 @@ import { isHistoryDisabled } from "./historyGuard.js";
 // không chặn luồng nộp bài của học sinh.
 // items: mảng tuỳ ý theo từng dạng bài (question/studentAnswer/correctAnswer/isCorrect...).
 export async function saveTestResult({
-  mode, seriesId, level, testId, lessonLabel, studentName, studentClass, uid, correct, total, elapsedMs, items,
+  mode, seriesId, level, testId, lessonLabel, studentName, studentClass, uid, correct, total, elapsedMs, items, sessionId,
 }) {
   if (isHistoryDisabled()) return;
   try {
@@ -21,6 +21,8 @@ export async function saveTestResult({
       studentName: studentName ?? null,
       studentClass: studentClass ?? null,
       uid: uid ?? null,
+      // Speaking: id phiên trong speakingSessions, để trang Kết quả không hiện trùng 1 lượt 2 lần.
+      sessionId: sessionId ?? null,
       correct: correct ?? 0,
       total: total ?? 0,
       elapsedMs: elapsedMs ?? null,

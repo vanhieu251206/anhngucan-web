@@ -6,6 +6,7 @@ import StartersListeningPart4Runner, { part4Has } from "./StartersListeningPart4
 import MoversListeningPart3Runner from "./MoversListeningPart3.jsx";
 import ExamTimer, { useExamTimer } from "./ExamTimer.jsx";
 import { saveTestResult } from "../lib/testResults.js";
+import { useAuth } from "../lib/authContext.jsx";
 import { incrementAttempt } from "../lib/attempts.js";
 import { attemptKey } from "../lib/openings.js";
 
@@ -28,6 +29,8 @@ const PARTS = [
 export const testHasContent = test => PARTS.some(p => p.has(test?.parts?.[p.key]));
 
 export default function StartersListeningTestRunner({ test, studentUid, studentName, studentClass, seriesId, level, lessonLabel, openingId }) {
+  const { isStaff, isTester } = useAuth();
+  const canReview = isStaff || isTester; // tô đúng/sai + hiện đáp án cho admin/giáo viên/tài khoản đặc biệt
   const available = PARTS.filter(p => p.has(test.parts?.[p.key]));
   const [submitted, setSubmitted] = useState(false);
   const [attempt, setAttempt] = useState(0);
@@ -103,7 +106,7 @@ export default function StartersListeningTestRunner({ test, studentUid, studentN
         ) : (
           <>
             <div className="exam-side-score">Kết quả: {score} / {total}</div>
-            {!studentUid && <button type="button" className="btn btn-secondary exam-side-submit" onClick={reset}>Làm lại</button>}
+            {(!studentUid || canReview) && <button type="button" className="btn btn-secondary exam-side-submit" onClick={reset}>Làm lại</button>}
           </>
         )}
       </nav>
@@ -116,7 +119,7 @@ export default function StartersListeningTestRunner({ test, studentUid, studentN
             data-part={key}
             ref={el => { sectionRefs.current[key] = el; }}
           >
-            <Runner part={test.parts[key]} submitted={submitted} reveal={false} onScore={report(key)} />
+            <Runner part={test.parts[key]} submitted={submitted} reveal={canReview} onScore={report(key)} />
           </section>
         ))}
 

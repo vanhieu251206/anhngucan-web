@@ -35,8 +35,13 @@ export function AuthProvider({ children }) {
       }
       try {
         const snap = await getDoc(doc(db, "users", firebaseUser.uid));
-        setRole(snap.exists() ? snap.data().role : null);
-        setProfile(snap.exists() ? snap.data() : null);
+        // Học sinh bị khoá, hoặc hồ sơ đã bị xoá (tài khoản Auth còn nhưng không còn quyền) → đăng xuất.
+        if (!snap.exists() || snap.data().disabled) {
+          await signOut(auth);
+          return;
+        }
+        setRole(snap.data().role);
+        setProfile(snap.data());
       } catch {
         // Đọc role lỗi (mất mạng...) — coi như chưa xác định, không chặn cả app.
         setRole(null);

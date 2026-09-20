@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from "react";
 import ExamTimer, { useExamTimer } from "./ExamTimer.jsx";
+import { useAuth } from "../lib/authContext.jsx";
 import { saveTestResult } from "../lib/testResults.js";
 import { incrementAttempt } from "../lib/attempts.js";
 import { attemptKey } from "../lib/openings.js";
@@ -494,7 +495,8 @@ export default function IeltsPracticeRunner({ test, onBack, mode = "practice", r
   const [readMode, setReadMode] = useState(isComprehension ? "vocab" : "plain");
   const [submitted, setSubmitted] = useState(readOnly);
   // Học sinh làm bài thật: nộp xong chỉ khoá bài + hiện điểm, KHÔNG tô đúng/sai hay hiện đáp án. Chỉ Preview CMS (readOnly) hiện đáp án.
-  const reveal = readOnly;
+  const { isStaff, isTester } = useAuth();
+  const reveal = readOnly || isStaff || isTester;
   const questionRefs = useRef({});
   // Đồng hồ chung (ExamTimer.jsx): hết giờ tự nộp bài. Chỉ chạy ở chế độ làm bài thật (không phải
   // đọc hiểu/preview).

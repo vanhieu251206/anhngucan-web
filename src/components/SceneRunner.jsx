@@ -3,13 +3,15 @@ import { playLine, normalize, stopCurrent, fuzzyIncludesWord, isRecordingSupport
 import { assessPronunciation, describePronunciationError } from "../lib/pronunciationApi.js";
 import { ExaminerLine, SceneStage, MIC_ICON } from "./sceneVisuals.jsx";
 import TestScoreReport from "./TestScoreReport.jsx";
+import { SpeakingReportView } from "./SpeakingReportView.jsx";
 import ExamTimer, { useExamTimer } from "./ExamTimer.jsx";
 import { useAuth } from "../lib/authContext.jsx";
 import { logSpeechAttempt } from "../lib/speechLog.js";
 import { startSpeakingSession, finishSpeakingSession, logSpeakingEvent } from "../lib/speakingSessions.js";
 import { incrementAttempt } from "../lib/attempts.js";
 import { attemptKey } from "../lib/openings.js";
-import { saveRecording, submitRun, cleanupExpiredAudio } from "../lib/audioReviewCache.js";
+import { saveTestResult } from "../lib/testResults.js";
+import { saveRecording, submitRun, getRunRecordings, cleanupExpiredAudio } from "../lib/audioReviewCache.js";
 
 // Lời khen dùng chung cho MỌI bài (không riêng lesson nào) — audio thật lấy từ
 // Bài học/_dung-chung/praises/voice.txt, KHÔNG có TTS trình duyệt dự phòng.
@@ -182,7 +184,9 @@ export default function SceneRunner({
   limitMinutes,
   openingId,
 }) {
-  const { isStaff } = useAuth();
+  const { isStaff, isTester } = useAuth();
+  // Admin/giáo viên/tài khoản đặc biệt tự làm thử: thấy báo cáo chấm ĐẦY ĐỦ; học sinh thật chỉ thấy số câu đúng.
+  const canReview = isStaff || isTester;
   const [index, setIndex] = useState(() => loadSavedIndex(progressKey, scenes.length));
   const scene = scenes[index];
   const sessionIdRef = useRef(null);
@@ -266,6 +270,14 @@ export default function SceneRunner({
     // sinh đã đăng nhập thật, không phải admin/teacher tự test).
     if (studentUid) incrementAttempt({ uid: studentUid, mode: "speaking", testId: attemptKey(testId, openingId), seriesId, level });
     if (progressKey) submitRun(progressKey, runIdRef.current);
+    // Điểm + chi tiết từng câu cho trang Kết quả học sinh (học sinh chỉ thấy số câu đúng/tổng).
+    const graded = scenes.filter(sc => sc.type !== "narration").length;
+    const entries = Object.entries(results).map(([i, r]) => ({ sceneIndex: Number(i), ...r })).sort((a, b) => a.sceneIndex - b.sceneIndex);
+    saveTestResult({
+      mode: "speaking", seriesId, level, testId, lessonLabel, studentName, studentClass, uid: studentUid,
+      correct: entries.filter(r => r.result === "correct").length, total: graded, elapsedMs: timer.getElapsedMs(),
+      items: entries, sessionId: sessionIdRef.current,
+    });
     setReviewOpen(true);
   }
 
@@ -292,6 +304,9 @@ export default function SceneRunner({
 
   if (reviewOpen) {
     // Học sinh chỉ thấy số câu đúng/tổng — chi tiết từng câu đã ghi ở speakingSessions cho giáo viên/admin.
+    if (canReview) {
+      return <ReviewScreen runId={runIdRef.current} results={results} elapsedMs={timer.getElapsedMs()} onDone={onFinish} />;
+    }
     const gradedTotal = scenes.filter(sc => sc.type !== "narration").length;
     const correctCount = Object.values(results).filter(r => r.result === "correct").length;
     return <TestScoreReport correct={correctCount} total={gradedTotal} elapsedMs={timer.getElapsedMs()} onDone={onFinish} />;
@@ -341,6 +356,44 @@ export default function SceneRunner({
       {scene.type === "drag-drop" && (
         <DragDropScene key={index} scene={scene} onNext={goNext} sceneIndex={index} onAttempt={recordAttempt} />
       )}
+    </div>
+  );
+}
+
+// ---------- Màn tổng kết cuối bài: kết quả TẤT CẢ câu đã làm, audio (nếu có) chỉ là 1 phần ----------
+// Phần hiển thị dùng chung với StudentResultsPage.jsx (giáo viên/admin xem lại sau — KHÔNG có
+// audio) qua SpeakingReportView.jsx (xem file đó để biết lý do). Ở đây (học sinh xem NGAY sau khi
+// nộp bài) mới có thêm audio nghe lại (đọc từ IndexedDB trên chính máy này, xem
+// lib/audioReviewCache.js — chỉ dùng được 24h đầu, hoàn toàn không upload lên đâu).
+function ReviewScreen({ runId, results, elapsedMs, onDone }) {
+  const [recordings, setRecordings] = useState(null); // null = đang tải
+
+  useEffect(() => {
+    let cancelled = false;
+    getRunRecordings(runId).then(list => {
+      if (!cancelled) setRecordings(list || []);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [runId]);
+
+  const items = Object.entries(results)
+    .map(([sceneIndex, r]) => ({ sceneIndex: Number(sceneIndex), ...r }))
+    .sort((a, b) => a.sceneIndex - b.sceneIndex);
+
+  return (
+    <div className="sentence-box review-screen">
+      <SpeakingReportView items={items} elapsedMs={elapsedMs} showAudio recordings={recordings} />
+      <div className="review-footer">
+        <p className="review-footer-note">
+          🎧 Câu đã nói (🎤) nghe lại được trong <strong>24 giờ</strong> kể từ bây giờ, sau đó tự xoá khỏi
+          thiết bị này.
+        </p>
+        <button className="btn btn-primary review-done-btn" onClick={onDone}>
+          Xong
+        </button>
+      </div>
     </div>
   );
 }

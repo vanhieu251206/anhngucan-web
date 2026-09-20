@@ -38,6 +38,8 @@ service cloud.firestore {
       allow write: if isAdmin();
       // Giáo viên được tạo hồ sơ HỌC SINH (Dashboard → Tài khoản học sinh), không được tạo admin/teacher.
       allow create: if isStaff() && request.resource.data.role == 'student';
+      // ... và khoá/mở khoá/xoá hồ sơ học sinh (chỉ đụng tới tài khoản role student).
+      allow update, delete: if isStaff() && resource.data.role == 'student';
       // Học sinh tự xoá cờ "phải đổi mật khẩu lần đầu" trên hồ sơ của chính mình (chỉ đúng field này).
       allow update: if isSignedIn() && request.auth.uid == uid
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['mustChangePassword']);

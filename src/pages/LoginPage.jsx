@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { signInWithEmailAndPassword } from "firebase/auth";
+import { signInWithEmailAndPassword, signOut } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "../lib/firebase.js";
 import { TESTER_EMAIL_DOMAIN, STUDENT_EMAIL_DOMAIN } from "../lib/adminUsers.js";
@@ -53,7 +53,12 @@ export default function LoginPage({ onNavigate }) {
       }
       if (!cred) throw new Error("login-failed");
       const snap = await getDoc(doc(db, "users", cred.user.uid));
-      const role = snap.exists() ? snap.data().role : null;
+      if (!snap.exists() || snap.data().disabled) {
+        await signOut(auth);
+        setError(snap.exists() ? "Tài khoản này đã bị khoá — hỏi giáo viên nhé." : "Tài khoản này không còn tồn tại — hỏi giáo viên nhé.");
+        return;
+      }
+      const role = snap.data().role;
       onNavigate(role === "admin" || role === "teacher" ? "dashboard" : "lessons");
     } catch {
       setError("Sai tài khoản hoặc mật khẩu.");

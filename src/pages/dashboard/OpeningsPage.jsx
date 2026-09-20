@@ -136,6 +136,7 @@ export default function OpeningsPage() {
   }
 
   async function handleSaveEdit() {
+    setError("");
     setSaving(true);
     try {
       await updateOpening(editing.id, {
@@ -195,14 +196,14 @@ export default function OpeningsPage() {
             </select>
           </label>
           {isKetPet && (
-            <label className="admin-mini-field">
+            <label className="admin-mini-field opening-span-2">
               <span>Unit</span>
               <select className="admin-input" value={unit} onChange={e => setUnit(Number(e.target.value))}>
                 {Array.from({ length: KET_PET_UNITS_PER_GRADE }, (_, i) => i + 1).map(n => <option key={n} value={n}>{n}</option>)}
               </select>
             </label>
           )}
-          <label className="admin-mini-field">
+          <label className="admin-mini-field opening-span-2">
             <span>Bài</span>
             <select className="admin-input" value={testChoice} onChange={e => setTestChoice(e.target.value)}>
               {choices.length === 0 && <option value="">(chưa có bài)</option>}
@@ -235,6 +236,38 @@ export default function OpeningsPage() {
         </div>
       )}
 
+      {editing && (
+        <div className="confirm-overlay" role="presentation" onClick={() => setEditing(null)}>
+          <div className="opening-modal" role="dialog" aria-modal="true" onClick={e => e.stopPropagation()}>
+            <h2>Sửa bài đang mở</h2>
+            <p className="admin-muted-text">Lớp {editing.className} · {editing.testTitle} · {OPENING_KINDS[editing.kind] ?? editing.kind}</p>
+            <form className="admin-form opening-form-grid" onSubmit={e => { e.preventDefault(); handleSaveEdit(); }}>
+              <label className="admin-mini-field">
+                <span>Hạn chót (để trống = không hạn)</span>
+                <input className="admin-input" type="datetime-local" value={editing.expiresAt} onChange={e => setEditing({ ...editing, expiresAt: e.target.value })} />
+              </label>
+              <label className="admin-mini-field">
+                <span>Số lượt làm tối đa (để trống = không giới hạn)</span>
+                <input className="admin-input" type="number" min="1" value={editing.maxAttempts} onChange={e => setEditing({ ...editing, maxAttempts: e.target.value })} />
+              </label>
+              <label className="admin-mini-field">
+                <span>Thời gian làm bài (phút)</span>
+                <input className="admin-input" type="number" min="1" value={editing.minutes} onChange={e => setEditing({ ...editing, minutes: e.target.value })} />
+              </label>
+              <label className="admin-mini-field">
+                <span>{editing.hasPassword ? "Đổi mật khẩu (để trống = giữ nguyên)" : "Đặt mật khẩu vào bài (để trống = không cần)"}</span>
+                <PasswordInput className="admin-input" value={editing.password} onChange={e => setEditing({ ...editing, password: e.target.value })} />
+              </label>
+              <div className="opening-form-actions">
+                {error && <p className="admin-error">{error}</p>}
+                <button type="button" className="admin-pill-btn" onClick={() => setEditing(null)}>Huỷ</button>
+                <button className="admin-btn-primary" type="submit" disabled={saving}>{saving ? "Đang lưu..." : "Lưu"}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       <div className="admin-card">
         <div className="opening-list-head">
           <h2>Các bài đang mở</h2>
@@ -244,41 +277,30 @@ export default function OpeningsPage() {
         {openings && sorted.length === 0 && <p className="admin-muted-text">Chưa mở bài nào.</p>}
         {openings && sorted.length > 0 && (
           <div style={{ overflowX: "auto" }}>
-            <table className="admin-table">
+            <table className="admin-table opening-table">
               <thead>
-                <tr><th>Lớp</th><th>Bài</th><th>Dạng</th><th>Hạn chót</th><th>Lượt</th><th>Phút</th><th>Mật khẩu</th><th></th></tr>
+                <tr><th>Lớp</th><th>Bài</th><th>Hạn chót</th><th>Lượt</th><th>Phút</th><th>Mật khẩu</th><th>Trạng thái</th><th></th></tr>
               </thead>
               <tbody>
                 {sorted.map(o => (
-                  editing?.id === o.id ? (
-                    <tr key={o.id}>
-                      <td>{o.className}</td>
-                      <td>{o.testTitle}</td>
-                      <td>{OPENING_KINDS[o.kind] ?? o.kind}</td>
-                      <td><input className="admin-input" type="datetime-local" value={editing.expiresAt} onChange={e => setEditing({ ...editing, expiresAt: e.target.value })} /></td>
-                      <td><input className="admin-input" type="number" min="1" value={editing.maxAttempts} onChange={e => setEditing({ ...editing, maxAttempts: e.target.value })} /></td>
-                      <td><input className="admin-input" type="number" min="1" value={editing.minutes} onChange={e => setEditing({ ...editing, minutes: e.target.value })} /></td>
-                      <td><input className="admin-input" placeholder="đổi mật khẩu (bỏ trống = giữ)" value={editing.password} onChange={e => setEditing({ ...editing, password: e.target.value })} /></td>
-                      <td>
-                        <button className="admin-link-btn" onClick={handleSaveEdit} disabled={saving}>Lưu</button>{" "}
-                        <button className="admin-link-btn" onClick={() => setEditing(null)}>Huỷ</button>
-                      </td>
-                    </tr>
-                  ) : (
-                    <tr key={o.id}>
-                      <td>{o.className}</td>
-                      <td>{o.testTitle}</td>
-                      <td>{OPENING_KINDS[o.kind] ?? o.kind}</td>
-                      <td>{formatDate(o.expiresAt)}{isExpired(o) ? " ⛔ hết hạn" : ""}</td>
-                      <td>{o.maxAttempts ?? "∞"}</td>
-                      <td>{o.timeLimitMinutes ?? "—"}</td>
-                      <td>{o.passwordHash ? "🔒 Có" : "Không"}</td>
-                      <td>
-                        <button className="admin-link-btn" onClick={() => setEditing({ id: o.id, expiresAt: toLocalInput(o.expiresAt?.toDate?.()), maxAttempts: o.maxAttempts ?? "", minutes: o.timeLimitMinutes ?? "", password: "" })}>Sửa</button>{" "}
-                        <button className="admin-link-btn" onClick={() => handleClose(o)}>Đóng</button>
-                      </td>
-                    </tr>
-                  )
+                  <tr key={o.id}>
+                    <td><span className="opening-chip opening-chip-class">{o.className}</span></td>
+                    <td>
+                      <div className="opening-test-title">{o.testTitle}</div>
+                      <div className="opening-test-kind">{OPENING_KINDS[o.kind] ?? o.kind}</div>
+                    </td>
+                    <td>{o.expiresAt?.toDate ? o.expiresAt.toDate().toLocaleString("vi-VN", { dateStyle: "short", timeStyle: "short" }) : "Không hạn"}</td>
+                    <td>{o.maxAttempts ?? "∞"}</td>
+                    <td>{o.timeLimitMinutes ?? "—"}</td>
+                    <td>{o.passwordHash ? "🔒 Có" : "—"}</td>
+                    <td>{isExpired(o) ? <span className="opening-chip opening-chip-off">Hết hạn</span> : <span className="opening-chip opening-chip-on">Đang mở</span>}</td>
+                    <td>
+                      <div className="opening-actions">
+                        <button className="opening-btn" onClick={() => setEditing({ id: o.id, className: o.className, testTitle: o.testTitle, kind: o.kind, hasPassword: !!o.passwordHash, expiresAt: toLocalInput(o.expiresAt?.toDate?.()), maxAttempts: o.maxAttempts ?? "", minutes: o.timeLimitMinutes ?? "", password: "" })}>✏️ Sửa</button>
+                        <button className="opening-btn opening-btn-danger" onClick={() => handleClose(o)}>🗑 Đóng bài</button>
+                      </div>
+                    </td>
+                  </tr>
                 ))}
               </tbody>
             </table>
