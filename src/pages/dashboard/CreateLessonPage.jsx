@@ -896,7 +896,8 @@ function IeltsReadingEditor({ series, level, uid }) {
     try {
       const order = tests?.find(t => t.id === openTestId)?.order ?? Number(openTestId.replace("test", ""));
       let finalPassages = passages;
-      if (overridePassage && focusTarget) {
+      // Một số nút gắn thẳng onSave vào onClick nên tham số có thể là SyntheticEvent — chỉ nhận passage thật
+      if (overridePassage && Object.getPrototypeOf(overridePassage) === Object.prototype && focusTarget) {
         finalPassages = passages.map((p, i) => (i === focusTarget.passageIndex ? overridePassage : p));
         setPassages(finalPassages);
       }

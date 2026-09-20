@@ -12,7 +12,7 @@ export function blankPart2(movers = false) {
     audioUrl: "",
     imageUrl: "",
     examples: Array.from({ length: movers ? 1 : 2 }, () => ({ question: "", answer: "" })),
-    questions: Array.from({ length: 5 }, () => ({ question: "", prefix: "", ...(movers ? { suffix: "" } : {}), answer: "" })),
+    questions: Array.from({ length: 5 }, () => ({ question: "", prefix: "", suffix: "", answer: "" })),
   };
 }
 
@@ -88,11 +88,11 @@ export function Part2Editor({ part, onChange }) {
           {part.questions.map((q, i) => (
             <div className="p2e-row" key={i}>
               <span className="p1e-pair-num">{i + 1}</span>
-              <div className={`p2e-fields${part.variant === "movers" ? " is-movers" : ""}`}>
+              <div className="p2e-fields is-movers">
                 <input className="admin-input" placeholder="Câu hỏi" value={q.question} onChange={ev => setQuestion(i, { question: ev.target.value })} />
-                <input className="admin-input" placeholder={part.variant === "movers" ? "Chữ trước dòng" : "Chữ in sẵn"} value={q.prefix} onChange={ev => setQuestion(i, { prefix: ev.target.value })} />
+                <input className="admin-input" placeholder="Chữ trước dòng (vd: Mrs)" value={q.prefix} onChange={ev => setQuestion(i, { prefix: ev.target.value })} />
                 <input className="admin-input" placeholder="Đáp án (nhiều đáp án: 8 / eight)" value={q.answer} onChange={ev => setQuestion(i, { answer: ev.target.value })} />
-                {part.variant === "movers" && <input className="admin-input" placeholder="Chữ sau dòng (vd: Street)" value={q.suffix ?? ""} onChange={ev => setQuestion(i, { suffix: ev.target.value })} />}
+                <input className="admin-input" placeholder="Chữ sau dòng (vd: School)" value={q.suffix ?? ""} onChange={ev => setQuestion(i, { suffix: ev.target.value })} />
               </div>
             </div>
           ))}
