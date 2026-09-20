@@ -10,7 +10,7 @@ const PARTS = [
   { key: "part1", Runner: StartersListeningPart1Runner, has: p => !!p?.imageUrl },
   { key: "part2", Runner: StartersListeningPart2Runner, has: p => !!p?.imageUrl },
   { key: "part3", Runner: StartersListeningPart3Runner, has: p => !!p?.questions?.some(q => q.question?.trim()) },
-  { key: "part4", Runner: StartersListeningPart4Runner, has: p => !!p?.imageUrl && !!p?.items?.some(i => i.frame) },
+  { key: "part4", Runner: StartersListeningPart4Runner, has: p => !!p?.imageUrl && !!p?.items?.some(i => i.ops?.length) },
 ];
 
 // Test có ít nhất 1 Part đã soạn thì mở được (dùng cho thẻ Test ở LessonsPage).

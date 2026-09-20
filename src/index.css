@@ -4028,19 +4028,19 @@ button.wizard-step:focus-visible { outline: 3px solid var(--color-secondary); ou
 .p2s-row { display: flex; align-items: flex-end; gap: 12px; padding: 12px 0; flex-wrap: wrap; }
 .p2s-num { font-weight: 800; min-width: 18px; }
 .p2s-q { flex: 1 1 200px; }
-.p2s-prefix { font-family: "Segoe Print", "Comic Sans MS", cursive; font-size: 1.1rem; color: #4b5563; }
+.p2s-prefix { font-size: 1.1rem; color: #4b5563; }
 .p2s-line { flex: 0 1 230px; min-width: 130px; border-bottom: 2px dotted #6b7280; min-height: 26px; text-align: center; display: block; }
 .p2s-line.is-ok { border-bottom-color: #2e9d5b; }
 .p2s-line.is-wrong { border-bottom-color: #d64545; }
-.p2s-hand { font-family: "Segoe Print", "Comic Sans MS", cursive; font-size: 1.15rem; color: #374151; }
+.p2s-hand { font-size: 1.15rem; color: #374151; }
 .p2s-input {
   width: 100%; border: none; background: transparent; text-align: center; outline: none;
-  font-family: "Segoe Print", "Comic Sans MS", cursive; font-size: 1.15rem; color: #1d4ed8; padding: 0 4px;
+  font-family: inherit; font-size: 1.15rem; color: #1d4ed8; padding: 0 4px;
 }
 .p2s-input:focus { background: #f5f8ff; }
 .p2s-line.is-ok .p2s-input { color: #1f7a45; }
 .p2s-line.is-wrong .p2s-input { color: #d64545; text-decoration: line-through; }
-.p2s-correct { font-family: "Segoe Print", "Comic Sans MS", cursive; color: #1f7a45; font-weight: 700; }
+.p2s-correct { color: #1f7a45; font-weight: 700; }
 
 /* CMS Part 2 */
 .p2e-rows { display: flex; flex-direction: column; gap: 10px; }
@@ -4155,3 +4155,8 @@ button.wizard-step:focus-visible { outline: 3px solid var(--color-secondary); ou
 .p4s-dot.is-ok { background: #2e9d5b; }
 .p4s-dot.is-wrong { background: #d64545; }
 .p4s-dot.is-pin { background: #3b3350; }
+.p4e-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 8px 0 12px; }
+.p4e-tool { border: 2px solid #e5e7eb; background: #fff; border-radius: 999px; padding: 6px 14px; font-weight: 700; cursor: pointer; }
+.p4e-tool.is-active { border-color: var(--color-primary); background: #fff7f1; }
+.p4e-size { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 0.9rem; }
+.p4e-scroll { max-height: 75vh; overflow: auto; border-radius: 12px; }

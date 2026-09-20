@@ -1,19 +1,20 @@
+import { useEffect, useMemo, useRef, useState } from "react";
 import ImageUploadField from "./ImageUploadField.jsx";
 import AudioUploadField from "./AudioUploadField.jsx";
-import { useRectDraw } from "./ScenePreview.jsx";
-import { PALETTE } from "../StartersListeningPart4.jsx";
+import { PALETTE, hexOf, buildMask, paintScene, regionOf, useLineArt } from "../StartersListeningPart4.jsx";
 
-// CMS Luyện đề Listening Starters — Part 4 (nghe và tô màu): mỗi câu có màu đúng + khung toạ độ bao quanh
-// cái bánh cần tô (kéo chuột trên ảnh xem trước, giống Part 1). Học sinh tô trên ảnh; câu đúng khi màu phủ
-// trong khung khớp màu đúng. Ví dụ đã tô sẵn trong ảnh nên không cần soạn. Mặc định gán sẵn màu theo đề
-// Test 1 (pink, yellow, orange, green, blue).
+// CMS Luyện đề Listening Starters — Part 4 (nghe và tô màu): mỗi câu có màu đúng + vùng cái bánh do giáo
+// viên tô sẵn ngay trên ảnh xem trước (chạm để tô nhanh vùng kín, hoặc cọ/tẩy cho chuẩn). Học sinh chọn màu
+// bất kỳ rồi chạm bánh thì vùng này hiện màu đó; câu đúng khi màu trùng màu đúng. Ảnh xem trước hiện đúng
+// như học sinh sẽ thấy khi tô đúng đáp án. Ví dụ đã tô sẵn trong ảnh nên không cần soạn. Mặc định gán sẵn
+// màu theo đề Test 1 (pink, yellow, orange, green, blue).
 const DEFAULT_COLORS = ["pink", "yellow", "orange", "green", "blue"];
 
 export function blankPart4() {
   return {
     audioUrl: "",
     imageUrl: "",
-    items: DEFAULT_COLORS.map((color, i) => ({ id: `q${i + 1}`, color, frame: null })),
+    items: DEFAULT_COLORS.map((color, i) => ({ id: `q${i + 1}`, color, ops: [] })),
   };
 }
 
@@ -25,21 +26,18 @@ export function normalizePart4(raw) {
     imageUrl: raw.imageUrl ?? "",
     items: base.items.map(b => {
       const r = raw.items?.find(i => i.id === b.id);
-      if (!r) return b;
-      // Dữ liệu dạng điểm chạm (bản cũ) → khung nhỏ quanh điểm đó.
-      const frame = r.frame ?? (r.point ? { x: Math.max(0, r.point.x - 4), y: Math.max(0, r.point.y - 4), w: 8, h: 8 } : null);
-      return { id: b.id, color: r.color ?? b.color, frame };
+      return r ? { id: b.id, color: r.color ?? b.color, ops: r.ops ?? [] } : b;
     }),
   };
 }
 
 export function part4HasContent(part) {
-  return !!part.imageUrl && part.items.some(i => i.frame);
+  return !!part.imageUrl && part.items.some(i => i.ops?.length);
 }
 
 export function validatePart4(part) {
-  if (part.items.some(i => i.frame) && !part.imageUrl) return "Part 4: chưa có ảnh tranh.";
-  const bad = part.items.find(i => i.frame && !i.color);
+  if (part.items.some(i => i.ops?.length) && !part.imageUrl) return "Part 4: chưa có ảnh tranh.";
+  const bad = part.items.find(i => i.ops?.length && !i.color);
   if (bad) return `Part 4: Câu ${bad.id.slice(1)} chưa chọn màu.`;
   return null;
 }
@@ -48,7 +46,7 @@ export function Part4Editor({ part, onChange, activeId, onActiveId }) {
   function setItem(id, patch) {
     onChange({ ...part, items: part.items.map(i => (i.id === id ? { ...i, ...patch } : i)) });
   }
-  const done = part.items.filter(i => i.frame).length;
+  const done = part.items.filter(i => i.ops?.length).length;
 
   return (
     <div className="admin-form p1e">
@@ -67,18 +65,26 @@ export function Part4Editor({ part, onChange, activeId, onActiveId }) {
         <div className="p1e-pairs">
           {part.items.map(it => {
             const active = activeId === it.id;
+            const has = !!it.ops?.length;
             return (
-              <div className={`p1e-pair${it.frame ? " is-full" : ""}`} key={it.id}>
+              <div className={`p1e-pair${has ? " is-full" : ""}`} key={it.id}>
                 <div className="p1e-pair-head">
                   <span className="p1e-pair-num">{it.id.slice(1)}</span>
                   <strong className="p1e-pair-title">Câu {it.id.slice(1)}</strong>
-                  <span className={`p1e-pair-status${it.frame ? " is-ok" : ""}`}>{it.frame ? "Đã có khung" : "Trống"}</span>
+                  <span className={`p1e-pair-status${has ? " is-ok" : ""}`}>{has ? "Đã tô" : "Trống"}</span>
                   <button
                     type="button"
                     className="p1e-clear"
-                    disabled={!it.frame}
-                    onClick={() => { setItem(it.id, { frame: null }); if (active) onActiveId(null); }}
-                    title="Xoá khung"
+                    disabled={!has}
+                    onClick={() => setItem(it.id, { ops: it.ops.slice(0, -1) })}
+                    title="Hoàn tác thao tác cuối"
+                  >↶</button>
+                  <button
+                    type="button"
+                    className="p1e-clear"
+                    disabled={!has}
+                    onClick={() => { setItem(it.id, { ops: [] }); if (active) onActiveId(null); }}
+                    title="Xoá vùng đã tô"
                   >✕</button>
                 </div>
                 <div className="p4e-colors">
@@ -95,14 +101,14 @@ export function Part4Editor({ part, onChange, activeId, onActiveId }) {
                 </div>
                 <button
                   type="button"
-                  className={`p1e-slot is-a${active ? " is-active" : ""}${it.frame ? " is-done" : ""}`}
+                  className={`p1e-slot is-a${active ? " is-active" : ""}${has ? " is-done" : ""}`}
                   disabled={!part.imageUrl}
                   onClick={() => onActiveId(active ? null : it.id)}
                 >
                   <span className="p1e-slot-dot" />
                   <span className="p1e-slot-text">
-                    <strong>Khung bánh</strong>
-                    <small>{active ? "Kéo trên ảnh..." : it.frame ? "✓ Đã vẽ" : "Chưa vẽ"}</small>
+                    <strong>Tô vùng bánh</strong>
+                    <small>{active ? "Đang tô trên ảnh..." : has ? "✓ Đã tô" : "Chưa tô"}</small>
                   </span>
                 </button>
               </div>
@@ -114,15 +120,76 @@ export function Part4Editor({ part, onChange, activeId, onActiveId }) {
   );
 }
 
-// Xem trước: ảnh + khung của từng câu (viền theo màu đúng) — cũng là nơi kéo chuột vẽ khung.
+const r2 = v => Math.round(v * 100) / 100;
+const TOOLS = [
+  { id: "fill", label: "🪣 Chạm tô vùng" },
+  { id: "brush", label: "🖌️ Cọ" },
+  { id: "erase", label: "🧽 Tẩy" },
+];
+
+// Xem trước: ảnh + vùng từng bánh tô bằng màu đúng — cũng là nơi giáo viên tô vùng (chọn 1 câu ở cột trái).
 export function Part4Preview({ part, onChange, activeId, onActiveId }) {
-  function commit(rect) {
-    if (!activeId) return;
-    onChange({ ...part, items: part.items.map(i => (i.id === activeId ? { ...i, frame: rect } : i)) });
-    onActiveId(null);
+  const art = useLineArt(part.imageUrl);
+  const canvasRef = useRef(null);
+  const [tool, setTool] = useState("fill");
+  const [size, setSize] = useState(2.5);
+  const [live, setLive] = useState(null); // nét đang kéo: { pts: [x, y, ...] }
+  const [msg, setMsg] = useState("");
+  const [zoom, setZoom] = useState(1);
+  const count = part.items.filter(i => i.ops?.length).length;
+
+  const masks = useMemo(() => {
+    if (!art.orig) return {};
+    return Object.fromEntries(
+      part.items.map(it => {
+        const ops = it.id === activeId && live ? [...it.ops, { t: "brush", size, e: tool === "erase", pts: live.pts }] : it.ops;
+        return [it.id, buildMask(ops, art.w, art.h, art.orig)];
+      }),
+    );
+  }, [art, part.items, activeId, live, size, tool]);
+
+  useEffect(() => {
+    const c = canvasRef.current;
+    if (!c || !art.img) return;
+    if (c.width !== art.w) c.width = art.w;
+    if (c.height !== art.h) c.height = art.h;
+    paintScene(c, art.img, masks, Object.fromEntries(part.items.map(it => [it.id, hexOf(it.color)])));
+  }, [art, masks, part.items]);
+
+  function point(e) {
+    const rect = canvasRef.current.getBoundingClientRect();
+    return [r2(((e.clientX - rect.left) / rect.width) * 100), r2(((e.clientY - rect.top) / rect.height) * 100)];
   }
-  const { stageRef, liveRect, handlers } = useRectDraw(commit);
-  const count = part.items.filter(i => i.frame).length;
+  function addOp(op) {
+    onChange({ ...part, items: part.items.map(i => (i.id === activeId ? { ...i, ops: [...i.ops, op] } : i)) });
+  }
+
+  function down(e) {
+    if (!activeId || !art.orig) return;
+    e.preventDefault();
+    setMsg("");
+    const [x, y] = point(e);
+    if (tool === "fill") {
+      const region = regionOf(art.orig, Math.round((x / 100) * (art.w - 1)), Math.round((y / 100) * (art.h - 1)));
+      if (region) addOp({ t: "fill", x, y });
+      else setMsg("Không tô nhanh được ở đây (chạm trúng nét viền hoặc viền bị hở) — dùng Cọ để tô.");
+      return;
+    }
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+    setLive({ pts: [x, y] });
+  }
+  function move(e) {
+    if (!live) return;
+    const [x, y] = point(e);
+    const n = live.pts.length;
+    if (Math.hypot(x - live.pts[n - 2], y - live.pts[n - 1]) < 0.25) return;
+    setLive({ pts: [...live.pts, x, y] });
+  }
+  function up() {
+    if (!live) return;
+    addOp({ t: "brush", size, e: tool === "erase", pts: live.pts });
+    setLive(null);
+  }
 
   return (
     <div className="admin-reading-preview-panel">
@@ -136,36 +203,47 @@ export function Part4Preview({ part, onChange, activeId, onActiveId }) {
       <p className="p2s-count">– {count} questions –</p>
       <p className="p2s-instr">Listen and colour. There is one example.</p>
       {part.audioUrl && <audio className="p2r-audio" src={part.audioUrl} controls />}
-      {part.imageUrl ? (
-        <div
-          ref={stageRef}
-          className="admin-p1-pair-stage"
-          {...(activeId ? handlers : {})}
-          style={{ cursor: activeId ? "crosshair" : "default", touchAction: activeId ? "none" : "auto" }}
-        >
-          <img src={part.imageUrl} alt="" draggable={false} />
-          {part.items.map(it => {
-            const c = PALETTE.find(p => p.id === it.color);
-            return it.frame ? (
-              <div
-                key={it.id}
-                className="admin-p1-frame p4e-frame"
-                style={{ left: `${it.frame.x}%`, top: `${it.frame.y}%`, width: `${it.frame.w}%`, height: `${it.frame.h}%`, "--c": c?.hex }}
-              >
-                <span>{it.id.slice(1)} · {c?.name}</span>
-              </div>
-            ) : null;
-          })}
-          {liveRect && (
-            <div
-              className="admin-p1-frame is-live"
-              style={{ left: `${liveRect.x}%`, top: `${liveRect.y}%`, width: `${liveRect.w}%`, height: `${liveRect.h}%` }}
-            />
+      {activeId && (
+        <div className="p4e-tools">
+          {TOOLS.map(t => (
+            <button key={t.id} type="button" className={`p4e-tool${tool === t.id ? " is-active" : ""}`} onClick={() => setTool(t.id)}>{t.label}</button>
+          ))}
+          {tool !== "fill" && (
+            <label className="p4e-size">
+              Cỡ cọ
+              <input type="range" min="0.6" max="8" step="0.2" value={size} onChange={e => setSize(Number(e.target.value))} />
+            </label>
           )}
+        </div>
+      )}
+      {msg && <p className="admin-upload-error">{msg}</p>}
+      {part.imageUrl && (
+        <div className="p4e-tools">
+          <button type="button" className="p4e-tool" onClick={() => setZoom(z => Math.max(1, r2(z - 0.5)))} disabled={zoom <= 1}>−</button>
+          <input type="range" min="1" max="5" step="0.25" value={zoom} onChange={e => setZoom(Number(e.target.value))} />
+          <button type="button" className="p4e-tool" onClick={() => setZoom(z => Math.min(5, r2(z + 0.5)))} disabled={zoom >= 5}>+</button>
+          <span className="p4e-size">Zoom {Math.round(zoom * 100)}%</span>
+          {zoom !== 1 && <button type="button" className="p4e-tool" onClick={() => setZoom(1)}>Vừa khung</button>}
+        </div>
+      )}
+      {part.imageUrl ? (
+        <div className="p4e-scroll">
+          <div className="p4s-stage" style={{ width: `${zoom * 100}%` }}>
+          <canvas
+            ref={canvasRef}
+            className="p4s-canvas"
+            onPointerDown={down}
+            onPointerMove={move}
+            onPointerUp={up}
+            onPointerCancel={up}
+            style={{ cursor: activeId ? "crosshair" : "default", touchAction: activeId ? "none" : "auto" }}
+          />
+          </div>
         </div>
       ) : (
         <p className="admin-muted-text">Chưa có ảnh tranh.</p>
       )}
+      {art.error && <p className="admin-upload-error">{art.error}</p>}
     </div>
   );
 }

@@ -208,7 +208,7 @@ function TestEditor({ series, level, testId, uid, onBack }) {
     const has2 = part2HasContent(part2);
     const has3 = part3HasContent(part3);
     const has4 = part4HasContent(part4);
-    const err = (has1 ? validatePart1(part1) : null) || (has2 ? validatePart2(part2) : null) || (has3 ? validatePart3(part3) : null) || (part4.items.some(i => i.frame) ? validatePart4(part4) : null) || (!has1 && !has2 && !has3 && !has4 ? "Chưa có nội dung nào để xuất bản." : null);
+    const err = (has1 ? validatePart1(part1) : null) || (has2 ? validatePart2(part2) : null) || (has3 ? validatePart3(part3) : null) || (part4.items.some(i => i.ops?.length) ? validatePart4(part4) : null) || (!has1 && !has2 && !has3 && !has4 ? "Chưa có nội dung nào để xuất bản." : null);
     if (err) {
       alert(err);
       return;
