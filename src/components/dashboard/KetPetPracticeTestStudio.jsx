@@ -346,7 +346,7 @@ export default function KetPetPracticeTestStudio({
             <strong>{unitTitle} — Practice Test {testNumber} (xem trước)</strong>
           </div>
           <div className="admin-preview-overlay-body">
-            <KetPetPracticeTestQuiz groups={groups} />
+            <KetPetPracticeTestQuiz groups={groups} revealAnswers />
           </div>
         </div>
       )}

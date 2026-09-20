@@ -1095,12 +1095,12 @@ function QuestionEditor({ question, index, onChange, onDelete, onDuplicate, word
             showGapButton={seriesId !== "movers"}
           />
           <label className="admin-mini-field">
-            <span>Đáp án (1 từ)</span>
+            <span>Đáp án (nhiều cách viết cách nhau bằng dấu |)</span>
             <input
               className="admin-input"
               value={question.answer ?? ""}
               onChange={e => onChange({ answer: e.target.value })}
-              placeholder="vd: table"
+              placeholder="vd: table|a table"
             />
           </label>
         </>
@@ -2249,7 +2249,7 @@ function TestPreview({ parts, stats, activePartIndex, seriesId }) {
 // Màn soạn 1 Test Reading & Writing — cấu trúc 2 tầng: Test → nhiều Part → mỗi Part nhiều câu hỏi
 // (3 loại). Bố cục 2 cột: form soạn bên trái, xem trước trực tiếp + thông tin chung bên phải —
 // theo góp ý người dùng (quen mắt với bố cục CMS của YourHomework).
-export default function ReadingStudio({ accent, seriesId, title, onTitleChange, parts, onPartsChange, maxAttempts, onMaxAttemptsChange, onBack, onSave, saving, saved }) {
+export default function ReadingStudio({ accent, seriesId, title, onTitleChange, parts, onPartsChange, maxAttempts, onMaxAttemptsChange, timeLimitMinutes, onTimeLimitChange, onBack, onSave, saving, saved }) {
   const confirm = useConfirm();
   const [openPartIndex, setOpenPartIndex] = useState(parts.length ? 0 : null);
   // Ghi nhớ Part ĐÃ TỪNG mở gần nhất riêng (không reset về null khi đóng accordion lại) — nút "Xem
@@ -2456,6 +2456,17 @@ export default function ReadingStudio({ accent, seriesId, title, onTitleChange, 
             className="admin-input"
             value={maxAttempts ?? ""}
             onChange={e => onMaxAttemptsChange(e.target.value === "" ? null : Number(e.target.value))}
+            placeholder="Không giới hạn"
+          />
+        </label>
+        <label className="studio-max-attempts" title="Hết giờ hệ thống tự nộp bài — để trống nghĩa là không giới hạn (chỉ đếm giờ đã làm).">
+          <span>Thời gian (phút)</span>
+          <input
+            type="number"
+            min={1}
+            className="admin-input"
+            value={timeLimitMinutes ?? ""}
+            onChange={e => onTimeLimitChange(e.target.value === "" ? null : Number(e.target.value))}
             placeholder="Không giới hạn"
           />
         </label>

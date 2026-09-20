@@ -4,6 +4,10 @@ import StartersListeningPart2Runner from "./StartersListeningPart2.jsx";
 import StartersListeningPart3Runner from "./StartersListeningPart3.jsx";
 import StartersListeningPart4Runner, { part4Has } from "./StartersListeningPart4.jsx";
 import MoversListeningPart3Runner from "./MoversListeningPart3.jsx";
+import ExamTimer, { useExamTimer } from "./ExamTimer.jsx";
+import { saveTestResult } from "../lib/testResults.js";
+import { incrementAttempt } from "../lib/attempts.js";
+import { attemptKey } from "../lib/openings.js";
 
 const Part3Dispatch = props => (props.part.variant === "movers" ? <MoversListeningPart3Runner {...props} /> : <StartersListeningPart3Runner {...props} />);
 
@@ -23,10 +27,12 @@ const PARTS = [
 // Test có ít nhất 1 Part đã soạn thì mở được (dùng cho thẻ Test ở LessonsPage).
 export const testHasContent = test => PARTS.some(p => p.has(test?.parts?.[p.key]));
 
-export default function StartersListeningTestRunner({ test }) {
+export default function StartersListeningTestRunner({ test, studentUid, studentName, studentClass, seriesId, level, lessonLabel, openingId }) {
   const available = PARTS.filter(p => p.has(test.parts?.[p.key]));
   const [submitted, setSubmitted] = useState(false);
   const [attempt, setAttempt] = useState(0);
+  // Đồng hồ chung (ExamTimer.jsx): hết giờ tự nộp bài; đóng băng khi đã nộp, đếm lại khi "Làm lại".
+  const timer = useExamTimer({ limitMinutes: test.timeLimitMinutes, running: !submitted, onExpire: doSubmit, resetKey: attempt });
   const [scores, setScores] = useState({});
 
   const [activeKey, setActiveKey] = useState(available[0]?.key);
@@ -55,6 +61,19 @@ export default function StartersListeningTestRunner({ test }) {
   const total = available.reduce((sum, p) => sum + (scores[p.key]?.total ?? 0), 0);
   const score = available.reduce((sum, p) => sum + (scores[p.key]?.score ?? 0), 0);
 
+  // Học sinh chỉ thấy tổng số câu đúng; chi tiết theo Part lưu cho giáo viên/admin (lib/testResults.js).
+  function doSubmit() {
+    if (submitted) return;
+    setSubmitted(true);
+    const tid = test.testId ?? test.id;
+    if (studentUid) incrementAttempt({ uid: studentUid, mode: "listening-exam", testId: attemptKey(tid, openingId), seriesId, level });
+    saveTestResult({
+      mode: "listening-exam", seriesId, level, testId: test.testId ?? test.id, lessonLabel, studentName, studentClass, uid: studentUid,
+      correct: score, total, elapsedMs: timer.getElapsedMs(),
+      items: available.map(p => ({ part: p.key, correct: scores[p.key]?.score ?? 0, total: scores[p.key]?.total ?? 0 })),
+    });
+  }
+
   function reset() {
     setScores({});
     setSubmitted(false);
@@ -63,6 +82,7 @@ export default function StartersListeningTestRunner({ test }) {
 
   return (
     <div className="exam-layout">
+      <ExamTimer timer={timer} />
       <nav className="exam-side" aria-label="Danh sách Part">
         {available.map((p, i) => {
           const sc = scores[p.key];
@@ -79,11 +99,11 @@ export default function StartersListeningTestRunner({ test }) {
           );
         })}
         {!submitted ? (
-          <button type="button" className="btn btn-primary exam-side-submit" onClick={() => setSubmitted(true)}>Nộp bài</button>
+          <button type="button" className="btn btn-primary exam-side-submit" onClick={doSubmit}>Nộp bài</button>
         ) : (
           <>
             <div className="exam-side-score">Kết quả: {score} / {total}</div>
-            <button type="button" className="btn btn-secondary exam-side-submit" onClick={reset}>Làm lại</button>
+            {!studentUid && <button type="button" className="btn btn-secondary exam-side-submit" onClick={reset}>Làm lại</button>}
           </>
         )}
       </nav>
@@ -96,7 +116,7 @@ export default function StartersListeningTestRunner({ test }) {
             data-part={key}
             ref={el => { sectionRefs.current[key] = el; }}
           >
-            <Runner part={test.parts[key]} submitted={submitted} onScore={report(key)} />
+            <Runner part={test.parts[key]} submitted={submitted} reveal={false} onScore={report(key)} />
           </section>
         ))}
 

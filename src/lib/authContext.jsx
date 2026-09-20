@@ -14,6 +14,14 @@ export function AuthProvider({ children }) {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // Đọc lại hồ sơ sau khi sửa users/{uid} (vd học sinh vừa đổi mật khẩu lần đầu, xoá cờ mustChangePassword).
+  async function refreshProfile() {
+    const u = auth.currentUser;
+    if (!u) return;
+    const snap = await getDoc(doc(db, "users", u.uid));
+    setProfile(snap.exists() ? snap.data() : null);
+  }
+
   useEffect(() => {
     // onAuthStateChanged tự bắn ngay lần đầu với trạng thái hiện tại — return cleanup để tránh
     // đăng ký trùng listener (React 19 StrictMode gọi effect 2 lần ở dev).
@@ -50,6 +58,7 @@ export function AuthProvider({ children }) {
     user,
     role,
     profile,
+    refreshProfile,
     loading,
     isStaff,
     isTester,

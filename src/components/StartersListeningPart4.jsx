@@ -317,7 +317,7 @@ const TOOLS = [
   { id: "erase", label: "🧽 Tẩy" },
 ];
 
-export default function StartersListeningPart4Runner({ part, submitted, onScore }) {
+export default function StartersListeningPart4Runner({ part, submitted, reveal = true, onScore }) {
   const items = useMemo(() => (part.items ?? []).filter(itemReady), [part.items]);
   const colourItems = useMemo(() => items.filter(i => !isWriteItem(i)), [items]);
   const palette = useMemo(() => shuffled(PALETTE), []); // xáo ngẫu nhiên để thứ tự màu không lộ đáp án
@@ -505,7 +505,7 @@ export default function StartersListeningPart4Runner({ part, submitted, onScore 
           onPointerCancel={up}
           style={{ cursor: canPaint ? "crosshair" : "default", touchAction: canPaint ? "none" : "auto" }}
         />
-        {submitted &&
+        {submitted && reveal &&
           colourItems.map(it => {
             const b = boxes[it.id];
             if (!b) return null;
@@ -533,7 +533,7 @@ export default function StartersListeningPart4Runner({ part, submitted, onScore 
             )}
           </span>
         ))}
-        {submitted &&
+        {submitted && reveal &&
           items.filter(isWriteItem).map(it => {
             const ok = isRight(it);
             return (

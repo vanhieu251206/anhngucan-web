@@ -7,13 +7,13 @@ import { useEffect, useState } from "react";
 // answer }, questions: [{ question, images: [a,b,c], answer: "A"|"B"|"C" }] }.
 export const LETTERS = ["A", "B", "C"];
 
-function Options({ images, value, onPick, correct, submitted, locked }) {
+function Options({ images, value, onPick, correct, submitted, reveal = true, locked }) {
   return (
     <div className="p3s-opts">
       {LETTERS.map((L, i) => {
         const picked = value === L;
         const isCorrect = correct === L;
-        const state = submitted ? (isCorrect ? " is-correct" : picked ? " is-wrong" : "") : picked ? " is-picked" : "";
+        const state = submitted && reveal ? (isCorrect ? " is-correct" : picked ? " is-wrong" : "") : picked ? " is-picked" : "";
         return (
           <div className={`p3s-opt${state}`} key={L}>
             <button type="button" className="p3s-img-btn" disabled={locked || submitted} onClick={() => onPick(L)}>
@@ -21,7 +21,7 @@ function Options({ images, value, onPick, correct, submitted, locked }) {
             </button>
             <button type="button" className="p3s-choice" disabled={locked || submitted} onClick={() => onPick(L)}>
               <span className="p3s-letter">{L}</span>
-              <span className="p3s-box">{picked || (submitted && isCorrect) ? "✓" : ""}</span>
+              <span className="p3s-box">{picked || (submitted && reveal && isCorrect) ? "✓" : ""}</span>
             </button>
           </div>
         );
@@ -30,7 +30,7 @@ function Options({ images, value, onPick, correct, submitted, locked }) {
   );
 }
 
-export function Part3Sheet({ part, values = [], onChange, submitted = false, preview = false }) {
+export function Part3Sheet({ part, values = [], onChange, submitted = false, reveal = true, preview = false }) {
   const questions = (part.questions ?? []).filter(q => q.question?.trim());
   const ex = part.example;
   return (
@@ -55,6 +55,7 @@ export function Part3Sheet({ part, values = [], onChange, submitted = false, pre
             value={preview ? q.answer : values[i]}
             correct={q.answer}
             submitted={submitted}
+            reveal={reveal}
             locked={preview}
             onPick={L => onChange?.(i, L)}
           />
@@ -64,7 +65,7 @@ export function Part3Sheet({ part, values = [], onChange, submitted = false, pre
   );
 }
 
-export default function StartersListeningPart3Runner({ part, submitted, onScore }) {
+export default function StartersListeningPart3Runner({ part, submitted, reveal = true, onScore }) {
   const questions = (part.questions ?? []).filter(q => q.question?.trim());
   const [values, setValues] = useState([]);
 
@@ -83,7 +84,7 @@ export default function StartersListeningPart3Runner({ part, submitted, onScore 
 
   return (
     <div className="p2r">
-      <Part3Sheet part={part} values={values} onChange={setValue} submitted={submitted} />
+      <Part3Sheet part={part} values={values} onChange={setValue} submitted={submitted} reveal={reveal} />
     </div>
   );
 }

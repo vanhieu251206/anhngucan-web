@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import ImageUploadField from "./ImageUploadField.jsx";
 import AudioUploadField from "./AudioUploadField.jsx";
-import { PALETTE, hexOf, buildMask, paintScene, regionOf, useLineArt, isWriteItem, part4Has } from "../StartersListeningPart4.jsx";
+import { PALETTE, hexOf, buildMask, paintScene, useLineArt, isWriteItem, part4Has } from "../StartersListeningPart4.jsx";
 import { useRectDraw } from "./ScenePreview.jsx";
 
 // CMS Luyện đề Listening Starters — Part 4 (nghe và tô màu): mỗi câu có màu đúng + vùng cái bánh do giáo
-// viên tô sẵn ngay trên ảnh xem trước (chạm để tô nhanh vùng kín, hoặc cọ/tẩy cho chuẩn). Học sinh chọn màu
+// viên tô sẵn ngay trên ảnh xem trước (dùng cọ/tẩy). Học sinh chọn màu
 // bất kỳ rồi chạm bánh thì vùng này hiện màu đó; câu đúng khi màu trùng màu đúng. Ảnh xem trước hiện đúng
 // như học sinh sẽ thấy khi tô đúng đáp án. Ví dụ đã tô sẵn trong ảnh nên không cần soạn. Mặc định gán sẵn
 // màu theo đề Test 1 (pink, yellow, orange, green, blue).
@@ -146,7 +146,6 @@ export function Part4Editor({ part, onChange, activeId, onActiveId }) {
 
 const r2 = v => Math.round(v * 100) / 100;
 const TOOLS = [
-  { id: "fill", label: "🪣 Chạm tô vùng" },
   { id: "brush", label: "🖌️ Cọ" },
   { id: "erase", label: "🧽 Tẩy" },
 ];
@@ -155,10 +154,9 @@ const TOOLS = [
 export function Part4Preview({ part, onChange, activeId, onActiveId }) {
   const art = useLineArt(part.imageUrl);
   const canvasRef = useRef(null);
-  const [tool, setTool] = useState("fill");
+  const [tool, setTool] = useState("brush");
   const [size, setSize] = useState(2.5);
   const [live, setLive] = useState(null); // nét đang kéo: { pts: [x, y, ...] }
-  const [msg, setMsg] = useState("");
   const [zoom, setZoom] = useState(1);
   const activeItem = part.items.find(i => i.id === activeId);
   const writing = !!activeItem && isWriteItem(activeItem);
@@ -197,14 +195,7 @@ export function Part4Preview({ part, onChange, activeId, onActiveId }) {
   function down(e) {
     if (!activeId || !art.orig || writing) return;
     e.preventDefault();
-    setMsg("");
     const [x, y] = point(e);
-    if (tool === "fill") {
-      const region = regionOf(art.orig, Math.round((x / 100) * (art.w - 1)), Math.round((y / 100) * (art.h - 1)));
-      if (region) addOp({ t: "fill", x, y });
-      else setMsg("Không tô nhanh được ở đây (chạm trúng nét viền hoặc viền bị hở) — dùng Cọ để tô.");
-      return;
-    }
     e.currentTarget.setPointerCapture?.(e.pointerId);
     setLive({ pts: [x, y] });
   }
@@ -238,15 +229,12 @@ export function Part4Preview({ part, onChange, activeId, onActiveId }) {
           {TOOLS.map(t => (
             <button key={t.id} type="button" className={`p4e-tool${tool === t.id ? " is-active" : ""}`} onClick={() => setTool(t.id)}>{t.label}</button>
           ))}
-          {tool !== "fill" && (
-            <label className="p4e-size">
-              Cỡ cọ
-              <input type="range" min="0.6" max="8" step="0.2" value={size} onChange={e => setSize(Number(e.target.value))} />
-            </label>
-          )}
+          <label className="p4e-size">
+            Cỡ cọ
+            <input type="range" min="0.6" max="8" step="0.2" value={size} onChange={e => setSize(Number(e.target.value))} />
+          </label>
         </div>
       )}
-      {msg && <p className="admin-upload-error">{msg}</p>}
       {part.imageUrl && (
         <div className="p4e-tools">
           <button type="button" className="p4e-tool" onClick={() => setZoom(z => Math.max(1, r2(z - 0.5)))} disabled={zoom <= 1}>−</button>

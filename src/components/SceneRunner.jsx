@@ -2,12 +2,14 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { playLine, normalize, stopCurrent, fuzzyIncludesWord, isRecordingSupported } from "../lib/speech.js";
 import { assessPronunciation, describePronunciationError } from "../lib/pronunciationApi.js";
 import { ExaminerLine, SceneStage, MIC_ICON } from "./sceneVisuals.jsx";
-import { SpeakingReportView } from "./SpeakingReportView.jsx";
+import TestScoreReport from "./TestScoreReport.jsx";
+import ExamTimer, { useExamTimer } from "./ExamTimer.jsx";
 import { useAuth } from "../lib/authContext.jsx";
 import { logSpeechAttempt } from "../lib/speechLog.js";
 import { startSpeakingSession, finishSpeakingSession, logSpeakingEvent } from "../lib/speakingSessions.js";
 import { incrementAttempt } from "../lib/attempts.js";
-import { saveRecording, submitRun, getRunRecordings, cleanupExpiredAudio, isWithinViewWindow } from "../lib/audioReviewCache.js";
+import { attemptKey } from "../lib/openings.js";
+import { saveRecording, submitRun, cleanupExpiredAudio } from "../lib/audioReviewCache.js";
 
 // Lời khen dùng chung cho MỌI bài (không riêng lesson nào) — audio thật lấy từ
 // Bài học/_dung-chung/praises/voice.txt, KHÔNG có TTS trình duyệt dự phòng.
@@ -177,6 +179,8 @@ export default function SceneRunner({
   level,
   testId,
   lessonLabel,
+  limitMinutes,
+  openingId,
 }) {
   const { isStaff } = useAuth();
   const [index, setIndex] = useState(() => loadSavedIndex(progressKey, scenes.length));
@@ -187,8 +191,8 @@ export default function SceneRunner({
   // trong ngày vẫn phải tách riêng từng lượt.
   const runIdRef = useRef(crypto.randomUUID());
   const [reviewOpen, setReviewOpen] = useState(false);
-  // Mốc bắt đầu làm bài — dùng tính "Thời gian làm bài" hiện ở màn tổng kết.
-  const startedAtRef = useRef(Date.now());
+  // Đồng hồ chung (ExamTimer.jsx): hết giờ tự nộp bài; dừng khi mở màn tổng kết.
+  const timer = useExamTimer({ limitMinutes, running: !reviewOpen, onExpire: finishRun });
 
   // Dọn audio "Nghe lại" đã quá hạn (>48h) khi bắt đầu 1 bài mới — đỡ tồn đọng dữ liệu vô thời hạn.
   useEffect(() => {
@@ -254,15 +258,20 @@ export default function SceneRunner({
     return () => stopCurrent();
   }, []);
 
+  function finishRun() {
+    stopCurrent();
+    if (progressKey) sessionStorage.removeItem(PROGRESS_KEY_PREFIX + progressKey);
+    finishSpeakingSession(sessionIdRef.current);
+    // Tính 1 lượt nộp bài (chốt 2026-08-27, xem lib/attempts.js) — chỉ khi có studentUid (học
+    // sinh đã đăng nhập thật, không phải admin/teacher tự test).
+    if (studentUid) incrementAttempt({ uid: studentUid, mode: "speaking", testId: attemptKey(testId, openingId), seriesId, level });
+    if (progressKey) submitRun(progressKey, runIdRef.current);
+    setReviewOpen(true);
+  }
+
   function goNext() {
     if (isLast) {
-      if (progressKey) sessionStorage.removeItem(PROGRESS_KEY_PREFIX + progressKey);
-      finishSpeakingSession(sessionIdRef.current);
-      // Tính 1 lượt nộp bài (chốt 2026-08-27, xem lib/attempts.js) — chỉ khi có studentUid (học
-      // sinh đã đăng nhập thật, không phải admin/teacher tự test).
-      if (studentUid) incrementAttempt({ uid: studentUid, mode: "speaking", testId, seriesId, level });
-      if (progressKey) submitRun(progressKey, runIdRef.current);
-      setReviewOpen(true);
+      finishRun();
       return;
     }
     setIndex(i => i + 1);
@@ -282,18 +291,15 @@ export default function SceneRunner({
   }
 
   if (reviewOpen) {
-    return (
-      <ReviewScreen
-        runId={runIdRef.current}
-        results={results}
-        elapsedMs={Date.now() - startedAtRef.current}
-        onDone={onFinish}
-      />
-    );
+    // Học sinh chỉ thấy số câu đúng/tổng — chi tiết từng câu đã ghi ở speakingSessions cho giáo viên/admin.
+    const gradedTotal = scenes.filter(sc => sc.type !== "narration").length;
+    const correctCount = Object.values(results).filter(r => r.result === "correct").length;
+    return <TestScoreReport correct={correctCount} total={gradedTotal} elapsedMs={timer.getElapsedMs()} onDone={onFinish} />;
   }
 
   return (
     <div className="sentence-box">
+      <ExamTimer timer={timer} />
       <div className="speaking-progress">
         Câu {index + 1} / {scenes.length}
         {isStaff && (
@@ -335,44 +341,6 @@ export default function SceneRunner({
       {scene.type === "drag-drop" && (
         <DragDropScene key={index} scene={scene} onNext={goNext} sceneIndex={index} onAttempt={recordAttempt} />
       )}
-    </div>
-  );
-}
-
-// ---------- Màn tổng kết cuối bài: kết quả TẤT CẢ câu đã làm, audio (nếu có) chỉ là 1 phần ----------
-// Phần hiển thị dùng chung với StudentResultsPage.jsx (giáo viên/admin xem lại sau — KHÔNG có
-// audio) qua SpeakingReportView.jsx (xem file đó để biết lý do). Ở đây (học sinh xem NGAY sau khi
-// nộp bài) mới có thêm audio nghe lại (đọc từ IndexedDB trên chính máy này, xem
-// lib/audioReviewCache.js — chỉ dùng được 24h đầu, hoàn toàn không upload lên đâu).
-function ReviewScreen({ runId, results, elapsedMs, onDone }) {
-  const [recordings, setRecordings] = useState(null); // null = đang tải
-
-  useEffect(() => {
-    let cancelled = false;
-    getRunRecordings(runId).then(list => {
-      if (!cancelled) setRecordings(list || []);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [runId]);
-
-  const items = Object.entries(results)
-    .map(([sceneIndex, r]) => ({ sceneIndex: Number(sceneIndex), ...r }))
-    .sort((a, b) => a.sceneIndex - b.sceneIndex);
-
-  return (
-    <div className="sentence-box review-screen">
-      <SpeakingReportView items={items} elapsedMs={elapsedMs} showAudio recordings={recordings} />
-      <div className="review-footer">
-        <p className="review-footer-note">
-          🎧 Câu đã nói (🎤) nghe lại được trong <strong>24 giờ</strong> kể từ bây giờ, sau đó tự xoá khỏi
-          thiết bị này.
-        </p>
-        <button className="btn btn-primary review-done-btn" onClick={onDone}>
-          Xong
-        </button>
-      </div>
     </div>
   );
 }

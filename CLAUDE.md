@@ -110,6 +110,13 @@ Mỗi scene đều hiện **linh vật ong** (`public/assets/img/mascot/bee.png`
 - **Đã xong Phase 1 phân quyền (2026-08-13):** đăng nhập admin/teacher qua Firebase Auth + khoá toàn bộ bài học (Listening/Speaking) bằng 1 mật khẩu chung cho guest/học sinh — xem mục 2 (ngoại lệ Firebase) và mục 3 (các file `firebase.js`/`authContext.jsx`/`lessonAccess.js`/`PasswordGate.jsx`/`LoginPage.jsx`/`SettingsPage.jsx`). Cần người dùng tự làm thao tác tay trên Firebase Console (tạo project, bật Email/Password, tạo tài khoản admin đầu tiên, thêm GitHub Secrets...) trước khi tính năng chạy được thật — Claude không tự làm được các bước này.
 - **Phase 2 (soạn bài không cần code/CMS) và Phase 3 (theo dõi tiến độ học sinh) CHƯA làm** — chỉ làm khi người dùng chủ động yêu cầu tiếp.
 
+- **Cập nhật 2026-09-20 (thay thế mô tả cũ về mật khẩu chung/mật khẩu theo bộ đề/guest ở trên):**
+  - **Đăng nhập bắt buộc để học.** Học sinh có tài khoản do giáo viên tạo hàng loạt (Dashboard → "Tài khoản học sinh": dán "Tên, Lớp" + 1 mật khẩu ban đầu chung; tên đăng nhập = họ tên bỏ dấu, trùng thì thêm số; `users/{uid}.mustChangePassword` buộc đổi mật khẩu lần đầu, xem `ForceChangePassword.jsx`). Không còn `SeriesPasswordGate`/mật khẩu theo bộ đề trong luồng học sinh (file còn, không dùng). Quên mật khẩu → phải tạo lại tài khoản (không có Admin SDK).
+  - **Mọi bài MẶC ĐỊNH KHOÁ, giáo viên "Mở bài" theo lớp** (Dashboard → "Mở bài", `lib/openings.js`, collection `openings`): mỗi lần mở có mật khẩu vào bài (hash SHA-256), hạn chót, số lượt, số phút; 1 lớp mở được nhiều bài cùng lúc; cấp thêm lượt = sửa số lượt của lần mở. Lượt đếm theo (học sinh, dạng bài, `testId@openingId`) qua `attempts.js`. Admin/teacher/tester vào thẳng. Lỗi mạng khi kiểm tra = chặn (không cho qua).
+  - **Học sinh CHỈ thấy số câu đúng/tổng sau khi nộp** (`TestScoreReport.jsx`), KHÔNG hiện đáp án/giải thích/lời khen; Preview trong CMS mới hiện đáp án (`revealAnswers`/`reveal`/`readOnly`). Chi tiết từng câu lưu ở `testResults` (`lib/testResults.js`), giáo viên xem ở "Kết quả học sinh". Đồng hồ chung `ExamTimer.jsx` (đếm ngược theo số phút của lần mở/bài, hết giờ tự nộp).
+  - Đáp án nhiều cách viết cho câu trả lời ngắn Reading: ngăn bằng dấu `|`.
+  - Cần người dùng tự publish `firestore.rules` (thêm `testResults`, `openings`, luật học sinh tự xoá cờ `mustChangePassword`).
+
 ## 7. Không tự ý làm gì khi chưa hỏi
 - Khi đổi cấu trúc dữ liệu Speaking (loại scene, schema Sheet sau này...) cần xác nhận với người dùng trước.
 - **Không đề xuất lại đóng gói app/exe/ios** — đã loại bỏ hoàn toàn.

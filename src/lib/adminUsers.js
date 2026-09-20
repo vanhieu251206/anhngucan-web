@@ -1,5 +1,5 @@
 import { initializeApp, deleteApp } from "firebase/app";
-import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, updatePassword, signOut } from "firebase/auth";
+import { getAuth, createUserWithEmailAndPassword, signOut } from "firebase/auth";
 import { doc, setDoc, getDoc, collection, query, where, getDocs, serverTimestamp } from "firebase/firestore";
 import { db } from "./firebase.js";
 
@@ -35,6 +35,8 @@ const firebaseConfig = {
 // luôn thành user mới tạo, đá admin ra khỏi phiên hiện tại — đây là hành vi mặc định đã biết
 // của SDK, không phải bug. Cách né: tạo 1 Firebase App phụ (secondary) chỉ dùng để tạo tài
 // khoản, không đụng gì tới app/auth chính đang giữ phiên đăng nhập admin.
+export { STUDENT_EMAIL_DOMAIN };
+
 export function createTeacherAccount(email, password) {
   return createStaffLikeAccount("teacher", email, password);
 }
@@ -83,16 +85,6 @@ export async function listTesters() {
   return snap.docs.map(d => ({ uid: d.id, ...d.data() }));
 }
 
-// Mật khẩu chung ĐANG DÙNG cho MỌI tài khoản học sinh (toàn trung tâm, không theo lớp) — lưu
-// plaintext ở settings/studentAccess (chỉ admin/teacher đọc được, xem firestore.rules) vì cần
-// dùng lại để (a) tạo tài khoản mới đúng mật khẩu hiện hành, (b) khi đổi mật khẩu chung phải tự
-// đăng nhập LẦN LƯỢT từng tài khoản cũ bằng mật khẩu CŨ rồi mới đổi được (không có Cloud
-// Functions/Admin SDK để đổi mật khẩu người khác mà không cần mật khẩu cũ).
-export async function getCurrentStudentPassword() {
-  const snap = await getDoc(doc(db, "settings", "studentAccess"));
-  return snap.exists() ? snap.data().currentPassword ?? null : null;
-}
-
 export async function listStudents({ className } = {}) {
   const snap = await getDocs(query(collection(db, "users"), where("role", "==", "student")));
   const all = snap.docs.map(d => ({ uid: d.id, ...d.data() }));
@@ -111,6 +103,8 @@ export async function createStudentAccount({ displayName, className, username, p
       username,
       displayName,
       className,
+      // Mật khẩu ban đầu do giáo viên đặt chung — học sinh BẮT BUỘC đổi ở lần đăng nhập đầu (ForceChangePassword.jsx).
+      mustChangePassword: true,
       createdAt: serverTimestamp(),
     });
     return { uid: cred.user.uid, username, displayName, className };
@@ -137,39 +131,25 @@ export async function bulkCreateStudents(rows, password) {
       username = `${base}${n}`;
     }
     takenUsernames.add(username);
-    try {
-      await createStudentAccount({ displayName: row.displayName, className: row.className, username, password });
-      results.push({ ...row, username, ok: true });
-    } catch (err) {
-      results.push({ ...row, username, ok: false, error: err.message || String(err) });
+    // Tên đăng nhập đã có trong Firebase Auth nhưng không có hồ sơ Firestore (tài khoản mồ côi) → thử số kế tiếp.
+    for (let attempt = 0; attempt < 5; attempt++) {
+      try {
+        await createStudentAccount({ displayName: row.displayName, className: row.className, username, password });
+        results.push({ ...row, username, ok: true });
+        break;
+      } catch (err) {
+        if (err.code === "auth/email-already-in-use" && attempt < 4) {
+          do {
+            n += 1;
+            username = `${base}${n}`;
+          } while (takenUsernames.has(username));
+          takenUsernames.add(username);
+          continue;
+        }
+        results.push({ ...row, username, ok: false, error: err.message || String(err) });
+        break;
+      }
     }
   }
   return results;
-}
-
-// Đổi mật khẩu chung cho TOÀN BỘ tài khoản học sinh hiện có — vì không có Admin SDK, phải tự
-// đăng nhập LẦN LƯỢT từng em bằng mật khẩu CŨ (qua secondary app, không đụng phiên admin đang
-// đăng nhập) rồi gọi updatePassword(). Chạy tuần tự (không song song) để tránh dồn quá nhiều kết
-// nối Auth cùng lúc — với ~100 học sinh có thể mất khoảng 1-2 phút, admin cần chờ xong.
-export async function updateSharedStudentPassword(oldPassword, newPassword, onProgress) {
-  const students = await listStudents();
-  const failed = [];
-  for (let i = 0; i < students.length; i++) {
-    const student = students[i];
-    const email = `${student.username}@${STUDENT_EMAIL_DOMAIN}`;
-    const secondaryApp = initializeApp(firebaseConfig, `secondary-pwd-${Date.now()}-${i}`);
-    const secondaryAuth = getAuth(secondaryApp);
-    try {
-      const cred = await signInWithEmailAndPassword(secondaryAuth, email, oldPassword);
-      await updatePassword(cred.user, newPassword);
-    } catch (err) {
-      failed.push({ ...student, error: err.message || String(err) });
-    } finally {
-      await signOut(secondaryAuth).catch(() => {});
-      await deleteApp(secondaryApp);
-    }
-    onProgress?.(i + 1, students.length);
-  }
-  await setDoc(doc(db, "settings", "studentAccess"), { currentPassword: newPassword }, { merge: true });
-  return { total: students.length, failed };
 }

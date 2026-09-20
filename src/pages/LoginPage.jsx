@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "../lib/firebase.js";
-import { TESTER_EMAIL_DOMAIN } from "../lib/adminUsers.js";
+import { TESTER_EMAIL_DOMAIN, STUDENT_EMAIL_DOMAIN } from "../lib/adminUsers.js";
 import PasswordInput from "../components/PasswordInput.jsx";
 
 const AUTH_BG = `${import.meta.env.BASE_URL}assets/img/backgrounds/auth-bg.jpg`;
@@ -14,9 +14,12 @@ const AUTH_BG = `${import.meta.env.BASE_URL}assets/img/backgrounds/auth-bg.jpg`;
 // role từ Firestore (không đợi AuthProvider ở App.jsx kịp cập nhật) để điều hướng đúng: học sinh
 // vào thẳng "lessons", admin/teacher vào "dashboard".
 // Tài khoản đặc biệt đăng nhập bằng tên đăng nhập (không có "@") — tự nối domain giả, xem adminUsers.js.
-function toAuthEmail(input) {
+// Tên đăng nhập (không có "@") thử "@hocsinh.local" (học sinh) trước, không khớp thì thử "@tester.local".
+function toAuthEmails(input) {
   const v = input.trim();
-  return v.includes("@") ? v : `${v.toLowerCase()}@${TESTER_EMAIL_DOMAIN}`;
+  if (v.includes("@")) return [v];
+  const u = v.toLowerCase();
+  return [`${u}@${STUDENT_EMAIL_DOMAIN}`, `${u}@${TESTER_EMAIL_DOMAIN}`];
 }
 
 export default function LoginPage({ onNavigate }) {
@@ -38,8 +41,17 @@ export default function LoginPage({ onNavigate }) {
     e.preventDefault();
     setError("");
     setLoading(true);
+    try {
+      let cred = null;
+      for (const addr of toAuthEmails(email)) {
         try {
-      const cred = await signInWithEmailAndPassword(auth, toAuthEmail(email), password);
+          cred = await signInWithEmailAndPassword(auth, addr, password);
+          break;
+        } catch {
+          // thử địa chỉ kế tiếp
+        }
+      }
+      if (!cred) throw new Error("login-failed");
       const snap = await getDoc(doc(db, "users", cred.user.uid));
       const role = snap.exists() ? snap.data().role : null;
       onNavigate(role === "admin" || role === "teacher" ? "dashboard" : "lessons");
@@ -54,7 +66,7 @@ export default function LoginPage({ onNavigate }) {
     <section className="login-screen" style={{ "--login-bg-image": `url(${AUTH_BG})` }}>
       <div className="password-gate-card login-card">
         <h1 className="page-title">Đăng nhập</h1>
-        <p className="lead">Dành riêng cho giáo viên và quản trị viên.</p>
+        <p className="lead">Nhập tên đăng nhập và mật khẩu được cấp.</p>
 
         <form className="auth-form" onSubmit={handleSubmit}>
           <input

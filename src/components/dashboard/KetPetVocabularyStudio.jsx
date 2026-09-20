@@ -370,7 +370,7 @@ export default function KetPetVocabularyStudio({
             <strong>{unitTitle} — Vocabulary (xem trước)</strong>
           </div>
           <div className="admin-preview-overlay-body">
-            <KetPetVocabularyQuiz groups={groups} />
+            <KetPetVocabularyQuiz groups={groups} revealAnswers />
           </div>
         </div>
       )}

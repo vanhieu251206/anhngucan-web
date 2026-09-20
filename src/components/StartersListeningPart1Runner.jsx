@@ -21,7 +21,9 @@ function matchesPair(conn, pair, size) {
 }
 const center = r => ({ x: r.x + r.w / 2, y: r.y + r.h / 2 });
 
-export default function StartersListeningPart1Runner({ part, submitted, onScore }) {
+// reveal=false (màn học sinh làm Luyện đề): vẫn KHOÁ bài sau khi nộp nhưng KHÔNG tô đúng/sai hay hiện đáp án.
+export default function StartersListeningPart1Runner({ part, submitted, reveal = true, onScore }) {
+  const show = submitted && reveal;
   const pairs = (part.pairs ?? []).filter(p => p.a && p.b);
   const questions = pairs.filter(p => p.id !== "example"); // ví dụ đã nối sẵn trong ảnh, bỏ qua dữ liệu cũ
 
@@ -83,11 +85,11 @@ export default function StartersListeningPart1Runner({ part, submitted, onScore 
             <line
               key={i}
               x1={c.p1.x} y1={c.p1.y} x2={c.p2.x} y2={c.p2.y}
-              stroke={!submitted ? "#f5711f" : isRight(c) ? "#2e9d5b" : "#d64545"}
+              stroke={!show ? "#f5711f" : isRight(c) ? "#2e9d5b" : "#d64545"}
               strokeWidth="4" vectorEffect="non-scaling-stroke" strokeLinecap="round"
             />
           ))}
-          {submitted && missed.map(q => {
+          {show && missed.map(q => {
             const a = center(q.a);
             const b = center(q.b);
             return <line key={q.id} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#2e9d5b" strokeWidth="4" strokeDasharray="6 6" vectorEffect="non-scaling-stroke" strokeLinecap="round" />;

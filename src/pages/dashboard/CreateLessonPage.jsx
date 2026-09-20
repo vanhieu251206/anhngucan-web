@@ -412,6 +412,7 @@ function SpeakingEditor({ series, level, uid }) {
   const [scenes, setScenes] = useState([]);
   const [testTitle, setTestTitle] = useState("");
   const [maxAttempts, setMaxAttempts] = useState(null);
+  const [timeLimitMinutes, setTimeLimitMinutes] = useState(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
@@ -426,6 +427,7 @@ function SpeakingEditor({ series, level, uid }) {
     setTestTitle(full?.title ?? t.title ?? "");
     setScenes(full?.scenes ?? []);
     setMaxAttempts(full?.maxAttempts ?? null);
+    setTimeLimitMinutes(full?.timeLimitMinutes ?? null);
     setSaved(false);
   }
   // Test nhúng cứng (yleData.js, hiện chỉ Starters cấp 1) luôn dùng id/order cố định "test1"/1 —
@@ -479,7 +481,7 @@ function SpeakingEditor({ series, level, uid }) {
     setSaving(true);
     setSaved(false);
     const order = tests?.find(t => t.id === openTestId)?.order ?? (tests?.length ?? 0) + reservedTestSlots + 1;
-    await saveTest(series.id, level.number, openTestId, { title: testTitle, order, scenes, maxAttempts }, uid);
+    await saveTest(series.id, level.number, openTestId, { title: testTitle, order, scenes, maxAttempts, timeLimitMinutes }, uid);
     setSaving(false);
     setSaved(true);
     reloadTests();
@@ -495,6 +497,8 @@ function SpeakingEditor({ series, level, uid }) {
         onScenesChange={setScenes}
         maxAttempts={maxAttempts}
         onMaxAttemptsChange={setMaxAttempts}
+        timeLimitMinutes={timeLimitMinutes}
+        onTimeLimitChange={setTimeLimitMinutes}
         onBack={() => setOpenTestId(null)}
         onSave={handleSaveTest}
         saving={saving}
@@ -556,6 +560,7 @@ function ReadingEditor({ series, level, uid }) {
   const [parts, setParts] = useState([]);
   const [testTitle, setTestTitle] = useState("");
   const [maxAttempts, setMaxAttempts] = useState(null);
+  const [timeLimitMinutes, setTimeLimitMinutes] = useState(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
@@ -570,6 +575,7 @@ function ReadingEditor({ series, level, uid }) {
     setTestTitle(full?.title ?? t.title ?? "");
     setParts(full?.parts ?? []);
     setMaxAttempts(full?.maxAttempts ?? null);
+    setTimeLimitMinutes(full?.timeLimitMinutes ?? null);
     setSaved(false);
   }
 
@@ -609,7 +615,7 @@ function ReadingEditor({ series, level, uid }) {
     setSaved(false);
     try {
       const order = tests?.find(t => t.id === openTestId)?.order ?? (tests?.length ?? 0) + 1;
-      await saveReadingTest(series.id, level.number, openTestId, { title: testTitle, order, parts, maxAttempts }, uid);
+      await saveReadingTest(series.id, level.number, openTestId, { title: testTitle, order, parts, maxAttempts, timeLimitMinutes }, uid);
       setSaved(true);
       reloadTests();
     } catch (err) {
@@ -632,6 +638,8 @@ function ReadingEditor({ series, level, uid }) {
         onPartsChange={setParts}
         maxAttempts={maxAttempts}
         onMaxAttemptsChange={setMaxAttempts}
+        timeLimitMinutes={timeLimitMinutes}
+        onTimeLimitChange={setTimeLimitMinutes}
         onBack={() => setOpenTestId(null)}
         onSave={handleSaveTest}
         saving={saving}
@@ -706,6 +714,7 @@ function DictationEditor({ series, level, uid }) {
   const [sentences, setSentences] = useState([]);
   const [testTitle, setTestTitle] = useState("");
   const [maxAttempts, setMaxAttempts] = useState(null);
+  const [timeLimitMinutes, setTimeLimitMinutes] = useState(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
@@ -720,6 +729,7 @@ function DictationEditor({ series, level, uid }) {
     setTestTitle(full?.title ?? t.title ?? "");
     setSentences(full?.sentences ?? []);
     setMaxAttempts(full?.maxAttempts ?? null);
+    setTimeLimitMinutes(full?.timeLimitMinutes ?? null);
     setSaved(false);
   }
 
@@ -746,7 +756,7 @@ function DictationEditor({ series, level, uid }) {
     setSaved(false);
     try {
       const order = tests?.find(t => t.id === openTestId)?.order ?? (tests?.length ?? 0) + 1;
-      await saveDictationTest(series.id, level.number, openTestId, { title: testTitle, order, sentences, maxAttempts }, uid);
+      await saveDictationTest(series.id, level.number, openTestId, { title: testTitle, order, sentences, maxAttempts, timeLimitMinutes }, uid);
       setSaved(true);
       reloadTests();
     } catch (err) {
@@ -766,6 +776,8 @@ function DictationEditor({ series, level, uid }) {
         onSentencesChange={setSentences}
         maxAttempts={maxAttempts}
         onMaxAttemptsChange={setMaxAttempts}
+        timeLimitMinutes={timeLimitMinutes}
+        onTimeLimitChange={setTimeLimitMinutes}
         onBack={() => setOpenTestId(null)}
         onSave={handleSaveTest}
         saving={saving}
@@ -1034,6 +1046,7 @@ function IeltsListeningEditor({ series, level, uid }) {
   const [title, setTitle] = useState("");
   const [sections, setSections] = useState([]);
   const [maxAttempts, setMaxAttempts] = useState(null);
+  const [timeLimitMinutes, setTimeLimitMinutes] = useState(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
@@ -1048,6 +1061,7 @@ function IeltsListeningEditor({ series, level, uid }) {
     setTitle(full?.title ?? t.title ?? "");
     setSections(full?.sections ?? []);
     setMaxAttempts(full?.maxAttempts ?? null);
+    setTimeLimitMinutes(full?.timeLimitMinutes ?? null);
     setSaved(false);
   }
 
@@ -1073,7 +1087,7 @@ function IeltsListeningEditor({ series, level, uid }) {
     setSaved(false);
     try {
       const order = tests?.find(t => t.id === openTestId)?.order ?? Number(openTestId.replace("test", ""));
-      await saveIeltsListeningTest(series.id, level.number, openTestId, { title, order, sections, maxAttempts }, uid);
+      await saveIeltsListeningTest(series.id, level.number, openTestId, { title, order, sections, maxAttempts, timeLimitMinutes }, uid);
       setSaved(true);
       reloadTests();
     } catch (err) {
@@ -1093,6 +1107,8 @@ function IeltsListeningEditor({ series, level, uid }) {
         onSectionsChange={setSections}
         maxAttempts={maxAttempts}
         onMaxAttemptsChange={setMaxAttempts}
+        timeLimitMinutes={timeLimitMinutes}
+        onTimeLimitChange={setTimeLimitMinutes}
         onBack={() => setOpenTestId(null)}
         onSave={handleSaveTest}
         saving={saving}

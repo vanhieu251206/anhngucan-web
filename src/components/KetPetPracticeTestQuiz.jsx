@@ -1,4 +1,5 @@
 import { useState } from "react";
+import ExamTimer, { useExamTimer } from "./ExamTimer.jsx";
 import { gradePracticeTestGroups, toRoman } from "../lib/ketPetPracticeTest.js";
 import UnderlineText from "./UnderlineText.jsx";
 
@@ -17,16 +18,24 @@ function QBadge({ n }) {
   );
 }
 
-export default function KetPetPracticeTestQuiz({ groups }) {
+// revealAnswers=true CHỈ dùng cho Preview trong CMS (giáo viên xem đáp án). Học sinh luôn chỉ thấy số câu đúng/tổng.
+export default function KetPetPracticeTestQuiz({ groups, revealAnswers = false, limitMinutes, canRetry = true, onSubmitted }) {
   const [answers, setAnswers] = useState({});
   const [result, setResult] = useState(null);
+  const view = revealAnswers ? result : null;
 
   function setAnswer(gi, qi, value) {
     setAnswers(a => ({ ...a, [`${gi}-${qi}`]: value }));
   }
   function handleSubmit() {
-    setResult(gradePracticeTestGroups(groups, answers));
+    if (result) return;
+    const graded = gradePracticeTestGroups(groups, answers);
+    setResult(graded);
+    onSubmitted?.(graded, answers);
   }
+
+  // Đồng hồ chung (ExamTimer.jsx) — chỉ hiện ở màn học sinh làm bài thật (có onSubmitted); hết giờ tự nộp.
+  const timer = useExamTimer({ limitMinutes, running: !result, onExpire: handleSubmit });
   function handleRetry() {
     setAnswers({});
     setResult(null);
@@ -43,7 +52,7 @@ export default function KetPetPracticeTestQuiz({ groups }) {
           <div className="vocab-options">
             {q.options.map((opt, oi) => {
               const picked = answers[`${gi}-${qi}`] === oi;
-              const showState = result != null;
+              const showState = view != null;
               const isRight = oi === q.answerIndex;
               return (
                 <label
@@ -80,7 +89,7 @@ export default function KetPetPracticeTestQuiz({ groups }) {
           onChange={e => setAnswer(gi, qi, e.target.value)}
           placeholder="Nhập câu trả lời"
         />
-        {result != null && r === false && (
+        {view != null && r === false && (
           <p className="vocab-answer-key">Đáp án đúng: {(q.acceptedAnswers ?? []).join(" / ")}</p>
         )}
       </>
@@ -91,6 +100,7 @@ export default function KetPetPracticeTestQuiz({ groups }) {
 
   return (
     <div className="vocab-runner">
+      {onSubmitted && <ExamTimer timer={timer} />}
       <section className="vocab-block">
         {groups.map((g, gi) => {
           if (g.type === "split-reading") {
@@ -104,7 +114,7 @@ export default function KetPetPracticeTestQuiz({ groups }) {
                   <div className="vocab-split-questions">
                     {g.questions.map((q, qi) => (
                       <div className="vocab-question" key={qi}>
-                        {renderSplitQuestionBody(q, gi, qi, result?.results?.[gi]?.[qi])}
+                        {renderSplitQuestionBody(q, gi, qi, view?.results?.[gi]?.[qi])}
                       </div>
                     ))}
                   </div>
@@ -125,7 +135,7 @@ export default function KetPetPracticeTestQuiz({ groups }) {
             )}
 
             {g.questions.map((q, qi) => {
-              const r = result?.results?.[gi]?.[qi];
+              const r = view?.results?.[gi]?.[qi];
               return (
                 <div className="vocab-question" key={qi}>
                   {g.type === "multiple-choice" && (
@@ -134,7 +144,7 @@ export default function KetPetPracticeTestQuiz({ groups }) {
                       <div className="vocab-options">
                         {q.options.map((opt, oi) => {
                           const picked = answers[`${gi}-${qi}`] === oi;
-                          const showState = result != null;
+                          const showState = view != null;
                           const isRight = oi === q.answerIndex;
                           return (
                             <label
@@ -167,7 +177,7 @@ export default function KetPetPracticeTestQuiz({ groups }) {
                     <div className="vocab-options vocab-options-row">
                       {q.options.map((opt, oi) => {
                         const picked = answers[`${gi}-${qi}`] === oi;
-                        const showState = result != null;
+                        const showState = view != null;
                         const isRight = oi === q.answerIndex;
                         return (
                           <label
@@ -208,7 +218,7 @@ export default function KetPetPracticeTestQuiz({ groups }) {
                         onChange={e => setAnswer(gi, qi, e.target.value)}
                         placeholder="Nhập câu trả lời"
                       />
-                      {result != null && r === false && (
+                      {view != null && r === false && (
                         <p className="vocab-answer-key">Đáp án đúng: {(q.acceptedAnswers ?? []).join(" / ")}</p>
                       )}
                     </>
@@ -224,7 +234,7 @@ export default function KetPetPracticeTestQuiz({ groups }) {
                         onChange={e => setAnswer(gi, qi, e.target.value)}
                         placeholder="Nhập từ trong khung từ"
                       />
-                      {result != null && r === false && (
+                      {view != null && r === false && (
                         <p className="vocab-answer-key">Đáp án đúng: {q.answer}</p>
                       )}
                     </>
@@ -240,7 +250,7 @@ export default function KetPetPracticeTestQuiz({ groups }) {
                         onChange={e => setAnswer(gi, qi, e.target.value)}
                         placeholder="Type your answer"
                       />
-                      {result != null && <p className="vocab-answer-key">Đáp án mẫu: {q.sampleAnswer}</p>}
+                      {view != null && <p className="vocab-answer-key">Đáp án mẫu: {q.sampleAnswer}</p>}
                     </>
                   )}
                 </div>
@@ -257,7 +267,7 @@ export default function KetPetPracticeTestQuiz({ groups }) {
         ) : (
           <>
             <p className="vocab-score">Điểm: {result.correct.toFixed(2).replace(/\.00$/, "")}/{result.total.toFixed(2).replace(/\.00$/, "")}</p>
-            <button type="button" className="vocab-submit-btn" onClick={handleRetry}>Làm lại</button>
+            {canRetry && <button type="button" className="vocab-submit-btn" onClick={handleRetry}>Làm lại</button>}
           </>
         )}
       </div>

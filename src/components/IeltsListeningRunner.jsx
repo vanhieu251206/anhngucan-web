@@ -1,4 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import ExamTimer, { useExamTimer } from "./ExamTimer.jsx";
+import { saveTestResult } from "../lib/testResults.js";
+import { incrementAttempt } from "../lib/attempts.js";
+import { attemptKey } from "../lib/openings.js";
 
 // Màn làm bài IELTS Listening (Test 1-4 → Section 1-4) — mô phỏng cấu trúc IeltsPracticeRunner.jsx
 // (Reading): audio + câu hỏi cuộn riêng bên phải, tab chuyển Section, timer, nộp bài chấm điểm
@@ -35,31 +39,31 @@ function isCorrect(entry, value) {
   return accepted.includes(normalizeAnswer(value));
 }
 
-function formatTime(sec) {
-  const m = Math.floor(sec / 60);
-  const s = sec % 60;
-  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-}
-
-export default function IeltsListeningRunner({ test, onBack }) {
+export default function IeltsListeningRunner({ test, onBack, studentUid, studentName, studentClass, seriesId, level, openingId }) {
   const flat = useMemo(() => flattenQuestions(test.sections), [test]);
   const [activeSection, setActiveSection] = useState(0);
   const [answers, setAnswers] = useState({});
   const [submitted, setSubmitted] = useState(false);
-  const [secondsLeft, setSecondsLeft] = useState(test.maxAttempts ? null : null);
-
-  useEffect(() => {
-    if (secondsLeft == null || submitted) return;
-    if (secondsLeft <= 0) {
-      setSubmitted(true);
-      return;
-    }
-    const t = setTimeout(() => setSecondsLeft(s => s - 1), 1000);
-    return () => clearTimeout(t);
-  }, [secondsLeft, submitted]);
+  const reveal = false; // học sinh chỉ thấy điểm sau khi nộp, không hiện đáp án
+  // Đồng hồ chung (ExamTimer.jsx): hết giờ tự nộp bài.
+  const timer = useExamTimer({ limitMinutes: test.timeLimitMinutes, running: !submitted, onExpire: submitNow });
 
   function setAnswer(number, value) {
     setAnswers(a => ({ ...a, [number]: value }));
+  }
+
+  // Chốt bài: khoá + lưu chi tiết từng câu cho giáo viên/admin (học sinh chỉ thấy điểm). Không lưu ở Preview CMS.
+  function submitNow() {
+    if (submitted) return;
+    setSubmitted(true);
+    if (studentUid) incrementAttempt({ uid: studentUid, mode: "ielts-listening", testId: attemptKey(test.id, openingId), seriesId, level });
+    let correct = 0;
+    const items = flat.map(entry => {
+      const ok = isCorrect(entry, answers[entry.number]);
+      if (ok) correct++;
+      return { qNumber: entry.number, studentAnswer: String(answers[entry.number] ?? ""), correctAnswer: String(entry.q?.answer ?? entry.q?.acceptedAnswers ?? entry.q?.answerIndex ?? ""), isCorrect: ok };
+    });
+    saveTestResult({ mode: "ielts-listening", seriesId, level, testId: test.id, lessonLabel: test.title, studentName, studentClass, uid: studentUid, correct, total: flat.length, elapsedMs: timer.getElapsedMs(), items });
   }
 
   const score = useMemo(() => {
@@ -114,9 +118,9 @@ export default function IeltsListeningRunner({ test, onBack }) {
                   const entry = sectionQuestions.find(e => e.groupIndex === gi && e.questionIndex === qi);
                   const number = entry.number;
                   const value = answers[number];
-                  const correct = submitted ? isCorrect(entry, value) : null;
+                  const correct = (submitted && reveal) ? isCorrect(entry, value) : null;
                   return (
-                    <div className={`ielts-practice-question${submitted ? (correct ? " is-correct" : " is-wrong") : ""}`} key={qi}>
+                    <div className={`ielts-practice-question${(submitted && reveal) ? (correct ? " is-correct" : " is-wrong") : ""}`} key={qi}>
                       <span className="ielts-practice-qnum">{number}</span>
                       <div className="ielts-practice-qbody">
                         {g.type === "multiple-choice" && (
@@ -134,7 +138,7 @@ export default function IeltsListeningRunner({ test, onBack }) {
                                 {String.fromCharCode(65 + oi)}. {opt}
                               </label>
                             ))}
-                            {submitted && !correct && (
+                            {submitted && reveal && !correct && (
                               <p className="ielts-practice-correct-answer">Đáp án đúng: {String.fromCharCode(65 + q.answerIndex)}. {q.options[q.answerIndex]}</p>
                             )}
                           </>
@@ -148,7 +152,7 @@ export default function IeltsListeningRunner({ test, onBack }) {
                               <option value="FALSE">FALSE</option>
                               <option value="NOT GIVEN">NOT GIVEN</option>
                             </select>
-                            {submitted && !correct && <p className="ielts-practice-correct-answer">Đáp án đúng: {q.answer}</p>}
+                            {submitted && reveal && !correct && <p className="ielts-practice-correct-answer">Đáp án đúng: {q.answer}</p>}
                           </>
                         )}
                         {g.type === "short-answer" && (
@@ -160,7 +164,7 @@ export default function IeltsListeningRunner({ test, onBack }) {
                               disabled={submitted}
                               onChange={e => setAnswer(number, e.target.value)}
                             />
-                            {submitted && !correct && (
+                            {submitted && reveal && !correct && (
                               <p className="ielts-practice-correct-answer">
                                 Đáp án đúng: {String(q.acceptedAnswers ?? "").split("|")[0]}
                               </p>
@@ -178,8 +182,9 @@ export default function IeltsListeningRunner({ test, onBack }) {
       </div>
 
       <div className="ielts-practice-sidebar">
+        <ExamTimer timer={timer} />
         {!submitted ? (
-          <button type="button" className="btn btn-primary ielts-practice-submit" onClick={() => setSubmitted(true)}>
+          <button type="button" className="btn btn-primary ielts-practice-submit" onClick={submitNow}>
             NỘP BÀI
           </button>
         ) : (
@@ -192,7 +197,7 @@ export default function IeltsListeningRunner({ test, onBack }) {
             <button
               key={entry.number}
               type="button"
-              className={`ielts-practice-navbtn${answers[entry.number] != null && answers[entry.number] !== "" ? " is-answered" : ""}${submitted ? (isCorrect(entry, answers[entry.number]) ? " is-correct" : " is-wrong") : ""}`}
+              className={`ielts-practice-navbtn${answers[entry.number] != null && answers[entry.number] !== "" ? " is-answered" : ""}${(submitted && reveal) ? (isCorrect(entry, answers[entry.number]) ? " is-correct" : " is-wrong") : ""}`}
               onClick={() => setActiveSection(entry.sectionIndex)}
             >
               {entry.number}

@@ -83,11 +83,11 @@ export function gradeVocabularyGroups(groups, answers) {
       } else if (g.type === "word-bank") {
         isCorrect = isFillBlankCorrect(userAnswer, [q.answer]);
       } else if (g.type === "categorize") {
-        isCorrect = Number(userAnswer) === q.columnIndex;
+        isCorrect = userAnswer != null && userAnswer !== "" && Number(userAnswer) === q.columnIndex;
       } else if (g.type === "true-false-table") {
         isCorrect = userAnswer === q.answer;
       } else if (g.type === "reorder") {
-        isCorrect = Number(userAnswer) === qi + 1;
+        isCorrect = userAnswer != null && userAnswer !== "" && Number(userAnswer) === qi + 1;
       } else if (g.type === "word-scramble") {
         isCorrect = isFillBlankCorrect(userAnswer, q.acceptedAnswers);
       }

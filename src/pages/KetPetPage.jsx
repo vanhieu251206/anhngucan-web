@@ -3,6 +3,8 @@ import Header from "../components/Header.jsx";
 import KetPetVocabularyRunner from "../components/KetPetVocabularyRunner.jsx";
 import KetPetPracticeTestRunner from "../components/KetPetPracticeTestRunner.jsx";
 import { KET_PET_GRADES, KET_PET_UNITS_PER_GRADE } from "../lib/yleData.js";
+import { useAuth } from "../lib/authContext.jsx";
+import { useOpeningGuard } from "../lib/useOpeningGuard.jsx";
 
 // Khung điều hướng KET/PET: Grade (6-9) → Unit (1-16) → Vocabulary/Practice Test (Test 1-4).
 // KHÁC cấu trúc Level/Test/Part của YLE (Starters/Movers/Flyers) nên KHÔNG đi qua LessonsPage.jsx
@@ -13,6 +15,19 @@ export default function KetPetPage({ onNavigate }) {
   const [vocabActive, setVocabActive] = useState(false);
   const [practiceTestOpen, setPracticeTestOpen] = useState(false);
   const [testNumber, setTestNumber] = useState(null);
+  const { user, isStaff, isAdmin, profile } = useAuth();
+  const { guardStart, checking, screen, activeOpening } = useOpeningGuard();
+  // Ngữ cảnh học sinh làm bài (đếm lượt/lưu kết quả/số phút) — xem lib/openings.js.
+  const ctx = {
+    studentUid: !isStaff ? user?.uid : null,
+    studentName: isStaff ? (isAdmin ? "[Test - Admin]" : "[Test - Giáo viên]") : profile?.displayName ?? "",
+    studentClass: isStaff ? "Admin" : profile?.className ?? "",
+    openingId: activeOpening?.id,
+    limitMinutes: activeOpening?.timeLimitMinutes,
+  };
+
+  // Màn nhập mật khẩu / báo bài đang khoá (xem useOpeningGuard).
+  if (screen) return screen;
 
   if (vocabActive) {
     return (
@@ -21,6 +36,7 @@ export default function KetPetPage({ onNavigate }) {
         unit={unit}
         onNavigate={onNavigate}
         onBack={() => setVocabActive(false)}
+        ctx={ctx}
       />
     );
   }
@@ -33,6 +49,7 @@ export default function KetPetPage({ onNavigate }) {
         testNumber={testNumber}
         onNavigate={onNavigate}
         onBack={() => setTestNumber(null)}
+        ctx={ctx}
       />
     );
   }
@@ -119,7 +136,8 @@ export default function KetPetPage({ onNavigate }) {
               type="button"
               className="content-card-v2 content-card-v2-center"
               style={{ "--accent": "#8B5CF6" }}
-              onClick={() => setVocabActive(true)}
+              disabled={checking}
+              onClick={() => guardStart("ketpet-vocab", { id: `unit${unit}`, title: `Grade ${grade} · Unit ${unit} · Vocabulary` }, { seriesId: "ket-pet", level: grade }, () => setVocabActive(true))}
             >
               <div className="card-banner-strip">
                 <span>Vocabulary</span>
@@ -152,7 +170,8 @@ export default function KetPetPage({ onNavigate }) {
                 type="button"
                 className="content-card-v2 content-card-v2-center"
                 style={{ "--accent": "#8B5CF6" }}
-                onClick={() => setTestNumber(t)}
+                disabled={checking}
+                onClick={() => guardStart("ketpet-test", { id: `unit${unit}-test${t}`, title: `Grade ${grade} · Unit ${unit} · Test ${t}` }, { seriesId: "ket-pet", level: grade }, () => setTestNumber(t))}
               >
                 <div className="card-banner-strip">
                   <span>{`Test ${t}`}</span>

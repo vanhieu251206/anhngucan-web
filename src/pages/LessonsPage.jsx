@@ -9,11 +9,11 @@ import ReadingRunner from "../components/ReadingRunner.jsx";
 import IeltsPracticeRunner from "../components/IeltsPracticeRunner.jsx";
 import IeltsListeningRunner from "../components/IeltsListeningRunner.jsx";
 import DictationRunner from "../components/DictationRunner.jsx";
+import OpeningPasswordScreen from "../components/OpeningPasswordScreen.jsx";
+import { checkOpening } from "../lib/openings.js";
 import StartersListeningTestRunner, { testHasContent } from "../components/StartersListeningTestRunner.jsx";
 import { listListeningExamTests } from "../lib/adminLessons.js";
 import { useAuth } from "../lib/authContext.jsx";
-import { getAttemptCount } from "../lib/attempts.js";
-import { getClassAssignment } from "../lib/classAssignments.js";
 import { readParams, setParams } from "../lib/urlState.js";
 
 const WIZARD_STEPS = ["Bộ đề", "Cấp độ", "Bài học"];
@@ -194,6 +194,10 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
   // giáo viên chưa mở bài này cho lớp).
   const [blocked, setBlocked] = useState(null);
   const [checkingAttempts, setCheckingAttempts] = useState(false);
+  // Lần mở bài (lib/openings.js) đang dùng để làm bài: cho biết số phút, và khoá đếm lượt riêng của lần mở đó.
+  const [activeOpening, setActiveOpening] = useState(null);
+  // Chờ học sinh nhập mật khẩu vào bài: { opening, title, launch }
+  const [gate, setGate] = useState(null);
 
   useEffect(() => {
     setParams({ level: level ? level.number : null, test: null });
@@ -352,6 +356,21 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
   if (blocked) {
     return <BlockedScreen title={blocked.title} message={blocked.message} onBack={() => setBlocked(null)} />;
   }
+  if (gate) {
+    return (
+      <OpeningPasswordScreen
+        opening={gate.opening}
+        title={gate.title}
+        onBack={() => setGate(null)}
+        onSuccess={() => {
+          const { opening, launch } = gate;
+          setGate(null);
+          setActiveOpening(opening);
+          launch(opening);
+        }}
+      />
+    );
+  }
 
   // ---------- Test IELTS Reading đang làm ----------
   if (activeIeltsPracticeTest) {
@@ -359,6 +378,12 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
       <IeltsPracticeRunner
         test={activeIeltsPracticeTest}
         mode={activeIeltsPracticeMode}
+        openingId={activeOpening?.id}
+        studentUid={!isStaff ? user?.uid : null}
+        studentName={studentName}
+        studentClass={studentClass}
+        seriesId={series.id}
+        level={level.number}
         onBack={() => setActiveIeltsPracticeTest(null)}
       />
     );
@@ -366,7 +391,18 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
 
   // ---------- Test IELTS Listening đang làm ----------
   if (activeIeltsListeningTest) {
-    return <IeltsListeningRunner test={activeIeltsListeningTest} onBack={() => setActiveIeltsListeningTest(null)} />;
+    return (
+      <IeltsListeningRunner
+        test={activeIeltsListeningTest}
+        onBack={() => setActiveIeltsListeningTest(null)}
+        openingId={activeOpening?.id}
+        studentUid={!isStaff ? user?.uid : null}
+        studentName={studentName}
+        studentClass={studentClass}
+        seriesId={series.id}
+        level={level.number}
+      />
+    );
   }
 
   // ---------- Chọn Section (đã bấm vào 1 Test Listening) ----------
@@ -395,6 +431,7 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
               onClick: () =>
                 setActiveIeltsListeningTest({
                   ...pickingListeningTest,
+                  timeLimitMinutes: activeOpening?.timeLimitMinutes ?? pickingListeningTest.timeLimitMinutes,
                   title: `${pickingListeningTest.title} · Section ${n}`,
                   sections: [s],
                 }),
@@ -430,6 +467,8 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
             level={level.number}
             testId={activeTest.id}
             lessonLabel={`${series.title} ${level.number} · ${activeTest.title}`}
+            limitMinutes={activeOpening?.timeLimitMinutes ?? activeTest.timeLimitMinutes}
+            openingId={activeOpening?.id}
           />
         </div>
       </div>
@@ -456,6 +495,11 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
             seriesId={series.id}
             level={level.number}
             testId={activeReadingTest.id}
+            limitMinutes={activeOpening?.timeLimitMinutes ?? activeReadingTest.timeLimitMinutes}
+            openingId={activeOpening?.id}
+            studentName={studentName}
+            studentClass={studentClass}
+            lessonLabel={`${series.title} ${level.number} · ${activeReadingTest.title}`}
           />
         </div>
       </div>
@@ -482,6 +526,11 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
             seriesId={series.id}
             level={level.number}
             testId={activeDictationTest.id}
+            limitMinutes={activeOpening?.timeLimitMinutes ?? activeDictationTest.timeLimitMinutes}
+            openingId={activeOpening?.id}
+            studentName={studentName}
+            studentClass={studentClass}
+            lessonLabel={`${series.title} ${level.number} · ${activeDictationTest.title}`}
           />
         </div>
       </div>
@@ -503,7 +552,16 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
         </div>
         <div className="speaking-fullscreen-body reading-fullscreen-body">
           <div className="exam-fullscreen-inner">
-            <StartersListeningTestRunner test={activeExamTest} />
+            <StartersListeningTestRunner
+              test={activeOpening?.timeLimitMinutes ? { ...activeExamTest, timeLimitMinutes: activeOpening.timeLimitMinutes } : activeExamTest}
+              openingId={activeOpening?.id}
+              studentUid={!isStaff ? user?.uid : null}
+              studentName={studentName}
+              studentClass={studentClass}
+              seriesId={series.id}
+              level={level.number}
+              lessonLabel={`${series.title} ${level.number} · ${activeExamTest.title ?? "Luyện đề"}`}
+            />
           </div>
         </div>
       </div>
@@ -553,7 +611,7 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
                   key={`listening-exam-test${n}`}
                   className="content-card-v2 content-card-v2-center ielts-skill-tile"
                   disabled={!ready}
-                  onClick={() => setActiveExamTest(t)}
+                  onClick={() => guardStart("listening-exam", { id: `test${n}`, title: `Test ${n}` }, () => setActiveExamTest(t))}
                   style={{ "--accent": series.color, ...(ready ? {} : { opacity: 0.55, cursor: "default" }) }}
                 >
                   <span className="ielts-skill-tile-label">Test {n}</span>
@@ -594,60 +652,47 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
     );
   }
 
-  // Bấm vào 1 bài (Listening/Speaking/Reading) — học sinh (không phải admin/teacher) phải qua 2
-  // lớp kiểm tra trước khi vào: (1) giáo viên đã MỞ đúng bài này cho lớp mình chưa
-  // (classAssignments/{className}, xem lib/classAssignments.js — áp dụng CẢ 3 loại bài, chốt
-  // 2026-08-27); (2) riêng Speaking/Reading còn kiểm tra thêm số lượt đã nộp bài
-  // (test.maxAttempts). Admin/teacher luôn bỏ qua cả 2 lớp kiểm tra.
-  async function requestStart(type, test) {
-    // Bỏ đăng nhập bắt buộc (chốt 2026-09-17, xem App.jsx + lib/seriesAccess.js) — học sinh giờ
-    // vào bằng mật khẩu theo bộ đề, KHÔNG còn tài khoản/hồ sơ lớp riêng từng em, nên bỏ qua hẳn 2
-    // lớp kiểm tra cũ (giáo viên mở bài theo lớp + đếm lượt nộp bài theo tài khoản) — cả 2 đều cần
-    // `user`/`profile.className` mà giờ không còn. Admin/teacher (isStaff) vẫn bỏ qua như cũ.
-    // Tài khoản đặc biệt (tester) cũng bỏ qua — làm được mọi bài, không ghi lịch sử (historyGuard).
-    if (isStaff || isTester || !user) {
-      performStart(type, test);
+  // Bấm vào 1 bài: MẶC ĐỊNH KHOÁ. Học sinh chỉ vào được khi giáo viên đã MỞ đúng bài này cho lớp của em (còn
+  // hạn, còn lượt) và em nhập đúng mật khẩu vào bài (nếu có) — xem lib/openings.js. Lỗi mạng cũng chặn (không
+  // cho qua khi không kiểm tra được). Admin/teacher và tài khoản tester vào thẳng, không cần mở.
+  // kind: xem OPENING_KINDS; test: { id, title }; launch(opening|null): mở bài thật.
+  async function guardStart(kind, test, launch) {
+    if (isStaff || isTester) {
+      setActiveOpening(null);
+      launch(null);
       return;
     }
     setCheckingAttempts(true);
+    let result;
     try {
-      const assignment = await getClassAssignment(profile?.className);
-      // Hết hạn (assignment.expiresAt, giáo viên đặt lúc mở bài, tuỳ chọn) coi như CHƯA MỞ —
-      // giáo viên không cần nhớ bấm "Đóng" tay (chốt 2026-08-27).
-      const isExpired = assignment?.expiresAt && assignment.expiresAt.toDate() < new Date();
-      const isAssigned =
-        assignment &&
-        !isExpired &&
-        assignment.seriesId === series.id &&
-        assignment.level === level.number &&
-        assignment.mode === type &&
-        (type === "listening" || assignment.testId === test?.id);
-      if (!isAssigned) {
-        setBlocked({
-          title: "Chưa được mở bài này 🐝",
-          message: "Giáo viên chưa mở bài này cho lớp của con — hỏi giáo viên nhé.",
-        });
-        return;
-      }
-      // Số lượt tối đa: ưu tiên số RIÊNG cho lần mở bài này (assignment.maxAttempts), không có thì
-      // dùng số mặc định của cả Test (test.maxAttempts).
-      const maxAttempts = assignment.maxAttempts ?? test?.maxAttempts;
-      if ((type === "speaking" || type === "reading" || type === "dictation") && maxAttempts) {
-        const count = await getAttemptCount(user.uid, type, test.id);
-        if (count >= maxAttempts) {
-          setBlocked({
-            title: "Hết lượt làm bài rồi 🐝",
-            message: `"${test.title}" chỉ được làm tối đa ${maxAttempts} lượt — con đã nộp bài ${count}/${maxAttempts} lần. Nếu cần làm lại, hãy nhờ giáo viên hỗ trợ nhé.`,
-          });
-          return;
-        }
-      }
+      result = await checkOpening(
+        { uid: user?.uid, className: profile?.className },
+        { seriesId: series.id, level: level.number, kind, testId: test.id }
+      );
     } catch {
-      // Không kiểm tra được (mất mạng...) — vẫn cho vào bài, không chặn oan học sinh vì lỗi mạng.
+      setBlocked({ title: "Không kiểm tra được 🐝", message: "Có vẻ mạng đang lỗi — con thử lại sau nhé." });
+      return;
     } finally {
       setCheckingAttempts(false);
     }
-    performStart(type, test);
+    if (!result.ok) {
+      setBlocked({ title: result.title, message: result.message });
+      return;
+    }
+    if (result.opening.passwordHash) {
+      setGate({ opening: result.opening, title: test.title, launch });
+    } else {
+      setActiveOpening(result.opening);
+      launch(result.opening);
+    }
+  }
+
+  function requestStart(type, test) {
+    if (type === "listening") {
+      setListeningActive(true);
+      return;
+    }
+    guardStart(type, test, () => performStart(type, test));
   }
 
   function performStart(type, test) {
@@ -660,8 +705,6 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
     } else if (type === "dictation") {
       setSelectedDictationTest(test);
       setDictationActive(true);
-    } else if (type === "listening") {
-      setListeningActive(true);
     }
   }
 
@@ -777,12 +820,18 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
             const test = practiceTests.find(pt => pt.id === `test${selectedReadingTestN}`);
             const p = test?.passages?.[n - 1];
             function openPassage(mode) {
-              setActiveIeltsPracticeMode(mode);
-              setActiveIeltsPracticeTest({
-                ...test,
-                title: `${test.title} · Passage ${n}`,
-                passages: [p],
-              });
+              const launch = opening => {
+                setActiveIeltsPracticeMode(mode);
+                setActiveIeltsPracticeTest({
+                  ...test,
+                  timeLimitMinutes: opening?.timeLimitMinutes ?? test.timeLimitMinutes,
+                  title: `${test.title} · Passage ${n}`,
+                  passages: [p],
+                });
+              };
+              // "Đọc hiểu" chỉ là chế độ học (không chấm điểm) nên không cần mở; "Luyện đề" thì phải được giáo viên mở.
+              if (mode === "practice") guardStart("ielts-reading", { id: test.id, title: test.title }, launch);
+              else launch(null);
             }
             return (
               <div className="content-card-v2 lesson-card-split" key={`passage${n}`} style={{ "--accent": series.color }}>
@@ -830,7 +879,7 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
               desc: "Nghe + câu hỏi chấm điểm, đủ dạng như đề thi thật",
               cta: t ? "Bắt đầu làm bài" : "Chưa có nội dung",
               disabled: !t,
-              onClick: () => setPickingListeningTest(t),
+              onClick: () => guardStart("ielts-listening", { id: t.id, title: t.title }, () => setPickingListeningTest(t)),
             });
           })}
         </div>

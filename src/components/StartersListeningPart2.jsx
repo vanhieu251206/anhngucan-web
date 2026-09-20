@@ -9,7 +9,7 @@ const norm = s => String(s ?? "").toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, "")
 const accepted = answer => String(answer ?? "").split("/").map(norm).filter(Boolean);
 const isRight = (q, value) => accepted(q.answer).includes(norm(value));
 
-export function Part2Sheet({ part, values = [], onChange, submitted = false, preview = false }) {
+export function Part2Sheet({ part, values = [], onChange, submitted = false, reveal = true, preview = false }) {
   const questions = (part.questions ?? []).filter(q => q.question?.trim());
   const examples = (part.examples ?? []).filter(e => e.question?.trim());
   const movers = part.variant === "movers"; // Movers: 1 ví dụ, có tiêu đề tranh + chữ in sẵn sau dòng, không chia mục Examples/Questions
@@ -47,8 +47,8 @@ export function Part2Sheet({ part, values = [], onChange, submitted = false, pre
       {!movers && <h3 className="p2s-head">Questions</h3>}
       {questions.map((q, i) => {
         const value = values[i] ?? "";
-        const ok = submitted && isRight(q, value);
-        const wrong = submitted && !ok;
+        const ok = submitted && reveal && isRight(q, value);
+        const wrong = submitted && reveal && !ok;
         return (
           <div className="p2s-row p2s-row-q" key={i}>
             <span className="p2s-num">{i + 1}</span>
@@ -78,7 +78,7 @@ export function Part2Sheet({ part, values = [], onChange, submitted = false, pre
   );
 }
 
-export default function StartersListeningPart2Runner({ part, submitted, onScore }) {
+export default function StartersListeningPart2Runner({ part, submitted, reveal = true, onScore }) {
   const questions = (part.questions ?? []).filter(q => q.question?.trim());
   const [values, setValues] = useState([]);
 
@@ -97,7 +97,7 @@ export default function StartersListeningPart2Runner({ part, submitted, onScore 
 
   return (
     <div className="p2r">
-      <Part2Sheet part={part} values={values} onChange={setValue} submitted={submitted} />
+      <Part2Sheet part={part} values={values} onChange={setValue} submitted={submitted} reveal={reveal} />
     </div>
   );
 }

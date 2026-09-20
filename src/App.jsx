@@ -8,9 +8,7 @@ import LoginPage from "./pages/LoginPage.jsx";
 import KetPetPage from "./pages/KetPetPage.jsx";
 import { useAuth } from "./lib/authContext.jsx";
 import { readParams, setParams } from "./lib/urlState.js";
-import { YLE_SERIES } from "./lib/yleData.js";
-import { isUnlockedInSession } from "./lib/seriesAccess.js";
-import SeriesPasswordGate from "./components/SeriesPasswordGate.jsx";
+import ForceChangePassword from "./components/ForceChangePassword.jsx";
 
 // Dashboard (CMS quản trị) chỉ admin/teacher dùng, học sinh không bao giờ vào — tách thành chunk
 // riêng (React.lazy) để 100 học sinh không phải tải kèm code CMS lúc mở app (xem audit P2).
@@ -25,18 +23,7 @@ function initialNavFromUrl() {
 
 export default function App() {
   const [{ page, lessonSeriesId }, setNav] = useState(initialNavFromUrl);
-  const { user, isStaff, isTester, loading } = useAuth();
-  // Bộ đề đã mở khoá bằng mật khẩu trong PHIÊN này (chốt 2026-09-17: bỏ tài khoản học sinh, quay
-  // lại mật khẩu như PasswordGate cũ nhưng tách riêng theo từng bộ đề — xem lib/seriesAccess.js).
-  // Lưu bằng số đếm (không phải Set) để ép re-render khi SeriesPasswordGate mở khoá xong.
-  const [unlockTick, setUnlockTick] = useState(0);
-  const effectiveSeriesId = page === "lessons" ? lessonSeriesId || "starters" : null;
-  const gateSeries = effectiveSeriesId ? YLE_SERIES.find(s => s.id === effectiveSeriesId) : null;
-  // `unlockTick` không được đọc trong biểu thức dưới nhưng phải có trong closure để re-render sau
-  // khi setUnlockTick chạy (isUnlockedInSession() đọc sessionStorage, không phải state React).
-  void unlockTick;
-  const seriesUnlocked = effectiveSeriesId ? isUnlockedInSession(effectiveSeriesId) : true;
-
+  const { user, profile, isStaff, loading } = useAuth();
   function setPage(next) {
     setNav(n => ({ ...n, page: next }));
   }
@@ -103,6 +90,11 @@ export default function App() {
     );
   }
 
+  // Học sinh vừa nhận tài khoản: bắt buộc đặt mật khẩu mới trước khi dùng bất kỳ trang nào.
+  if (!loading && user && profile?.mustChangePassword) {
+    return <ForceChangePassword />;
+  }
+
   // Trang chủ và Bài học dùng chung 1 kiểu màn hình riêng (logo + nút riêng, không Header/Footer
   // của site) để liền mạch — xem HomePage.jsx / LessonsPage.jsx (đều dùng class .home-screen).
   if (page === "home") {
@@ -110,21 +102,17 @@ export default function App() {
   }
 
   if (page === "lessons") {
-    // Bỏ đăng nhập bắt buộc (chốt 2026-09-17) — quay lại mật khẩu như PasswordGate cũ, nhưng tách
-    // riêng theo TỪNG BỘ ĐỀ (Starters/Movers/Flyers/...) thay vì 1 mật khẩu chung toàn trung tâm,
-    // xem lib/seriesAccess.js. Admin/teacher đã đăng nhập (isStaff) bỏ qua hẳn màn này. Chờ
-    // `loading` xong mới quyết định để không chớp qua màn nhập mật khẩu ngay lúc Auth vừa xác thực
-    // lại phiên admin/teacher cũ lúc F5.
+    // Đăng nhập BẮT BUỘC để vào bài học (chốt 2026-09-20, thay mật khẩu theo bộ đề): học sinh dùng tài khoản
+    // giáo viên cấp. Chờ `loading` xong mới quyết định, tránh chớp qua màn đăng nhập lúc Auth khôi phục phiên.
     if (loading) return null;
-    if (!isStaff && !isTester && !seriesUnlocked && gateSeries) {
+    if (!user) {
       return (
-        <SeriesPasswordGate
-          seriesId={gateSeries.id}
-          seriesTitle={gateSeries.title}
-          seriesColor={gateSeries.color}
-          onUnlock={() => setUnlockTick(t => t + 1)}
-          onBack={() => setPage("home")}
-        />
+        <>
+          <Header page="login" onNavigate={setPage} />
+          <main id="app">
+            <LoginPage onNavigate={setPage} />
+          </main>
+        </>
       );
     }
     // KET/PET dùng khung điều hướng riêng (Grade/Unit, xem KetPetPage.jsx) thay vì

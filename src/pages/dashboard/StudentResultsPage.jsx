@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { collection, getDocs, limit, orderBy, query } from "firebase/firestore";
 import { db } from "../../lib/firebase.js";
 import { SpeakingReportView, groupIntoReportItems } from "../../components/SpeakingReportView.jsx";
@@ -111,6 +111,78 @@ export default function StudentResultsPage() {
             </table>
           </div>
         </>
+      )}
+      <TestResultsSection />
+    </div>
+  );
+}
+
+const MODE_LABEL = {
+  reading: "Reading",
+  dictation: "Dictation",
+  "listening-exam": "Listening Luyện đề",
+  "ielts-reading": "IELTS Reading",
+  "ielts-listening": "IELTS Listening",
+};
+
+// Kết quả CHI TIẾT các bài ngoài Speaking (lib/testResults.js). Học sinh chỉ thấy số câu đúng/tổng, đáp án
+// từng câu chỉ hiện ở đây cho giáo viên/admin.
+function TestResultsSection() {
+  const [rows, setRows] = useState(null);
+  const [error, setError] = useState(null);
+  const [openId, setOpenId] = useState(null);
+
+  useEffect(() => {
+    getDocs(query(collection(db, "testResults"), orderBy("submittedAt", "desc"), limit(PAGE_SIZE)))
+      .then(snap => setRows(snap.docs.map(d => ({ id: d.id, ...d.data() }))))
+      .catch(err => setError(err.message));
+  }, []);
+
+  return (
+    <div style={{ marginTop: 32 }}>
+      <h2>Kết quả các bài khác</h2>
+      <p className="admin-muted-text">Reading, Listening, Dictation, IELTS — bấm "Chi tiết" để xem từng câu.</p>
+      {error && <p className="admin-error">Lỗi tải dữ liệu: {error}</p>}
+      {rows === null && !error && <LoadingRow />}
+      {rows && (
+        <div style={{ overflowX: "auto" }}>
+          <table className="admin-table">
+            <thead>
+              <tr><th>Học sinh</th><th>Lớp</th><th>Bài</th><th>Dạng</th><th>Nộp lúc</th><th>Đúng</th><th></th></tr>
+            </thead>
+            <tbody>
+              {rows.map(r => (
+                <Fragment key={r.id}>
+                  <tr>
+                    <td>{r.studentName || "—"}</td>
+                    <td>{r.studentClass || "—"}</td>
+                    <td>{r.lessonLabel || "—"}</td>
+                    <td>{MODE_LABEL[r.mode] ?? r.mode}</td>
+                    <td>{formatDate(r.submittedAt)}</td>
+                    <td>{Number(r.correct).toFixed(2).replace(/\.?0+$/, "")}/{Number(r.total).toFixed(2).replace(/\.?0+$/, "")}</td>
+                    <td><button className="admin-link-btn" onClick={() => setOpenId(id => (id === r.id ? null : r.id))}>{openId === r.id ? "Đóng" : "Chi tiết"}</button></td>
+                  </tr>
+                  {openId === r.id && (
+                    <tr>
+                      <td colSpan={7}>
+                        <ol className="admin-muted-text">
+                          {(r.items ?? []).map((it, i) => (
+                            <li key={i}>
+                              {it.part ? `${it.part}: ${it.correct}/${it.total}` : (
+                                <>{it.prompt ? `${it.prompt} — ` : ""}{it.isCorrect ? "✓" : "✗"} con trả lời: "{it.studentAnswer ?? ""}"{!it.isCorrect && it.correctAnswer !== undefined ? ` · đáp án: ${Array.isArray(it.blanks) ? "" : it.correctAnswer}` : ""}</>
+                              )}
+                            </li>
+                          ))}
+                        </ol>
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              ))}
+              {rows.length === 0 && <tr><td colSpan={7} className="admin-muted-text">Chưa có kết quả nào.</td></tr>}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );

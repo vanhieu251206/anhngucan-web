@@ -1,12 +1,16 @@
 import { useMemo, useRef, useState } from "react";
-import ReadingReportView from "./ReadingReportView.jsx";
+import TestScoreReport from "./TestScoreReport.jsx";
+import { saveTestResult } from "../lib/testResults.js";
+import { attemptKey } from "../lib/openings.js";
+import ExamTimer, { useExamTimer } from "./ExamTimer.jsx";
 import { incrementAttempt } from "../lib/attempts.js";
 
 // Runner học sinh cho Reading & Writing — 1 TRANG SCROLL DÀI duy nhất cho cả Test (mọi Part nối
 // tiếp nhau), có sidebar trái "Danh sách câu hỏi" để nhảy nhanh đến từng câu, giống bố cục các
 // nền tảng luyện thi thật (vd YourHomework) — khác với SceneRunner của Speaking (chạy tuần tự
 // từng scene kiểu Duolideo, không cuộn được cả bài 1 lượt). Nộp bài 1 LẦN cho toàn bộ Test, sau đó
-// chuyển hẳn sang màn tổng kết (ReadingReportView.jsx) — cùng luồng với Speaking (chốt 2026-08-26).
+// chuyển hẳn sang màn kết quả (TestScoreReport.jsx: chỉ số câu đúng/tổng, không lộ đáp án — chi tiết
+// từng câu lưu ở lib/testResults.js cho giáo viên/admin).
 
 // Yêu cầu tiếng Anh mặc định cho dạng "Xáo chữ cái đoán từ vựng" — hiện ngay sau "Question N."
 // giống các dạng câu hỏi Cambridge YLE khác đều có câu hướng dẫn cố định (vd gapfill "Look and
@@ -17,6 +21,14 @@ export const WORD_SCRAMBLE_DEFAULT_TEXT = "Look and read. Write the word.";
 
 function normalizeAnswer(s) {
   return (s ?? "").trim().toLowerCase();
+}
+
+// Đáp án đúng có thể có NHIỀU cách viết như sách đáp án — giáo viên nhập cách nhau bằng dấu "|"
+// (vd "a red hat|red hat"). Học sinh viết đúng MỘT trong các cách là được điểm; bỏ trống thì luôn sai.
+function answerMatches(value, correct) {
+  const v = normalizeAnswer(value);
+  if (!v) return false;
+  return String(correct ?? "").split("|").some(a => normalizeAnswer(a) === v);
 }
 
 function splitGapfillText(text) {
@@ -842,7 +854,7 @@ function buildResults(flat, answers, isFlyers) {
     // Starters/Movers (chốt 2026-09-02).
     if (question.type === "gapfill" && gapIndex != null) {
       const correct = question.answers?.[gapIndex];
-      const isCorrect = normalizeAnswer(value?.[gapIndex]) === normalizeAnswer(correct);
+      const isCorrect = answerMatches(value?.[gapIndex], correct);
       const earned = isCorrect ? qPoints : 0;
       earnedPoints += earned;
       return {
@@ -880,7 +892,7 @@ function buildResults(flat, answers, isFlyers) {
       const perGap = gapAnswers.length ? qPoints / gapAnswers.length : 0;
       let gapEarned = 0;
       const blanks = gapAnswers.map((a, gi) => {
-        const ok = normalizeAnswer(value?.[gi + offset]) === normalizeAnswer(a);
+        const ok = answerMatches(value?.[gi + offset], a);
         if (ok) gapEarned += perGap;
         return { correct: ok, studentAnswer: value?.[gi + offset]?.trim() || "(để trống)", correctAnswer: a };
       });
@@ -896,7 +908,7 @@ function buildResults(flat, answers, isFlyers) {
     }
 
     if (question.type === "short-answer") {
-      const isCorrect = normalizeAnswer(value) === normalizeAnswer(question.answer);
+      const isCorrect = answerMatches(value, question.answer);
       const earned = isCorrect ? qPoints : 0;
       earnedPoints += earned;
       return {
@@ -911,7 +923,7 @@ function buildResults(flat, answers, isFlyers) {
     }
 
     if (question.type === "word-bank") {
-      const isCorrect = normalizeAnswer(value) === normalizeAnswer(question.answer);
+      const isCorrect = answerMatches(value, question.answer);
       const earned = isCorrect ? qPoints : 0;
       earnedPoints += earned;
       return {
@@ -973,7 +985,7 @@ function buildResults(flat, answers, isFlyers) {
 
 // Component chính — hiện TOÀN BỘ Test (mọi Part nối tiếp) trên 1 trang cuộn được, nộp bài 1 lần
 // rồi chuyển hẳn sang màn tổng kết (không còn chấm màu ngay trong lúc làm — cùng luồng Speaking).
-export default function ReadingRunner({ parts, onFinish, studentUid, seriesId, level, testId }) {
+export default function ReadingRunner({ parts, onFinish, studentUid, seriesId, level, testId, limitMinutes, studentName, studentClass, lessonLabel, openingId }) {
   // Movers/Starters dùng chung quy tắc tính điểm/đánh số theo từng chỗ trống với Flyers (chốt
   // 2026-09-04, mở rộng cho Starters 2026-09-06: "mỗi chỗ trống điền từ hoặc chọn đáp án đều là 1
   // Question N, mỗi câu 1 điểm" — áp dụng cho cả 3 series, không còn ai giữ cách gộp cả câu gapfill
@@ -988,7 +1000,8 @@ export default function ReadingRunner({ parts, onFinish, studentUid, seriesId, l
   // Bấm "Nộp bài" KHÔNG nộp ngay — luôn phải xác nhận qua modal (nếu còn câu chưa làm thì cảnh báo
   // rõ số câu còn thiếu), tránh nộp nhầm do lỡ tay (yêu cầu người dùng 2026-08-26).
   const [confirmingSubmit, setConfirmingSubmit] = useState(false);
-  const startedAtRef = useRef(Date.now());
+  // Đồng hồ chung (ExamTimer.jsx): hết giờ tự nộp bài; dừng khi đã có kết quả.
+  const timer = useExamTimer({ limitMinutes, running: !results, onExpire: submit });
 
   function setAnswer(partIndex, qIndex, val) {
     setAnswers(a => {
@@ -1000,10 +1013,16 @@ export default function ReadingRunner({ parts, onFinish, studentUid, seriesId, l
 
   function submit() {
     setConfirmingSubmit(false);
-    setResults(buildResults(flat, answers, isFlyers));
+    const built = buildResults(flat, answers, isFlyers);
+    setResults(built);
+    saveTestResult({
+      mode: "reading", seriesId, level, testId, lessonLabel, studentName, studentClass, uid: studentUid,
+      correct: built.earnedPoints, total: built.totalPoints, elapsedMs: timer.getElapsedMs(),
+      items: built.items.map(({ question, ...rest }) => ({ ...rest, type: question.type, prompt: rest.questionLabel ?? question.text ?? question.prompt ?? "" })),
+    });
     // Tính 1 lượt nộp bài (chốt 2026-08-27, xem lib/attempts.js) — chỉ khi có studentUid (học
     // sinh đã đăng nhập thật, không phải admin/teacher tự test).
-    if (studentUid) incrementAttempt({ uid: studentUid, mode: "reading", testId, seriesId, level });
+    if (studentUid) incrementAttempt({ uid: studentUid, mode: "reading", testId: attemptKey(testId, openingId), seriesId, level });
   }
 
   if (!flat.length) return null;
@@ -1014,11 +1033,10 @@ export default function ReadingRunner({ parts, onFinish, studentUid, seriesId, l
 
   if (results) {
     return (
-      <ReadingReportView
-        items={results.items}
-        earnedPoints={results.earnedPoints}
-        totalPoints={results.totalPoints}
-        elapsedMs={Date.now() - startedAtRef.current}
+      <TestScoreReport
+        correct={results.earnedPoints}
+        total={results.totalPoints}
+        elapsedMs={timer.getElapsedMs()}
         onDone={onFinish}
       />
     );
@@ -1026,6 +1044,7 @@ export default function ReadingRunner({ parts, onFinish, studentUid, seriesId, l
 
   return (
     <div className="reading-runner reading-runner-page">
+      <ExamTimer timer={timer} />
       <QuestionListSidebar flat={flat} answers={answers} />
 
       <div className="reading-runner-main">

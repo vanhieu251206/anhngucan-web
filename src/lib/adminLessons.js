@@ -37,13 +37,14 @@ export async function getTest(seriesId, level, testId) {
 
 // scenes PHẢI đã resolve hết ảnh/audio thành URL đầy đủ (Storage download URL) trước khi gọi
 // hàm này — đúng contract SceneRunner.jsx đang đọc, không lưu File/blob URL tạm vào Firestore.
-export async function saveTest(seriesId, level, testId, { title, order, scenes, maxAttempts }, uid) {
+export async function saveTest(seriesId, level, testId, { title, order, scenes, maxAttempts, timeLimitMinutes }, uid) {
   await setDoc(doc(db, "lessons", lessonId(seriesId, level), "tests", testId), {
     testId,
     title,
     order,
     scenes,
     maxAttempts: maxAttempts ?? null,
+    timeLimitMinutes: timeLimitMinutes ?? null,
     updatedAt: serverTimestamp(),
     updatedBy: uid,
   });
@@ -70,13 +71,14 @@ export async function getReadingTest(seriesId, level, testId) {
 }
 
 // parts PHẢI đã resolve hết ảnh thành URL đầy đủ (Cloudinary) trước khi gọi hàm này, giống saveTest.
-export async function saveReadingTest(seriesId, level, testId, { title, order, parts, maxAttempts }, uid) {
+export async function saveReadingTest(seriesId, level, testId, { title, order, parts, maxAttempts, timeLimitMinutes }, uid) {
   await setDoc(doc(db, "lessons", lessonId(seriesId, level), "readingTests", testId), {
     testId,
     title,
     order,
     parts,
     maxAttempts: maxAttempts ?? null,
+    timeLimitMinutes: timeLimitMinutes ?? null,
     updatedAt: serverTimestamp(),
     updatedBy: uid,
   });
@@ -103,13 +105,14 @@ export async function getDictationTest(seriesId, level, testId) {
 }
 
 // sentences PHẢI đã resolve hết audio thành URL đầy đủ (Cloudinary) trước khi gọi hàm này, giống saveTest.
-export async function saveDictationTest(seriesId, level, testId, { title, order, sentences, maxAttempts }, uid) {
+export async function saveDictationTest(seriesId, level, testId, { title, order, sentences, maxAttempts, timeLimitMinutes }, uid) {
   await setDoc(doc(db, "lessons", lessonId(seriesId, level), "dictationTests", testId), {
     testId,
     title,
     order,
     sentences,
     maxAttempts: maxAttempts ?? null,
+    timeLimitMinutes: timeLimitMinutes ?? null,
     updatedAt: serverTimestamp(),
     updatedBy: uid,
   });
@@ -210,7 +213,7 @@ export async function getIeltsListeningTest(seriesId, level, testId) {
 }
 
 export async function saveIeltsListeningTest(
-  seriesId, level, testId, { title, order, sections, maxAttempts }, uid
+  seriesId, level, testId, { title, order, sections, maxAttempts, timeLimitMinutes }, uid
 ) {
   await setDoc(doc(db, "lessons", lessonId(seriesId, level), "listeningTests", testId), {
     testId,
@@ -218,6 +221,7 @@ export async function saveIeltsListeningTest(
     order,
     sections,
     maxAttempts: maxAttempts ?? null,
+    timeLimitMinutes: timeLimitMinutes ?? null,
     updatedAt: serverTimestamp(),
     updatedBy: uid,
   });

@@ -2,6 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import { normalize } from "../lib/speech.js";
 import { incrementAttempt } from "../lib/attempts.js";
 import { BEE } from "./sceneVisuals.jsx";
+import ExamTimer, { useExamTimer } from "./ExamTimer.jsx";
+import TestScoreReport from "./TestScoreReport.jsx";
+import { saveTestResult } from "../lib/testResults.js";
+import { attemptKey } from "../lib/openings.js";
 
 // Runner học sinh cho Dictation (Nghe & gõ lại) — mô phỏng dailydictation.com: chấm theo TỪNG TỪ
 // (không phải khớp cả câu 1 lần) — từ gõ đúng hiện xanh, từ còn lại (sai/chưa gõ tới) bị CHE bằng
@@ -26,65 +30,6 @@ function wordDiff(typed, correct) {
 // không thấy trước đáp án, chỉ thấy được cấu trúc/độ dài câu.
 function maskedPreview(typed, correct) {
   return wordDiff(typed, correct).map(({ word, ok }) => (ok ? word : "*".repeat(word.length)));
-}
-
-// Diff dùng cho màn tổng kết CUỐI BÀI (đã xong hẳn, không còn lý do che) — hiện đúng chữ thật, chỉ
-// khác màu xanh/đỏ theo đúng/sai để học sinh ôn lại.
-function revealDiff(typed, correct) {
-  return wordDiff(typed, correct).map(({ word, ok }) => ({ word, ok }));
-}
-
-// Màn "Xem lại transcript" mở từ màn tổng kết — liệt kê lại TOÀN BỘ câu đúng của Test, mỗi dòng có
-// nút play riêng để nghe lại (không phải 1 thanh audio liên tục chạy xuyên suốt cả bài kiểu
-// dailydictation.com — audio của mình lưu theo TỪNG CÂU riêng lẻ qua CMS, không phải 1 file dài,
-// nên danh sách nút play từng dòng là cách tự nhiên nhất, đã chốt với người dùng 2026-09-08 là đủ
-// dùng, không cần ghép thành audio liên tục).
-function TranscriptReview({ sentences, onBack }) {
-  const [playingIndex, setPlayingIndex] = useState(null);
-  const audioRef = useRef(null);
-
-  function playLine(i) {
-    const el = audioRef.current;
-    if (!el) return;
-    if (playingIndex === i) {
-      el.pause();
-      setPlayingIndex(null);
-      return;
-    }
-    el.src = sentences[i].audioUrl;
-    el.currentTime = 0;
-    el.play().catch(() => {});
-    setPlayingIndex(i);
-  }
-
-  return (
-    <div className="dictation-transcript">
-      <audio ref={audioRef} onEnded={() => setPlayingIndex(null)} />
-      <div className="dictation-transcript-head">
-        <button type="button" className="dictation-transcript-back" onClick={onBack}>← Quay lại kết quả</button>
-        <h2 className="dictation-transcript-title">Xem lại toàn bộ transcript</h2>
-      </div>
-      <ol className="dictation-transcript-list">
-        {sentences.map((s, i) => (
-          <li key={i} className={`dictation-transcript-row${playingIndex === i ? " is-playing" : ""}`}>
-            <button
-              type="button"
-              className="dictation-transcript-play"
-              onClick={() => playLine(i)}
-              aria-label={playingIndex === i ? "Tạm dừng" : "Nghe câu này"}
-            >
-              {playingIndex === i ? (
-                <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6 5h4v14H6zM14 5h4v14h-4z" /></svg>
-              ) : (
-                <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z" /></svg>
-              )}
-            </button>
-            <span className="dictation-transcript-text">{s.text}</span>
-          </li>
-        ))}
-      </ol>
-    </div>
-  );
 }
 
 // Trạng thái từng câu: null = chưa kiểm tra lần nào; "wrong" = đã kiểm tra, sai (vẫn SỬA + KIỂM
@@ -206,14 +151,13 @@ function SpeedDropdown({ speed, onChange }) {
   );
 }
 
-export default function DictationRunner({ sentences, onFinish, studentUid, seriesId, level, testId }) {
+export default function DictationRunner({ sentences, onFinish, studentUid, seriesId, level, testId, limitMinutes, studentName, studentClass, lessonLabel, openingId }) {
   const [index, setIndex] = useState(0);
   // Lưu RIÊNG trạng thái từng câu theo chỉ số (thay vì 1 biến typed/attemptStatus dùng chung) — cho
   // phép bấm mũi tên ←/→ nhảy qua lại xem/sửa câu bất kỳ (giống "← 1/70 →" của trang tham khảo) mà
   // không mất dữ liệu đã gõ ở các câu khác (chốt người dùng 2026-09-08).
   const [answers, setAnswers] = useState(() => sentences.map(blankAnswer));
   const [done, setDone] = useState(false);
-  const [viewingTranscript, setViewingTranscript] = useState(false);
   const [speed, setSpeed] = useState(1);
   const audioRef = useRef(null);
   const inputRef = useRef(null);
@@ -263,10 +207,22 @@ export default function DictationRunner({ sentences, onFinish, studentUid, serie
   // "Câu tiếp theo" chỉ SANG câu kế (không đụng dữ liệu câu khác) — khi đang ở câu CUỐI mới thật sự
   // chốt bài + tính 1 lượt nộp bài, khác trước đây (mỗi lần next mới "commit" 1 kết quả) vì giờ có
   // thể nhảy qua lại tự do nên kết quả cuối cùng phải tính lại từ `answers` lúc chốt bài.
+  function finishRun() {
+    setDone(true);
+    saveTestResult({
+      mode: "dictation", seriesId, level, testId, lessonLabel, studentName, studentClass, uid: studentUid,
+      correct: answers.filter(a => a.attemptStatus === "correct").length, total, elapsedMs: timer.getElapsedMs(),
+      items: sentences.map((sn, i) => ({ qNumber: i + 1, correctAnswer: sn.text, studentAnswer: answers[i].attemptStatus === "skipped" ? "" : answers[i].typed, isCorrect: answers[i].attemptStatus === "correct" })),
+    });
+    if (studentUid) incrementAttempt({ uid: studentUid, mode: "dictation", testId: attemptKey(testId, openingId), seriesId, level });
+  }
+
+  // Đồng hồ chung (ExamTimer.jsx): hết giờ tự chốt bài; dừng khi đã xong.
+  const timer = useExamTimer({ limitMinutes, running: !done, onExpire: finishRun });
+
   function handleNext() {
     if (isLast) {
-      setDone(true);
-      if (studentUid) incrementAttempt({ uid: studentUid, mode: "dictation", testId, seriesId, level });
+      finishRun();
       return;
     }
     goTo(index + 1);
@@ -281,55 +237,14 @@ export default function DictationRunner({ sentences, onFinish, studentUid, serie
 
   const preview = attemptStatus === "wrong" ? maskedPreview(typed, current.text).join(" ") : null;
 
-  if (done && viewingTranscript) {
-    return <TranscriptReview sentences={sentences} onBack={() => setViewingTranscript(false)} />;
-  }
-
   if (done) {
-    const results = sentences.map((s, i) => {
-      const a = answers[i];
-      const isCorrect = a.attemptStatus === "correct";
-      const finalTyped = a.attemptStatus === "skipped" ? "" : a.typed;
-      return { text: s.text, typed: finalTyped, isCorrect, diff: revealDiff(finalTyped, s.text) };
-    });
-    const correctCount = results.filter(r => r.isCorrect).length;
-    return (
-      <div className="dictation-report">
-        <h2 className="dictation-report-title">Hoàn thành! 🐝</h2>
-        <p className="dictation-report-score">
-          Đúng <strong>{correctCount}</strong>/{total} câu
-        </p>
-        <ol className="dictation-report-list">
-          {results.map((r, i) => (
-            <li key={i} className={`dictation-report-item${r.isCorrect ? " is-correct" : " is-wrong"}`}>
-              <span className="dictation-report-icon">{r.isCorrect ? "✓" : "✗"}</span>
-              <div className="dictation-report-body">
-                <p className="dictation-report-answer">
-                  {r.diff.map((w, wi) => (
-                    <span key={wi} className={w.ok ? "dictation-word-ok" : "dictation-word-bad"}>
-                      {w.word}{" "}
-                    </span>
-                  ))}
-                </p>
-                {!r.isCorrect && <p className="dictation-report-typed">Con đã gõ: "{r.typed || "(bỏ trống)"}"</p>}
-              </div>
-            </li>
-          ))}
-        </ol>
-        <div className="dictation-report-actions">
-          <button type="button" className="btn btn-secondary" onClick={() => setViewingTranscript(true)}>
-            📜 Xem lại toàn bộ transcript
-          </button>
-          <button type="button" className="btn btn-primary dictation-report-done" onClick={onFinish}>
-            Xong
-          </button>
-        </div>
-      </div>
-    );
+    const correctCount = answers.filter(a => a.attemptStatus === "correct").length;
+    return <TestScoreReport correct={correctCount} total={total} elapsedMs={timer.getElapsedMs()} onDone={onFinish} />;
   }
 
   return (
     <div className="dictation-runner">
+      <ExamTimer timer={timer} />
       <div className="dictation-progress">
         <div className="dictation-progress-bar">
           <div className="dictation-progress-fill" style={{ width: `${(doneCount / total) * 100}%` }} />

@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import ExamTimer, { useExamTimer } from "./ExamTimer.jsx";
 import { gradeVocabularyGroups, toRoman, seededShuffle } from "../lib/ketPetVocabulary.js";
 import UnderlineText from "./UnderlineText.jsx";
 
@@ -9,16 +10,24 @@ import UnderlineText from "./UnderlineText.jsx";
 // 2026-09-17, cùng cơ chế với KetPetPracticeTestQuiz.jsx) — mỗi nhóm hiện tiêu đề số La Mã + hướng
 // dẫn làm bài + đoạn văn/audio/khung từ dùng chung (nếu có), rồi tới các câu cùng dạng của nhóm đó,
 // đánh số lại từ 1 trong mỗi nhóm.
-export default function KetPetVocabularyQuiz({ groups }) {
+// revealAnswers=true CHỈ dùng cho Preview trong CMS (giáo viên xem đáp án). Học sinh luôn chỉ thấy số câu đúng/tổng.
+export default function KetPetVocabularyQuiz({ groups, revealAnswers = false, limitMinutes, canRetry = true, onSubmitted }) {
   const [answers, setAnswers] = useState({});
   const [result, setResult] = useState(null);
+  const view = revealAnswers ? result : null;
 
   function setAnswer(gi, qi, value) {
     setAnswers(a => ({ ...a, [`${gi}-${qi}`]: value }));
   }
   function handleSubmit() {
-    setResult(gradeVocabularyGroups(groups, answers));
+    if (result) return;
+    const graded = gradeVocabularyGroups(groups, answers);
+    setResult(graded);
+    onSubmitted?.(graded, answers);
   }
+
+  // Đồng hồ chung (ExamTimer.jsx) — chỉ hiện ở màn học sinh làm bài thật (có onSubmitted); hết giờ tự nộp.
+  const timer = useExamTimer({ limitMinutes, running: !result, onExpire: handleSubmit });
   function handleRetry() {
     setAnswers({});
     setResult(null);
@@ -28,6 +37,7 @@ export default function KetPetVocabularyQuiz({ groups }) {
 
   return (
     <div className="vocab-runner">
+      {onSubmitted && <ExamTimer timer={timer} />}
       <section className="vocab-block">
         {groups.map((g, gi) => (
           <div className="vocab-group" key={gi}>
@@ -43,14 +53,14 @@ export default function KetPetVocabularyQuiz({ groups }) {
             )}
 
             {g.type === "categorize" ? (
-              <CategorizeGroup g={g} gi={gi} answers={answers} result={result} setAnswer={setAnswer} />
+              <CategorizeGroup g={g} gi={gi} answers={answers} result={result} view={view} setAnswer={setAnswer} />
             ) : g.type === "true-false-table" ? (
-              <TrueFalseTableGroup g={g} gi={gi} answers={answers} result={result} setAnswer={setAnswer} />
+              <TrueFalseTableGroup g={g} gi={gi} answers={answers} result={result} view={view} setAnswer={setAnswer} />
             ) : g.type === "reorder" ? (
-              <ReorderGroup g={g} gi={gi} answers={answers} result={result} setAnswer={setAnswer} />
+              <ReorderGroup g={g} gi={gi} answers={answers} result={result} view={view} setAnswer={setAnswer} />
             ) : (
               g.questions.map((q, qi) => {
-                const r = result?.results?.[gi]?.[qi];
+                const r = view?.results?.[gi]?.[qi];
                 return (
                   <div className="vocab-question" key={qi}>
                     {g.type === "multiple-choice" && (
@@ -59,7 +69,7 @@ export default function KetPetVocabularyQuiz({ groups }) {
                         <div className="vocab-options">
                           {q.options.map((opt, oi) => {
                             const picked = answers[`${gi}-${qi}`] === oi;
-                            const showState = result != null;
+                            const showState = view != null;
                             const isRight = oi === q.answerIndex;
                             return (
                               <label
@@ -91,7 +101,7 @@ export default function KetPetVocabularyQuiz({ groups }) {
                       <div className="vocab-options vocab-options-row">
                         {q.options.map((opt, oi) => {
                           const picked = answers[`${gi}-${qi}`] === oi;
-                          const showState = result != null;
+                          const showState = view != null;
                           const isRight = oi === q.answerIndex;
                           return (
                             <label
@@ -127,7 +137,7 @@ export default function KetPetVocabularyQuiz({ groups }) {
                           onChange={e => setAnswer(gi, qi, e.target.value)}
                           placeholder="Nhập câu trả lời"
                         />
-                        {result != null && r === false && (
+                        {view != null && r === false && (
                           <p className="vocab-answer-key">Đáp án đúng: {(q.acceptedAnswers ?? []).join(" / ")}</p>
                         )}
                       </>
@@ -143,7 +153,7 @@ export default function KetPetVocabularyQuiz({ groups }) {
                           onChange={e => setAnswer(gi, qi, e.target.value)}
                           placeholder="Nhập từ trong khung từ"
                         />
-                        {result != null && r === false && (
+                        {view != null && r === false && (
                           <p className="vocab-answer-key">Đáp án đúng: {q.answer}</p>
                         )}
                       </>
@@ -163,7 +173,7 @@ export default function KetPetVocabularyQuiz({ groups }) {
                           onChange={e => setAnswer(gi, qi, e.target.value)}
                           placeholder="Sắp xếp thành câu hoàn chỉnh"
                         />
-                        {result != null && r === false && (
+                        {view != null && r === false && (
                           <p className="vocab-answer-key">Đáp án đúng: {(q.acceptedAnswers ?? []).join(" / ")}</p>
                         )}
                       </>
@@ -179,7 +189,7 @@ export default function KetPetVocabularyQuiz({ groups }) {
                           onChange={e => setAnswer(gi, qi, e.target.value)}
                           placeholder="Type your answer"
                         />
-                        {result != null && <p className="vocab-answer-key">Đáp án mẫu: {q.sampleAnswer}</p>}
+                        {view != null && <p className="vocab-answer-key">Đáp án mẫu: {q.sampleAnswer}</p>}
                       </>
                     )}
                   </div>
@@ -196,7 +206,7 @@ export default function KetPetVocabularyQuiz({ groups }) {
         ) : (
           <>
             <p className="vocab-score">Điểm: {result.correct.toFixed(2).replace(/\.00$/, "")}/{result.total.toFixed(2).replace(/\.00$/, "")}</p>
-            <button type="button" className="vocab-submit-btn" onClick={handleRetry}>Làm lại</button>
+            {canRetry && <button type="button" className="vocab-submit-btn" onClick={handleRetry}>Làm lại</button>}
           </>
         )}
       </div>
@@ -206,12 +216,12 @@ export default function KetPetVocabularyQuiz({ groups }) {
 
 // Dạng "Phân loại từ vào cột" — mỗi từ có 1 dropdown chọn cột đúng (thay cho kéo-thả thật, đơn giản
 // hoá nhưng vẫn giữ đúng tinh thần bài — đặt từ vào đúng cột theo tiêu chí, VD phát âm /ə/ hay /ɜː/).
-function CategorizeGroup({ g, gi, answers, result, setAnswer }) {
+function CategorizeGroup({ g, gi, answers, result, view, setAnswer }) {
   const columns = g.columns ?? [];
   return (
     <div className="vocab-categorize">
       {g.questions.map((q, qi) => {
-        const r = result?.results?.[gi]?.[qi];
+        const r = view?.results?.[gi]?.[qi];
         const picked = answers[`${gi}-${qi}`];
         return (
           <div className={"vocab-categorize-row" + (r === true ? " is-correct" : "") + (r === false ? " is-wrong" : "")} key={qi}>
@@ -227,7 +237,7 @@ function CategorizeGroup({ g, gi, answers, result, setAnswer }) {
                 <option key={ci} value={ci}>{c || `Cột ${ci + 1}`}</option>
               ))}
             </select>
-            {result != null && r === false && (
+            {view != null && r === false && (
               <span className="vocab-answer-key">Đúng: {columns[q.columnIndex] || `Cột ${q.columnIndex + 1}`}</span>
             )}
           </div>
@@ -238,7 +248,7 @@ function CategorizeGroup({ g, gi, answers, result, setAnswer }) {
 }
 
 // Dạng "Bảng đúng/sai" — render bảng thật giống sách in (No. | Statements | T | F).
-function TrueFalseTableGroup({ g, gi, answers, result, setAnswer }) {
+function TrueFalseTableGroup({ g, gi, answers, result, view, setAnswer }) {
   return (
     <table className="vocab-tf-table">
       <thead>
@@ -246,7 +256,7 @@ function TrueFalseTableGroup({ g, gi, answers, result, setAnswer }) {
       </thead>
       <tbody>
         {g.questions.map((q, qi) => {
-          const r = result?.results?.[gi]?.[qi];
+          const r = view?.results?.[gi]?.[qi];
           const picked = answers[`${gi}-${qi}`];
           return (
             <tr key={qi} className={r === true ? "is-correct" : r === false ? "is-wrong" : ""}>
@@ -269,13 +279,13 @@ function TrueFalseTableGroup({ g, gi, answers, result, setAnswer }) {
 // Dạng "Sắp xếp câu hội thoại" — thứ tự ĐÚNG là thứ tự GV nhập (g.questions), học sinh thấy danh
 // sách bị XÁO TRỘN ỔN ĐỊNH (seededShuffle, không đổi lại mỗi lần render) và phải gán số thứ tự đúng
 // cho từng câu qua dropdown 1..N.
-function ReorderGroup({ g, gi, answers, result, setAnswer }) {
+function ReorderGroup({ g, gi, answers, result, view, setAnswer }) {
   const count = g.questions.length;
   const shuffled = useMemo(() => seededShuffle(g.questions, gi + 7), [g.questions, gi]);
   return (
     <div className="vocab-reorder">
       {shuffled.map(({ item: q, i: qi }) => {
-        const r = result?.results?.[gi]?.[qi];
+        const r = view?.results?.[gi]?.[qi];
         const picked = answers[`${gi}-${qi}`];
         return (
           <div className={"vocab-reorder-row" + (r === true ? " is-correct" : "") + (r === false ? " is-wrong" : "")} key={qi}>
@@ -291,7 +301,7 @@ function ReorderGroup({ g, gi, answers, result, setAnswer }) {
               ))}
             </select>
             <span>{q.text}</span>
-            {result != null && r === false && <span className="vocab-answer-key">Đúng: {qi + 1}</span>}
+            {view != null && r === false && <span className="vocab-answer-key">Đúng: {qi + 1}</span>}
           </div>
         );
       })}

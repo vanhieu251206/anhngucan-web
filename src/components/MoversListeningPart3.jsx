@@ -7,9 +7,9 @@ import { useEffect, useState } from "react";
 //   questions: [{ question, image, answer: "A".."H" }] } — `question` là nhãn (vd "her mum").
 export const MOVERS_LETTERS = ["A", "B", "C", "D", "E", "F", "G", "H"];
 
-function Row({ row, num, value, correct, submitted, locked, onPick }) {
-  const ok = submitted && value === correct;
-  const wrong = submitted && !ok;
+function Row({ row, num, value, correct, submitted, reveal = true, locked, onPick }) {
+  const ok = submitted && reveal && value === correct;
+  const wrong = submitted && reveal && !ok;
   return (
     <div className="p3m-row">
       <div className="p3m-photo">{row.image ? <img src={row.image} alt="" draggable={false} /> : <span className="p3s-img-empty" />}</div>
@@ -40,7 +40,7 @@ function Row({ row, num, value, correct, submitted, locked, onPick }) {
   );
 }
 
-export function MoversPart3Sheet({ part, values = [], onChange, submitted = false, preview = false }) {
+export function MoversPart3Sheet({ part, values = [], onChange, submitted = false, reveal = true, preview = false }) {
   const questions = (part.questions ?? []).filter(q => q.question?.trim());
   const ex = part.example;
   return (
@@ -60,6 +60,7 @@ export function MoversPart3Sheet({ part, values = [], onChange, submitted = fals
           value={preview ? q.answer : values[i]}
           correct={q.answer}
           submitted={submitted}
+          reveal={reveal}
           locked={preview}
           onPick={L => onChange?.(i, L)}
         />
@@ -77,7 +78,7 @@ export function MoversPart3Sheet({ part, values = [], onChange, submitted = fals
   );
 }
 
-export default function MoversListeningPart3Runner({ part, submitted, onScore }) {
+export default function MoversListeningPart3Runner({ part, submitted, reveal = true, onScore }) {
   const questions = (part.questions ?? []).filter(q => q.question?.trim());
   const [values, setValues] = useState([]);
 
@@ -96,7 +97,7 @@ export default function MoversListeningPart3Runner({ part, submitted, onScore })
 
   return (
     <div className="p2r">
-      <MoversPart3Sheet part={part} values={values} onChange={setValue} submitted={submitted} />
+      <MoversPart3Sheet part={part} values={values} onChange={setValue} submitted={submitted} reveal={reveal} />
     </div>
   );
 }

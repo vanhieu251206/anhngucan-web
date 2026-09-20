@@ -1,4 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import ExamTimer, { useExamTimer } from "./ExamTimer.jsx";
+import { saveTestResult } from "../lib/testResults.js";
+import { incrementAttempt } from "../lib/attempts.js";
+import { attemptKey } from "../lib/openings.js";
 import { deriveTableDiagramBlanks, normalizeBlankHolder, textBlankCount } from "../lib/tableDiagramBlanks.js";
 
 // Màn làm bài "LUYỆN ĐỀ" IELTS Reading — mô phỏng giao diện đề thi thật: đồng hồ đếm giờ, khung
@@ -42,12 +46,6 @@ export function isCorrect(entry, value) {
   if (type === "tfng") return value === q.answer;
   const accepted = String(q.acceptedAnswers ?? "").split("|").map(normalizeAnswer).filter(Boolean);
   return accepted.includes(normalizeAnswer(value));
-}
-
-function formatTime(sec) {
-  const m = Math.floor(sec / 60);
-  const s = sec % 60;
-  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
 // Gộp các câu liền mạch thành từng đoạn văn (đoạn mới bắt đầu khi câu có cờ `newParagraph`),
@@ -126,13 +124,13 @@ function SentenceVocabRow({ sentence }) {
 
 // Ô input 1 chỗ trống — dùng cho điểm đè lên sơ đồ (vị trí cố định theo % toạ độ nên input phải nằm
 // ngay tại đó) VÀ cho danh sách "Trả lời" tách riêng bên dưới bảng/đoạn văn (xem `AnswerList`).
-function InlineBlankInput({ entry, value, submitted, onChange, numberRef }) {
-  const correct = submitted ? isCorrect(entry, value) : null;
+function InlineBlankInput({ entry, value, submitted, reveal = true, onChange, numberRef }) {
+  const correct = (submitted && reveal) ? isCorrect(entry, value) : null;
   return (
     <span className="ielts-practice-inline-blank" ref={numberRef}>
       <span className="ielts-practice-qnum-inline">{entry.number}</span>
       <input
-        className={`ielts-practice-inline-input${submitted ? (correct ? " is-correct" : " is-wrong") : ""}`}
+        className={`ielts-practice-inline-input${(submitted && reveal) ? (correct ? " is-correct" : " is-wrong") : ""}`}
         value={value ?? ""}
         disabled={submitted}
         onChange={e => onChange(entry.number, e.target.value)}
@@ -148,7 +146,7 @@ function InlineBlankInput({ entry, value, submitted, onChange, numberRef }) {
 // tại chỗ dễ dùng hơn). `counter` là biến đếm DÙNG CHUNG xuyên suốt cả group (truyền qua tham chiếu
 // object `{ current }`) để thứ tự chỗ trống tính đúng liên tục qua nhiều ô/đoạn văn, khớp với
 // `deriveTableDiagramBlanks`.
-function renderTextWithBlanks(text, counter, gi, activePassage, flat, answers, submitted, setAnswer, questionRefs) {
+function renderTextWithBlanks(text, counter, gi, activePassage, flat, answers, submitted, reveal, setAnswer, questionRefs) {
   const parts = String(text ?? "").split(/(_{3,})/g);
   return parts.map((part, idx) => {
     if (!/^_{3,}$/.test(part)) return part ? <span key={idx}>{part}</span> : null;
@@ -161,6 +159,7 @@ function renderTextWithBlanks(text, counter, gi, activePassage, flat, answers, s
         entry={entry}
         value={answers[entry.number]}
         submitted={submitted}
+                reveal={reveal}
         onChange={setAnswer}
         numberRef={el => (questionRefs.current[entry.number] = el)}
       />
@@ -194,7 +193,7 @@ export function OptionsBox({ title, options, boxed = true, columns = 1 }) {
 // hiện ảnh THẬT (không overlay gì) rồi tới danh sách ô đáp án đánh số bên dưới, giáo viên tự canh
 // đúng số lượng khớp với ảnh khi soạn). `g.diagramPoints[pi].answer` là đáp án đúng, thứ tự trong
 // mảng = đúng thứ tự hiển thị Question N.
-export function DiagramGroup({ g, gi, activePassage, flat, answers, submitted, setAnswer, questionRefs }) {
+export function DiagramGroup({ g, gi, activePassage, flat, answers, submitted, reveal = true, setAnswer, questionRefs }) {
   const points = g.diagramPoints ?? [];
   return (
     <>
@@ -215,6 +214,7 @@ export function DiagramGroup({ g, gi, activePassage, flat, answers, submitted, s
                 entry={entry}
                 value={answers[entry.number]}
                 submitted={submitted}
+                reveal={reveal}
                 onChange={setAnswer}
                 numberRef={el => (questionRefs.current[entry.number] = el)}
               />
@@ -222,7 +222,7 @@ export function DiagramGroup({ g, gi, activePassage, flat, answers, submitted, s
           })}
         </div>
       )}
-      {submitted && points.some((_, pi) => {
+      {submitted && reveal && points.some((_, pi) => {
         const entry = flat.find(e => e.passageIndex === activePassage && e.groupIndex === gi && e.questionIndex === pi);
         return entry && !isCorrect(entry, answers[entry.number]);
       }) && (
@@ -242,7 +242,7 @@ export function DiagramGroup({ g, gi, activePassage, flat, answers, submitted, s
   );
 }
 
-export function TableDiagramGroup({ g, gi, activePassage, flat, answers, submitted, setAnswer, questionRefs }) {
+export function TableDiagramGroup({ g, gi, activePassage, flat, answers, submitted, reveal = true, setAnswer, questionRefs }) {
   // counter dùng chung cho cả bảng lẫn đoạn văn — PHẢI quét bảng trước rồi mới tới đoạn văn (khớp
   // đúng thứ tự deriveTableDiagramBlanks quy định), không được đảo ngược.
   const counter = { current: 0 };
@@ -259,7 +259,7 @@ export function TableDiagramGroup({ g, gi, activePassage, flat, answers, submitt
             {g.table.rows.map((row, ri) => (
               <tr key={ri}>
                 {row.cells.map((cell, ci) => (
-                  <td key={ci}>{renderTextWithBlanks(normalizeBlankHolder(cell).text, counter, gi, activePassage, flat, answers, submitted, setAnswer, questionRefs)}</td>
+                  <td key={ci}>{renderTextWithBlanks(normalizeBlankHolder(cell).text, counter, gi, activePassage, flat, answers, submitted, reveal, setAnswer, questionRefs)}</td>
                 ))}
               </tr>
             ))}
@@ -270,7 +270,7 @@ export function TableDiagramGroup({ g, gi, activePassage, flat, answers, submitt
           hộp từ cho sẵn ngay dưới) — đảo thứ tự so với trước (từng để trên cùng). */}
       {(g.paragraphs ?? []).map((p, pi) => (
         <p key={pi} className="ielts-practice-summary-paragraph">
-          {renderTextWithBlanks(normalizeBlankHolder(p).text, counter, gi, activePassage, flat, answers, submitted, setAnswer, questionRefs)}
+          {renderTextWithBlanks(normalizeBlankHolder(p).text, counter, gi, activePassage, flat, answers, submitted, reveal, setAnswer, questionRefs)}
         </p>
       ))}
       <OptionsBox title={g.optionsTitle} options={g.optionsList} columns={3} />
@@ -288,6 +288,7 @@ export function TableDiagramGroup({ g, gi, activePassage, flat, answers, submitt
                   entry={entry}
                   value={answers[entry.number]}
                   submitted={submitted}
+                reveal={reveal}
                   onChange={setAnswer}
                   numberRef={el => (questionRefs.current[entry.number] = el)}
                 />
@@ -296,7 +297,7 @@ export function TableDiagramGroup({ g, gi, activePassage, flat, answers, submitt
           })}
         </div>
       )}
-      {submitted && blanks.some((_, qi) => {
+      {submitted && reveal && blanks.some((_, qi) => {
         const entry = flat.find(e => e.passageIndex === activePassage && e.groupIndex === gi && e.questionIndex === qi);
         return entry && !isCorrect(entry, answers[entry.number]);
       }) && (
@@ -321,7 +322,7 @@ export function TableDiagramGroup({ g, gi, activePassage, flat, answers, submitt
 // (`isExample`, chỉ hiện đáp án mẫu, không chấm điểm) hoặc câu hỏi thật (dropdown chọn 1 đáp án
 // trong danh sách, chấm điểm như các dạng khác). `qi` chỉ tăng ở mục KHÔNG phải ví dụ vì
 // `group.questions` (nguồn đánh số toàn Test) được sinh từ đúng các mục đó theo thứ tự.
-export function MatchingGroup({ g, gi, activePassage, flat, answers, submitted, setAnswer, questionRefs }) {
+export function MatchingGroup({ g, gi, activePassage, flat, answers, submitted, reveal = true, setAnswer, questionRefs }) {
   let qi = -1;
   return (
     <>
@@ -339,10 +340,10 @@ export function MatchingGroup({ g, gi, activePassage, flat, answers, submitted, 
         if (!entry) return null;
         const number = entry.number;
         const value = answers[number];
-        const correct = submitted ? isCorrect(entry, value) : null;
+        const correct = (submitted && reveal) ? isCorrect(entry, value) : null;
         return (
           <div
-            className={`ielts-practice-question${submitted ? (correct ? " is-correct" : " is-wrong") : ""}`}
+            className={`ielts-practice-question${(submitted && reveal) ? (correct ? " is-correct" : " is-wrong") : ""}`}
             key={ii}
             ref={el => (questionRefs.current[number] = el)}
           >
@@ -363,7 +364,7 @@ export function MatchingGroup({ g, gi, activePassage, flat, answers, submitted, 
                   </label>
                 ))}
               </div>
-              {submitted && !correct && (
+              {submitted && reveal && !correct && (
                 <p className="ielts-practice-correct-answer">Đáp án đúng: {String(it.answerKey ?? "").split("|")[0]}</p>
               )}
             </div>
@@ -378,15 +379,15 @@ export function MatchingGroup({ g, gi, activePassage, flat, answers, submitted, 
 // q.options/q.answer/q.label/q.acceptedAnswers tuỳ dạng. Tách thành component riêng (thay vì viết
 // thẳng trong vòng lặp .map ở IeltsPracticeRunner) để dùng lại được cho GroupPreviewModal.jsx (nút
 // "Preview" trong CMS, xem PracticeStudio.jsx — chốt 2026-09-12).
-export function StandardQuestionGroup({ g, gi, activePassage, flat, answers, submitted, setAnswer, questionRefs }) {
+export function StandardQuestionGroup({ g, gi, activePassage, flat, answers, submitted, reveal = true, setAnswer, questionRefs }) {
   return g.questions.map((q, qi) => {
     const entry = flat.find(e => e.passageIndex === activePassage && e.groupIndex === gi && e.questionIndex === qi);
     const number = entry.number;
     const value = answers[number];
-    const correct = submitted ? isCorrect(entry, value) : null;
+    const correct = (submitted && reveal) ? isCorrect(entry, value) : null;
     return (
       <div
-        className={`ielts-practice-question${submitted ? (correct ? " is-correct" : " is-wrong") : ""}`}
+        className={`ielts-practice-question${(submitted && reveal) ? (correct ? " is-correct" : " is-wrong") : ""}`}
         key={qi}
         ref={el => questionRefs && (questionRefs.current[number] = el)}
       >
@@ -407,7 +408,7 @@ export function StandardQuestionGroup({ g, gi, activePassage, flat, answers, sub
                   {String.fromCharCode(65 + oi)}. {opt}
                 </label>
               ))}
-              {submitted && !correct && (
+              {submitted && reveal && !correct && (
                 <p className="ielts-practice-correct-answer">Đáp án đúng: {String.fromCharCode(65 + q.answerIndex)}. {q.options[q.answerIndex]}</p>
               )}
             </>
@@ -430,7 +431,7 @@ export function StandardQuestionGroup({ g, gi, activePassage, flat, answers, sub
                 )}
                 <option value="NOT GIVEN">NOT GIVEN</option>
               </select>
-              {submitted && !correct && <p className="ielts-practice-correct-answer">Đáp án đúng: {q.answer}</p>}
+              {submitted && reveal && !correct && <p className="ielts-practice-correct-answer">Đáp án đúng: {q.answer}</p>}
             </>
           )}
           {g.type === "short-answer" && (
@@ -441,7 +442,7 @@ export function StandardQuestionGroup({ g, gi, activePassage, flat, answers, sub
                     /^_{3,}$/.test(part) ? (
                       <input
                         key={pi}
-                        className={`ielts-practice-inline-input${submitted ? (correct ? " is-correct" : " is-wrong") : ""}`}
+                        className={`ielts-practice-inline-input${(submitted && reveal) ? (correct ? " is-correct" : " is-wrong") : ""}`}
                         value={value ?? ""}
                         disabled={submitted}
                         onChange={e => setAnswer(number, e.target.value)}
@@ -462,7 +463,7 @@ export function StandardQuestionGroup({ g, gi, activePassage, flat, answers, sub
                   />
                 </>
               )}
-              {submitted && !correct && (
+              {submitted && reveal && !correct && (
                 <p className="ielts-practice-correct-answer">
                   Đáp án đúng: {String(q.acceptedAnswers ?? "").split("|")[0]}
                 </p>
@@ -482,7 +483,7 @@ export function StandardQuestionGroup({ g, gi, activePassage, flat, answers, sub
 // "Nộp bài" ngay từ đầu để hiện sẵn đáp án đúng cho giáo viên rà lại — không có đồng hồ đếm giờ/nút
 // Nộp bài/khung điểm (không có ý nghĩa khi chưa ai làm bài thật), chỉ còn nút "⬅ Quay lại" ở topbar
 // để đóng và về CMS (chốt 2026-09-12).
-export default function IeltsPracticeRunner({ test, onBack, mode = "practice", readOnly = false }) {
+export default function IeltsPracticeRunner({ test, onBack, mode = "practice", readOnly = false, studentUid, studentName, studentClass, seriesId, level, openingId }) {
   const isComprehension = mode === "comprehension";
   const flat = useMemo(() => flattenQuestions(test.passages), [test]);
   const [activePassage, setActivePassage] = useState(0);
@@ -492,20 +493,16 @@ export default function IeltsPracticeRunner({ test, onBack, mode = "practice", r
   // theo từng câu, bấm để xem dịch + từ vựng/từ đồng nghĩa (gộp "ĐỌC HIỂU" cũ vào đây, 2026-09-11).
   const [readMode, setReadMode] = useState(isComprehension ? "vocab" : "plain");
   const [submitted, setSubmitted] = useState(readOnly);
-  const [secondsLeft, setSecondsLeft] = useState(
-    !isComprehension && !readOnly && test.timeLimitMinutes ? test.timeLimitMinutes * 60 : null
-  );
+  // Học sinh làm bài thật: nộp xong chỉ khoá bài + hiện điểm, KHÔNG tô đúng/sai hay hiện đáp án. Chỉ Preview CMS (readOnly) hiện đáp án.
+  const reveal = readOnly;
   const questionRefs = useRef({});
-
-  useEffect(() => {
-    if (readOnly || secondsLeft == null || submitted) return;
-    if (secondsLeft <= 0) {
-      setSubmitted(true);
-      return;
-    }
-    const t = setTimeout(() => setSecondsLeft(s => s - 1), 1000);
-    return () => clearTimeout(t);
-  }, [secondsLeft, submitted, readOnly]);
+  // Đồng hồ chung (ExamTimer.jsx): hết giờ tự nộp bài. Chỉ chạy ở chế độ làm bài thật (không phải
+  // đọc hiểu/preview).
+  const timer = useExamTimer({
+    limitMinutes: test.timeLimitMinutes,
+    running: !isComprehension && !readOnly && !submitted,
+    onExpire: submitNow,
+  });
 
   function setAnswer(number, value) {
     setAnswers(a => ({ ...a, [number]: value }));
@@ -518,6 +515,20 @@ export default function IeltsPracticeRunner({ test, onBack, mode = "practice", r
     setTimeout(() => {
       questionRefs.current[number]?.scrollIntoView({ behavior: "smooth", block: "center" });
     }, 50);
+  }
+
+  // Chốt bài: khoá + lưu chi tiết từng câu cho giáo viên/admin (học sinh chỉ thấy điểm). Không lưu ở Preview CMS.
+  function submitNow() {
+    if (submitted) return;
+    setSubmitted(true);
+    if (studentUid) incrementAttempt({ uid: studentUid, mode: "ielts-reading", testId: attemptKey(test.id, openingId), seriesId, level });
+    let correct = 0;
+    const items = flat.map(entry => {
+      const ok = isCorrect(entry, answers[entry.number]);
+      if (ok) correct++;
+      return { qNumber: entry.number, studentAnswer: String(answers[entry.number] ?? ""), correctAnswer: String(entry.q?.answer ?? entry.q?.acceptedAnswers ?? entry.q?.answerIndex ?? ""), isCorrect: ok };
+    });
+    saveTestResult({ mode: "ielts-reading", seriesId, level, testId: test.id, lessonLabel: test.title, studentName, studentClass, uid: studentUid, correct, total: flat.length, elapsedMs: timer.getElapsedMs(), items });
   }
 
   const score = useMemo(() => {
@@ -608,6 +619,7 @@ export default function IeltsPracticeRunner({ test, onBack, mode = "practice", r
                     flat={flat}
                     answers={answers}
                     submitted={submitted}
+                reveal={reveal}
                     setAnswer={setAnswer}
                     questionRefs={questionRefs}
                   />
@@ -619,6 +631,7 @@ export default function IeltsPracticeRunner({ test, onBack, mode = "practice", r
                     flat={flat}
                     answers={answers}
                     submitted={submitted}
+                reveal={reveal}
                     setAnswer={setAnswer}
                     questionRefs={questionRefs}
                   />
@@ -630,6 +643,7 @@ export default function IeltsPracticeRunner({ test, onBack, mode = "practice", r
                     flat={flat}
                     answers={answers}
                     submitted={submitted}
+                reveal={reveal}
                     setAnswer={setAnswer}
                     questionRefs={questionRefs}
                   />
@@ -641,6 +655,7 @@ export default function IeltsPracticeRunner({ test, onBack, mode = "practice", r
                     flat={flat}
                     answers={answers}
                     submitted={submitted}
+                reveal={reveal}
                     setAnswer={setAnswer}
                     questionRefs={questionRefs}
                   />
@@ -654,14 +669,9 @@ export default function IeltsPracticeRunner({ test, onBack, mode = "practice", r
 
       {!isComprehension && !readOnly && (
       <div className="ielts-practice-sidebar">
-        {secondsLeft != null && (
-          <div className="ielts-practice-timer">
-            <span>Thời gian làm bài:</span>
-            <strong>{formatTime(Math.max(secondsLeft, 0))}</strong>
-          </div>
-        )}
+        <ExamTimer timer={timer} />
         {!submitted ? (
-          <button type="button" className="btn btn-primary ielts-practice-submit" onClick={() => setSubmitted(true)}>
+          <button type="button" className="btn btn-primary ielts-practice-submit" onClick={submitNow}>
             NỘP BÀI
           </button>
         ) : (
@@ -674,7 +684,7 @@ export default function IeltsPracticeRunner({ test, onBack, mode = "practice", r
             <button
               key={entry.number}
               type="button"
-              className={`ielts-practice-navbtn${answers[entry.number] != null && answers[entry.number] !== "" ? " is-answered" : ""}${submitted ? (isCorrect(entry, answers[entry.number]) ? " is-correct" : " is-wrong") : ""}`}
+              className={`ielts-practice-navbtn${answers[entry.number] != null && answers[entry.number] !== "" ? " is-answered" : ""}${(submitted && reveal) ? (isCorrect(entry, answers[entry.number]) ? " is-correct" : " is-wrong") : ""}`}
               onClick={() => jumpTo(entry.number)}
             >
               {entry.number}

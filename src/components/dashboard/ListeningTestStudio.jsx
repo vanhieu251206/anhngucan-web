@@ -155,7 +155,7 @@ export default function ListeningTestStudio({
   sections,
   onSectionsChange,
   maxAttempts,
-  onMaxAttemptsChange,
+  onMaxAttemptsChange, timeLimitMinutes, onTimeLimitChange,
   onBack,
   onSave,
   saving,
@@ -202,6 +202,17 @@ export default function ListeningTestStudio({
           placeholder="Không giới hạn"
         />
       </label>
+        <label className="studio-max-attempts" title="Hết giờ hệ thống tự nộp bài — để trống nghĩa là không giới hạn (chỉ đếm giờ đã làm).">
+          <span>Thời gian (phút)</span>
+          <input
+            type="number"
+            min={1}
+            className="admin-input"
+            value={timeLimitMinutes ?? ""}
+            onChange={e => onTimeLimitChange(e.target.value === "" ? null : Number(e.target.value))}
+            placeholder="Không giới hạn"
+          />
+        </label>
     </div>
   );
 }

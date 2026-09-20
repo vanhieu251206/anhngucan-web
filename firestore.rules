@@ -36,6 +36,11 @@ service cloud.firestore {
     match /users/{uid} {
       allow read: if isSignedIn();
       allow write: if isAdmin();
+      // Giáo viên được tạo hồ sơ HỌC SINH (Dashboard → Tài khoản học sinh), không được tạo admin/teacher.
+      allow create: if isStaff() && request.resource.data.role == 'student';
+      // Học sinh tự xoá cờ "phải đổi mật khẩu lần đầu" trên hồ sơ của chính mình (chỉ đúng field này).
+      allow update: if isSignedIn() && request.auth.uid == uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['mustChangePassword']);
     }
 
     match /lessons/{lessonId} {
@@ -111,6 +116,20 @@ service cloud.firestore {
         && request.resource.data.uid == request.auth.uid
         && request.resource.data.count == resource.data.count + 1;
       allow delete: if isStaff();
+    }
+
+    // Kết quả chi tiết từng câu (mọi dạng bài) — học sinh chỉ ghi, chỉ giáo viên/admin đọc.
+    match /testResults/{resultId} {
+      allow read: if isStaff();
+      allow create: if true;
+      allow update, delete: if false;
+    }
+
+    // "Mở bài" cho lớp (lib/openings.js): học sinh đăng nhập đọc để biết bài nào đang mở cho lớp mình, chỉ
+    // admin/teacher tạo/sửa/đóng. Mật khẩu vào bài lưu dạng hash SHA-256.
+    match /openings/{openingId} {
+      allow read: if isSignedIn();
+      allow write: if isStaff();
     }
 
     match /classAssignments/{className} {
