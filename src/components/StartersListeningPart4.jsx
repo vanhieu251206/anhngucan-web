@@ -494,7 +494,7 @@ export default function StartersListeningPart4Runner({ part, submitted, onScore 
         {zoom !== 1 && <button type="button" className="p4e-tool" onClick={() => setZoom(1)}>Vừa khung</button>}
       </div>
 
-      <div className="p4e-scroll">
+      <div className="p4e-scroll" style={zoom === 1 ? { maxHeight: "none", overflow: "visible" } : undefined}>
       <div ref={stageRef} className="p4s-stage" style={{ containerType: "inline-size", width: `${zoom * 100}%` }} onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag}>
         <canvas
           ref={canvasRef}
