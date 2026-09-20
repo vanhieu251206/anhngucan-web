@@ -1,5 +1,6 @@
 import { addDoc, collection, serverTimestamp } from "firebase/firestore";
 import { db } from "./firebase.js";
+import { isHistoryDisabled } from "./historyGuard.js";
 
 // Ghi log THUẦN TEXT (không lưu file âm thanh) mỗi lượt học sinh bấm mic trả lời — dùng để sau
 // này phân tích các lỗi phát âm/nhận diện thường gặp của trẻ Việt Nam (vd cách phát âm ngoài đời
@@ -16,6 +17,7 @@ export async function logSpeechAttempt({
   attemptNumber,
   correct,
 }) {
+  if (isHistoryDisabled()) return;
   try {
     await addDoc(collection(db, "speechLogs"), {
       lessonId: lessonId ?? null,

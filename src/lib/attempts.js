@@ -1,5 +1,6 @@
 import { doc, getDoc, setDoc, increment, serverTimestamp } from "firebase/firestore";
 import { db } from "./firebase.js";
+import { isHistoryDisabled } from "./historyGuard.js";
 
 // Đếm số lượt học sinh đã NỘP BÀI 1 Test (Speaking/Reading) — dùng để chặn khi chạm
 // `test.maxAttempts` (đặt riêng từng Test trong CMS, xem CreateLessonPage.jsx). 1 doc riêng cho
@@ -17,6 +18,7 @@ export async function getAttemptCount(uid, mode, testId) {
 // nhiều tab cùng nộp (hiếm nhưng an toàn hơn). Firestore Rules bắt buộc mỗi lần ghi chỉ được
 // tăng ĐÚNG +1 trên đúng doc của chính uid đó (xem firestore.rules).
 export async function incrementAttempt({ uid, mode, testId, seriesId, level }) {
+  if (isHistoryDisabled()) return;
   await setDoc(
     doc(db, "attempts", attemptDocId(uid, mode, testId)),
     { uid, mode, testId, seriesId, level, count: increment(1), updatedAt: serverTimestamp() },

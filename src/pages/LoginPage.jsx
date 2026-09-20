@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "../lib/firebase.js";
+import { TESTER_EMAIL_DOMAIN } from "../lib/adminUsers.js";
 import PasswordInput from "../components/PasswordInput.jsx";
 
 const AUTH_BG = `${import.meta.env.BASE_URL}assets/img/backgrounds/auth-bg.jpg`;
@@ -12,6 +13,12 @@ const AUTH_BG = `${import.meta.env.BASE_URL}assets/img/backgrounds/auth-bg.jpg`;
 // khoản học sinh tạo hàng loạt qua CMS (StudentAccountsPage.jsx). Sau khi đăng nhập, đọc thẳng
 // role từ Firestore (không đợi AuthProvider ở App.jsx kịp cập nhật) để điều hướng đúng: học sinh
 // vào thẳng "lessons", admin/teacher vào "dashboard".
+// Tài khoản đặc biệt đăng nhập bằng tên đăng nhập (không có "@") — tự nối domain giả, xem adminUsers.js.
+function toAuthEmail(input) {
+  const v = input.trim();
+  return v.includes("@") ? v : `${v.toLowerCase()}@${TESTER_EMAIL_DOMAIN}`;
+}
+
 export default function LoginPage({ onNavigate }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -32,12 +39,12 @@ export default function LoginPage({ onNavigate }) {
     setError("");
     setLoading(true);
         try {
-      const cred = await signInWithEmailAndPassword(auth, email.trim(), password);
+      const cred = await signInWithEmailAndPassword(auth, toAuthEmail(email), password);
       const snap = await getDoc(doc(db, "users", cred.user.uid));
       const role = snap.exists() ? snap.data().role : null;
       onNavigate(role === "admin" || role === "teacher" ? "dashboard" : "lessons");
     } catch {
-      setError("Sai email hoặc mật khẩu.");
+      setError("Sai tài khoản hoặc mật khẩu.");
     } finally {
       setLoading(false);
     }
@@ -52,8 +59,9 @@ export default function LoginPage({ onNavigate }) {
         <form className="auth-form" onSubmit={handleSubmit}>
           <input
             className="auth-input"
-            type="email"
-            placeholder="Email"
+            type="text"
+            autoCapitalize="none"
+            placeholder="Email hoặc tên đăng nhập"
             value={email}
             onChange={e => setEmail(e.target.value)}
             autoFocus

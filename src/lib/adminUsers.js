@@ -35,7 +35,21 @@ const firebaseConfig = {
 // luôn thành user mới tạo, đá admin ra khỏi phiên hiện tại — đây là hành vi mặc định đã biết
 // của SDK, không phải bug. Cách né: tạo 1 Firebase App phụ (secondary) chỉ dùng để tạo tài
 // khoản, không đụng gì tới app/auth chính đang giữ phiên đăng nhập admin.
-export async function createTeacherAccount(email, password) {
+export function createTeacherAccount(email, password) {
+  return createStaffLikeAccount("teacher", email, password);
+}
+
+// Tài khoản đặc biệt (role "tester"): đăng nhập làm được mọi dạng bài nhưng không ghi lịch sử vào
+// hệ thống — xem lib/historyGuard.js. Không vào được khu vực quản trị (isStaff = false).
+// Đăng nhập bằng tên đăng nhập (không cần email thật): Firebase Auth bắt buộc định dạng email nên
+// tự nối "@tester.local" (domain giả, không gửi mail đi đâu) — LoginPage.jsx cũng tự nối như vậy.
+export const TESTER_EMAIL_DOMAIN = "tester.local";
+
+export function createTesterAccount(username, password) {
+  return createStaffLikeAccount("tester", `${username}@${TESTER_EMAIL_DOMAIN}`, password, { username });
+}
+
+async function createStaffLikeAccount(role, email, password, extra = {}) {
   const secondaryApp = initializeApp(firebaseConfig, `secondary-${Date.now()}`);
   const secondaryAuth = getAuth(secondaryApp);
   try {
@@ -43,8 +57,9 @@ export async function createTeacherAccount(email, password) {
     // Ghi Firestore bằng `db` CHÍNH (vẫn đang đăng nhập là admin, không phải secondary) —
     // đúng field role Firestore Rules yêu cầu để chấp nhận write.
     await setDoc(doc(db, "users", cred.user.uid), {
-      role: "teacher",
+      role,
       email,
+      ...extra,
       createdAt: serverTimestamp(),
     });
     return { uid: cred.user.uid, email };
@@ -60,6 +75,11 @@ export async function createTeacherAccount(email, password) {
 
 export async function listTeachers() {
   const snap = await getDocs(query(collection(db, "users"), where("role", "==", "teacher")));
+  return snap.docs.map(d => ({ uid: d.id, ...d.data() }));
+}
+
+export async function listTesters() {
+  const snap = await getDocs(query(collection(db, "users"), where("role", "==", "tester")));
   return snap.docs.map(d => ({ uid: d.id, ...d.data() }));
 }
 

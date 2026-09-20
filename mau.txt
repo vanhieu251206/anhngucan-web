@@ -1,0 +1,65 @@
+=== TIÊU ĐỀ PASSAGE ===
+The Nature of Genius
+
+=== BÀI ĐỌC (dán vào ô "Bài đọc", mỗi dòng = 1 đoạn) ===
+There has always been an interest in geniuses and prodigies. The word 'genius', from the Latin gens (= family) and the term 'genius', meaning 'begetter', comes from the early Roman cult of a divinity as the head of the family. In its earliest form, genius was concerned with the ability of the head of the family, the paterfamilias, to perpetuate himself. Gradually, genius came to represent a person's characteristics and thence an individual's highest attributes derived from his 'genius' or guiding spirit. Today, people still look to stars or genes, astrology or genetics, in the hope of finding the source of exceptional abilities or personal characteristics.
+The concept of genius and of gifts has become part of our folk culture, and attitudes are ambivalent towards them. We envy the gifted and mistrust them. In the mythology of giftedness, it is popularly believed that if people are talented in one area, they must be defective in another, that intellectuals are impractical, that prodigies burn too brightly too soon and burn out, that gifted people are eccentric, that they are physical weaklings, that there's a thin line between genius and madness, that genius runs in families, that the gifted are so clever they don't need special help, that giftedness is the same as having a high IQ, that some races are more intelligent or musical or mathematical than others, that genius goes unrecognised and unrewarded, that adversity makes men wise or that people with gifts have a responsibility to use them. Language has been enriched with such terms as 'highbrow', 'egghead', 'blue-stocking', 'wiseacre', 'know-all', 'boffin' and, for many, 'intellectual' is a term of denigration.
+The nineteenth century saw considerable interest in the nature of genius, and produced not a few studies of famous prodigies. Perhaps for us today, two of the most significant aspects of most of these studies of genius are the frequency with which early encouragement and teaching by parents and tutors had beneficial effects on the intellectual, artistic or musical development of the children but caused great difficulties of adjustment later in their lives, and the frequency with which abilities went unrecognised by teachers and schools. However, the difficulty with the evidence produced by these studies, fascinating as they are in collecting together anecdotes and apparent similarities and exceptions, is that they are not what we would today call norm-referenced. In other words, when, for instance, information is collated about early illnesses, methods of upbringing, schooling, etc., we must also take into account information from other historical sources about how common or exceptional these were at the time. For instance, infant mortality was high and life expectancy much shorter than today, home tutoring was common in the families of the nobility and wealthy, bullying and corporal punishment were common at the best independent schools and, for the most part, the cases studied were members of the privileged classes. It was only with the growth of paediatrics and psychology in the twentieth century that studies could be carried out on a more objective, if still not always very scientific, basis.
+Geniuses, however they are defined, are but the peaks which stand out through the mist of history and are visible to the particular observer from his or her particular vantage point. Change the observers and the vantage points, clear away some of the mist, and a different lot of peaks appear. Genius is a term we apply to those whom we recognise for their outstanding achievements and who stand near the end of the continuum of human abilities which reaches back through the mundane and mediocre to the incapable. There is still much truth in Dr Samuel Johnson's observation, 'The true genius is a mind of large general powers, accidentally determined to some particular direction'. We may disagree with the 'general', for we doubt if all musicians of genius could have become scientists of genius or vice versa, but there is no doubting the accidental determination which nurtured or triggered their gifts into those channels into which they have poured their powers so successfully. Along the continuum of abilities are hundreds of thousands of gifted men and women, boys and girls.
+What we appreciate, enjoy or marvel at in the works of genius or the achievements of prodigies are the manifestations of skills or abilities which are similar to, but so much superior to, our own. But that their minds are not different from our own is demonstrated by the fact that the hard-won discoveries of scientists like Kepler or Einstein become the commonplace knowledge of schoolchildren and the once outrageous shapes and colours of an artist like Paul Klee so soon appear on the fabrics we wear. This does not minimise the supremacy of their achievements, which outstrip our own as the sub-four-minute milers outstrip our jogging.
+To think of geniuses and the gifted as having uniquely different brains is only reasonable if we accept that each human brain is uniquely different. The purpose of instruction is to make us even more different from one another, and in the process of being educated we can learn from the achievements of those more gifted than ourselves. But before we try to emulate geniuses or encourage our children to do so we should note that some of the things we learn from them may prove unpalatable. We may envy their achievements and fame, but we should also recognise the price they may have paid in terms of perseverance, single-mindedness, dedication, restrictions on their personal lives, the demands upon their energies and time, and how often they had to display great courage to preserve their integrity or to make their way to the top.
+Genius and giftedness are relative descriptive terms of no real substance. We may, at best, give them some precision by defining them and placing them in a context but, whatever we do, we should never delude ourselves into believing that gifted children or geniuses are different from the rest of humanity, save in the degree to which they have developed the performance of their abilities.
+
+=== NHÓM 1: Câu 14-18 — dùng dạng "Ghép nối / Chọn từ danh sách" (matching) ===
+--- Yêu cầu đề bài (dán vào ô "Yêu cầu đề bài", đúng thứ tự như trong ảnh) ---
+Questions 14-18
+Choose FIVE letters, A-K.
+Write the correct letters in boxes 14-18 on your answer sheet.
+NB Your answers may be given in any order.
+
+Below are listed some popular beliefs about genius and giftedness.
+Which FIVE of these beliefs are reported by the writer of the text?
+
+--- 5 câu cần ghép (dán nhanh vào ô "Dán nhanh (mỗi dòng 1 câu)", mỗi dòng ứng với 1 câu 14-18) ---
+Truly gifted people are talented in all areas.
+The talents of geniuses are soon exhausted.
+Gifted people should use their gifts.
+A genius appears once in every generation.
+Genius can be easily destroyed by discouragement.
+Genius is inherited.
+Gifted people are very hard to live with.
+People never appreciate true genius.
+Geniuses are natural leaders.
+Gifted people develop their greatness through difficulties.
+Genius will always reveal itself.
+LƯU Ý: đây là 11 mục A-K dùng làm "Danh sách đáp án dùng chung" (word bank bên dưới), KHÔNG dán 11 dòng này vào ô "Dán nhanh (mỗi dòng 1 câu)" — ô đó chỉ cần 5 câu hỏi thật (câu 14-18), nhưng đề KHÔNG cho sẵn 5 câu hỏi riêng, học sinh phải tự chọn 5 trong 11 mục trên. Cách làm đúng trong CMS: thêm 5 dòng trống trong "Danh sách mục cần ghép", mỗi dòng chỉ cần chọn đáp án đúng (answerKey = 1 chữ cái A-K) — phần "label" (nội dung câu hỏi hiển thị) để trống vì đề không có nội dung câu hỏi riêng cho từng câu, chỉ có chung 1 danh sách A-K.
+
+--- Đáp án đúng cho từng câu (theo đúng thứ tự 14-18) ---
+Câu 14: (giáo viên tự chọn 1 trong 5 chữ cái đúng, xem đáp án gốc)
+Câu 15: ...
+Câu 16: ...
+Câu 17: ...
+Câu 18: ...
+
+--- Word bank (dán vào ô Word bank, giữ nguyên định dạng chữ cái + Tab + nội dung) ---
+A	Truly gifted people are talented in all areas.
+B	The talents of geniuses are soon exhausted.
+C	Gifted people should use their gifts.
+D	A genius appears once in every generation.
+E	Genius can be easily destroyed by discouragement.
+F	Genius is inherited.
+G	Gifted people are very hard to live with.
+H	People never appreciate true genius.
+I	Geniuses are natural leaders.
+J	Gifted people develop their greatness through difficulties.
+K	Genius will always reveal itself.
+
+=== NHÓM 2: Câu 19-26 — dùng dạng "True / False / Not Given" (chọn bộ nhãn TRUE/FALSE/NOT GIVEN) ===
+Nineteenth-century studies of the nature of genius failed to take into account the uniqueness of the person's upbringing.
+Nineteenth-century studies of genius lacked both objectivity and a proper scientific approach.
+A true genius has general powers capable of excellence in any area.
+The skills of ordinary individuals are in essence the same as the skills of prodigies.
+The ease with which truly great ideas are accepted and taken for granted fails to lessen their significance.
+Giftedness and genius deserve proper scientific research into their true nature so that all talent may be retained for the human race.
+Geniuses often pay a high price to achieve greatness.
+To be a genius is worth the high personal cost.

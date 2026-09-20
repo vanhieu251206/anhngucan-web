@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState } from "react";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "./firebase.js";
+import { setHistoryDisabled } from "./historyGuard.js";
 
 const AuthContext = createContext(null);
 
@@ -39,6 +40,11 @@ export function AuthProvider({ children }) {
   }, []);
 
   const isStaff = role === "admin" || role === "teacher";
+  // Tài khoản đặc biệt: làm được mọi bài (bỏ qua mật khẩu bộ đề/giới hạn lượt) nhưng không ghi
+  // lịch sử — xem lib/historyGuard.js. Đặt cờ ngay trong render (không đợi effect) để chắc chắn
+  // cờ đã bật trước khi bất kỳ Runner nào kịp mount và gọi hàm ghi.
+  const isTester = role === "tester";
+  setHistoryDisabled(isTester);
 
   const value = {
     user,
@@ -46,6 +52,7 @@ export function AuthProvider({ children }) {
     profile,
     loading,
     isStaff,
+    isTester,
     isAdmin: role === "admin",
     isTeacher: role === "teacher",
     isStudent: role === "student",

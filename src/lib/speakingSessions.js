@@ -1,5 +1,6 @@
 import { addDoc, collection, doc, serverTimestamp, updateDoc } from "firebase/firestore";
 import { db } from "./firebase.js";
+import { isHistoryDisabled } from "./historyGuard.js";
 
 // Báo cáo QUÁ TRÌNH làm bài Speaking (chốt 2026-08-24) — 1 session = 1 lần học sinh (đã nhập họ
 // tên) vào làm 1 bài Speaking, gồm nhiều "event" (mỗi lượt bấm mic/chọn thẻ/kéo-thả/chạm trong
@@ -8,6 +9,7 @@ import { db } from "./firebase.js";
 // chặn...) đều bị nuốt, KHÔNG được chặn luồng học của học sinh.
 
 export async function startSpeakingSession({ studentName, studentClass, seriesId, level, testId, lessonLabel, sceneCount }) {
+  if (isHistoryDisabled()) return null;
   try {
     const ref = await addDoc(collection(db, "speakingSessions"), {
       studentName: studentName ?? null,

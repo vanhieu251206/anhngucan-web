@@ -4,6 +4,7 @@ import Sidebar from "../components/Sidebar.jsx";
 import OverviewPage from "./dashboard/OverviewPage.jsx";
 import CreateLessonPage from "./dashboard/CreateLessonPage.jsx";
 import TeacherAccountsPage from "./dashboard/TeacherAccountsPage.jsx";
+import TesterAccountsPage from "./dashboard/TesterAccountsPage.jsx";
 import SeriesPasswordsPage from "./dashboard/SeriesPasswordsPage.jsx";
 import StudentResultsPage from "./dashboard/StudentResultsPage.jsx";
 import SpeechLogsPage from "./dashboard/SpeechLogsPage.jsx";
@@ -16,6 +17,7 @@ const ADMIN_ITEMS = [
   { key: "series-passwords", label: "Mật khẩu bộ đề" },
   { key: "results", label: "Kết quả học sinh" },
   { key: "teachers", label: "Cấu hình tài khoản giáo viên" },
+  { key: "testers", label: "Tài khoản đặc biệt" },
   { key: "speech-logs", label: "Log phát âm" },
 ];
 // Giáo viên cũng được soạn bài (create-lesson) như admin, chỉ không có "Cấu hình tài khoản giáo
@@ -81,6 +83,7 @@ export default function DashboardPage({ onNavigate }) {
             {section === "create-lesson" && (isAdmin || isTeacher) && <CreateLessonPage />}
             {section === "series-passwords" && (isAdmin || isTeacher) && <SeriesPasswordsPage />}
             {section === "teachers" && isAdmin && <TeacherAccountsPage />}
+            {section === "testers" && isAdmin && <TesterAccountsPage />}
             {section === "speech-logs" && isAdmin && <SpeechLogsPage />}
             {section === "results" && (isAdmin || isTeacher) && <StudentResultsPage />}
           </div>

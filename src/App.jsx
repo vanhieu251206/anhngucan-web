@@ -25,7 +25,7 @@ function initialNavFromUrl() {
 
 export default function App() {
   const [{ page, lessonSeriesId }, setNav] = useState(initialNavFromUrl);
-  const { user, isStaff, loading } = useAuth();
+  const { user, isStaff, isTester, loading } = useAuth();
   // Bộ đề đã mở khoá bằng mật khẩu trong PHIÊN này (chốt 2026-09-17: bỏ tài khoản học sinh, quay
   // lại mật khẩu như PasswordGate cũ nhưng tách riêng theo từng bộ đề — xem lib/seriesAccess.js).
   // Lưu bằng số đếm (không phải Set) để ép re-render khi SeriesPasswordGate mở khoá xong.
@@ -116,7 +116,7 @@ export default function App() {
     // `loading` xong mới quyết định để không chớp qua màn nhập mật khẩu ngay lúc Auth vừa xác thực
     // lại phiên admin/teacher cũ lúc F5.
     if (loading) return null;
-    if (!isStaff && !seriesUnlocked && gateSeries) {
+    if (!isStaff && !isTester && !seriesUnlocked && gateSeries) {
       return (
         <SeriesPasswordGate
           seriesId={gateSeries.id}

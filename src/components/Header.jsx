@@ -11,6 +11,8 @@ const NAV_ITEMS = [
   { key: "contact", label: "Liên hệ" },
 ];
 
+const ROLE_LABELS = { admin: "Admin", teacher: "Giáo viên", tester: "Tài khoản đặc biệt" };
+
 export default function Header({ page, onNavigate }) {
   const { user, role, isStaff, logout } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -60,7 +62,7 @@ export default function Header({ page, onNavigate }) {
 
           <div className="home-topbar-actions">
             <button className="top-nav-login" onClick={handleAuthClick} title={user?.email}>
-              {user ? `${role === "admin" ? "Admin" : "Giáo viên"} · Đăng xuất` : "Đăng nhập"}
+              {user ? `${ROLE_LABELS[role] ?? "Giáo viên"} · Đăng xuất` : "Đăng nhập"}
             </button>
             <button className="top-nav-cta" onClick={() => handleNavClick("lessons")}>
               Học thử ngay
@@ -98,7 +100,7 @@ export default function Header({ page, onNavigate }) {
             )}
             <div className="home-topbar-mobile-actions">
               <button className="top-nav-login" onClick={handleAuthClick} title={user?.email}>
-                {user ? `${role === "admin" ? "Admin" : "Giáo viên"} · Đăng xuất` : "Đăng nhập"}
+                {user ? `${ROLE_LABELS[role] ?? "Giáo viên"} · Đăng xuất` : "Đăng nhập"}
               </button>
               <button className="top-nav-cta" onClick={() => handleNavClick("lessons")}>
                 Học thử ngay
