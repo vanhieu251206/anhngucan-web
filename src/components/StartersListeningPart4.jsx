@@ -4,6 +4,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 // (StartersListeningPart4Editor.jsx: chạm để tô nhanh cả vùng kín, hoặc dùng cọ/tẩy cho chuẩn). Học sinh chọn
 // màu bất kỳ rồi chạm vào cái bánh: đúng vùng giáo viên đã tô sẽ hiện màu đó, nét đen của tranh luôn nằm
 // trên cùng (multiply) nên màu ăn sát viền, không lem. Câu đúng khi màu học sinh tô trùng màu đúng.
+// Movers Part 5 (partNo = 5) dùng lại y hệt và thêm câu "viết chữ": item { kind: "write", box: {x,y,w,h}, answer } —
+// học sinh bấm "Thêm chữ", gõ chữ rồi KÉO chữ tới đúng chỗ trên tranh; đúng khi chữ khớp đáp án (không phân biệt
+// hoa thường) và tâm chữ nằm trong khung giáo viên vẽ sẵn (khung không hiện cho học sinh, chỉ hiện khi nộp bài).
+// Học sinh TÔ TỰ DO bằng cọ / tẩy / tô nhanh vùng kín ở bất kỳ đâu; khi nộp bài, chấm bằng cách so lớp tô với vùng
+// đáp án giáo viên đã tô sẵn (xem gradeColours).
 // Dữ liệu: { audioUrl, imageUrl, items: [{ id, color, ops }] } — ops theo thứ tự:
 //   { t: "fill", x, y }                       tô nhanh vùng kín quanh điểm (toạ độ % ảnh)
 //   { t: "brush", size, e, pts: [x, y, ...] } nét cọ (size = % bề rộng ảnh, e = tẩy), pts phẳng vì Firestore không cho mảng lồng.
@@ -18,6 +23,27 @@ export const PALETTE = [
   { id: "purple", name: "Purple", hex: "#a66be0" },
 ];
 export const hexOf = id => PALETTE.find(p => p.id === id)?.hex;
+
+export const isWriteItem = it => it.kind === "write";
+const normText = t => String(t ?? "").toLowerCase().replace(/\s+/g, " ").trim();
+// Câu tô màu hợp lệ = có màu + vùng đã tô; câu viết chữ hợp lệ = có khung + đáp án.
+export const itemReady = it => (isWriteItem(it) ? !!it.box && !!it.answer?.trim() : !!it.ops?.length && !!it.color);
+export const part4Has = p => !!p?.imageUrl && !!p?.items?.some(i => (isWriteItem(i) ? !!i.box : !!i.ops?.length));
+
+const shuffled = arr => {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+};
+// Tâm chữ nằm trong khung đáp án (nới thêm một chút cho dễ trúng).
+const inBox = (l, b) => {
+  const mx = b.w * 0.15;
+  const my = b.h * 0.5;
+  return l.x >= b.x - mx && l.x <= b.x + b.w + mx && l.y >= b.y - my && l.y <= b.y + b.h + my;
+};
 
 const LINE_LUM = 120; // sáng hơn mức này = không phải nét vẽ
 
@@ -172,91 +198,315 @@ function maskBox(mask) {
   return { x: (x0 / w) * 100, y: (y0 / h) * 100, w: ((x1 - x0 + 1) / w) * 100, h: ((y1 - y0 + 1) / h) * 100 };
 }
 
+// ---- Tô tự do của học sinh (cọ / tẩy / tô nhanh vùng kín) ----
+// Lớp tô của học sinh là 1 canvas riêng, dựng lại từ danh sách thao tác `ops` (để hoàn tác):
+//   { t: "fill", x, y, c }  |  { t: "brush", size, e, c, pts: [x, y, ...] }   (x, y, pts theo % ảnh, c = id màu)
+function drawStroke(ctx, w, h, size, erase, hex, pts, from = 0) {
+  ctx.globalCompositeOperation = erase ? "destination-out" : "source-over";
+  ctx.strokeStyle = hex ?? "#000";
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.lineWidth = Math.max(1, (size / 100) * w);
+  ctx.beginPath();
+  ctx.moveTo((pts[from] / 100) * w, (pts[from + 1] / 100) * h);
+  if (pts.length - from === 2) ctx.lineTo((pts[from] / 100) * w + 0.01, (pts[from + 1] / 100) * h);
+  for (let i = from + 2; i < pts.length; i += 2) ctx.lineTo((pts[i] / 100) * w, (pts[i + 1] / 100) * h);
+  ctx.stroke();
+  ctx.globalCompositeOperation = "source-over";
+}
+
+function replayOps(layer, ops, orig) {
+  const { width: w, height: h } = layer;
+  const ctx = layer.getContext("2d");
+  ctx.clearRect(0, 0, w, h);
+  for (const op of ops) {
+    if (op.t === "fill") {
+      const region = regionOf(orig, Math.round((op.x / 100) * (w - 1)), Math.round((op.y / 100) * (h - 1)));
+      if (!region) continue;
+      const hex = hexOf(op.c);
+      const r = parseInt(hex.slice(1, 3), 16);
+      const g = parseInt(hex.slice(3, 5), 16);
+      const b = parseInt(hex.slice(5, 7), 16);
+      const id = ctx.createImageData(w, h);
+      for (const p of region) {
+        id.data[p * 4] = r;
+        id.data[p * 4 + 1] = g;
+        id.data[p * 4 + 2] = b;
+        id.data[p * 4 + 3] = 255;
+      }
+      const t = document.createElement("canvas");
+      t.width = w;
+      t.height = h;
+      t.getContext("2d").putImageData(id, 0, 0);
+      for (const [dx, dy] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]]) ctx.drawImage(t, dx, dy);
+    } else if (op.pts?.length >= 2) {
+      drawStroke(ctx, w, h, op.size, op.e, hexOf(op.c), op.pts);
+    }
+  }
+}
+
+function paintLayer(canvas, img, layer) {
+  const { width: w, height: h } = canvas;
+  const ctx = canvas.getContext("2d");
+  ctx.globalCompositeOperation = "source-over";
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(0, 0, w, h);
+  ctx.drawImage(layer, 0, 0);
+  ctx.globalCompositeOperation = "multiply";
+  ctx.drawImage(img, 0, 0);
+  ctx.globalCompositeOperation = "source-over";
+}
+
+// Chấm: với mỗi câu tô màu, so lớp tô của học sinh với vùng đáp án giáo viên đã tô sẵn.
+//  - phủ ≥ 55% vùng đáp án bằng ĐÚNG màu,
+//  - màu khác đè lên vùng đáp án ≤ 35%,
+//  - màu đúng tô lem ra ngoài vùng đáp án (không thuộc câu nào cùng màu) ≤ 100% diện tích vùng (chặn tô kín cả tranh).
+function gradeColours(layer, colourItems, masks) {
+  const { width: w, height: h } = layer;
+  const d = layer.getContext("2d").getImageData(0, 0, w, h).data;
+  const rgb = PALETTE.map(p => [parseInt(p.hex.slice(1, 3), 16), parseInt(p.hex.slice(3, 5), 16), parseInt(p.hex.slice(5, 7), 16)]);
+  const n = w * h;
+  const label = new Int8Array(n).fill(-1); // chỉ số màu gần nhất trong PALETTE, -1 = chưa tô
+  for (let i = 0; i < n; i++) {
+    if (d[i * 4 + 3] < 128) continue;
+    let best = 0;
+    let bd = Infinity;
+    for (let k = 0; k < rgb.length; k++) {
+      const dr = d[i * 4] - rgb[k][0];
+      const dg = d[i * 4 + 1] - rgb[k][1];
+      const db = d[i * 4 + 2] - rgb[k][2];
+      const dist = dr * dr + dg * dg + db * db;
+      if (dist < bd) {
+        bd = dist;
+        best = k;
+      }
+    }
+    label[i] = best;
+  }
+  const maskData = Object.fromEntries(colourItems.map(it => [it.id, masks[it.id]?.getContext("2d").getImageData(0, 0, w, h).data]));
+  const result = {};
+  for (const it of colourItems) {
+    const md = maskData[it.id];
+    const ci = PALETTE.findIndex(p => p.id === it.color);
+    if (!md || ci < 0) {
+      result[it.id] = false;
+      continue;
+    }
+    let area = 0;
+    let good = 0;
+    let bad = 0;
+    for (let i = 0; i < n; i++) {
+      if (md[i * 4 + 3] === 0) continue;
+      area++;
+      if (label[i] === ci) good++;
+      else if (label[i] >= 0) bad++;
+    }
+    // Vùng đáp án của mọi câu cùng màu — tô vào đó không tính là lem.
+    const same = colourItems.filter(o => o.color === it.color).map(o => maskData[o.id]).filter(Boolean);
+    let spill = 0;
+    for (let i = 0; i < n; i++) {
+      if (label[i] === ci && !same.some(m => m[i * 4 + 3] > 0)) spill++;
+    }
+    result[it.id] = area > 0 && good / area >= 0.55 && bad / area <= 0.35 && spill <= area;
+  }
+  return result;
+}
+
+const TOOLS = [
+  { id: "brush", label: "🖌️ Cọ" },
+  { id: "erase", label: "🧽 Tẩy" },
+];
+
 export default function StartersListeningPart4Runner({ part, submitted, onScore }) {
-  const items = useMemo(() => (part.items ?? []).filter(i => i.ops?.length && i.color), [part.items]);
+  const items = useMemo(() => (part.items ?? []).filter(itemReady), [part.items]);
+  const colourItems = useMemo(() => items.filter(i => !isWriteItem(i)), [items]);
+  const palette = useMemo(() => shuffled(PALETTE), []); // xáo ngẫu nhiên để thứ tự màu không lộ đáp án
+  const hasWrite = useMemo(() => items.some(isWriteItem), [items]);
+  const [labels, setLabels] = useState([]); // chữ học sinh thêm: [{ id, text, x, y }] — x, y = tâm chữ (% ảnh)
+  const [draft, setDraft] = useState("");
+  const stageRef = useRef(null);
+  const dragRef = useRef(null);
   const canvasRef = useRef(null);
+  const layerRef = useRef(null); // canvas lớp tô của học sinh
+  const liveRef = useRef(null); // nét đang kéo: { pts, size, e, c }
   const art = useLineArt(part.imageUrl);
   const [color, setColor] = useState(null);
-  const [colors, setColors] = useState({}); // { itemId: colorId } — màu học sinh đã tô
-  const [history, setHistory] = useState([]);
+  const [tool, setTool] = useState("brush");
+  const [size, setSize] = useState(2.5); // % bề rộng ảnh
+  const [ops, setOps] = useState([]);
+  const [zoom, setZoom] = useState(1); // 1 = vừa khung, tối đa 3
 
+  // Vùng đáp án (giáo viên) — chỉ dùng để chấm và hiện khung khi nộp bài, KHÔNG cho học sinh thấy khi làm.
   const masks = useMemo(() => {
-    if (!art.orig) return {};
-    return Object.fromEntries(items.map(it => [it.id, buildMask(it.ops, art.w, art.h, art.orig)]));
-  }, [art, items]);
+    if (!art.orig || !submitted) return {};
+    return Object.fromEntries(colourItems.map(it => [it.id, buildMask(it.ops, art.w, art.h, art.orig)]));
+  }, [art, colourItems, submitted]);
 
-  const boxes = useMemo(() => (submitted ? Object.fromEntries(items.map(it => [it.id, masks[it.id] ? maskBox(masks[it.id]) : null])) : {}), [submitted, items, masks]);
+  const boxes = useMemo(() => (submitted ? Object.fromEntries(colourItems.map(it => [it.id, masks[it.id] ? maskBox(masks[it.id]) : null])) : {}), [submitted, colourItems, masks]);
 
+  function repaint() {
+    const c = canvasRef.current;
+    if (c && art.img && layerRef.current) paintLayer(c, art.img, layerRef.current);
+  }
+
+  // Dựng lại lớp tô mỗi khi đổi danh sách thao tác (thêm / hoàn tác / xoá hết) hoặc ảnh vừa tải xong.
   useEffect(() => {
     const c = canvasRef.current;
     if (!c || !art.img) return;
     if (c.width !== art.w) c.width = art.w;
     if (c.height !== art.h) c.height = art.h;
-    paintScene(c, art.img, masks, Object.fromEntries(Object.entries(colors).map(([id, cid]) => [id, hexOf(cid)])));
-  }, [art, masks, colors]);
-
-  function handleClick(e) {
-    if (submitted || !color || !art.orig) return;
-    const rect = canvasRef.current.getBoundingClientRect();
-    const px = Math.min(art.w - 1, Math.max(0, Math.round(((e.clientX - rect.left) / rect.width) * (art.w - 1))));
-    const py = Math.min(art.h - 1, Math.max(0, Math.round(((e.clientY - rect.top) / rect.height) * (art.h - 1))));
-    for (const it of [...items].reverse()) {
-      const m = masks[it.id];
-      if (m && m.getContext("2d").getImageData(px, py, 1, 1).data[3] > 0) {
-        if (colors[it.id] === color) return;
-        setHistory(h => [...h, colors]);
-        setColors({ ...colors, [it.id]: color });
-        return;
-      }
+    if (!layerRef.current || layerRef.current.width !== art.w || layerRef.current.height !== art.h) {
+      const l = document.createElement("canvas");
+      l.width = art.w;
+      l.height = art.h;
+      layerRef.current = l;
     }
+    replayOps(layerRef.current, ops, art.orig);
+    repaint();
+  }, [art, ops]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function point(e) {
+    const rect = canvasRef.current.getBoundingClientRect();
+    return [Math.round(((e.clientX - rect.left) / rect.width) * 10000) / 100, Math.round(((e.clientY - rect.top) / rect.height) * 10000) / 100];
+  }
+  function down(e) {
+    if (submitted || !art.orig || (!color && tool !== "erase")) return;
+    e.preventDefault();
+    const [x, y] = point(e);
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+    liveRef.current = { pts: [x, y], size, e: tool === "erase", c: color };
+    drawStroke(layerRef.current.getContext("2d"), art.w, art.h, size, tool === "erase", hexOf(color), [x, y]);
+    repaint();
+  }
+  function move(e) {
+    const live = liveRef.current;
+    if (!live) return;
+    const [x, y] = point(e);
+    const n = live.pts.length;
+    if (Math.hypot(x - live.pts[n - 2], y - live.pts[n - 1]) < 0.2) return;
+    live.pts.push(x, y);
+    drawStroke(layerRef.current.getContext("2d"), art.w, art.h, live.size, live.e, hexOf(live.c), live.pts, n - 2);
+    repaint();
+  }
+  function up() {
+    const live = liveRef.current;
+    if (!live) return;
+    liveRef.current = null;
+    setOps(o => [...o, { t: "brush", size: live.size, e: live.e, c: live.c, pts: live.pts }]);
   }
 
-  function undo() {
-    setColors(history[history.length - 1] ?? {});
-    setHistory(h => h.slice(0, -1));
-  }
+  const graded = useMemo(() => {
+    if (!submitted || !layerRef.current || !Object.keys(masks).length) return {};
+    return gradeColours(layerRef.current, colourItems, masks);
+  }, [submitted, masks, colourItems]);
 
-  function clearAll() {
-    setHistory(h => [...h, colors]);
-    setColors({});
-  }
+  const wbox = items.find(isWriteItem)?.box;
+  const labelSize = wbox ? Math.min(5, Math.max(2, wbox.h * (art.h / (art.w || 1)) * 0.8)) : 3;
+  const isRight = it =>
+    isWriteItem(it) ? labels.some(l => normText(l.text) === normText(it.answer) && inBox(l, it.box)) : !!graded[it.id];
 
-  const isRight = it => colors[it.id] === it.color;
-  const score = items.filter(isRight).length;
+  function addLabel() {
+    const text = draft.trim();
+    if (!text || submitted) return;
+    setLabels(ls => [...ls, { id: Date.now() + Math.random(), text, x: 50, y: 50 }]);
+    setDraft("");
+  }
+  function startDrag(e, id) {
+    if (submitted) return;
+    e.preventDefault();
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+    dragRef.current = id;
+  }
+  function moveDrag(e) {
+    if (dragRef.current == null) return;
+    const rect = stageRef.current.getBoundingClientRect();
+    const x = Math.min(100, Math.max(0, ((e.clientX - rect.left) / rect.width) * 100));
+    const y = Math.min(100, Math.max(0, ((e.clientY - rect.top) / rect.height) * 100));
+    setLabels(ls => ls.map(l => (l.id === dragRef.current ? { ...l, x, y } : l)));
+  }
+  function endDrag() {
+    dragRef.current = null;
+  }
+  const score = submitted ? items.filter(isRight).length : 0;
   useEffect(() => {
     onScore?.({ score, total: items.length });
   }, [score, items.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const canPaint = !submitted && (!!color || tool === "erase");
+
   return (
     <div className="p2r">
-      <h2 className="p2s-title">Part 4</h2>
+      <h2 className="p2s-title">Part {part.partNo ?? 4}</h2>
       <p className="p2s-count">– {items.length} questions –</p>
-      <p className="p2s-instr">Listen and colour. There is one example.</p>
-      <p className="p1r-sub">Chọn một màu, rồi chạm vào cái bánh cần tô.</p>
+      <p className="p2s-instr">Listen and colour{hasWrite ? " and write" : ""}. There is one example.</p>
+      <p className="p1r-sub">{part.partNo === 5 ? "Chọn một màu rồi tô bằng cọ lên vật cần tô; câu viết chữ thì bấm \"Thêm chữ\", gõ chữ rồi kéo tới đúng chỗ trên tranh." : "Chọn một màu rồi tô bằng cọ lên cái bánh cần tô."}</p>
       {part.audioUrl && <audio className="p2r-audio" src={part.audioUrl} controls />}
 
       {!submitted && (
-        <div className="p4s-palette">
-          {PALETTE.map(p => (
-            <button
-              key={p.id}
-              type="button"
-              className={`p4s-swatch${color === p.id ? " is-active" : ""}`}
-              style={{ "--c": p.hex }}
-              onClick={() => setColor(p.id)}
-              title={p.name}
-            >
-              <span className="p4s-swatch-dot" />
-              <span>{p.name}</span>
-            </button>
-          ))}
+        <>
+          <div className="p4s-palette">
+            {palette.map(p => (
+              <button
+                key={p.id}
+                type="button"
+                className={`p4s-swatch${color === p.id ? " is-active" : ""}`}
+                style={{ "--c": p.hex }}
+                onClick={() => setColor(p.id)}
+                title={p.name}
+              >
+                <span className="p4s-swatch-dot" />
+                <span>{p.name}</span>
+              </button>
+            ))}
+          </div>
+          <div className="p4e-tools">
+            {TOOLS.map(t => (
+              <button key={t.id} type="button" className={`p4e-tool${tool === t.id ? " is-active" : ""}`} onClick={() => setTool(t.id)}>{t.label}</button>
+            ))}
+            <label className="p4e-size">
+              Cỡ cọ
+              <input type="range" min="0.6" max="8" step="0.2" value={size} onChange={e => setSize(Number(e.target.value))} />
+            </label>
+          </div>
+        </>
+      )}
+
+      {hasWrite && !submitted && (
+        <div className="p4s-addtext">
+          <input
+            className="admin-input"
+            placeholder="Gõ chữ cần viết..."
+            value={draft}
+            onChange={e => setDraft(e.target.value)}
+            onKeyDown={e => e.key === "Enter" && addLabel()}
+            autoComplete="off"
+            spellCheck={false}
+          />
+          <button type="button" className="btn btn-primary" onClick={addLabel} disabled={!draft.trim()}>✏️ Thêm chữ</button>
         </div>
       )}
 
-      <div className="p4s-stage">
-        <canvas ref={canvasRef} className="p4s-canvas" onClick={handleClick} style={{ cursor: color && !submitted ? "pointer" : "default" }} />
+      <div className="p4e-tools">
+        <button type="button" className="p4e-tool" onClick={() => setZoom(z => Math.max(1, Math.round((z - 0.25) * 100) / 100))} disabled={zoom <= 1} aria-label="Thu nhỏ ảnh">−</button>
+        <input type="range" min="1" max="3" step="0.25" value={zoom} onChange={e => setZoom(Number(e.target.value))} aria-label="Kích cỡ ảnh" />
+        <button type="button" className="p4e-tool" onClick={() => setZoom(z => Math.min(3, Math.round((z + 0.25) * 100) / 100))} disabled={zoom >= 3} aria-label="Phóng to ảnh">+</button>
+        <span className="p4e-size">Ảnh {Math.round(zoom * 100)}%</span>
+        {zoom !== 1 && <button type="button" className="p4e-tool" onClick={() => setZoom(1)}>Vừa khung</button>}
+      </div>
+
+      <div className="p4e-scroll">
+      <div ref={stageRef} className="p4s-stage" style={{ containerType: "inline-size", width: `${zoom * 100}%` }} onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag}>
+        <canvas
+          ref={canvasRef}
+          className="p4s-canvas"
+          onPointerDown={down}
+          onPointerMove={move}
+          onPointerUp={up}
+          onPointerCancel={up}
+          style={{ cursor: canPaint ? "crosshair" : "default", touchAction: canPaint ? "none" : "auto" }}
+        />
         {submitted &&
-          items.map(it => {
+          colourItems.map(it => {
             const b = boxes[it.id];
             if (!b) return null;
             const ok = isRight(it);
@@ -270,13 +520,36 @@ export default function StartersListeningPart4Runner({ part, submitted, onScore 
               </div>
             );
           })}
+        {labels.map(l => (
+          <span
+            key={l.id}
+            className={`p4s-label${submitted ? " is-locked" : ""}`}
+            style={{ left: `${l.x}%`, top: `${l.y}%`, fontSize: `${labelSize}cqw` }}
+            onPointerDown={e => startDrag(e, l.id)}
+          >
+            {l.text}
+            {!submitted && (
+              <button type="button" className="p4s-label-x" onPointerDown={e => e.stopPropagation()} onClick={() => setLabels(ls => ls.filter(x => x.id !== l.id))} aria-label="Xoá chữ">✕</button>
+            )}
+          </span>
+        ))}
+        {submitted &&
+          items.filter(isWriteItem).map(it => {
+            const ok = isRight(it);
+            return (
+              <div key={it.id} className={`p4s-frame ${ok ? "is-ok" : "is-wrong"}`} style={{ left: `${it.box.x}%`, top: `${it.box.y}%`, width: `${it.box.w}%`, height: `${it.box.h}%` }}>
+                {!ok && <span>{it.answer}</span>}
+              </div>
+            );
+          })}
+      </div>
       </div>
       {art.error && <p className="admin-upload-error">{art.error}</p>}
 
       {!submitted && (
         <div className="p1r-actions">
-          <button type="button" className="btn btn-secondary" onClick={undo} disabled={history.length === 0}>↶ Hoàn tác</button>
-          <button type="button" className="btn btn-secondary" onClick={clearAll} disabled={Object.keys(colors).length === 0}>Xóa hết</button>
+          <button type="button" className="btn btn-secondary" onClick={() => setOps(o => o.slice(0, -1))} disabled={ops.length === 0}>↶ Hoàn tác</button>
+          <button type="button" className="btn btn-secondary" onClick={() => { setOps([]); setLabels([]); }} disabled={ops.length === 0 && labels.length === 0}>Xóa hết</button>
         </div>
       )}
     </div>

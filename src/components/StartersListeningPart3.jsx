@@ -35,7 +35,7 @@ export function Part3Sheet({ part, values = [], onChange, submitted = false, pre
   const ex = part.example;
   return (
     <div className="p3s">
-      <h2 className="p2s-title">Part 3</h2>
+      <h2 className="p2s-title">Part {part.partNo ?? 3}</h2>
       <p className="p2s-count">– {questions.length} questions –</p>
       <p className="p2s-instr">Listen and tick (✓) the box. There is one example.</p>
       {part.audioUrl && <audio className="p2r-audio" src={part.audioUrl} controls />}

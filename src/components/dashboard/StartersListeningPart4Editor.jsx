@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import ImageUploadField from "./ImageUploadField.jsx";
 import AudioUploadField from "./AudioUploadField.jsx";
-import { PALETTE, hexOf, buildMask, paintScene, regionOf, useLineArt } from "../StartersListeningPart4.jsx";
+import { PALETTE, hexOf, buildMask, paintScene, regionOf, useLineArt, isWriteItem, part4Has } from "../StartersListeningPart4.jsx";
+import { useRectDraw } from "./ScenePreview.jsx";
 
 // CMS Luyện đề Listening Starters — Part 4 (nghe và tô màu): mỗi câu có màu đúng + vùng cái bánh do giáo
 // viên tô sẵn ngay trên ảnh xem trước (chạm để tô nhanh vùng kín, hoặc cọ/tẩy cho chuẩn). Học sinh chọn màu
@@ -10,35 +11,49 @@ import { PALETTE, hexOf, buildMask, paintScene, regionOf, useLineArt } from "../
 // màu theo đề Test 1 (pink, yellow, orange, green, blue).
 const DEFAULT_COLORS = ["pink", "yellow", "orange", "green", "blue"];
 
-export function blankPart4() {
+// movers = true: Movers Part 5 (tô màu + viết chữ) — mặc định theo Test 1: cam, xanh dương, vàng, viết chữ, nâu.
+const MOVERS_DEFAULTS = [
+  { color: "orange" },
+  { color: "blue" },
+  { color: "yellow" },
+  { kind: "write", answer: "" },
+  { color: "brown" },
+];
+
+export function blankPart4(movers = false) {
   return {
+    ...(movers ? { partNo: 5 } : {}),
     audioUrl: "",
     imageUrl: "",
-    items: DEFAULT_COLORS.map((color, i) => ({ id: `q${i + 1}`, color, ops: [] })),
+    items: movers
+      ? MOVERS_DEFAULTS.map((d, i) => ({ id: `q${i + 1}`, color: d.color ?? "orange", ops: [], ...(d.kind ? { kind: d.kind, box: null, answer: d.answer } : {}) }))
+      : DEFAULT_COLORS.map((color, i) => ({ id: `q${i + 1}`, color, ops: [] })),
   };
 }
 
-export function normalizePart4(raw) {
-  const base = blankPart4();
+export function normalizePart4(raw, movers = false) {
+  const base = blankPart4(movers);
   if (!raw) return base;
   return {
+    ...(movers ? { partNo: 5 } : {}),
     audioUrl: raw.audioUrl ?? "",
     imageUrl: raw.imageUrl ?? "",
     items: base.items.map(b => {
       const r = raw.items?.find(i => i.id === b.id);
-      return r ? { id: b.id, color: r.color ?? b.color, ops: r.ops ?? [] } : b;
+      return r ? { ...b, id: b.id, color: r.color ?? b.color, ops: r.ops ?? [], ...(movers ? { kind: r.kind ?? null, box: r.box ?? null, answer: r.answer ?? "" } : {}) } : b;
     }),
   };
 }
 
-export function part4HasContent(part) {
-  return !!part.imageUrl && part.items.some(i => i.ops?.length);
-}
+export const part4HasContent = part4Has;
 
 export function validatePart4(part) {
-  if (part.items.some(i => i.ops?.length) && !part.imageUrl) return "Part 4: chưa có ảnh tranh.";
-  const bad = part.items.find(i => i.ops?.length && !i.color);
-  if (bad) return `Part 4: Câu ${bad.id.slice(1)} chưa chọn màu.`;
+  const n = part.partNo ?? 4;
+  if (part.items.some(i => i.ops?.length || i.box) && !part.imageUrl) return `Part ${n}: chưa có ảnh tranh.`;
+  const bad = part.items.find(i => !isWriteItem(i) && i.ops?.length && !i.color);
+  if (bad) return `Part ${n}: Câu ${bad.id.slice(1)} chưa chọn màu.`;
+  const noAns = part.items.find(i => isWriteItem(i) && i.box && !i.answer?.trim());
+  if (noAns) return `Part ${n}: Câu ${noAns.id.slice(1)} chưa có đáp án chữ.`;
   return null;
 }
 
@@ -46,12 +61,13 @@ export function Part4Editor({ part, onChange, activeId, onActiveId }) {
   function setItem(id, patch) {
     onChange({ ...part, items: part.items.map(i => (i.id === id ? { ...i, ...patch } : i)) });
   }
-  const done = part.items.filter(i => i.ops?.length).length;
+  const has = it => (isWriteItem(it) ? !!it.box : !!it.ops?.length);
+  const done = part.items.filter(has).length;
 
   return (
     <div className="admin-form p1e">
       <fieldset className="admin-fieldset">
-        <legend>🎧 Audio Part 4</legend>
+        <legend>🎧 Audio Part {part.partNo ?? 4}</legend>
         <AudioUploadField value={part.audioUrl} onChange={v => onChange({ ...part, audioUrl: v ?? "" })} />
       </fieldset>
 
@@ -65,9 +81,10 @@ export function Part4Editor({ part, onChange, activeId, onActiveId }) {
         <div className="p1e-pairs">
           {part.items.map(it => {
             const active = activeId === it.id;
-            const has = !!it.ops?.length;
+            const filled = has(it);
+            const write = isWriteItem(it);
             return (
-              <div className={`p1e-pair${has ? " is-full" : ""}`} key={it.id}>
+              <div className={`p1e-pair${filled ? " is-full" : ""}`} key={it.id}>
                 <div className="p1e-pair-head">
                   <span className="p1e-pair-num">{it.id.slice(1)}</span>
                   <strong className="p1e-pair-title">Câu {it.id.slice(1)}</strong>
@@ -75,19 +92,26 @@ export function Part4Editor({ part, onChange, activeId, onActiveId }) {
                   <button
                     type="button"
                     className="p1e-clear"
-                    disabled={!has}
+                    disabled={write || !filled}
                     onClick={() => setItem(it.id, { ops: it.ops.slice(0, -1) })}
                     title="Hoàn tác thao tác cuối"
                   >↶</button>
                   <button
                     type="button"
                     className="p1e-clear"
-                    disabled={!has}
-                    onClick={() => { setItem(it.id, { ops: [] }); if (active) onActiveId(null); }}
+                    disabled={!filled}
+                    onClick={() => { setItem(it.id, write ? { box: null } : { ops: [] }); if (active) onActiveId(null); }}
                     title="Xoá vùng đã tô"
                   >✕</button>
                 </div>
-                <div className="p4e-colors">
+                {part.partNo === 5 && (
+                  <div className="p4e-kind">
+                    <button type="button" className={`p4e-tool${!write ? " is-active" : ""}`} onClick={() => setItem(it.id, { kind: null })}>🎨 Tô màu</button>
+                    <button type="button" className={`p4e-tool${write ? " is-active" : ""}`} onClick={() => setItem(it.id, { kind: "write" })}>✏️ Viết chữ</button>
+                  </div>
+                )}
+                {write && <input className="admin-input" placeholder="Đáp án chữ (vd: STONE)" value={it.answer ?? ""} onChange={e => setItem(it.id, { answer: e.target.value })} />}
+                {!write && <div className="p4e-colors">
                   {PALETTE.map(p => (
                     <button
                       key={p.id}
@@ -98,17 +122,17 @@ export function Part4Editor({ part, onChange, activeId, onActiveId }) {
                       onClick={() => setItem(it.id, { color: p.id })}
                     />
                   ))}
-                </div>
+                </div>}
                 <button
                   type="button"
-                  className={`p1e-slot is-a${active ? " is-active" : ""}${has ? " is-done" : ""}`}
+                  className={`p1e-slot is-a${active ? " is-active" : ""}${filled ? " is-done" : ""}`}
                   disabled={!part.imageUrl}
                   onClick={() => onActiveId(active ? null : it.id)}
                 >
                   <span className="p1e-slot-dot" />
                   <span className="p1e-slot-text">
-                    <strong>Tô vùng bánh</strong>
-                    <small>{active ? "Đang tô trên ảnh..." : has ? "✓ Đã tô" : "Chưa tô"}</small>
+                    <strong>{write ? "Vẽ khung viết chữ" : part.partNo === 5 ? "Tô vùng" : "Tô vùng bánh"}</strong>
+                    <small>{active ? (write ? "Kéo trên ảnh..." : "Đang tô trên ảnh...") : filled ? "✓ Đã xong" : "Chưa làm"}</small>
                   </span>
                 </button>
               </div>
@@ -136,12 +160,18 @@ export function Part4Preview({ part, onChange, activeId, onActiveId }) {
   const [live, setLive] = useState(null); // nét đang kéo: { pts: [x, y, ...] }
   const [msg, setMsg] = useState("");
   const [zoom, setZoom] = useState(1);
-  const count = part.items.filter(i => i.ops?.length).length;
+  const activeItem = part.items.find(i => i.id === activeId);
+  const writing = !!activeItem && isWriteItem(activeItem);
+  const count = part.items.filter(i => (isWriteItem(i) ? !!i.box : !!i.ops?.length)).length;
+  const rect = useRectDraw(box => {
+    onChange({ ...part, items: part.items.map(i => (i.id === activeId ? { ...i, box } : i)) });
+    onActiveId(null);
+  });
 
   const masks = useMemo(() => {
     if (!art.orig) return {};
     return Object.fromEntries(
-      part.items.map(it => {
+      part.items.filter(it => !isWriteItem(it)).map(it => {
         const ops = it.id === activeId && live ? [...it.ops, { t: "brush", size, e: tool === "erase", pts: live.pts }] : it.ops;
         return [it.id, buildMask(ops, art.w, art.h, art.orig)];
       }),
@@ -153,7 +183,7 @@ export function Part4Preview({ part, onChange, activeId, onActiveId }) {
     if (!c || !art.img) return;
     if (c.width !== art.w) c.width = art.w;
     if (c.height !== art.h) c.height = art.h;
-    paintScene(c, art.img, masks, Object.fromEntries(part.items.map(it => [it.id, hexOf(it.color)])));
+    paintScene(c, art.img, masks, Object.fromEntries(part.items.filter(it => !isWriteItem(it)).map(it => [it.id, hexOf(it.color)])));
   }, [art, masks, part.items]);
 
   function point(e) {
@@ -165,7 +195,7 @@ export function Part4Preview({ part, onChange, activeId, onActiveId }) {
   }
 
   function down(e) {
-    if (!activeId || !art.orig) return;
+    if (!activeId || !art.orig || writing) return;
     e.preventDefault();
     setMsg("");
     const [x, y] = point(e);
@@ -199,11 +229,11 @@ export function Part4Preview({ part, onChange, activeId, onActiveId }) {
         <span>Tổng số câu: <strong>{count}</strong></span>
       </div>
       <div className="admin-reading-preview-head"><h3>Xem trước bài</h3></div>
-      <h2 className="p2s-title">Part 4</h2>
+      <h2 className="p2s-title">Part {part.partNo ?? 4}</h2>
       <p className="p2s-count">– {count} questions –</p>
-      <p className="p2s-instr">Listen and colour. There is one example.</p>
+      <p className="p2s-instr">Listen and colour{part.items.some(isWriteItem) ? " and write" : ""}. There is one example.</p>
       {part.audioUrl && <audio className="p2r-audio" src={part.audioUrl} controls />}
-      {activeId && (
+      {activeId && !writing && (
         <div className="p4e-tools">
           {TOOLS.map(t => (
             <button key={t.id} type="button" className={`p4e-tool${tool === t.id ? " is-active" : ""}`} onClick={() => setTool(t.id)}>{t.label}</button>
@@ -228,7 +258,7 @@ export function Part4Preview({ part, onChange, activeId, onActiveId }) {
       )}
       {part.imageUrl ? (
         <div className="p4e-scroll">
-          <div className="p4s-stage" style={{ width: `${zoom * 100}%` }}>
+          <div ref={rect.stageRef} className="p4s-stage" style={{ width: `${zoom * 100}%` }} {...(writing ? rect.handlers : {})}>
           <canvas
             ref={canvasRef}
             className="p4s-canvas"
@@ -238,6 +268,12 @@ export function Part4Preview({ part, onChange, activeId, onActiveId }) {
             onPointerCancel={up}
             style={{ cursor: activeId ? "crosshair" : "default", touchAction: activeId ? "none" : "auto" }}
           />
+          {part.items.filter(isWriteItem).map(it => it.box && (
+            <div key={it.id} className="admin-p1-frame is-b" style={{ left: `${it.box.x}%`, top: `${it.box.y}%`, width: `${it.box.w}%`, height: `${it.box.h}%` }}>
+              <span>{it.id.slice(1)}</span>
+            </div>
+          ))}
+          {rect.liveRect && <div className="admin-p1-frame is-live" style={{ left: `${rect.liveRect.x}%`, top: `${rect.liveRect.y}%`, width: `${rect.liveRect.w}%`, height: `${rect.liveRect.h}%` }} />}
           </div>
         </div>
       ) : (

@@ -5,19 +5,22 @@ import { Part2Sheet } from "../StartersListeningPart2.jsx";
 // CMS Luyện đề Listening Starters — Part 2 (nghe và viết tên hoặc số): 2 câu Examples (câu hỏi + đáp án
 // điền sẵn) và 5 Questions (câu hỏi, chữ in sẵn trước dòng như "Mrs", đáp án). Nhiều đáp án chấp nhận
 // cách nhau bằng "/" (vd: 8 / eight). Xem trước dùng đúng Part2Sheet của màn học sinh.
-export function blankPart2() {
+// movers = true: Movers Part 2 (1 ví dụ, thêm tiêu đề tranh + chữ in sẵn sau dòng).
+export function blankPart2(movers = false) {
   return {
+    ...(movers ? { variant: "movers", heading: "" } : {}),
     audioUrl: "",
     imageUrl: "",
-    examples: Array.from({ length: 2 }, () => ({ question: "", answer: "" })),
-    questions: Array.from({ length: 5 }, () => ({ question: "", prefix: "", answer: "" })),
+    examples: Array.from({ length: movers ? 1 : 2 }, () => ({ question: "", answer: "" })),
+    questions: Array.from({ length: 5 }, () => ({ question: "", prefix: "", ...(movers ? { suffix: "" } : {}), answer: "" })),
   };
 }
 
-export function normalizePart2(raw) {
-  const base = blankPart2();
+export function normalizePart2(raw, movers = false) {
+  const base = blankPart2(movers);
   if (!raw) return base;
   return {
+    ...(movers ? { variant: "movers", heading: raw.heading ?? "" } : {}),
     audioUrl: raw.audioUrl ?? "",
     imageUrl: raw.imageUrl ?? "",
     examples: base.examples.map((b, i) => ({ ...b, ...(raw.examples?.[i] ?? {}) })),
@@ -57,8 +60,15 @@ export function Part2Editor({ part, onChange }) {
         <ImageUploadField value={part.imageUrl} onChange={v => onChange({ ...part, imageUrl: v ?? "" })} />
       </fieldset>
 
+      {part.variant === "movers" && (
+        <fieldset className="admin-fieldset">
+          <legend>🏷️ Tiêu đề (vd: Sports centre)</legend>
+          <input className="admin-input" placeholder="Tiêu đề dưới tranh" value={part.heading ?? ""} onChange={ev => onChange({ ...part, heading: ev.target.value })} />
+        </fieldset>
+      )}
+
       <fieldset className="admin-fieldset">
-        <legend>✏️ Examples</legend>
+        <legend>✏️ Example</legend>
         <div className="p2e-rows">
           {part.examples.map((e, i) => (
             <div className="p2e-row" key={i}>
@@ -78,10 +88,11 @@ export function Part2Editor({ part, onChange }) {
           {part.questions.map((q, i) => (
             <div className="p2e-row" key={i}>
               <span className="p1e-pair-num">{i + 1}</span>
-              <div className="p2e-fields">
+              <div className={`p2e-fields${part.variant === "movers" ? " is-movers" : ""}`}>
                 <input className="admin-input" placeholder="Câu hỏi" value={q.question} onChange={ev => setQuestion(i, { question: ev.target.value })} />
-                <input className="admin-input" placeholder="Chữ in sẵn" value={q.prefix} onChange={ev => setQuestion(i, { prefix: ev.target.value })} />
+                <input className="admin-input" placeholder={part.variant === "movers" ? "Chữ trước dòng" : "Chữ in sẵn"} value={q.prefix} onChange={ev => setQuestion(i, { prefix: ev.target.value })} />
                 <input className="admin-input" placeholder="Đáp án (nhiều đáp án: 8 / eight)" value={q.answer} onChange={ev => setQuestion(i, { answer: ev.target.value })} />
+                {part.variant === "movers" && <input className="admin-input" placeholder="Chữ sau dòng (vd: Street)" value={q.suffix ?? ""} onChange={ev => setQuestion(i, { suffix: ev.target.value })} />}
               </div>
             </div>
           ))}

@@ -6,8 +6,10 @@ import { Part3Sheet, LETTERS } from "../StartersListeningPart3.jsx";
 // 3 ảnh A/B/C và đáp án đúng. Xem trước dùng đúng Part3Sheet của màn học sinh (tick sẵn đáp án).
 const blankOptions = () => ["", "", ""];
 
-export function blankPart3() {
+// partNo = 4: Movers Part 4 (cùng dạng tick A/B/C, chỉ khác số Part).
+export function blankPart3(partNo) {
   return {
+    ...(partNo ? { partNo } : {}),
     audioUrl: "",
     example: { question: "", images: blankOptions(), answer: "A" },
     questions: Array.from({ length: 5 }, () => ({ question: "", images: blankOptions(), answer: "A" })),
@@ -18,10 +20,11 @@ function normQ(raw, base) {
   return { ...base, ...(raw ?? {}), images: base.images.map((b, i) => raw?.images?.[i] ?? b) };
 }
 
-export function normalizePart3(raw) {
-  const base = blankPart3();
+export function normalizePart3(raw, partNo) {
+  const base = blankPart3(partNo);
   if (!raw) return base;
   return {
+    ...(partNo ? { partNo } : {}),
     audioUrl: raw.audioUrl ?? "",
     example: normQ(raw.example, base.example),
     questions: base.questions.map((b, i) => normQ(raw.questions?.[i], b)),
@@ -34,7 +37,7 @@ export function part3HasContent(part) {
 
 export function validatePart3(part) {
   const bad = part.questions.findIndex(q => q.question.trim() && q.images.some(u => !u));
-  if (bad >= 0) return `Part 3: Câu ${bad + 1} cần đủ 3 ảnh A, B, C.`;
+  if (bad >= 0) return `Part ${part.partNo ?? 3}: Câu ${bad + 1} cần đủ 3 ảnh A, B, C.`;
   return null;
 }
 
@@ -81,7 +84,7 @@ export function Part3Editor({ part, onChange }) {
   return (
     <div className="admin-form p1e">
       <fieldset className="admin-fieldset">
-        <legend>🎧 Audio Part 3</legend>
+        <legend>🎧 Audio Part {part.partNo ?? 3}</legend>
         <AudioUploadField value={part.audioUrl} onChange={v => onChange({ ...part, audioUrl: v ?? "" })} />
       </fieldset>
 

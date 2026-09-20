@@ -12,22 +12,29 @@ const isRight = (q, value) => accepted(q.answer).includes(norm(value));
 export function Part2Sheet({ part, values = [], onChange, submitted = false, preview = false }) {
   const questions = (part.questions ?? []).filter(q => q.question?.trim());
   const examples = (part.examples ?? []).filter(e => e.question?.trim());
+  const movers = part.variant === "movers"; // Movers: 1 ví dụ, có tiêu đề tranh + chữ in sẵn sau dòng, không chia mục Examples/Questions
   return (
     <div className="p2s">
       <h2 className="p2s-title">Part 2</h2>
       <p className="p2s-count">– {questions.length} questions –</p>
-      <p className="p2s-instr">
-        Read the question. Listen and write a name or a number.
-        <br />
-        There are two examples.
-      </p>
+      {movers ? (
+        <p className="p2s-instr">Listen and write. There is one example.</p>
+      ) : (
+        <p className="p2s-instr">
+          Read the question. Listen and write a name or a number.
+          <br />
+          There are two examples.
+        </p>
+      )}
       {part.audioUrl && <audio className="p2r-audio" src={part.audioUrl} controls />}
 
       {part.imageUrl && <img className="p2s-img" src={part.imageUrl} alt="" draggable={false} />}
 
+      {movers && part.heading?.trim() && <h3 className="p2s-head" style={{ textAlign: "center" }}>{part.heading}</h3>}
+
       {examples.length > 0 && (
         <>
-          <h3 className="p2s-head">Examples</h3>
+          {!movers && <h3 className="p2s-head">Examples</h3>}
           {examples.map((e, i) => (
             <div className="p2s-row" key={i}>
               <span className="p2s-q">{e.question}</span>
@@ -37,7 +44,7 @@ export function Part2Sheet({ part, values = [], onChange, submitted = false, pre
         </>
       )}
 
-      <h3 className="p2s-head">Questions</h3>
+      {!movers && <h3 className="p2s-head">Questions</h3>}
       {questions.map((q, i) => {
         const value = values[i] ?? "";
         const ok = submitted && isRight(q, value);
@@ -62,6 +69,7 @@ export function Part2Sheet({ part, values = [], onChange, submitted = false, pre
                 />
               )}
             </span>
+            {q.suffix && <span className="p2s-prefix">{q.suffix}</span>}
             {wrong && <span className="p2s-correct">{q.answer?.split("/")[0]?.trim()}</span>}
           </div>
         );

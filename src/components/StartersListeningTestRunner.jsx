@@ -2,15 +2,22 @@ import { useEffect, useRef, useState } from "react";
 import StartersListeningPart1Runner from "./StartersListeningPart1Runner.jsx";
 import StartersListeningPart2Runner from "./StartersListeningPart2.jsx";
 import StartersListeningPart3Runner from "./StartersListeningPart3.jsx";
-import StartersListeningPart4Runner from "./StartersListeningPart4.jsx";
+import StartersListeningPart4Runner, { part4Has } from "./StartersListeningPart4.jsx";
+import MoversListeningPart3Runner from "./MoversListeningPart3.jsx";
+
+const Part3Dispatch = props => (props.part.variant === "movers" ? <MoversListeningPart3Runner {...props} /> : <StartersListeningPart3Runner {...props} />);
 
 // Làm 1 Test Luyện đề Listening Starters: gộp mọi Part đã có nội dung thành MỘT trang cuộn xuống, làm
 // xong hết mới bấm "Nộp bài" một lần duy nhất — điểm tổng cộng các Part.
+// Movers Part 4 (partNo = 4) là dạng tick A/B/C như Part 3 Starters; Starters Part 4 là tô màu.
+const Part4Dispatch = props => (props.part.partNo === 4 ? <StartersListeningPart3Runner {...props} /> : <StartersListeningPart4Runner {...props} />);
+
 const PARTS = [
   { key: "part1", Runner: StartersListeningPart1Runner, has: p => !!p?.imageUrl },
   { key: "part2", Runner: StartersListeningPart2Runner, has: p => !!p?.imageUrl },
-  { key: "part3", Runner: StartersListeningPart3Runner, has: p => !!p?.questions?.some(q => q.question?.trim()) },
-  { key: "part4", Runner: StartersListeningPart4Runner, has: p => !!p?.imageUrl && !!p?.items?.some(i => i.ops?.length) },
+  { key: "part3", Runner: Part3Dispatch, has: p => !!p?.questions?.some(q => q.question?.trim()) },
+  { key: "part4", Runner: Part4Dispatch, has: p => (p?.partNo === 4 ? !!p?.questions?.some(q => q.question?.trim()) : part4Has(p)) },
+  { key: "part5", Runner: StartersListeningPart4Runner, has: p => part4Has(p) },
 ];
 
 // Test có ít nhất 1 Part đã soạn thì mở được (dùng cho thẻ Test ở LessonsPage).
