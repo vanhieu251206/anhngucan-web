@@ -21,6 +21,8 @@ export const PALETTE = [
   { id: "brown", name: "Brown", hex: "#9c6234" },
   { id: "red", name: "Red", hex: "#f04848" },
   { id: "purple", name: "Purple", hex: "#a66be0" },
+  { id: "grey", name: "Grey", hex: "#9e9e9e" },
+  { id: "black", name: "Black", hex: "#2b2b2b" },
 ];
 export const hexOf = id => PALETTE.find(p => p.id === id)?.hex;
 
