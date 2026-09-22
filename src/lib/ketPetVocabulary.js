@@ -15,6 +15,7 @@ export const GROUP_TYPES = [
   { key: "reorder", label: "Sắp xếp câu hội thoại đúng thứ tự (A, B, C...)" },
   { key: "word-scramble", label: "Xáo trộn từ — sắp xếp thành câu hoàn chỉnh" },
   { key: "translation", label: "Dịch câu (Translation — chỉ hiện đáp án mẫu, không chấm điểm)" },
+  { key: "listen-and-type", label: "Nghe — viết từ (mỗi câu 1 audio riêng)" },
 ];
 
 function normalize(str) {
@@ -42,6 +43,7 @@ export function blankGroupQuestion(type) {
   if (type === "true-false-table") return { text: "", answer: true };
   if (type === "reorder") return { text: "" };
   if (type === "word-scramble") return { words: [], acceptedAnswers: [] };
+  if (type === "listen-and-type") return { audioUrl: "", acceptedAnswers: [] };
   return { prompt: "", sampleAnswer: "" };
 }
 
@@ -89,6 +91,8 @@ export function gradeVocabularyGroups(groups, answers) {
       } else if (g.type === "reorder") {
         isCorrect = userAnswer != null && userAnswer !== "" && Number(userAnswer) === qi + 1;
       } else if (g.type === "word-scramble") {
+        isCorrect = isFillBlankCorrect(userAnswer, q.acceptedAnswers);
+      } else if (g.type === "listen-and-type") {
         isCorrect = isFillBlankCorrect(userAnswer, q.acceptedAnswers);
       }
       total += perQuestion;

@@ -330,6 +330,21 @@ export default function KetPetVocabularyStudio({
                     </>
                   )}
 
+                  {g.type === "listen-and-type" && (
+                    <>
+                      <AudioUploadField
+                        label="Audio của câu này"
+                        value={q.audioUrl}
+                        onChange={audioUrl => updateQuestion(gi, qi, { audioUrl })}
+                      />
+                      <CommaListInput
+                        value={q.acceptedAnswers}
+                        onChange={acceptedAnswers => updateQuestion(gi, qi, { acceptedAnswers })}
+                        placeholder="Đáp án đúng, cách nhau bằng dấu phẩy nếu có nhiều cách viết — VD: colour, color"
+                      />
+                    </>
+                  )}
+
                   {g.type === "translation" && (
                     <>
                       <input

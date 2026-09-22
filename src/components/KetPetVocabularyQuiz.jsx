@@ -179,6 +179,23 @@ export default function KetPetVocabularyQuiz({ groups, revealAnswers = false, li
                       </>
                     )}
 
+                    {g.type === "listen-and-type" && (
+                      <>
+                        <p className="vocab-question-text">{qi + 1}.</p>
+                        {q.audioUrl && <audio className="vocab-audio" src={q.audioUrl} controls />}
+                        <input
+                          className={"vocab-input" + (r === true ? " is-correct" : "") + (r === false ? " is-wrong" : "")}
+                          value={answers[`${gi}-${qi}`] ?? ""}
+                          disabled={result != null}
+                          onChange={e => setAnswer(gi, qi, e.target.value)}
+                          placeholder="Nghe rồi gõ lại từ"
+                        />
+                        {view != null && r === false && (
+                          <p className="vocab-answer-key">Đáp án đúng: {(q.acceptedAnswers ?? []).join(" / ")}</p>
+                        )}
+                      </>
+                    )}
+
                     {g.type === "translation" && (
                       <>
                         <p className="vocab-question-text">{qi + 1}. {q.prompt}</p>
