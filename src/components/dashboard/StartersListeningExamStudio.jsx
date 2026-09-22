@@ -9,7 +9,8 @@ import { Part2Editor, Part2Preview, blankPart2, normalizePart2, validatePart2, p
 import { MoversPart3Editor, MoversPart3Preview, blankMoversPart3, normalizeMoversPart3, validateMoversPart3 } from "./MoversListeningPart3Editor.jsx";
 import { listListeningExamTests, getListeningExamTest, saveListeningExamTest } from "../../lib/adminLessons.js";
 
-// CMS "Luyện đề" Listening — Starters (Part 1-4) và Movers (mới chỉ Part 1, cùng cơ chế nối). Part 1 (nghe & nối tên với người trong tranh).
+// CMS "Luyện đề" Listening — Starters (Part 1-4) và Movers + Flyers (Part 1-5, giống hệt cơ chế của nhau,
+// chốt cùng người dùng 2026-09-22: Flyers dùng đúng Part2/3/4/5 của Movers). Part 1 (nghe & nối tên với người trong tranh).
 // Đáp án = 5 CẶP khung toạ độ (Câu 1-5; ví dụ đã nối sẵn trong ảnh nên không cần soạn): mỗi cặp gồm khung 1 (chỗ tên trong ảnh) và khung 2
 // (nhân vật), vẽ bằng cách kéo chuột trực tiếp trên ảnh xem trước bên phải (giống scene-click của
 // Speaking, toạ độ % theo ảnh: { x, y, w, h }). Học sinh chạm 2 điểm — trùng đúng 1 cặp là đúng.
@@ -94,7 +95,7 @@ function Part1Editor({ part, onChange, activeSlot, onActiveSlot }) {
   );
 }
 
-const partCountOf = seriesId => (seriesId === "movers" ? 5 : 4);
+const partCountOf = seriesId => (seriesId === "movers" || seriesId === "flyers" ? 5 : 4);
 
 // Xem trước Part 1: ảnh + toàn bộ khung (cam = khung 1, xanh = khung 2) + đường nối từ tâm khung 1 đến
 // khung 2 của từng cặp; cũng là nơi kéo chuột vẽ khung (khi đang chọn "Vẽ khung...").
@@ -180,13 +181,15 @@ function validatePart1(part) {
 
 function TestEditor({ series, level, testId, uid, onBack }) {
   const movers = series.id === "movers";
+  const flyers = series.id === "flyers";
+  const moversLike = movers || flyers; // Flyers Part 1-5 dùng đúng cơ chế của Movers (chốt cùng người dùng 2026-09-22)
   const confirm = useConfirm();
   const [loading, setLoading] = useState(true);
   const [title, setTitle] = useState(`Test ${testId.replace("test", "")}`);
   const [part1, setPart1] = useState(blankPart);
-  const [part2, setPart2] = useState(() => blankPart2(series.id === "movers"));
-  const [part3, setPart3] = useState(() => (series.id === "movers" ? blankMoversPart3() : blankPart3()));
-  const [part4, setPart4] = useState(() => (series.id === "movers" ? blankPart3(4) : blankPart4()))
+  const [part2, setPart2] = useState(() => blankPart2(moversLike));
+  const [part3, setPart3] = useState(() => (moversLike ? blankMoversPart3() : blankPart3()));
+  const [part4, setPart4] = useState(() => (moversLike ? blankPart3(4) : blankPart4()))
   const [part5, setPart5] = useState(() => blankPart4(true));
   const [activeId5, setActiveId5] = useState(null);
   const [activeId4, setActiveId4] = useState(null);
@@ -200,10 +203,10 @@ function TestEditor({ series, level, testId, uid, onBack }) {
       .then(t => {
         if (t?.title) setTitle(t.title);
         if (t?.parts?.part1) setPart1(normalizePart(t.parts.part1));
-        if (t?.parts?.part2) setPart2(normalizePart2(t.parts.part2, series.id === "movers"));
-        if (t?.parts?.part3) setPart3(movers ? normalizeMoversPart3(t.parts.part3) : normalizePart3(t.parts.part3));
+        if (t?.parts?.part2) setPart2(normalizePart2(t.parts.part2, moversLike));
+        if (t?.parts?.part3) setPart3(moversLike ? normalizeMoversPart3(t.parts.part3) : normalizePart3(t.parts.part3));
         if (t?.parts?.part5) setPart5(normalizePart4(t.parts.part5, true));
-        if (t?.parts?.part4) setPart4(movers ? normalizePart3(t.parts.part4, 4) : normalizePart4(t.parts.part4));
+        if (t?.parts?.part4) setPart4(moversLike ? normalizePart3(t.parts.part4, 4) : normalizePart4(t.parts.part4));
       })
       .finally(() => setLoading(false));
   }, [series.id, level.number, testId]);
@@ -212,13 +215,13 @@ function TestEditor({ series, level, testId, uid, onBack }) {
     const has1 = !!part1.imageUrl || part1.pairs.some(p => p.a || p.b);
     const has2 = part2HasContent(part2);
     const has3 = part3HasContent(part3);
-    const has4 = movers ? part3HasContent(part4) : part4HasContent(part4);
-    const has5 = movers && part4HasContent(part5);
+    const has4 = moversLike ? part3HasContent(part4) : part4HasContent(part4);
+    const has5 = moversLike && part4HasContent(part5);
     const err =
       (has1 ? validatePart1(part1) : null) ||
       (has2 ? validatePart2(part2) : null) ||
-      (has3 ? (movers ? validateMoversPart3(part3) : validatePart3(part3)) : null) ||
-      (movers ? (has4 ? validatePart3(part4) : null) : part4.items.some(i => i.ops?.length) ? validatePart4(part4) : null) ||
+      (has3 ? (moversLike ? validateMoversPart3(part3) : validatePart3(part3)) : null) ||
+      (moversLike ? (has4 ? validatePart3(part4) : null) : part4.items.some(i => i.ops?.length) ? validatePart4(part4) : null) ||
       (has5 ? validatePart4(part5) : null) ||
       (!has1 && !has2 && !has3 && !has4 && !has5 ? "Chưa có nội dung nào để xuất bản." : null);
     if (err) {
@@ -229,7 +232,7 @@ function TestEditor({ series, level, testId, uid, onBack }) {
     setSaving(true);
     setSaved(false);
     try {
-      await saveListeningExamTest(series.id, level.number, testId, { title, parts: movers ? Object.fromEntries(Object.entries({ part1, part2, part3, part4, part5 }).filter(([k]) => ({ part1: has1, part2: has2, part3: has3, part4: has4, part5: has5 })[k])) : { part1, part2, part3, part4 } }, uid);
+      await saveListeningExamTest(series.id, level.number, testId, { title, parts: moversLike ? Object.fromEntries(Object.entries({ part1, part2, part3, part4, part5 }).filter(([k]) => ({ part1: has1, part2: has2, part3: has3, part4: has4, part5: has5 })[k])) : { part1, part2, part3, part4 } }, uid);
       setSaved(true);
     } catch (e) {
       alert(`Không xuất bản được: ${e.message}`);
@@ -267,15 +270,15 @@ function TestEditor({ series, level, testId, uid, onBack }) {
                 </div>
                 {isOpen && n === 1 && <Part1Editor part={part1} onChange={setPart1} activeSlot={activeSlot} onActiveSlot={setActiveSlot} />}
                 {isOpen && n === 2 && <Part2Editor part={part2} onChange={setPart2} />}
-                {isOpen && n === 3 && (movers ? <MoversPart3Editor part={part3} onChange={setPart3} /> : <Part3Editor part={part3} onChange={setPart3} />)}
-                {isOpen && n === 4 && movers && <Part3Editor part={part4} onChange={setPart4} />}
+                {isOpen && n === 3 && (moversLike ? <MoversPart3Editor part={part3} onChange={setPart3} /> : <Part3Editor part={part3} onChange={setPart3} />)}
+                {isOpen && n === 4 && moversLike && <Part3Editor part={part4} onChange={setPart4} />}
                 {isOpen && n === 5 && <Part4Editor part={part5} onChange={setPart5} activeId={activeId5} onActiveId={setActiveId5} />}
-                {isOpen && n === 4 && !movers && <Part4Editor part={part4} onChange={setPart4} activeId={activeId4} onActiveId={setActiveId4} />}
+                {isOpen && n === 4 && !moversLike && <Part4Editor part={part4} onChange={setPart4} activeId={activeId4} onActiveId={setActiveId4} />}
               </div>
             );
           })}
         </div>
-        {openPart === 5 ? <Part4Preview part={part5} onChange={setPart5} activeId={activeId5} onActiveId={setActiveId5} /> : openPart === 4 ? (movers ? <Part3Preview part={part4} /> : <Part4Preview part={part4} onChange={setPart4} activeId={activeId4} onActiveId={setActiveId4} />) : openPart === 3 ? (movers ? <MoversPart3Preview part={part3} /> : <Part3Preview part={part3} />) : openPart === 2 ? <Part2Preview part={part2} /> : <Part1Preview part={part1} onChange={setPart1} activeSlot={activeSlot} onActiveSlot={setActiveSlot} />}
+        {openPart === 5 ? <Part4Preview part={part5} onChange={setPart5} activeId={activeId5} onActiveId={setActiveId5} /> : openPart === 4 ? (moversLike ? <Part3Preview part={part4} /> : <Part4Preview part={part4} onChange={setPart4} activeId={activeId4} onActiveId={setActiveId4} />) : openPart === 3 ? (moversLike ? <MoversPart3Preview part={part3} /> : <Part3Preview part={part3} />) : openPart === 2 ? <Part2Preview part={part2} /> : <Part1Preview part={part1} onChange={setPart1} activeSlot={activeSlot} onActiveSlot={setActiveSlot} />}
       </div>
     </div>
   );

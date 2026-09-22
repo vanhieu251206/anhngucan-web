@@ -255,7 +255,7 @@ function ListeningEditor({ series, level, uid }) {
       </div>
       {tab === "practice" ? (
         <ListeningPracticeEditor series={series} level={level} uid={uid} />
-      ) : (series.id === "starters" || series.id === "movers") ? (
+      ) : (series.id === "starters" || series.id === "movers" || series.id === "flyers") ? (
         <StartersListeningExamStudio series={series} level={level} uid={uid} />
       ) : (
         <div className="admin-card">

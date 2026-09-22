@@ -233,7 +233,7 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
   }, [level]);
 
   useEffect(() => {
-    if (!listeningActive || listeningTab !== "test" || !series || !level || !["starters", "movers"].includes(series.id)) return;
+    if (!listeningActive || listeningTab !== "test" || !series || !level || !["starters", "movers", "flyers"].includes(series.id)) return;
     setExamTests(null);
     listListeningExamTests(series.id, level.number).then(setExamTests).catch(() => setExamTests([]));
   }, [listeningActive, listeningTab, series, level]);
