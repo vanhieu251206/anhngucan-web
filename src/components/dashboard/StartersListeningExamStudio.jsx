@@ -8,6 +8,7 @@ import { Part3Editor, Part3Preview, blankPart3, normalizePart3, validatePart3, p
 import { Part2Editor, Part2Preview, blankPart2, normalizePart2, validatePart2, part2HasContent } from "./StartersListeningPart2Editor.jsx";
 import { MoversPart3Editor, MoversPart3Preview, blankMoversPart3, normalizeMoversPart3, validateMoversPart3 } from "./MoversListeningPart3Editor.jsx";
 import { listListeningExamTests, getListeningExamTest, saveListeningExamTest } from "../../lib/adminLessons.js";
+import { uploadToCloudinary } from "../../lib/cloudinaryUpload.js";
 
 // CMS "Luyện đề" Listening — Starters (Part 1-4) và Movers + Flyers (Part 1-5, giống hệt cơ chế của nhau,
 // chốt cùng người dùng 2026-09-22: Flyers dùng đúng Part2/3/4/5 của Movers). Part 1 (nghe & nối tên với người trong tranh).
@@ -197,6 +198,91 @@ function TestEditor({ series, level, testId, uid, onBack }) {
   const [openPart, setOpenPart] = useState(1);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [bulkUploading, setBulkUploading] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState(null);
+
+  // Danh sách các ô ảnh của Test này theo ĐÚNG thứ tự xuất hiện trên trang sách (Part 1 ảnh cảnh → Part 2
+  // ảnh cảnh → Part 3 tranh A-H/ảnh 3 lựa chọn từng câu → ...) — dùng cho "Tải ảnh hàng loạt": giáo viên
+  // chụp ảnh sách theo đúng thứ tự này (dùng script đổi tên 1..N kèm theo), chọn hết 1 lần, hệ thống tự
+  // gán vào đúng ô; ảnh thừa (nhiều hơn số ô) tự bỏ qua, không thêm.
+  function buildImageSlots() {
+    const slots = [];
+    slots.push(v => setPart1(p => ({ ...p, imageUrl: v })));
+    slots.push(v => setPart2(p => ({ ...p, imageUrl: v })));
+
+    if (moversLike) {
+      for (let i = 0; i < 8; i++) {
+        const idx = i;
+        slots.push(v => setPart3(p => ({ ...p, pictures: p.pictures.map((u, j) => (j === idx ? v : u)) })));
+      }
+      slots.push(v => setPart3(p => ({ ...p, example: { ...p.example, image: v } })));
+      for (let i = 0; i < 5; i++) {
+        const idx = i;
+        slots.push(v => setPart3(p => ({ ...p, questions: p.questions.map((q, j) => (j === idx ? { ...q, image: v } : q)) })));
+      }
+      for (let s = 0; s < 3; s++) {
+        const idx = s;
+        slots.push(v => setPart4(p => ({ ...p, example: { ...p.example, images: p.example.images.map((u, j) => (j === idx ? v : u)) } })));
+      }
+      for (let i = 0; i < 5; i++) {
+        for (let s = 0; s < 3; s++) {
+          const qi = i, si = s;
+          slots.push(v =>
+            setPart4(p => ({
+              ...p,
+              questions: p.questions.map((q, j) => (j === qi ? { ...q, images: q.images.map((u, k) => (k === si ? v : u)) } : q)),
+            })),
+          );
+        }
+      }
+      slots.push(v => setPart5(p => ({ ...p, imageUrl: v })));
+    } else {
+      for (let s = 0; s < 3; s++) {
+        const idx = s;
+        slots.push(v => setPart3(p => ({ ...p, example: { ...p.example, images: p.example.images.map((u, j) => (j === idx ? v : u)) } })));
+      }
+      for (let i = 0; i < 5; i++) {
+        for (let s = 0; s < 3; s++) {
+          const qi = i, si = s;
+          slots.push(v =>
+            setPart3(p => ({
+              ...p,
+              questions: p.questions.map((q, j) => (j === qi ? { ...q, images: q.images.map((u, k) => (k === si ? v : u)) } : q)),
+            })),
+          );
+        }
+      }
+      slots.push(v => setPart4(p => ({ ...p, imageUrl: v })));
+    }
+    return slots;
+  }
+
+  async function handleBulkUpload(e) {
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = "";
+    if (!files.length) return;
+    files.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" }));
+    const slots = buildImageSlots();
+    const usable = files.slice(0, slots.length);
+    const skipped = files.length - usable.length;
+    setBulkUploading(true);
+    setBulkProgress({ done: 0, total: usable.length });
+    let done = 0;
+    try {
+      for (let i = 0; i < usable.length; i++) {
+        const url = await uploadToCloudinary(usable[i]);
+        slots[i](url);
+        done = i + 1;
+        setBulkProgress({ done, total: usable.length });
+      }
+      if (skipped > 0) alert(`Đã tải ${usable.length} ảnh vào đủ ${usable.length} ô. Thừa ${skipped} ảnh không có chỗ nên đã bỏ qua.`);
+    } catch (err) {
+      alert(`Lỗi khi tải ảnh hàng loạt (đã tải được ${done} ảnh trước đó): ${err.message}`);
+    } finally {
+      setBulkUploading(false);
+      setBulkProgress(null);
+    }
+  }
 
   useEffect(() => {
     getListeningExamTest(series.id, level.number, testId)
@@ -250,6 +336,10 @@ function TestEditor({ series, level, testId, uid, onBack }) {
         <input className="studio-title-input" value={title} onChange={e => setTitle(e.target.value)} placeholder="Tên Test" />
         <div className="studio-topbar-actions">
           {saved && <span className="admin-success">✓ Đã xuất bản</span>}
+          <label className="admin-pill-btn" style={{ cursor: bulkUploading ? "wait" : "pointer", opacity: bulkUploading ? 0.6 : 1 }}>
+            {bulkUploading ? `Đang tải ${bulkProgress?.done ?? 0}/${bulkProgress?.total ?? 0}...` : "📤 Tải ảnh hàng loạt"}
+            <input type="file" accept="image/*" multiple hidden disabled={bulkUploading} onChange={handleBulkUpload} />
+          </label>
           <button className="admin-btn-primary" onClick={handlePublish} disabled={saving}>
             {saving ? "Đang xuất bản..." : "Xuất bản"}
           </button>
