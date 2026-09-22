@@ -14,7 +14,7 @@ const MIN_AREA_RATIO = 0.0002; // sàn tối thiểu (so với cả ảnh) để
 const MIN_AREA_VS_MAX = 0.25; // bỏ khối nhỏ hơn tỉ lệ này so với khối lớn nhất tìm được — chữ chú thích/tiêu đề luôn nhỏ hơn nhiều so với ảnh khung thật nên lọc theo khối lớn nhất đáng tin hơn theo % cả ảnh (ảnh dài & hẹp — như 1 cột ảnh — khiến sàn tuyệt đối dễ lọt chữ)
 const DETECT_MAX_SIDE = 1100;
 const ROW_OVERLAP_RATIO = 0.35; // 2 khối coi là cùng 1 hàng khi phần giao theo trục y >= tỉ lệ này so với khối thấp hơn
-const PAD_PX = 2; // nới thêm vài px quanh hộp bao khi cắt từ ảnh gốc, tránh cắt sát mất viền
+const PAD_PX = 0; // KHÔNG chừa viền trắng ngoài khung — cắt sát đúng biên vùng không phải nền trắng
 
 // "Làm nét": KHÔNG tạo ra chi tiết thật sự không có trong ảnh gốc (ảnh gốc nhỏ thì vẫn nhỏ) — chỉ
 // phóng to bằng nội suy mượt (imageSmoothingQuality "high") rồi tăng viền cạnh (unsharp mask, lọc
@@ -148,6 +148,28 @@ function findComponents(imageData, width, height) {
   return boxes;
 }
 
+// Dò lại CHÍNH XÁC (ở độ phân giải đầy đủ) trong 1 vùng nhỏ đã khoanh rộng hơn hộp bao gốc 1 chút —
+// bù sai số làm tròn khi dò khối trên bản thu nhỏ (DETECT_MAX_SIDE) — rồi CHỈ lấy khối liên thông
+// nằm gần tâm vùng khoanh nhất (khối đã dò được ban đầu). KHÔNG gộp mọi pixel khác nền trắng trong
+// cả vùng, vì 2 ảnh khung sát nhau (cách nhau vài px) sẽ khiến vùng khoanh dính sang cả ảnh bên
+// cạnh — phải tách đúng từng khối liên thông rồi chọn khối trung tâm mới cắt sát mà không lẹm.
+function centralComponentBBox(imageData, w, h) {
+  const boxes = findComponents(imageData, w, h);
+  if (!boxes.length) return null;
+  const cx = w / 2, cy = h / 2;
+  let best = boxes[0], bestDist = Infinity;
+  for (const b of boxes) {
+    const bcx = (b.minX + b.maxX) / 2;
+    const bcy = (b.minY + b.maxY) / 2;
+    const dist = (bcx - cx) ** 2 + (bcy - cy) ** 2;
+    if (dist < bestDist) {
+      bestDist = dist;
+      best = b;
+    }
+  }
+  return best;
+}
+
 // Nhóm các hộp bao theo hàng (trên→dưới), trong hàng sắp trái→phải.
 function orderReadingWise(boxes) {
   const sorted = [...boxes].sort((a, b) => a.minY - b.minY);
@@ -208,21 +230,41 @@ export async function splitFramedImages(file, { enhance = false } = {}) {
   const ordered = orderReadingWise(boxes);
 
   const inv = 1 / scale;
+  // Hộp bao dò trên bản thu nhỏ có sai số tới ±inv px khi quy đổi về ảnh gốc — khoanh 1 vùng rộng
+  // hơn hộp bao đó vài px rồi dò lại đúng 1 khối liên thông ở giữa vùng này (centralComponentBBox)
+  // để cắt sát viền đen thật sự, không lố ra nền trắng xung quanh và không lẹm sang ảnh bên cạnh.
+  const roughPad = Math.ceil(inv) + 2;
   return ordered.map((b, i) => {
-    const minX = Math.max(0, Math.floor(b.minX * inv) - PAD_PX);
-    const minY = Math.max(0, Math.floor(b.minY * inv) - PAD_PX);
-    const maxX = Math.min(fullW, Math.ceil((b.maxX + 1) * inv) + PAD_PX);
-    const maxY = Math.min(fullH, Math.ceil((b.maxY + 1) * inv) + PAD_PX);
-    const w = maxX - minX;
-    const h = maxY - minY;
+    const roughMinX = Math.max(0, Math.floor(b.minX * inv) - roughPad);
+    const roughMinY = Math.max(0, Math.floor(b.minY * inv) - roughPad);
+    const roughMaxX = Math.min(fullW, Math.ceil((b.maxX + 1) * inv) + roughPad);
+    const roughMaxY = Math.min(fullH, Math.ceil((b.maxY + 1) * inv) + roughPad);
+    const roughW = roughMaxX - roughMinX;
+    const roughH = roughMaxY - roughMinY;
+
+    const regionCanvas = document.createElement("canvas");
+    regionCanvas.width = roughW;
+    regionCanvas.height = roughH;
+    const regionCtx = regionCanvas.getContext("2d");
+    regionCtx.drawImage(fullCanvas, roughMinX, roughMinY, roughW, roughH, 0, 0, roughW, roughH);
+    const tight = centralComponentBBox(regionCtx.getImageData(0, 0, roughW, roughH), roughW, roughH) ??
+      { minX: 0, minY: 0, maxX: roughW - 1, maxY: roughH - 1 };
+
+    const cropX = Math.max(0, tight.minX - PAD_PX);
+    const cropY = Math.max(0, tight.minY - PAD_PX);
+    const cropMaxX = Math.min(roughW, tight.maxX + 1 + PAD_PX);
+    const cropMaxY = Math.min(roughH, tight.maxY + 1 + PAD_PX);
+    const w = cropMaxX - cropX;
+    const h = cropMaxY - cropY;
+
     let outCanvas;
     if (enhance) {
-      outCanvas = upscaleAndSharpen(fullCanvas, minX, minY, w, h);
+      outCanvas = upscaleAndSharpen(regionCanvas, cropX, cropY, w, h);
     } else {
       outCanvas = document.createElement("canvas");
       outCanvas.width = w;
       outCanvas.height = h;
-      outCanvas.getContext("2d").drawImage(fullCanvas, minX, minY, w, h, 0, 0, w, h);
+      outCanvas.getContext("2d").drawImage(regionCanvas, cropX, cropY, w, h, 0, 0, w, h);
     }
     return { index: i + 1, dataUrl: outCanvas.toDataURL("image/png"), width: outCanvas.width, height: outCanvas.height };
   });
