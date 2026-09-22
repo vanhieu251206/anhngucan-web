@@ -87,7 +87,7 @@ export default function StartersListeningTestRunner({ test, studentUid, studentN
     <div className="exam-layout">
       <ExamTimer timer={timer} />
       <nav className="exam-side" aria-label="Danh sách Part">
-        {available.map((p, i) => {
+        {available.map(p => {
           const sc = scores[p.key];
           return (
             <button
@@ -96,7 +96,7 @@ export default function StartersListeningTestRunner({ test, studentUid, studentN
               className={`exam-side-card${activeKey === p.key ? " is-active" : ""}`}
               onClick={() => jumpTo(p.key)}
             >
-              <strong>Part {i + 1}</strong>
+              <strong>Part {p.key.slice(4)}</strong>
               <small>{submitted && sc ? `${sc.score}/${sc.total}` : `${sc?.total ?? 5} câu`}</small>
             </button>
           );
