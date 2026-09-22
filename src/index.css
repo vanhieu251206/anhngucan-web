@@ -2498,6 +2498,42 @@ button { font-family: inherit; }
 .admin-template-tile strong { font-size: 0.95rem; }
 .admin-template-tile span { color: var(--admin-muted); font-size: 0.82rem; }
 
+/* Lưới kết quả CMS "Tách ảnh" — mỗi ảnh cắt ra là 1 ô, đánh số theo đúng thứ tự đọc trong ảnh gốc. */
+.img-splitter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 14px;
+  margin-top: 16px;
+}
+.img-splitter-item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  background: var(--admin-card-bg);
+  border: 1.5px solid var(--admin-border);
+  border-radius: 12px;
+  padding: 10px;
+}
+.img-splitter-item img { width: 100%; border-radius: 8px; object-fit: contain; background: #fff; }
+.img-splitter-num {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--admin-accent);
+  color: #fff;
+  font-size: 0.78rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 /* Lưới Test trong CMS Speaking — mỗi Test là 1 thẻ bấm được, kèm badge số scene và nút
    Sửa/Xoá riêng, thay cho danh sách dòng phẳng khó quét mắt trước đây. */
 .admin-test-grid {

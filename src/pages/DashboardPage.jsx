@@ -9,12 +9,14 @@ import StudentAccountsPage from "./dashboard/StudentAccountsPage.jsx";
 import OpeningsPage from "./dashboard/OpeningsPage.jsx";
 import StudentResultsPage from "./dashboard/StudentResultsPage.jsx";
 import SpeechLogsPage from "./dashboard/SpeechLogsPage.jsx";
+import ImageSplitterPage from "./dashboard/ImageSplitterPage.jsx";
 import { ConfirmProvider } from "../components/dashboard/ConfirmDialog.jsx";
 import { readParams, setParams } from "../lib/urlState.js";
 
 const ADMIN_ITEMS = [
   { key: "overview", label: "Tổng quan" },
   { key: "create-lesson", label: "Tạo bài" },
+  { key: "image-splitter", label: "Tách ảnh" },
   { key: "students", label: "Tài khoản học sinh" },
   { key: "openings", label: "Mở bài" },
   { key: "results", label: "Kết quả học sinh" },
@@ -31,6 +33,7 @@ const ADMIN_ITEMS = [
 // 2026-09-17).
 const TEACHER_ITEMS = [
   { key: "create-lesson", label: "Tạo bài" },
+  { key: "image-splitter", label: "Tách ảnh" },
   { key: "students", label: "Tài khoản học sinh" },
   { key: "openings", label: "Mở bài" },
   { key: "results", label: "Kết quả học sinh" },
@@ -84,6 +87,7 @@ export default function DashboardPage({ onNavigate }) {
           <div className="admin-content">
             {section === "overview" && isAdmin && <OverviewPage />}
             {section === "create-lesson" && (isAdmin || isTeacher) && <CreateLessonPage />}
+            {section === "image-splitter" && (isAdmin || isTeacher) && <ImageSplitterPage />}
             {section === "students" && (isAdmin || isTeacher) && <StudentAccountsPage />}
             {section === "openings" && (isAdmin || isTeacher) && <OpeningsPage />}
             {section === "teachers" && isAdmin && <TeacherAccountsPage />}
