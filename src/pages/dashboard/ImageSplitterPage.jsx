@@ -16,6 +16,7 @@ export default function ImageSplitterPage() {
   const [results, setResults] = useState([]);
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState("");
+  const [enhance, setEnhance] = useState(true);
 
   async function handleFile(e) {
     const file = e.target.files?.[0];
@@ -25,7 +26,7 @@ export default function ImageSplitterPage() {
     setResults([]);
     setProcessing(true);
     try {
-      setResults(await splitFramedImages(file));
+      setResults(await splitFramedImages(file, { enhance }));
     } catch (err) {
       setError(err.message || "Không xử lý được ảnh.");
     } finally {
@@ -43,10 +44,14 @@ export default function ImageSplitterPage() {
   return (
     <div className="admin-card">
       <h2>Tách ảnh</h2>
-      <div className="admin-form">
+      <div className="admin-form" style={{ alignItems: "center", gap: 16 }}>
         <label className="admin-pill-btn" style={{ cursor: processing ? "wait" : "pointer" }}>
           {processing ? "Đang xử lý..." : "📷 Chọn ảnh trang"}
           <input type="file" accept="image/*" hidden disabled={processing} onChange={handleFile} />
+        </label>
+        <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+          <input type="checkbox" checked={enhance} onChange={e => setEnhance(e.target.checked)} disabled={processing} />
+          Phóng to & làm nét
         </label>
         {error && <p className="admin-error">{error}</p>}
       </div>

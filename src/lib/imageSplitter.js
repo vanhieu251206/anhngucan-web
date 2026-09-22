@@ -16,6 +16,49 @@ const DETECT_MAX_SIDE = 1100;
 const ROW_OVERLAP_RATIO = 0.35; // 2 khối coi là cùng 1 hàng khi phần giao theo trục y >= tỉ lệ này so với khối thấp hơn
 const PAD_PX = 2; // nới thêm vài px quanh hộp bao khi cắt từ ảnh gốc, tránh cắt sát mất viền
 
+// "Làm nét": KHÔNG tạo ra chi tiết thật sự không có trong ảnh gốc (ảnh gốc nhỏ thì vẫn nhỏ) — chỉ
+// phóng to bằng nội suy mượt (imageSmoothingQuality "high") rồi tăng viền cạnh (unsharp mask, lọc
+// tích chập 3x3) để đỡ vỡ hạt khi xem phóng to, dùng khi ảnh gốc người dùng tải lên có sẵn hơi nhỏ.
+const SHARPEN_UPSCALE = 2;
+const SHARPEN_AMOUNT = 0.55;
+
+function sharpenCanvas(canvas, amount) {
+  const w = canvas.width, h = canvas.height;
+  const ctx = canvas.getContext("2d");
+  const src = ctx.getImageData(0, 0, w, h);
+  const out = ctx.createImageData(w, h);
+  const s = src.data, d = out.data;
+  const center = 1 + 4 * amount;
+  const edge = -amount;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 4;
+      for (let c = 0; c < 3; c++) {
+        const mid = s[i + c] * center;
+        const up = y > 0 ? s[i - w * 4 + c] : s[i + c];
+        const down = y < h - 1 ? s[i + w * 4 + c] : s[i + c];
+        const left = x > 0 ? s[i - 4 + c] : s[i + c];
+        const right = x < w - 1 ? s[i + 4 + c] : s[i + c];
+        d[i + c] = Math.max(0, Math.min(255, mid + edge * (up + down + left + right)));
+      }
+      d[i + 3] = s[i + 3];
+    }
+  }
+  ctx.putImageData(out, 0, 0);
+}
+
+function upscaleAndSharpen(sourceCanvas, sx, sy, sw, sh) {
+  const outCanvas = document.createElement("canvas");
+  outCanvas.width = sw * SHARPEN_UPSCALE;
+  outCanvas.height = sh * SHARPEN_UPSCALE;
+  const ctx = outCanvas.getContext("2d");
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(sourceCanvas, sx, sy, sw, sh, 0, 0, outCanvas.width, outCanvas.height);
+  sharpenCanvas(outCanvas, SHARPEN_AMOUNT);
+  return outCanvas;
+}
+
 function isBackground(r, g, b, a) {
   if (a < 16) return true;
   return r >= BG_THRESHOLD && g >= BG_THRESHOLD && b >= BG_THRESHOLD;
@@ -134,7 +177,9 @@ function orderReadingWise(boxes) {
 }
 
 // Trả về [{ index, dataUrl, width, height }] theo đúng thứ tự đọc trong ảnh gốc.
-export async function splitFramedImages(file) {
+// enhance = true: phóng to x2 + tăng nét từng ảnh cắt ra (xem sharpenCanvas ở trên) — dùng khi ảnh
+// gốc người dùng tải lên vốn đã nhỏ/mờ.
+export async function splitFramedImages(file, { enhance = false } = {}) {
   const img = await loadImage(file);
   const fullW = img.naturalWidth;
   const fullH = img.naturalHeight;
@@ -170,10 +215,15 @@ export async function splitFramedImages(file) {
     const maxY = Math.min(fullH, Math.ceil((b.maxY + 1) * inv) + PAD_PX);
     const w = maxX - minX;
     const h = maxY - minY;
-    const outCanvas = document.createElement("canvas");
-    outCanvas.width = w;
-    outCanvas.height = h;
-    outCanvas.getContext("2d").drawImage(fullCanvas, minX, minY, w, h, 0, 0, w, h);
-    return { index: i + 1, dataUrl: outCanvas.toDataURL("image/png"), width: w, height: h };
+    let outCanvas;
+    if (enhance) {
+      outCanvas = upscaleAndSharpen(fullCanvas, minX, minY, w, h);
+    } else {
+      outCanvas = document.createElement("canvas");
+      outCanvas.width = w;
+      outCanvas.height = h;
+      outCanvas.getContext("2d").drawImage(fullCanvas, minX, minY, w, h, 0, 0, w, h);
+    }
+    return { index: i + 1, dataUrl: outCanvas.toDataURL("image/png"), width: outCanvas.width, height: outCanvas.height };
   });
 }
