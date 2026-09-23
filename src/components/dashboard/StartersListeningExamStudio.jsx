@@ -9,6 +9,7 @@ import { Part2Editor, Part2Preview, blankPart2, normalizePart2, validatePart2, p
 import { MoversPart3Editor, MoversPart3Preview, blankMoversPart3, normalizeMoversPart3, validateMoversPart3 } from "./MoversListeningPart3Editor.jsx";
 import { listListeningExamTests, getListeningExamTest, saveListeningExamTest } from "../../lib/adminLessons.js";
 import { uploadToCloudinary } from "../../lib/cloudinaryUpload.js";
+import { useAuth } from "../../lib/authContext.jsx";
 
 // CMS "Luyện đề" Listening — Starters (Part 1-4) và Movers + Flyers (Part 1-5, giống hệt cơ chế của nhau,
 // chốt cùng người dùng 2026-09-22: Flyers dùng đúng Part2/3/4/5 của Movers). Part 1 (nghe & nối tên với người trong tranh).
@@ -184,6 +185,7 @@ function TestEditor({ series, level, testId, uid, onBack }) {
   const movers = series.id === "movers";
   const flyers = series.id === "flyers";
   const moversLike = movers || flyers; // Flyers Part 1-5 dùng đúng cơ chế của Movers (chốt cùng người dùng 2026-09-22)
+  const { isAdmin } = useAuth();
   const confirm = useConfirm();
   const [loading, setLoading] = useState(true);
   const [title, setTitle] = useState(`Test ${testId.replace("test", "")}`);
@@ -336,10 +338,12 @@ function TestEditor({ series, level, testId, uid, onBack }) {
         <input className="studio-title-input" value={title} onChange={e => setTitle(e.target.value)} placeholder="Tên Test" />
         <div className="studio-topbar-actions">
           {saved && <span className="admin-success">✓ Đã xuất bản</span>}
-          <label className="admin-pill-btn" style={{ cursor: bulkUploading ? "wait" : "pointer", opacity: bulkUploading ? 0.6 : 1 }}>
-            {bulkUploading ? `Đang tải ${bulkProgress?.done ?? 0}/${bulkProgress?.total ?? 0}...` : "📤 Tải ảnh hàng loạt"}
-            <input type="file" accept="image/*" multiple hidden disabled={bulkUploading} onChange={handleBulkUpload} />
-          </label>
+          {isAdmin && (
+            <label className="admin-pill-btn" style={{ cursor: bulkUploading ? "wait" : "pointer", opacity: bulkUploading ? 0.6 : 1 }}>
+              {bulkUploading ? `Đang tải ${bulkProgress?.done ?? 0}/${bulkProgress?.total ?? 0}...` : "📤 Tải ảnh hàng loạt"}
+              <input type="file" accept="image/*" multiple hidden disabled={bulkUploading} onChange={handleBulkUpload} />
+            </label>
+          )}
           <button className="admin-btn-primary" onClick={handlePublish} disabled={saving}>
             {saving ? "Đang xuất bản..." : "Xuất bản"}
           </button>

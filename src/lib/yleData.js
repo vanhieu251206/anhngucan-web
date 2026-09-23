@@ -84,3 +84,15 @@ export const YLE_SERIES = [
 // dung thật, chỉ tạo cấu trúc trước theo yêu cầu người dùng 2026-09-14).
 export const KET_PET_GRADES = [6, 7, 8, 9];
 export const KET_PET_UNITS_PER_GRADE = 16;
+
+// Kids chia theo Grade 1-5 (chốt 2026-09-23) — mỗi Grade có ĐÚNG 2 quyển sách cố định: Student Book
+// và Workbook (chốt cùng ngày, thay cho danh sách sách tự do ban đầu), lật trang dạng ảnh, mỗi ảnh
+// 1 trang, không có audio gốc — xem CLAUDE.md mục 1 về bản quyền. Listening/Speaking từng Grade vẫn
+// "Sắp có" (xem KidsPage.jsx). Soạn qua CMS (Dashboard → Tạo bài → Kids → chọn Grade → Student
+// Book/Workbook, xem KidsContentPage.jsx), lưu ở collection Firestore "kidsBooks" (docId cố định
+// `grade{n}-{kind}`, xem lib/adminLessons.js kidsBookId/getKidsBook/saveKidsBook).
+export const KIDS_GRADES = [1, 2, 3, 4, 5];
+export const KIDS_BOOK_KINDS = [
+  { key: "student", label: "Student Book" },
+  { key: "workbook", label: "Workbook" },
+];

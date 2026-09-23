@@ -28,7 +28,11 @@ function formatDate(ts) {
 // Trang giáo viên: MỞ BÀI cho lớp (mặc định mọi bài khoá). Mỗi lần mở có mật khẩu vào bài, hạn chót, số lượt,
 // số phút — sửa lại bất cứ lúc nào (vd cấp thêm lượt lần 2, 3 = tăng "Số lượt"). Xem lib/openings.js.
 export default function OpeningsPage() {
-  const { user } = useAuth();
+  const { user, isTeacher, profile } = useAuth();
+  // Giáo viên bị giới hạn (restricted, vd dạy ngắn hạn) chỉ mở/xem bài cho đúng lớp trong
+  // allowedClasses — chặn thật ở firestore.rules `canManageClass()`, đây chỉ là lọc UI (2026-09-22).
+  const isRestricted = isTeacher && !!profile?.restricted;
+  const allowedClassSet = isRestricted ? new Set(profile?.allowedClasses ?? []) : null;
   const confirm = useConfirm();
   const [classes, setClasses] = useState([]);
   const [openings, setOpenings] = useState(null);
@@ -55,15 +59,19 @@ export default function OpeningsPage() {
   const kinds = kindsFor(seriesId);
 
   function reload() {
-    listOpenings().then(setOpenings).catch(e => setError(e.message));
+    listOpenings()
+      .then(list => setOpenings(allowedClassSet ? list.filter(o => allowedClassSet.has(o.className)) : list))
+      .catch(e => setError(e.message));
   }
   useEffect(() => {
     reload();
     listStudents().then(list => {
-      const cls = [...new Set(list.map(s => s.className).filter(Boolean))].sort();
+      let cls = [...new Set(list.map(s => s.className).filter(Boolean))].sort();
+      if (allowedClassSet) cls = cls.filter(c => allowedClassSet.has(c));
       setClasses(cls);
       setClassName(c => c || cls[0] || "");
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Đổi bộ đề → đưa cấp/dạng bài về giá trị hợp lệ.

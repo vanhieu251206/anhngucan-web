@@ -18,6 +18,32 @@ function isStaff() {
   return role() == "admin" || role() == "teacher";
 }
 
+// Giáo viên dạy ngắn hạn/vài lớp (chốt 2026-09-22): VẪN là role "teacher" bình thường, chỉ thêm
+// field `restricted` trên hồ sơ để giới hạn phạm vi — KHÔNG có field này (hoặc = false) thì hoạt
+// động y hệt giáo viên full-time hiện tại (không phá tài khoản giáo viên cũ). Khi restricted=true:
+// `allowedSeriesIds` giới hạn "Tạo bài" theo bộ đề, `allowedClasses` giới hạn "Mở bài" theo lớp.
+function myProfile() {
+  return isSignedIn() && exists(/databases/(default)/documents/users/$(request.auth.uid))
+    ? get(/databases/(default)/documents/users/$(request.auth.uid)).data
+    : null;
+}
+
+function isRestrictedTeacher() {
+  return role() == "teacher" && myProfile() != null && myProfile().restricted == true;
+}
+
+function canManageSeries(seriesId) {
+  return isAdmin()
+    || (role() == "teacher" && (!isRestrictedTeacher()
+      || (myProfile().allowedSeriesIds != null && seriesId in myProfile().allowedSeriesIds)));
+}
+
+function canManageClass(className) {
+  return isAdmin()
+    || (role() == "teacher" && (!isRestrictedTeacher()
+      || (myProfile().allowedClasses != null && className in myProfile().allowedClasses)));
+}
+
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -43,50 +69,59 @@ service cloud.firestore {
       // Học sinh tự xoá cờ "phải đổi mật khẩu lần đầu" trên hồ sơ của chính mình (chỉ đúng field này).
       allow update: if isSignedIn() && request.auth.uid == uid
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['mustChangePassword']);
+      // Bất kỳ staff nào (admin hoặc giáo viên) sửa PHẠM VI của 1 tài khoản GIÁO VIÊN khác — để
+      // giáo viên chính tự phân công người dạy ngắn hạn mà không cần đợi admin mỗi lần (chốt
+      // 2026-09-22). Chỉ được đụng đúng 3 field này, không đổi email/role/mật khẩu.
+      allow update: if isStaff() && resource.data.role == 'teacher' && request.resource.data.role == 'teacher'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['restricted', 'allowedSeriesIds', 'allowedClasses']);
     }
 
     match /lessons/{lessonId} {
       allow read: if true;
-      allow write: if isStaff();
+      // Doc lesson gốc luôn có field seriesId (xem lib/adminLessons.js) — dùng thẳng để biết bộ đề.
+      allow create, update: if canManageSeries(request.resource.data.seriesId);
+      allow delete: if canManageSeries(resource.data.seriesId);
 
+      // Các subcollection bên dưới KHÔNG tự lưu seriesId (chỉ lưu ở doc lesson cha) — lấy seriesId
+      // của doc cha qua get() để biết giáo viên có được thao tác bộ đề này không.
       match /tests/{testId} {
         allow read: if true;
-        allow write: if isStaff();
+        allow write: if canManageSeries(get(/databases/(default)/documents/lessons/$(lessonId)).data.seriesId);
       }
 
       match /readingTests/{testId} {
         allow read: if true;
-        allow write: if isStaff();
+        allow write: if canManageSeries(get(/databases/(default)/documents/lessons/$(lessonId)).data.seriesId);
       }
 
       match /dictationTests/{testId} {
         allow read: if true;
-        allow write: if isStaff();
+        allow write: if canManageSeries(get(/databases/(default)/documents/lessons/$(lessonId)).data.seriesId);
       }
 
       match /comprehensionTests/{testId} {
         allow read: if true;
-        allow write: if isStaff();
+        allow write: if canManageSeries(get(/databases/(default)/documents/lessons/$(lessonId)).data.seriesId);
       }
 
       match /practiceTests/{testId} {
         allow read: if true;
-        allow write: if isStaff();
+        allow write: if canManageSeries(get(/databases/(default)/documents/lessons/$(lessonId)).data.seriesId);
       }
 
       match /listeningExamTests/{testId} {
         allow read: if true;
-        allow write: if isStaff();
+        allow write: if canManageSeries(get(/databases/(default)/documents/lessons/$(lessonId)).data.seriesId);
       }
 
       match /listeningTests/{testId} {
         allow read: if true;
-        allow write: if isStaff();
+        allow write: if canManageSeries(get(/databases/(default)/documents/lessons/$(lessonId)).data.seriesId);
       }
 
       match /vocabularyUnits/{unitId} {
         allow read: if true;
-        allow write: if isStaff();
+        allow write: if canManageSeries(get(/databases/(default)/documents/lessons/$(lessonId)).data.seriesId);
       }
     }
 
@@ -131,11 +166,20 @@ service cloud.firestore {
     // admin/teacher tạo/sửa/đóng. Mật khẩu vào bài lưu dạng hash SHA-256.
     match /openings/{openingId} {
       allow read: if isSignedIn();
-      allow write: if isStaff();
+      allow create, update: if canManageClass(request.resource.data.className);
+      allow delete: if canManageClass(resource.data.className);
     }
 
     match /classAssignments/{className} {
       allow read: if isSignedIn();
+      allow write: if isStaff();
+    }
+
+    // Sách online (Kids) — xem lib/adminLessons.js listKidsBooks/saveKidsBook. Không theo cấu trúc
+    // Level/Test nên không có seriesId để canManageSeries() lọc — giáo viên bị giới hạn bộ đề vẫn
+    // soạn được sách Kids (chốt 2026-09-23, mục này chưa nằm trong phạm vi allowedSeriesIds).
+    match /kidsBooks/{bookId} {
+      allow read: if true;
       allow write: if isStaff();
     }
 

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { collection, getDocs, limit, orderBy, query } from "firebase/firestore";
 import { db } from "../../lib/firebase.js";
+import { useAuth } from "../../lib/authContext.jsx";
 import { SpeakingReportView, groupIntoReportItems } from "../../components/SpeakingReportView.jsx";
 
 const PAGE_SIZE = 500;
@@ -77,6 +78,12 @@ function scorePct(row) {
 // Trang Kết quả học sinh: 1 bảng chung cho MỌI dạng bài. Học sinh chỉ thấy số câu đúng/tổng, chi tiết từng
 // câu (bé trả lời gì, đáp án đúng) chỉ xem ở đây. Xem lib/testResults.js.
 export default function StudentResultsPage() {
+  const { isTeacher, profile } = useAuth();
+  // Giáo viên bị giới hạn (restricted, vd dạy ngắn hạn) chỉ xem kết quả của lớp trong
+  // allowedClasses — chỉ lọc UI (đọc testResults vẫn isStaff() ở firestore.rules, xem đề xuất
+  // 2026-09-22: phần xem báo cáo không chặn thật ở rules vì rủi ro thấp).
+  const isRestricted = isTeacher && !!profile?.restricted;
+  const allowedClassSet = new Set(profile?.allowedClasses ?? []);
   const [rows, setRows] = useState(null);
   const [error, setError] = useState(null);
   const [classFilter, setClassFilter] = useState("");
@@ -99,7 +106,14 @@ export default function StudentResultsPage() {
       .catch(err => setError(err.message));
   }, []);
 
-  const base = useMemo(() => (rows ?? []).filter(r => showStaff || !isStaffTest(r.studentName)), [rows, showStaff]);
+  const base = useMemo(
+    () =>
+      (rows ?? [])
+        .filter(r => showStaff || !isStaffTest(r.studentName))
+        .filter(r => !isRestricted || allowedClassSet.has(r.studentClass)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [rows, showStaff, isRestricted, profile]
+  );
   const classes = useMemo(() => [...new Set(base.map(r => r.studentClass).filter(Boolean))].sort(), [base]);
   const lessons = useMemo(() => [...new Set(base.map(r => r.lessonLabel).filter(Boolean))].sort(), [base]);
 

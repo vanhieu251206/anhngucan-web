@@ -6,6 +6,7 @@ import AboutPage from "./pages/AboutPage.jsx";
 import ContactPage from "./pages/ContactPage.jsx";
 import LoginPage from "./pages/LoginPage.jsx";
 import KetPetPage from "./pages/KetPetPage.jsx";
+import KidsPage from "./pages/KidsPage.jsx";
 import { useAuth } from "./lib/authContext.jsx";
 import { readParams, setParams } from "./lib/urlState.js";
 import ForceChangePassword from "./components/ForceChangePassword.jsx";
@@ -119,6 +120,11 @@ export default function App() {
     // Level/Test/Part của LessonsPage.jsx — cấu trúc dữ liệu khác hẳn (chốt 2026-09-14).
     if (lessonSeriesId === "ket-pet") {
       return <KetPetPage onNavigate={setPage} />;
+    }
+    // Kids dùng khung điều hướng riêng (Sách online/Listening/Speaking, xem KidsPage.jsx) — chưa
+    // theo cấu trúc Level/Test/Part của LessonsPage.jsx (chốt 2026-09-23).
+    if (lessonSeriesId === "kids") {
+      return <KidsPage onNavigate={setPage} />;
     }
     return <LessonsPage initialSeriesId={lessonSeriesId} onNavigate={setPage} />;
   }

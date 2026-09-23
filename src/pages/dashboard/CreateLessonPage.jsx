@@ -16,6 +16,7 @@ import ComprehensionStudio from "../../components/dashboard/ComprehensionStudio.
 import StartersListeningExamStudio from "../../components/dashboard/StartersListeningExamStudio.jsx";
 import ListeningTestStudio from "../../components/dashboard/ListeningTestStudio.jsx";
 import KetPetContentPage from "./KetPetContentPage.jsx";
+import KidsContentPage from "./KidsContentPage.jsx";
 import { useConfirm } from "../../components/dashboard/ConfirmDialog.jsx";
 import { readParams, setParams } from "../../lib/urlState.js";
 
@@ -48,10 +49,11 @@ function modesForSeries(series) {
 function initialStepFromUrl() {
   const p = readParams();
   const series = YLE_SERIES.find(s => s.id === p.get("cSeries")) ?? null;
-  // KET/PET không có `.levels` (Grade/Unit riêng, xem KetPetContentPage.jsx) — bỏ qua tra cứu
-  // level cho series này, tránh crash trắng trang khi F5 lại URL ?cSeries=ket-pet (lỗi thực tế
-  // 2026-09-14).
-  const level = series && series.id !== "ket-pet"
+  // KET/PET không có `.levels` (Grade/Unit riêng, xem KetPetContentPage.jsx) và Kids không đi theo
+  // Level/Test (chỉ có Sách online, xem KidsContentPage.jsx) — bỏ qua tra cứu level cho 2 series
+  // này, tránh crash trắng trang khi F5 lại URL ?cSeries=ket-pet|kids (lỗi thực tế 2026-09-14, áp
+  // dụng tương tự cho kids 2026-09-23).
+  const level = series && series.id !== "ket-pet" && series.id !== "kids"
     ? series.levels.find(l => String(l.number) === p.get("cLevel")) ?? null
     : null;
   const mode = level && Object.keys(MODE_INFO).includes(p.get("cMode")) ? p.get("cMode") : null;
@@ -59,8 +61,17 @@ function initialStepFromUrl() {
 }
 
 export default function CreateLessonPage() {
-  const { user } = useAuth();
+  const { user, isAdmin, isTeacher, profile } = useAuth();
+  // Giáo viên bị giới hạn (restricted, vd dạy ngắn hạn) chỉ soạn được bộ đề trong allowedSeriesIds
+  // — chặn thật ở firestore.rules `canManageSeries()`, đây chỉ là lọc UI cho gọn (chốt 2026-09-22).
+  const isRestricted = isTeacher && !!profile?.restricted;
+  // CMS sách Kids (KidsContentPage) CHỈ admin thấy — giáo viên ẩn hẳn (chốt người dùng 2026-09-24).
+  const visibleSeries = isAdmin ? YLE_SERIES : YLE_SERIES.filter(s => s.id !== "kids");
+  const allowedSeries = isRestricted ? visibleSeries.filter(s => (profile?.allowedSeriesIds ?? []).includes(s.id)) : visibleSeries;
   const [{ series, level, mode }, setStep] = useState(initialStepFromUrl);
+  useEffect(() => {
+    if (series?.id === "kids" && !isAdmin) setStep({ series: null, level: null, mode: null });
+  }, [series, isAdmin]);
 
   useEffect(() => {
     setParams(
@@ -72,7 +83,11 @@ export default function CreateLessonPage() {
   // Series chỉ có 1 cấp (IELTS) → tự chọn luôn, không hiện bước "Chọn cấp độ". KET/PET không có
   // `.levels` (Grade/Unit riêng, xem KetPetContentPage.jsx) nên giữ level = null luôn.
   function setSeries(s) {
-    setStep({ series: s, level: s.id === "ket-pet" || s.levels.length === 1 ? s.levels?.[0] ?? null : null, mode: null });
+    setStep({
+      series: s,
+      level: s.id === "ket-pet" || s.id === "kids" || s.levels.length === 1 ? s.levels?.[0] ?? null : null,
+      mode: null,
+    });
   }
   function setLevel(l) { setStep(st => ({ ...st, level: l, mode: null })); }
   function setMode(m) { setStep(st => ({ ...st, mode: m })); }
@@ -90,7 +105,7 @@ export default function CreateLessonPage() {
       active: !level,
     });
   }
-  if (series && level && series.id !== "ket-pet" && series.levels.length > 1) {
+  if (series && level && series.id !== "ket-pet" && series.id !== "kids" && series.levels.length > 1) {
     crumbs.push({
       label: `Cấp ${level.number}`,
       accent: series.color,
@@ -105,10 +120,15 @@ export default function CreateLessonPage() {
   return (
     <div>
       <Breadcrumb crumbs={crumbs} />
-      {!series && <SeriesPicker onPick={setSeries} />}
+      {!series && <SeriesPicker series={allowedSeries} onPick={setSeries} />}
       {series && series.id === "ket-pet" && <KetPetContentPage />}
-      {series && series.id !== "ket-pet" && !level && <LevelPicker series={series} onPick={setLevel} />}
-      {series && level && !mode && <ModePicker series={series} level={level} onPick={setMode} />}
+      {series && series.id === "kids" && isAdmin && <KidsContentPage />}
+      {series && series.id !== "ket-pet" && series.id !== "kids" && !level && (
+        <LevelPicker series={series} onPick={setLevel} />
+      )}
+      {series && series.id !== "kids" && level && !mode && (
+        <ModePicker series={series} level={level} onPick={setMode} />
+      )}
       {series && level && mode === "listening" && (
         <ListeningEditor series={series} level={level} uid={user.uid} />
       )}
@@ -163,13 +183,17 @@ function Breadcrumb({ crumbs }) {
   );
 }
 
-function SeriesPicker({ onPick }) {
+function SeriesPicker({ series, onPick }) {
   return (
     <div className="admin-card">
       <h2>Chọn bộ đề</h2>
-      <p className="admin-muted-text">Bắt đầu soạn bài bằng cách chọn 1 bộ đề.</p>
+      {series.length === 0 ? (
+        <p className="admin-error">Tài khoản của bạn chưa được cấp bộ đề nào — liên hệ giáo viên chính/admin để mở phạm vi.</p>
+      ) : (
+        <p className="admin-muted-text">Bắt đầu soạn bài bằng cách chọn 1 bộ đề.</p>
+      )}
       <div className="admin-picker-grid">
-        {YLE_SERIES.map(s => (
+        {series.map(s => (
           <button
             key={s.id}
             className="admin-picker-tile"

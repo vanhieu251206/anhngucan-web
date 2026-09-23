@@ -482,6 +482,13 @@ button { font-family: inherit; }
 @media (max-width: 720px) {
   .ketpet-unit-grid { grid-template-columns: repeat(2, 1fr); }
 }
+/* 4 thẻ Student Book/Workbook/Listening/Speaking trong 1 Grade Kids — luôn xếp lưới 2x2 cân đối
+   thay vì 3+1 lẻ hàng như content-grid-4 (chốt người dùng 2026-09-23). */
+.kids-skill-grid {
+  grid-template-columns: repeat(2, 1fr);
+  max-width: 640px;
+  margin: 0 auto;
+}
 .content-grid-4-nowrap { flex-wrap: nowrap; }
 @media (max-width: 720px) {
   .content-grid-4-nowrap { flex-wrap: wrap; }
@@ -4300,6 +4307,133 @@ button.wizard-step:focus-visible { outline: 3px solid var(--color-secondary); ou
 .results-parts { list-style: none; padding: 0; margin: 12px 0 0; display: grid; gap: 8px; }
 .results-parts li { display: flex; justify-content: space-between; padding: 10px 14px; background: #f8f9fc; border-radius: 10px; }
 @media (max-width: 600px) { .results-stats { grid-template-columns: 1fr; } }
+
+/* Danh sách trang thumbnail — KidsBookStudio.jsx (CMS, sau khi tải PDF hàng loạt) */
+.kids-book-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 4px; }
+.kids-page-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 14px; margin-top: 16px; }
+.kids-page-thumb {
+  position: relative; border: 1px solid var(--admin-border); border-radius: 10px; overflow: hidden;
+  background: var(--admin-card-bg); display: flex; flex-direction: column; align-items: center; padding: 8px;
+}
+.kids-page-thumb img { width: 100%; aspect-ratio: 3/4; object-fit: cover; border-radius: 6px; margin: 6px 0; }
+.kids-page-thumb .admin-scene-list-actions { display: flex; gap: 6px; }
+
+/* Xem trước & gắn audio (lật từng trang thật trong CMS) — KidsBookSoundEditor.jsx */
+.kids-sound-editor { position: fixed; inset: 0; background: #1f2540; z-index: 200; display: flex; flex-direction: column; }
+.kids-sound-editor-topbar { flex: none; display: flex; align-items: center; gap: 14px; padding: 12px 16px; background: #171b30; color: #fff; flex-wrap: wrap; }
+.kids-sound-editor-nav { display: flex; align-items: center; gap: 10px; color: #fff; font-weight: 700; font-size: 0.9rem; }
+.kids-sound-editor-error { margin: 0 16px; }
+.kids-sound-editor-body { flex: 1; min-height: 0; display: flex; gap: 16px; padding: 16px; }
+.kids-sound-editor-stage { flex: 1; min-width: 0; display: flex; align-items: center; justify-content: center; }
+.kids-sound-editor-page { position: relative; background: #fff; cursor: crosshair; box-shadow: 0 18px 40px rgba(0,0,0,0.4); }
+.kids-sound-editor-page img { width: 100%; height: 100%; object-fit: contain; display: block; pointer-events: none; }
+.kids-sound-mark-draggable .sound-mark-widget { cursor: grab; }
+.kids-sound-mark-draggable .sound-mark-widget:active { cursor: grabbing; }
+.kids-sound-editor-list { width: 520px; flex: none; overflow-y: auto; background: #fff; border-radius: 12px; padding: 16px; }
+.kids-sound-list-item {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 10px; padding: 6px; border-radius: 8px;
+}
+.kids-sound-list-item.is-current-page { background: #fff4e0; }
+.kids-sound-list-page {
+  flex: none; border: 1.5px solid #e4e7ee; background: #fff; border-radius: 999px; padding: 4px 10px;
+  font-weight: 700; font-size: 0.8rem; color: #3b5bdb; cursor: pointer; white-space: nowrap;
+}
+.kids-sound-list-page:hover { border-color: #3b5bdb; }
+@media (max-width: 720px) {
+  .kids-sound-editor-body { flex-direction: column; padding: 10px; }
+  .kids-sound-editor-list { width: auto; }
+}
+
+/* Sách online (Kids) — BookReader.jsx, dùng react-pageflip (kéo bất kỳ đâu trên trang, cong trang
+   giấy + đổ bóng thật, showCover:true để bìa hiện một mình rồi mới mở ra 2 trang — chốt người dùng
+   2026-09-23) — chiếm hết chiều cao còn lại của màn hình sau khi trừ thanh tiêu đề: book-reader là
+   flex column cao đúng 100vh/100dvh, book-reader-stage flex:1 nhận hết phần còn lại, tự đo
+   (ResizeObserver, xem BookReader.jsx) rồi tính khung trang khít cả 2 chiều, truyền size="fixed"
+   (KHÔNG dùng size="stretch" của thư viện — tự tính sai, ưu tiên khớp chiều rộng mà không kiểm tra
+   đủ chiều cao, khiến trang vỡ khung/bị cắt, lỗi thực tế gặp phải). */
+.book-reader { height: 100vh; height: 100dvh; background: #1f2540; display: flex; flex-direction: column; overflow: hidden; }
+.book-reader-topbar {
+  flex: none; display: flex; align-items: center; gap: 14px; padding: 14px 20px; background: #171b30;
+  color: #fff;
+}
+.book-reader-tools { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+.book-reader-tool-btn {
+  border: none; background: #ffffff22; color: #fff; width: 32px; height: 32px; border-radius: 8px;
+  font-size: 0.95rem; cursor: pointer; transition: background 0.15s; display: flex; align-items: center; justify-content: center;
+}
+.book-reader-tool-btn:hover { background: #ffffff3a; }
+.book-reader-page-input {
+  width: 44px; text-align: center; border-radius: 6px; border: none; background: #ffffff22; color: #fff;
+  font-weight: 700; font-size: 0.85rem; padding: 5px 2px;
+}
+.book-reader-page-total { font-weight: 700; opacity: 0.8; font-size: 0.85rem; }
+.book-reader-topbar .speaking-fullscreen-title { flex: 1 1 auto; min-width: 0; }
+@media (max-width: 720px) {
+  .book-reader-topbar { gap: 8px; padding: 8px 10px; flex-wrap: nowrap; }
+  .book-reader-topbar .speaking-fullscreen-back { flex-shrink: 0; padding: 6px 12px; font-size: 0.85rem; }
+  .book-reader-topbar .speaking-fullscreen-title { display: none; }
+  .book-reader-tools { gap: 2px; }
+  .book-reader-tool-btn { width: 26px; height: 26px; font-size: 0.8rem; border-radius: 6px; }
+  .book-reader-page-input { width: 32px; font-size: 0.75rem; padding: 4px 1px; }
+  .book-reader-page-total { font-size: 0.75rem; }
+}
+@media (max-width: 420px) {
+  .book-reader-tool-btn[title="Trang đầu"], .book-reader-tool-btn[title="Trang cuối"] { display: none; }
+}
+.book-reader-stage { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; padding: 16px; }
+.book-flipbook { margin: 0 auto; box-shadow: 0 24px 60px rgba(0,0,0,0.4); }
+.book-flip-page { background: #fff; overflow: hidden; position: relative; }
+.book-flip-page img { width: 100%; height: 100%; object-fit: contain; background: #fff; user-select: none; }
+/* Icon audio trên trang sách — dạng thanh phát nhỏ (nút play + vạch tiến trình + loa), dùng chung
+   SoundMarkWidget.jsx cho cả CMS (KidsBookSoundEditor.jsx, xem trước đúng vị trí/hình dạng thật) và
+   web học sinh (BookReader.jsx) — chốt người dùng 2026-09-23, thay cho nút tròn số cũ. */
+.sound-mark-widget {
+  position: absolute; transform: translate(-50%, -50%); display: flex; align-items: center;
+  border: 1px solid rgba(0,0,0,0.3); border-radius: 999px;
+  background: repeating-linear-gradient(180deg, #f6f7f9 0 2px, #e4e6ea 2px 4px);
+  box-shadow: 0 4px 10px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.8);
+  cursor: pointer; transition: box-shadow 0.15s ease;
+}
+/* KHÔNG scale khi hover — nền sọc mảnh bên trong trang lật 3D của react-pageflip bị vẽ lại từng
+   khung hình khi phóng to, gây nháy nháy (lỗi thực tế 2026-09-24). Chỉ đổi bóng + viền sáng. */
+.sound-mark-widget:hover {
+  box-shadow: 0 0 0 2px rgba(255,255,255,0.9), 0 5px 14px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.8);
+}
+/* react-pageflip chỉ bỏ qua cử chỉ lật trang khi ĐÚNG event.target là thẻ <button>/<a> (xem
+   checkTarget() trong page-flip) — click trúng <span>/<svg> con bên trong nút vẫn bị hiểu nhầm
+   thành kéo lật trang (lỗi thực tế 2026-09-23). Tắt pointer-events của mọi phần tử con để event
+   luôn nhắm đúng vào <button>. */
+.sound-mark-widget * { pointer-events: none; }
+.sound-mark-widget.is-empty { opacity: 0.55; }
+.sound-mark-badge {
+  position: absolute; top: -9px; left: -9px; width: 19px; height: 19px; border-radius: 50%;
+  background: #F2A93B; color: #fff; font-size: 0.68rem; font-weight: 800; display: flex;
+  align-items: center; justify-content: center; box-shadow: 0 0 0 2px #fff; z-index: 1;
+}
+.sound-mark-play, .sound-mark-speaker {
+  flex: none; border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #fdfdfe, #babec5);
+  border: 1px solid rgba(0,0,0,0.35);
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.45), inset 0 1px 1px rgba(255,255,255,0.9), inset 0 -2px 3px rgba(0,0,0,0.15);
+}
+.sound-mark-track {
+  position: relative; flex: 1; height: 62%; border-radius: 999px; overflow: hidden;
+  background:
+    repeating-linear-gradient(45deg, #6b7078 0 6px, #83878f 6px 12px);
+  border: 1px solid rgba(0,0,0,0.35);
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
+}
+.sound-mark-thumb {
+  position: absolute; top: 50%; transform: translate(-50%, -50%);
+  border-radius: 50%; background: radial-gradient(circle at 35% 30%, #fdfdfe, #9ea3ab);
+  border: 2px solid #eef0f2;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.6), inset 0 1px 1px rgba(255,255,255,0.9);
+  transition: left 0.1s linear, box-shadow 0.2s ease;
+}
+.sound-mark-thumb.is-active {
+  box-shadow: 0 0 0 3px #6ec13d, 0 0 8px 2px rgba(110,193,61,0.8), inset 0 1px 1px rgba(255,255,255,0.9);
+}
 
 /* Trang Tài khoản học sinh */
 .opening-chip-wait { background: #fff4e0; color: #b26a00; }

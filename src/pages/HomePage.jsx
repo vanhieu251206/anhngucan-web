@@ -8,14 +8,16 @@ const BEE_IMG = `${import.meta.env.BASE_URL}assets/img/mascot/bee.png`;
 // có tính năng theo dõi tiến độ, xem CLAUDE.md mục 6-7), nên KHÔNG có streak/điểm/% hoàn thành.
 const SERIES_INFO = {
   kids: {
-    ready: false,
+    // Mở khoá thẻ theo yêu cầu người dùng 2026-09-23: mục "Sách online" (flipbook ảnh, xem
+    // KidsPage.jsx/BookReader.jsx) đã dùng được — Listening/Speaking Kids vẫn "Sắp có" bên trong.
+    ready: true,
     accent: "#F2A93B",
     difficulty: "Vỡ lòng",
     difficultyLevel: 0,
     icon: <><path d="M12 3l2.5 5 5.5.8-4 3.9.9 5.5-5-2.6-5 2.6.9-5.5-4-3.9 5.5-.8L12 3z" /></>,
     listeningNote: "",
     speakingNote: "",
-    skills: ["listening", "speaking"],
+    skills: ["book", "listening", "speaking"],
   },
   starters: {
     ready: true,
@@ -86,11 +88,12 @@ const SKILL_ICONS = {
   dictation: <path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />,
   vocabulary: <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V2H6.5A2.5 2.5 0 0 0 4 4.5v15zM4 19.5A2.5 2.5 0 0 0 6.5 22H20v-3" />,
   practice: <path d="M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />,
+  book: <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V2H6.5A2.5 2.5 0 0 0 4 4.5v15zM4 19.5A2.5 2.5 0 0 0 6.5 22H20v-3" />,
 };
 const SKILLS_FULL = ["reading", "listening", "speaking", "dictation"];
 const SKILL_LABELS = {
   reading: "Reading", listening: "Listening", speaking: "Speaking", dictation: "Dictation",
-  vocabulary: "Vocabulary", practice: "Practice Test",
+  vocabulary: "Vocabulary", practice: "Practice Test", book: "Sách online",
 };
 
 function SeriesModes({ skills }) {

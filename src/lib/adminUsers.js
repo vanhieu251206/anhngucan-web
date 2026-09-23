@@ -37,8 +37,24 @@ const firebaseConfig = {
 // khoản, không đụng gì tới app/auth chính đang giữ phiên đăng nhập admin.
 export { STUDENT_EMAIL_DOMAIN };
 
-export function createTeacherAccount(email, password) {
-  return createStaffLikeAccount("teacher", email, password);
+// scope: { restricted, allowedSeriesIds, allowedClasses } — bỏ trống/undefined = tài khoản KHÔNG
+// giới hạn (hoạt động y hệt giáo viên full-time hiện tại). Chỉ set khi tạo giáo viên dạy ngắn hạn/
+// vài lớp (chốt 2026-09-22, xem firestore.rules `isRestrictedTeacher()`).
+export function createTeacherAccount(email, password, scope) {
+  const extra = scope?.restricted
+    ? { restricted: true, allowedSeriesIds: scope.allowedSeriesIds ?? [], allowedClasses: scope.allowedClasses ?? [] }
+    : {};
+  return createStaffLikeAccount("teacher", email, password, extra);
+}
+
+// Sửa phạm vi 1 tài khoản giáo viên đã có — admin HOẶC giáo viên khác đều gọi được (xem
+// firestore.rules `users/{uid}` allow update theo isStaff(), chỉ đụng đúng 3 field này).
+export async function updateTeacherScope(uid, { restricted, allowedSeriesIds, allowedClasses }) {
+  await updateDoc(doc(db, "users", uid), {
+    restricted: !!restricted,
+    allowedSeriesIds: allowedSeriesIds ?? [],
+    allowedClasses: allowedClasses ?? [],
+  });
 }
 
 // Tài khoản đặc biệt (role "tester"): đăng nhập làm được mọi dạng bài nhưng không ghi lịch sử vào

@@ -31,10 +31,19 @@ const ADMIN_ITEMS = [
 // phòng khi cần dùng lại, không xoá. Mục "Tài khoản học sinh" và "Giao bài cho lớp" đã xoá hẳn
 // (không còn dùng, StudentAccountsPage.jsx/AssignmentsPage.jsx đã xoá — người dùng yêu cầu
 // 2026-09-17).
+// Giáo viên KHÔNG bị giới hạn (mặc định, chưa bật `restricted`) — thêm mục "Phân quyền giáo viên
+// phụ" để tự phân công phạm vi cho người dạy ngắn hạn, không cần đợi admin (chốt 2026-09-22).
 const TEACHER_ITEMS = [
   { key: "create-lesson", label: "Tạo bài" },
-  { key: "image-splitter", label: "Tách ảnh" },
   { key: "students", label: "Tài khoản học sinh" },
+  { key: "openings", label: "Mở bài" },
+  { key: "results", label: "Kết quả học sinh" },
+  { key: "teachers", label: "Phân quyền giáo viên phụ" },
+];
+// Giáo viên BỊ GIỚI HẠN (restricted=true, vd người dạy ngắn hạn/vài lớp) — không thấy "Tài khoản
+// học sinh" (không được xem/tạo học sinh) và không tự phân quyền cho ai khác.
+const RESTRICTED_TEACHER_ITEMS = [
+  { key: "create-lesson", label: "Tạo bài" },
   { key: "openings", label: "Mở bài" },
   { key: "results", label: "Kết quả học sinh" },
 ];
@@ -42,8 +51,9 @@ const TEACHER_ITEMS = [
 // Khu vực quản trị — layout TÁCH BIỆT hoàn toàn khỏi giao diện học sinh (không dùng
 // Header/Footer công khai, không dùng tông cam/xanh ngọc), xem class .admin-* trong index.css.
 export default function DashboardPage({ onNavigate }) {
-  const { user, isAdmin, isTeacher, logout } = useAuth();
-  const items = isAdmin ? ADMIN_ITEMS : isTeacher ? TEACHER_ITEMS : [];
+  const { user, isAdmin, isTeacher, profile, logout } = useAuth();
+  const isRestrictedTeacher = isTeacher && !!profile?.restricted;
+  const items = isAdmin ? ADMIN_ITEMS : isRestrictedTeacher ? RESTRICTED_TEACHER_ITEMS : isTeacher ? TEACHER_ITEMS : [];
   // Mục sidebar đang mở: ưu tiên URL (?section=... — để F5 quay lại đúng tab thay vì luôn về
   // "Tổng quan", phản hồi người dùng 2026-08-23), cuối cùng mới tới mục đầu tiên của role.
   const [section, setSectionState] = useState(
@@ -61,7 +71,7 @@ export default function DashboardPage({ onNavigate }) {
       setSection(items[0]?.key ?? "overview");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAdmin, isTeacher]);
+  }, [isAdmin, isTeacher, isRestrictedTeacher]);
 
   function handleLogout() {
     logout();
@@ -87,10 +97,10 @@ export default function DashboardPage({ onNavigate }) {
           <div className="admin-content">
             {section === "overview" && isAdmin && <OverviewPage />}
             {section === "create-lesson" && (isAdmin || isTeacher) && <CreateLessonPage />}
-            {section === "image-splitter" && (isAdmin || isTeacher) && <ImageSplitterPage />}
-            {section === "students" && (isAdmin || isTeacher) && <StudentAccountsPage />}
+            {section === "image-splitter" && isAdmin && <ImageSplitterPage />}
+            {section === "students" && (isAdmin || (isTeacher && !isRestrictedTeacher)) && <StudentAccountsPage />}
             {section === "openings" && (isAdmin || isTeacher) && <OpeningsPage />}
-            {section === "teachers" && isAdmin && <TeacherAccountsPage />}
+            {section === "teachers" && (isAdmin || (isTeacher && !isRestrictedTeacher)) && <TeacherAccountsPage />}
             {section === "testers" && isAdmin && <TesterAccountsPage />}
             {section === "speech-logs" && isAdmin && <SpeechLogsPage />}
             {section === "results" && (isAdmin || isTeacher) && <StudentResultsPage />}

@@ -292,3 +292,39 @@ export async function saveListeningExamTest(seriesId, level, testId, { title, pa
     { merge: true },
   );
 }
+
+// SÁCH ONLINE (Kids) — chốt 2026-09-23, cập nhật cùng ngày: Kids chia theo Grade 1-5
+// (KIDS_GRADES trong yleData.js), mỗi Grade có ĐÚNG 2 quyển cố định — Student Book và Workbook
+// (KIDS_BOOK_KINDS) — KHÔNG phải danh sách sách tự do. Lưu ở collection riêng cấp cao nhất
+// "kidsBooks" (không nằm trong "lessons" vì không có level), docId cố định `grade{n}-{kind}`
+// (vd "grade1-student") — mỗi doc: { grade, kind, pages: string[] (URL ảnh Cloudinary từng trang,
+// lật trang kiểu flipbook, xem BookReader.jsx), sounds: Array<{x,y,url}>[] — CÙNG chỉ số với pages,
+// mỗi trang có 0..N điểm audio ĐẶT NGAY TRÊN ẢNH trang (x/y % theo chiều rộng/cao trang, giống các
+// icon loa nhỏ trong sách flipbook thật, chốt người dùng 2026-09-23 — thay cho "audio: (string|
+// null)[]" cũ chỉ có đúng 1 audio/trang). KHÔNG dùng audio gốc sách có bản quyền — giáo viên tự thu/
+// TTS ngoài rồi tải lên (xem CLAUDE.md mục 1), ảnh cũng tự cắt/phục hồi từ sách bản màu, không phát
+// hành file scan gốc y hệt sách.
+// Firestore KHÔNG cho lưu mảng lồng mảng trực tiếp ("Nested arrays are not supported" — lỗi thực tế
+// gặp phải khi sounds là Array<Array<{x,y,url}>>) — nên khi lưu, bọc mỗi mảng con vào 1 object
+// { marks: [...] }, và khi đọc lại thì bóc ra đúng dạng mảng phẳng mà UI đang dùng.
+export function kidsBookId(grade, kind) {
+  return `grade${grade}-${kind}`;
+}
+
+export async function getKidsBook(grade, kind) {
+  const snap = await getDoc(doc(db, "kidsBooks", kidsBookId(grade, kind)));
+  if (!snap.exists()) return null;
+  const data = snap.data();
+  return { id: snap.id, ...data, sounds: (data.sounds ?? []).map(entry => entry?.marks ?? []) };
+}
+
+export async function saveKidsBook(grade, kind, { pages, sounds }, uid) {
+  await setDoc(doc(db, "kidsBooks", kidsBookId(grade, kind)), {
+    grade,
+    kind,
+    sounds: (sounds ?? []).map(marks => ({ marks: marks ?? [] })),
+    pages: pages ?? [],
+    updatedAt: serverTimestamp(),
+    updatedBy: uid,
+  });
+}
