@@ -61,17 +61,12 @@ function initialStepFromUrl() {
 }
 
 export default function CreateLessonPage() {
-  const { user, isAdmin, isTeacher, profile } = useAuth();
+  const { user, isTeacher, profile } = useAuth();
   // Giáo viên bị giới hạn (restricted, vd dạy ngắn hạn) chỉ soạn được bộ đề trong allowedSeriesIds
   // — chặn thật ở firestore.rules `canManageSeries()`, đây chỉ là lọc UI cho gọn (chốt 2026-09-22).
   const isRestricted = isTeacher && !!profile?.restricted;
-  // CMS sách Kids (KidsContentPage) CHỈ admin thấy — giáo viên ẩn hẳn (chốt người dùng 2026-09-24).
-  const visibleSeries = isAdmin ? YLE_SERIES : YLE_SERIES.filter(s => s.id !== "kids");
-  const allowedSeries = isRestricted ? visibleSeries.filter(s => (profile?.allowedSeriesIds ?? []).includes(s.id)) : visibleSeries;
+  const allowedSeries = isRestricted ? YLE_SERIES.filter(s => (profile?.allowedSeriesIds ?? []).includes(s.id)) : YLE_SERIES;
   const [{ series, level, mode }, setStep] = useState(initialStepFromUrl);
-  useEffect(() => {
-    if (series?.id === "kids" && !isAdmin) setStep({ series: null, level: null, mode: null });
-  }, [series, isAdmin]);
 
   useEffect(() => {
     setParams(
@@ -122,7 +117,7 @@ export default function CreateLessonPage() {
       <Breadcrumb crumbs={crumbs} />
       {!series && <SeriesPicker series={allowedSeries} onPick={setSeries} />}
       {series && series.id === "ket-pet" && <KetPetContentPage />}
-      {series && series.id === "kids" && isAdmin && <KidsContentPage />}
+      {series && series.id === "kids" && <KidsContentPage />}
       {series && series.id !== "ket-pet" && series.id !== "kids" && !level && (
         <LevelPicker series={series} onPick={setLevel} />
       )}

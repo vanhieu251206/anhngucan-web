@@ -11,7 +11,9 @@ const ACCENT = "#F2A93B";
 // nội dung thật ở web công khai nên chưa soạn ở đây. Tách riêng khỏi CreateLessonPage.jsx vì Kids
 // không theo Level/Test như YLE (giống KetPetContentPage.jsx).
 export default function KidsContentPage() {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
+  // CMS dạng Sách (Student Book/Workbook) CHỈ admin thấy — giáo viên ẩn (chốt người dùng 2026-09-24).
+  const bookKinds = isAdmin ? KIDS_BOOK_KINDS : [];
   const [grade, setGrade] = useState(null);
   const [kind, setKind] = useState(null); // "student" | "workbook"
   const [pages, setPages] = useState([]);
@@ -57,13 +59,14 @@ export default function KidsContentPage() {
     );
   }
 
-  if (kind == null) {
+  if (kind == null || !isAdmin) {
     return (
       <div className="admin-card">
         <button type="button" className="admin-pill-btn" onClick={() => setGrade(null)}>← Chọn khối khác</button>
         <h2>{`Grade ${grade} — chọn sách`}</h2>
         <div className="admin-picker-grid">
-          {KIDS_BOOK_KINDS.map(k => (
+          {bookKinds.length === 0 && <p className="admin-muted-text">Chưa có nội dung.</p>}
+          {bookKinds.map(k => (
             <button key={k.key} className="admin-picker-tile" style={{ "--accent": ACCENT }} onClick={() => setKind(k.key)}>
               <span className="admin-picker-tile-dot" />
               <span className="admin-picker-tile-title">{k.label}</span>
