@@ -318,10 +318,13 @@ export async function getKidsBook(grade, kind) {
   return { id: snap.id, ...data, sounds: (data.sounds ?? []).map(entry => entry?.marks ?? []) };
 }
 
-export async function saveKidsBook(grade, kind, { pages, sounds }, uid) {
+// tabs: [{ label, page, color }] — tab đánh dấu unit ở mép sách (page = chỉ số trang 0-based,
+// color = mã màu hex lấy bằng công cụ hút màu ngay trên ảnh trang, xem KidsBookTabsEditor.jsx).
+export async function saveKidsBook(grade, kind, { pages, sounds, tabs }, uid) {
   await setDoc(doc(db, "kidsBooks", kidsBookId(grade, kind)), {
     grade,
     kind,
+    tabs: tabs ?? [],
     sounds: (sounds ?? []).map(marks => ({ marks: marks ?? [] })),
     pages: pages ?? [],
     updatedAt: serverTimestamp(),

@@ -18,6 +18,7 @@ export default function KidsContentPage() {
   const [kind, setKind] = useState(null); // "student" | "workbook"
   const [pages, setPages] = useState([]);
   const [sounds, setSounds] = useState([]); // Array<{x,y,url}>[] — cùng chỉ số với pages
+  const [tabs, setTabs] = useState([]); // [{ label, page, color }] — tab đánh dấu unit ở mép sách
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -31,6 +32,7 @@ export default function KidsContentPage() {
       if (cancelled) return;
       setPages(book?.pages ?? []);
       setSounds(book?.sounds ?? []);
+      setTabs(book?.tabs ?? []);
       setLoading(false);
     });
     return () => { cancelled = true; };
@@ -38,7 +40,7 @@ export default function KidsContentPage() {
 
   async function handleSave() {
     setSaving(true);
-    await saveKidsBook(grade, kind, { pages, sounds }, user.uid);
+    await saveKidsBook(grade, kind, { pages, sounds, tabs }, user.uid);
     setSaving(false);
     setSaved(true);
   }
@@ -85,6 +87,8 @@ export default function KidsContentPage() {
       title={`Grade ${grade} — ${kindLabel}`}
       pages={pages}
       sounds={sounds}
+      tabs={tabs}
+      onTabsChange={next => { setTabs(next); setSaved(false); }}
       onChange={(nextPages, nextSounds) => { setPages(nextPages); setSounds(nextSounds); }}
       onBack={() => setKind(null)}
       onSave={handleSave}

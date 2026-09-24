@@ -23,7 +23,7 @@ export default function KidsPage({ onNavigate }) {
     setLoadingKind(kind);
     const data = await getKidsBook(grade, kind).catch(() => null);
     setLoadingKind(null);
-    setBook({ id: `grade${grade}-${kind}`, title: `Grade ${grade} — ${label}`, pages: data?.pages ?? [], sounds: data?.sounds ?? [] });
+    setBook({ id: `grade${grade}-${kind}`, title: `Grade ${grade} — ${label}`, pages: data?.pages ?? [], sounds: data?.sounds ?? [], tabs: data?.tabs ?? [] });
   }
 
   function backLabel() {

@@ -4341,6 +4341,28 @@ button.wizard-step:focus-visible { outline: 3px solid var(--color-secondary); ou
   font-weight: 700; font-size: 0.8rem; color: #3b5bdb; cursor: pointer; white-space: nowrap;
 }
 .kids-sound-list-page:hover { border-color: #3b5bdb; }
+/* Soạn tab đánh dấu unit + hút màu trên ảnh trang — KidsBookTabsEditor.jsx */
+.kids-tabs-stage { position: relative; }
+.kids-tabs-page { position: absolute; z-index: 1; cursor: default; }
+.kids-tabs-page.is-picking { cursor: crosshair; }
+.kids-color-loupe {
+  position: absolute; pointer-events: none; transform: translate(16px, 16px); z-index: 3;
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+}
+.kids-color-loupe canvas {
+  width: 110px; height: 110px; border-radius: 50%; border: 3px solid #fff;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.45); image-rendering: pixelated;
+}
+.kids-color-loupe span {
+  font: 700 0.75rem/1 ui-monospace, monospace; padding: 4px 8px; border-radius: 6px; color: #fff;
+  text-shadow: 0 0 3px #000; border: 2px solid #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+}
+.kids-tab-label-input { width: 56px; padding: 5px 8px; border: 1.5px solid #e4e7ee; border-radius: 8px; font-weight: 700; }
+.kids-tab-page-field { display: flex; align-items: center; gap: 4px; font-size: 0.8rem; font-weight: 700; color: #4b5563; }
+.kids-tab-page-field input { width: 58px; padding: 5px 6px; border: 1.5px solid #e4e7ee; border-radius: 8px; }
+.kids-tab-color-input { width: 34px; height: 30px; padding: 0; border: 1.5px solid #e4e7ee; border-radius: 8px; background: none; cursor: pointer; }
+.kids-tab-pick-btn { padding: 4px 10px; }
+.kids-tab-pick-btn.is-active { background: #3b5bdb; color: #fff; }
 @media (max-width: 720px) {
   .kids-sound-editor-body { flex-direction: column; padding: 10px; }
   .kids-sound-editor-list { width: auto; }
@@ -4393,6 +4415,20 @@ button.wizard-step:focus-visible { outline: 3px solid var(--color-secondary); ou
 .book-back-layer { position: absolute; inset: 0; transform: scaleX(-1); visibility: hidden; pointer-events: none; }
 .book-back-layer.is-active { visibility: visible; }
 .book-back-page-inner { position: absolute; inset: 0; transform: scaleX(-1); }
+.book-flip-wrap > .book-flipbook { z-index: 1; }
+.book-flip-wrap > .book-back-layer { z-index: 2; }
+/* Tab đánh dấu unit ở mép sách — BookTabs.jsx. Nằm SAU sách (z-index thấp hơn), 14px khuất sau
+   mép; hover thì trượt ra thêm như sách flipbook thật. */
+.book-tab {
+  position: absolute; z-index: 0; border: none; padding: 0; cursor: pointer; font-family: inherit;
+  font-weight: 800; display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.3); transition: transform 0.18s ease, filter 0.18s ease;
+}
+.book-tab span { writing-mode: vertical-rl; line-height: 1; white-space: nowrap; overflow: hidden; }
+.book-tab.is-left { border-radius: 6px 0 0 6px; padding-right: 14px; }
+.book-tab.is-left span { transform: rotate(180deg); }
+.book-tab.is-right { border-radius: 0 6px 6px 0; padding-left: 14px; }
+.book-tab:hover, .book-tab:focus-visible { transform: translateX(var(--tab-hover-shift)); filter: brightness(1.08); outline: none; }
 /* Icon audio trên trang sách — dạng thanh phát nhỏ (nút play + vạch tiến trình + loa), dùng chung
    SoundMarkWidget.jsx cho cả CMS (KidsBookSoundEditor.jsx, xem trước đúng vị trí/hình dạng thật) và
    web học sinh (BookReader.jsx) — chốt người dùng 2026-09-23, thay cho nút tròn số cũ. */

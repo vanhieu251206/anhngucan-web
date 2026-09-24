@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import HTMLFlipBook from "react-pageflip";
 import SoundMarkWidget from "./SoundMarkWidget.jsx";
+import BookTabs from "./BookTabs.jsx";
 
 // Tỉ lệ khung 1 trang mặc định (khổ dọc kiểu sách giáo trình thiếu nhi, 3:4) — dùng khi chưa đo
 // được ảnh trang thật, để không bị vỡ layout trước khi ảnh đầu tiên tải xong.
@@ -18,6 +19,7 @@ const DEFAULT_RATIO = 3 / 4;
 export default function BookReader({ book, onBack }) {
   const pages = book.pages ?? [];
   const sounds = book.sounds ?? []; // Array<{x,y,url}>[] — điểm audio đặt ngay trên ảnh từng trang
+  const tabs = book.tabs ?? []; // [{ label, page, color }] — tab đánh dấu unit ở mép sách
   const [current, setCurrent] = useState(0);
   const [playingKey, setPlayingKey] = useState(null); // `${pageIndex}-${markIndex}` đang phát
   const [progress, setProgress] = useState(0); // 0..1, tiến trình phát của playingKey
@@ -220,9 +222,11 @@ export default function BookReader({ book, onBack }) {
   function recompute() {
     const el = stageRef.current;
     if (!el) return;
-    const availW = el.clientWidth;
-    const availH = el.clientHeight;
-    if (!availW || !availH) return;
+    // Chừa chỗ 2 bên cho tab đánh dấu unit thò ra ngoài mép sách.
+    const tabSize = tabs.length ? (el.clientWidth < 500 ? 16 : 26) : 0;
+    const availW = el.clientWidth - 32 - tabSize * 2.6;
+    const availH = el.clientHeight - 32;
+    if (availW <= 0 || availH <= 0) return;
     const ratio = ratioRef.current;
     const spread = availW >= 700 && availW / availH > ratio * 1.3;
 
@@ -231,8 +235,39 @@ export default function BookReader({ book, onBack }) {
     const widthDivisor = spread ? 2 : 1;
     const pageHeight = Math.min(availH, availW / widthDivisor / ratio);
     const pageWidth = pageHeight * ratio;
-    setBox({ pageWidth: Math.floor(pageWidth), pageHeight: Math.floor(pageHeight), spread });
+    setBox({ pageWidth: Math.floor(pageWidth), pageHeight: Math.floor(pageHeight), spread, tabSize });
   }
+
+  // Vùng sách đang hiện (theo toạ độ của .book-flip-wrap) để đặt tab đúng mép. Thư viện khởi tạo
+  // trễ vài khung hình sau khi render nên dò lại bằng requestAnimationFrame tới khi đo được.
+  const [bookRect, setBookRect] = useState(null);
+  useEffect(() => {
+    if (!box || !tabs.length) return;
+    let raf;
+    let tries = 0;
+    function measure() {
+      const pf = pageFlip();
+      const wrap = wrapRef.current;
+      const block = wrap?.querySelector(".stf__block");
+      const b = pf?.getBoundsRect?.();
+      if (!pf || !block || !b) {
+        if (tries++ < 60) raf = requestAnimationFrame(measure);
+        return;
+      }
+      const wr = wrap.getBoundingClientRect();
+      const br = block.getBoundingClientRect();
+      const portrait = pf.getOrientation() === "portrait";
+      setBookRect({
+        left: br.left - wr.left + b.left + (portrait ? b.pageWidth : 0),
+        top: br.top - wr.top + b.top,
+        width: portrait ? b.pageWidth : b.pageWidth * 2,
+        height: b.height,
+      });
+    }
+    raf = requestAnimationFrame(measure);
+    return () => cancelAnimationFrame(raf);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [box, tabs.length]);
 
   useLayoutEffect(() => {
     recompute();
@@ -344,6 +379,13 @@ export default function BookReader({ book, onBack }) {
           <p className="admin-muted-text">Sách này chưa có trang nào.</p>
         ) : box ? (
           <div className="book-flip-wrap" ref={wrapRef}>
+            <BookTabs
+              tabs={tabs}
+              rect={bookRect}
+              currentPage={current}
+              size={box.tabSize}
+              onJump={page => withButtonFlip(pf => pf.flip(page))}
+            />
             <HTMLFlipBook
               ref={flipBookRef}
               key={`${pages.length}-${box.pageWidth}-${box.pageHeight}-${box.spread}`}

@@ -4,6 +4,7 @@ import { PageHead, PageHeadSaveButton } from "./AdminPageHead.jsx";
 import { uploadToCloudinary } from "../../lib/cloudinaryUpload.js";
 import { pdfToPageImages } from "../../lib/pdfToImages.js";
 import KidsBookSoundEditor from "./KidsBookSoundEditor.jsx";
+import KidsBookTabsEditor from "./KidsBookTabsEditor.jsx";
 
 // Soạn 1 quyển sách cố định của Kids (Student Book/Workbook theo Grade — xem KidsContentPage.jsx)
 // — danh sách ảnh từng trang (lật kiểu flipbook, xem BookReader.jsx) + các track audio đặt ngay
@@ -11,12 +12,13 @@ import KidsBookSoundEditor from "./KidsBookSoundEditor.jsx";
 // lật từng trang thật để đặt Track 1, Track 2... rồi tải hàng loạt file khớp theo thứ tự, chốt
 // người dùng 2026-09-23). Trang chủ yếu vào bằng "Tải sách (PDF)" (tự tách+upload hàng loạt) nên
 // danh sách bên dưới chỉ hiện thumbnail xem lại + sắp xếp/xoá trang.
-export default function KidsBookStudio({ title, pages, sounds, onChange, onBack, onSave, saving, saved }) {
+export default function KidsBookStudio({ title, pages, sounds, tabs, onTabsChange, onChange, onBack, onSave, saving, saved }) {
   const confirm = useConfirm();
   const [pdfBusy, setPdfBusy] = useState(false);
   const [pdfStage, setPdfStage] = useState(""); // "Đang tách trang..." / "Đang tải lên 3/20..."
   const [pdfError, setPdfError] = useState("");
   const [soundEditorOpen, setSoundEditorOpen] = useState(false);
+  const [tabsEditorOpen, setTabsEditorOpen] = useState(false);
 
   async function removePage(i) {
     if (!(await confirm("Xoá trang này khỏi sách?", { danger: true }))) return;
@@ -24,6 +26,10 @@ export default function KidsBookStudio({ title, pages, sounds, onChange, onBack,
       pages.filter((_, idx) => idx !== i),
       (sounds ?? []).filter((_, idx) => idx !== i),
     );
+    // Tab gắn theo số trang — xoá 1 trang thì các tab phía sau lùi lại 1 trang cho khớp.
+    if (tabs?.some(t => t.page > i)) {
+      onTabsChange(tabs.map(t => (t.page > i ? { ...t, page: t.page - 1 } : t)));
+    }
   }
   function movePage(i, dir) {
     const j = i + dir;
@@ -65,6 +71,17 @@ export default function KidsBookStudio({ title, pages, sounds, onChange, onBack,
     }
   }
 
+  if (tabsEditorOpen) {
+    return (
+      <KidsBookTabsEditor
+        pages={pages}
+        tabs={tabs ?? []}
+        onChange={onTabsChange}
+        onClose={() => setTabsEditorOpen(false)}
+      />
+    );
+  }
+
   if (soundEditorOpen) {
     return (
       <KidsBookSoundEditor
@@ -91,6 +108,11 @@ export default function KidsBookStudio({ title, pages, sounds, onChange, onBack,
         {pages.length > 0 && (
           <button type="button" className="admin-pill-btn" onClick={() => setSoundEditorOpen(true)}>
             🎧 Xem trước & gắn audio
+          </button>
+        )}
+        {pages.length > 0 && (
+          <button type="button" className="admin-pill-btn" onClick={() => setTabsEditorOpen(true)}>
+            🔖 Tab đánh dấu unit{tabs?.length ? ` (${tabs.length})` : ""}
           </button>
         )}
       </div>
