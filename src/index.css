@@ -4384,6 +4384,13 @@ button.wizard-step:focus-visible { outline: 3px solid var(--color-secondary); ou
 .book-flipbook { margin: 0 auto; box-shadow: 0 24px 60px rgba(0,0,0,0.4); }
 .book-flip-page { background: #fff; overflow: hidden; position: relative; }
 .book-flip-page img { width: 100%; height: 100%; object-fit: contain; background: #fff; user-select: none; }
+/* Cuốn "soi gương" chỉ dùng cho hiệu ứng lùi trang ở chế độ 1 trang (xem BookReader.jsx): lật ngang
+   cả cuốn, nội dung từng trang lật ngang lần nữa để hiện đúng chiều. Ẩn bằng visibility (không dùng
+   display:none) để thư viện vẫn đo được kích thước. */
+.book-flip-wrap { position: relative; width: 100%; }
+.book-back-layer { position: absolute; inset: 0; transform: scaleX(-1); visibility: hidden; pointer-events: none; }
+.book-back-layer.is-active { visibility: visible; }
+.book-back-page-inner { position: absolute; inset: 0; transform: scaleX(-1); }
 /* Icon audio trên trang sách — dạng thanh phát nhỏ (nút play + vạch tiến trình + loa), dùng chung
    SoundMarkWidget.jsx cho cả CMS (KidsBookSoundEditor.jsx, xem trước đúng vị trí/hình dạng thật) và
    web học sinh (BookReader.jsx) — chốt người dùng 2026-09-23, thay cho nút tròn số cũ. */

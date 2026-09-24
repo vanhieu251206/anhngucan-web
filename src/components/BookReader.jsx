@@ -45,21 +45,151 @@ export default function BookReader({ book, onBack }) {
   function pageFlip() {
     return flipBookRef.current?.pageFlip?.();
   }
+  // Lỗi thư viện: flipPrev() dùng toạ độ cứng x=10, ở chế độ 1 trang (portrait) điểm đó rơi vào
+  // giữa trang chứ không phải góc → bị `disableFlipByClick` chặn, nút lùi trang không chạy. Tắt tạm
+  // cờ này trong lúc gọi lật bằng nút (kiểm tra góc chạy đồng bộ nên bật lại ngay được).
+  function withButtonFlip(fn, pf = pageFlip()) {
+    if (!pf) return;
+    const settings = pf.getSettings();
+    const prev = settings.disableFlipByClick;
+    settings.disableFlipByClick = false;
+    try {
+      fn(pf);
+    } finally {
+      settings.disableFlipByClick = prev;
+    }
+  }
   function goFirst() {
-    pageFlip()?.flip(0);
+    withButtonFlip(pf => pf.flip(0));
   }
   function goPrev() {
-    pageFlip()?.flipPrev();
+    if (backBookEnabled) startBackFlip(pf => withButtonFlip(p => p.flipNext(), pf));
+    else withButtonFlip(pf => pf.flipPrev());
   }
+
+  // Chế độ 1 trang: hiệu ứng lùi trang mặc định của thư viện là kéo trang TRƯỚC bay vào từ bên trái
+  // (lôi mép phải của trang trước) — không giống lật sách thật. Nên dùng 1 cuốn "soi gương" riêng
+  // (lật ngang bằng CSS scaleX(-1), chỉ gồm [trang hiện tại, trang trước]): lật TỚI trên cuốn gương
+  // = nhìn thấy mép TRÁI trang hiện tại cuộn sang phải, lộ trang trước bên dưới — đúng đối xứng với
+  // lật tới. Cuốn gương ẩn sẵn, chỉ hiện trong lúc lùi trang; lật xong thì cuốn chính nhảy về trang
+  // trước (không hiệu ứng) rồi mới ẩn gương, nên không bị nháy.
+  const backBookEnabled = !!box && !box.spread && current > 0;
+  const [backActive, setBackActive] = useState(false);
+  const [backBase, setBackBase] = useState(current); // trang "hiện tại" của cuốn gương
+  const backActiveRef = useRef(false);
+  const backFlippedRef = useRef(false);
+  const backBookRef = useRef(null);
+  const wrapRef = useRef(null);
+  const currentRef = useRef(current);
+  currentRef.current = current;
+
+  useEffect(() => {
+    if (!backActiveRef.current) setBackBase(current);
+  }, [current]);
+
+  function backFlip() {
+    return backBookRef.current?.pageFlip?.();
+  }
+  function isFlipBusy() {
+    return backActiveRef.current || (pageFlip() && pageFlip().getState() !== "read");
+  }
+  // Trả về true nếu cuốn gương đã bắt đầu (để nơi gọi biết có nên chặn sự kiện hay không).
+  function startBackFlip(run) {
+    const pf = backFlip();
+    if (!pf || isFlipBusy()) return false;
+    backActiveRef.current = true;
+    backFlippedRef.current = false;
+    setBackActive(true);
+    run(pf);
+    return true;
+  }
+  function finishBackFlip() {
+    if (!backActiveRef.current) return;
+    if (backFlippedRef.current) {
+      const prev = currentRef.current - 1;
+      pageFlip()?.turnToPage(prev);
+      setCurrent(prev);
+    }
+    backFlippedRef.current = false;
+    // Đợi cuốn chính vẽ xong trang mới (thư viện vẽ ở requestAnimationFrame) rồi mới ẩn gương.
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        backActiveRef.current = false;
+        setBackActive(false);
+        backFlip()?.turnToPage(0);
+        setBackBase(currentRef.current);
+      })
+    );
+  }
+
+  // Kéo ở vùng mép trái trang (40% bề ngang, giống vùng "lật lùi" của thư viện) → chuyển thao tác
+  // sang cuốn gương với toạ độ lật ngang. Bắt ở pha capture để cuốn chính không nhận được.
+  useEffect(() => {
+    const wrap = wrapRef.current;
+    if (!wrap || !backBookEnabled) return;
+
+    function pointOf(e) {
+      const t = e.touches?.[0] ?? e.changedTouches?.[0] ?? e;
+      return { clientX: t.clientX, clientY: t.clientY };
+    }
+    function toMirror(block, p) {
+      const r = block.getBoundingClientRect();
+      return { x: r.width - (p.clientX - r.left), y: p.clientY - r.top };
+    }
+
+    function onDown(e) {
+      if (e.type === "mousedown" && e.button !== 0) return;
+      if (e.target.closest?.(".sound-mark-widget")) return;
+      const main = pageFlip();
+      const block = wrap.querySelector(".stf__block");
+      if (!main || !block) return;
+      const p = pointOf(e);
+      const r = block.getBoundingClientRect();
+      const b = main.getBoundsRect();
+      const x = p.clientX - r.left;
+      const y = p.clientY - r.top;
+      const pageLeft = b.left + b.pageWidth;
+      if (x < pageLeft || x > pageLeft + b.pageWidth * 0.4 || y < b.top || y > b.top + b.height) return;
+
+      const isTouch = e.type === "touchstart";
+      const started = startBackFlip(pf => pf.startUserTouch(toMirror(block, p)));
+      if (!started) return;
+      e.stopPropagation();
+      e.preventDefault();
+
+      function onMove(ev) {
+        backFlip()?.userMove(toMirror(block, pointOf(ev)), isTouch);
+        if (isTouch) ev.preventDefault();
+      }
+      function onUp(ev) {
+        window.removeEventListener(isTouch ? "touchmove" : "mousemove", onMove);
+        window.removeEventListener(isTouch ? "touchend" : "mouseup", onUp);
+        const pf = backFlip();
+        pf?.userStop(toMirror(block, pointOf(ev)));
+        // Chạm rồi thả mà không kéo/không trúng góc → thư viện không lật, trạng thái vẫn "read".
+        if (!pf || pf.getState() === "read") finishBackFlip();
+      }
+      window.addEventListener(isTouch ? "touchmove" : "mousemove", onMove, { passive: false });
+      window.addEventListener(isTouch ? "touchend" : "mouseup", onUp);
+    }
+
+    wrap.addEventListener("mousedown", onDown, true);
+    wrap.addEventListener("touchstart", onDown, { capture: true, passive: false });
+    return () => {
+      wrap.removeEventListener("mousedown", onDown, true);
+      wrap.removeEventListener("touchstart", onDown, { capture: true });
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [backBookEnabled, box]);
   function goNext() {
-    pageFlip()?.flipNext();
+    withButtonFlip(pf => pf.flipNext());
   }
   function goLast() {
-    pageFlip()?.flip(pages.length - 1);
+    withButtonFlip(pf => pf.flip(pages.length - 1));
   }
   function jumpToPage() {
     const n = Math.min(pages.length, Math.max(1, parseInt(pageInput, 10) || 1));
-    pageFlip()?.flip(n - 1);
+    withButtonFlip(pf => pf.flip(n - 1));
     setPageInput(String(n));
   }
   function toggleFullscreen() {
@@ -136,6 +266,48 @@ export default function BookReader({ book, onBack }) {
     setProgress(el.currentTime / el.duration);
   }
 
+  const flipBookProps = box && {
+    width: box.pageWidth,
+    height: box.pageHeight,
+    size: "fixed",
+    showCover: false,
+    disableFlipByClick: true,
+    mobileScrollSupport: false,
+    drawShadow: true,
+    maxShadowOpacity: 0.5,
+    flippingTime: 500,
+    className: "book-flipbook",
+    style: {},
+  };
+
+  function renderPageContent(i) {
+    return (
+      <>
+        <img src={pages[i]} alt={`${book.title} — trang ${i + 1}`} draggable="false" />
+        {(sounds[i] ?? []).map((m, mi) => {
+          const key = `${i}-${mi}`;
+          return m.url ? (
+            <div
+              key={mi}
+              onPointerDown={e => e.stopPropagation()}
+              onMouseDown={e => e.stopPropagation()}
+              onTouchStart={e => e.stopPropagation()}
+            >
+              <SoundMarkWidget
+                x={m.x}
+                y={m.y}
+                pageWidth={box.pageWidth}
+                playing={playingKey === key}
+                progress={playingKey === key ? progress : 0}
+                onToggle={() => toggleMark(key, m.url)}
+              />
+            </div>
+          ) : null;
+        })}
+      </>
+    );
+  }
+
   return (
     <div className="book-reader" ref={rootRef}>
       <div className="book-reader-topbar">
@@ -171,50 +343,47 @@ export default function BookReader({ book, onBack }) {
         {pages.length === 0 ? (
           <p className="admin-muted-text">Sách này chưa có trang nào.</p>
         ) : box ? (
-          <HTMLFlipBook
-            ref={flipBookRef}
-            key={`${pages.length}-${box.pageWidth}-${box.pageHeight}-${box.spread}`}
-            width={box.pageWidth}
-            height={box.pageHeight}
-            size="fixed"
-            showCover={false}
-            usePortrait={!box.spread}
-            disableFlipByClick={true}
-            mobileScrollSupport={false}
-            drawShadow={true}
-            maxShadowOpacity={0.5}
-            flippingTime={500}
-            className="book-flipbook"
-            style={{}}
-            startPage={current}
-            onFlip={e => setCurrent(e.data)}
-          >
-            {pages.map((src, i) => (
-              <div className="book-flip-page" key={i}>
-                <img src={src} alt={`${book.title} — trang ${i + 1}`} draggable="false" />
-                {(sounds[i] ?? []).map((m, mi) => {
-                  const key = `${i}-${mi}`;
-                  return m.url ? (
-                    <div
-                      key={mi}
-                      onPointerDown={e => e.stopPropagation()}
-                      onMouseDown={e => e.stopPropagation()}
-                      onTouchStart={e => e.stopPropagation()}
-                    >
-                      <SoundMarkWidget
-                        x={m.x}
-                        y={m.y}
-                        pageWidth={box.pageWidth}
-                        playing={playingKey === key}
-                        progress={playingKey === key ? progress : 0}
-                        onToggle={() => toggleMark(key, m.url)}
-                      />
-                    </div>
-                  ) : null;
-                })}
+          <div className="book-flip-wrap" ref={wrapRef}>
+            <HTMLFlipBook
+              ref={flipBookRef}
+              key={`${pages.length}-${box.pageWidth}-${box.pageHeight}-${box.spread}`}
+              {...flipBookProps}
+              usePortrait={!box.spread}
+              startPage={current}
+              onFlip={e => setCurrent(e.data)}
+            >
+              {pages.map((src, i) => (
+                <div className="book-flip-page" key={i}>
+                  {renderPageContent(i)}
+                </div>
+              ))}
+            </HTMLFlipBook>
+
+            {backBookEnabled && (
+              <div className={`book-back-layer ${backActive ? "is-active" : ""}`}>
+                <HTMLFlipBook
+                  ref={backBookRef}
+                  key={`back-${pages.length}-${box.pageWidth}-${box.pageHeight}`}
+                  {...flipBookProps}
+                  usePortrait={true}
+                  useMouseEvents={false}
+                  startPage={0}
+                  onFlip={e => { backFlippedRef.current = e.data === 1; }}
+                  onChangeState={e => e.data === "read" && finishBackFlip()}
+                >
+                  {/* key cố định để React chỉ thay nội dung trong trang, không gỡ DOM mà thư viện đang giữ */}
+                  {["cur", "prev"].map((slot, si) => {
+                    const i = backBase - si;
+                    return (
+                      <div className="book-flip-page" key={slot}>
+                        <div className="book-back-page-inner">{i >= 0 && renderPageContent(i)}</div>
+                      </div>
+                    );
+                  })}
+                </HTMLFlipBook>
               </div>
-            ))}
-          </HTMLFlipBook>
+            )}
+          </div>
         ) : null}
       </div>
     </div>
