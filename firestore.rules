@@ -71,8 +71,10 @@ service cloud.firestore {
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['mustChangePassword']);
       // Bất kỳ staff nào (admin hoặc giáo viên) sửa PHẠM VI của 1 tài khoản GIÁO VIÊN khác — để
       // giáo viên chính tự phân công người dạy ngắn hạn mà không cần đợi admin mỗi lần (chốt
-      // 2026-09-22). Chỉ được đụng đúng 3 field này, không đổi email/role/mật khẩu.
+      // 2026-09-22). Chỉ được đụng đúng 3 field này, không đổi email/role/mật khẩu. Giáo viên KHÔNG
+      // tự sửa phạm vi của chính mình, và giáo viên bị giới hạn không sửa được của ai (2026-09-24).
       allow update: if isStaff() && resource.data.role == 'teacher' && request.resource.data.role == 'teacher'
+        && (isAdmin() || (!isRestrictedTeacher() && request.auth.uid != uid))
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['restricted', 'allowedSeriesIds', 'allowedClasses']);
     }
 

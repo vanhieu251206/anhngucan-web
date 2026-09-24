@@ -76,7 +76,7 @@ function ScopeEditor({ teacher, classes, onSaved, onCancel }) {
 }
 
 export default function TeacherAccountsPage() {
-  const { isAdmin } = useAuth();
+  const { user, isAdmin } = useAuth();
   const [teachers, setTeachers] = useState(null); // null = đang tải
   const [classes, setClasses] = useState([]);
   const [loadError, setLoadError] = useState("");
@@ -88,8 +88,10 @@ export default function TeacherAccountsPage() {
 
   function reload() {
     setLoadError("");
+    // Bỏ chính tài khoản đang đăng nhập — giáo viên chính không tự sửa phạm vi của mình (tránh tự
+    // khoá mình), chỉ phân quyền cho giáo viên khác (lỗi thực tế 2026-09-24).
     listTeachers()
-      .then(setTeachers)
+      .then(list => setTeachers(list.filter(t => t.uid !== user?.uid)))
       .catch(err => setLoadError(err.message || String(err)));
     listStudents().then(list => {
       setClasses([...new Set(list.map(s => s.className).filter(Boolean))].sort());

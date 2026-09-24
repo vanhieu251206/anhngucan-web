@@ -34,6 +34,7 @@ const ADMIN_ITEMS = [
 // Giáo viên KHÔNG bị giới hạn (mặc định, chưa bật `restricted`) — thêm mục "Phân quyền giáo viên
 // phụ" để tự phân công phạm vi cho người dạy ngắn hạn, không cần đợi admin (chốt 2026-09-22).
 const TEACHER_ITEMS = [
+  { key: "overview", label: "Tổng quan" },
   { key: "create-lesson", label: "Tạo bài" },
   { key: "students", label: "Tài khoản học sinh" },
   { key: "openings", label: "Mở bài" },
@@ -95,7 +96,7 @@ export default function DashboardPage({ onNavigate }) {
             <strong>{items.find(i => i.key === section)?.label ?? ""}</strong>
           </div>
           <div className="admin-content">
-            {section === "overview" && isAdmin && <OverviewPage />}
+            {section === "overview" && (isAdmin || (isTeacher && !isRestrictedTeacher)) && <OverviewPage />}
             {section === "create-lesson" && (isAdmin || isTeacher) && <CreateLessonPage />}
             {section === "image-splitter" && isAdmin && <ImageSplitterPage />}
             {section === "students" && (isAdmin || (isTeacher && !isRestrictedTeacher)) && <StudentAccountsPage />}

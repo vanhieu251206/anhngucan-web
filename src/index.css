@@ -2233,6 +2233,8 @@ button { font-family: inherit; }
   transition: box-shadow 0.15s ease;
 }
 .admin-card h2 { margin-top: 0; letter-spacing: -0.01em; }
+/* Nút "← Chọn ... khác" đặt ngay trên tiêu đề card (Kids/KET-PET) — chừa khoảng cách, không dính. */
+.admin-card > .admin-pill-btn + h2 { margin-top: 18px; }
 .admin-placeholder { color: var(--admin-muted); text-align: center; padding: 60px 20px; }
 .admin-muted-text { color: var(--admin-muted); }
 .admin-error { color: #dc2626; font-weight: 600; }
