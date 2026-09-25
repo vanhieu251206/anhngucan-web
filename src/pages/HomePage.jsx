@@ -143,7 +143,7 @@ export default function HomePage({ onNavigate, onSelectSeries }) {
             <img className="motivation-bee" src={BEE_IMG} alt="Linh vật Anh Ngữ C.A.N" />
             <div className="motivation-copy">
               <h2>Chào mừng đến với Anh Ngữ C.A.N — người bạn đồng hành luyện thi tiếng Anh mỗi ngày!</h2>
-              <p>Học cùng chú ong C.A.N mỗi ngày để tự tin chinh phục mọi kỳ thi nhé 🐝</p>
+              <p>Học cùng cô Cần mỗi ngày để tự tin chinh phục mọi kỳ thi nhé ✨</p>
               <StudentClassChip cls={cls} error={error} />
             </div>
           </div>
