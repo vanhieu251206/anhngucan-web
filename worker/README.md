@@ -79,3 +79,10 @@ gửi — `src/lib/pronunciationApi.js`) và giới hạn mỗi tài khoản 20 
 `wrangler.toml`). Xác minh token dùng project id lấy từ secret `FIREBASE_SERVICE_ACCOUNT` (mục trên) — **phải có
 secret này thì ghi âm mới chạy**. Sửa xong nhớ `npm run deploy` lại, và deploy Worker TRƯỚC hoặc CÙNG LÚC với web
 (Worker cũ vẫn chạy được với web mới, nhưng web cũ sẽ bị Worker mới từ chối vì không gửi token).
+
+## Nộp bài qua máy chủ (`/test/start`, `/test/submit`, thêm 2026-09-25)
+
+Học sinh không còn tự ghi kết quả/số lượt vào Firestore: web gọi `/test/start` khi vào bài (ghi giờ bắt đầu) và
+`/test/submit` khi nộp. Worker kiểm tra lớp, lần mở bài, hạn chót, số lượt, thời gian làm bài, tự chấm bằng code
+dùng chung `../src/lib/grading/*` (wrangler tự đóng gói), rồi ghi `testResults` + cộng `attempts`. Dùng cùng secret
+`FIREBASE_SERVICE_ACCOUNT` như mục trên. Code ở `src/submit.js` + `src/firestore.js` (Firestore REST).

@@ -2,11 +2,18 @@ import { useMemo, useRef, useState } from "react";
 import TestScoreReport from "./TestScoreReport.jsx";
 import ReadingReportView from "./ReadingReportView.jsx";
 import { useAuth } from "../lib/authContext.jsx";
-import { saveTestResult } from "../lib/testResults.js";
-import { attemptKey } from "../lib/openings.js";
 import ExamTimer, { useExamTimer } from "./ExamTimer.jsx";
-import { incrementAttempt } from "../lib/attempts.js";
 import { optimizeImage } from "../lib/cloudinaryImage.js";
+import { useTestSubmission } from "../lib/testSubmit.js";
+import SubmitStatus from "./SubmitStatus.jsx";
+import {
+  splitGapfillText, questionPoints, gapPoints, effectiveQuestionPoints, gapfillBlankCount, scrambleWord,
+  flattenQuestions, gradeReading, isFlyersStyle,
+} from "../lib/grading/reading.js";
+
+// Quy tắc chấm/đánh số nằm ở lib/grading/reading.js (dùng chung với Worker chấm bài phía máy chủ) — export lại để
+// ReadingStudio.jsx (CMS) import như cũ.
+export { questionPoints, gapPoints, effectiveQuestionPoints, gapfillBlankCount, scrambleWord };
 
 // Runner học sinh cho Reading & Writing — 1 TRANG SCROLL DÀI duy nhất cho cả Test (mọi Part nối
 // tiếp nhau), có sidebar trái "Danh sách câu hỏi" để nhảy nhanh đến từng câu, giống bố cục các
@@ -21,108 +28,6 @@ import { optimizeImage } from "../lib/cloudinaryImage.js";
 // thay vì để trống (yêu cầu người dùng 2026-08-26). Dùng CHUNG với ReadingStudio.jsx (blankQuestion)
 // để câu mặc định lúc soạn và lúc học sinh xem luôn khớp nhau.
 export const WORD_SCRAMBLE_DEFAULT_TEXT = "Look and read. Write the word.";
-
-function normalizeAnswer(s) {
-  return (s ?? "").trim().toLowerCase();
-}
-
-// Đáp án đúng có thể có NHIỀU cách viết như sách đáp án — giáo viên nhập cách nhau bằng dấu "|"
-// (vd "a red hat|red hat"). Học sinh viết đúng MỘT trong các cách là được điểm; bỏ trống thì luôn sai.
-function answerMatches(value, correct) {
-  const v = normalizeAnswer(value);
-  if (!v) return false;
-  return String(correct ?? "").split("|").some(a => normalizeAnswer(a) === v);
-}
-
-function splitGapfillText(text) {
-  return (text ?? "").split("___");
-}
-
-// Tổng điểm của 1 câu — mặc định 1 nếu giáo viên chưa nhập (dữ liệu cũ trước khi có tính năng
-// điểm số, hoặc lỡ để trống/nhập số âm) cũng rơi vào trường hợp này, tránh câu 0 điểm ngoài ý muốn.
-export function questionPoints(question) {
-  const n = Number(question.points);
-  return n > 0 ? n : 1;
-}
-
-// Điểm của TỪNG chỗ trống trong câu gapfill — tổng điểm câu chia đều cho số chỗ trống (yêu cầu
-// người dùng 2026-08-26: "dạng điền chỗ trống thì điểm của question đó tự chia đều cho các vị trí
-// trống cần điền trong câu"). blankCount=0 (chưa có chỗ trống nào) trả về 0, tránh chia cho 0.
-export function gapPoints(question, blankCount) {
-  if (!blankCount) return 0;
-  return questionPoints(question) / blankCount;
-}
-
-// Điểm THẬT SỰ dùng để chấm 1 câu — nếu Part có `partPoints` (tổng điểm cố định cho cả Part, chia
-// đều cho các câu bên trong), điểm riêng từng câu (question.points) bị BỎ QUA hoàn toàn, dùng
-// part.partPoints / số câu trong Part thay thế (yêu cầu người dùng 2026-08-26, vd Movers Part 1
-// chấm theo tổng điểm cả Part chứ không theo từng câu riêng). Không có partPoints thì giữ nguyên
-// cách cũ (questionPoints(question)). Câu "free-writing" (viết tự do, không có đáp án đúng/sai —
-// Movers Part 6 câu 5-6) LUÔN 0 điểm và KHÔNG tính vào mẫu số chia đều của partPoints (yêu cầu
-// người dùng 2026-08-27).
-export function effectiveQuestionPoints(part, question, isFlyers) {
-  if (question.type === "free-writing") return 0;
-  // Reading Flyers (chốt 2026-09-02): mỗi Question — kể cả TỪNG chỗ trống gapfill được tách riêng
-  // (xem gapfillBlankCount()/flattenQuestions()) — luôn đúng 1 điểm cố định, bỏ hẳn partPoints/
-  // questionPoints (chỉ còn áp dụng cho Starters/Movers, giữ nguyên hành vi cũ).
-  if (isFlyers) return 1;
-  const gradedCount = (part.questions ?? []).filter(q => q.type !== "free-writing").length;
-  if (part.partPoints != null && gradedCount > 0) return part.partPoints / gradedCount;
-  return questionPoints(question);
-}
-
-// Số chỗ trống THẬT (không tính chỗ trống ví dụ `firstGapIsExample`) của 1 câu gapfill — dùng để
-// tách mỗi chỗ trống thành 1 "Question N" riêng cho Reading Flyers (chốt 2026-09-02, yêu cầu người
-// dùng: "mỗi chỗ trống để điền, hoặc mỗi một chỗ chọn đáp án thì sẽ là một Question N").
-export function gapfillBlankCount(question) {
-  const offset = question.firstGapIsExample ? 1 : 0;
-  return Math.max((question.answers ?? []).length - offset, 0);
-}
-
-// Xáo chữ cái THẬT MẠNH: lặp lại tới khi KHÔNG CÒN chữ cái nào đứng đúng vị trí gốc (derangement),
-// không chỉ đơn thuần khác thứ tự gốc — tránh tình trạng xáo yếu chỉ đổi chỗ 1-2 chữ khiến từ vẫn
-// nhìn gần giống bản gốc (phản hồi thực tế 2026-08-26, vd "APPLE" xáo ra y hệt "APPLE"). Giới hạn
-// 30 lần thử — từ có toàn chữ cái giống nhau (vd "OOO") không thể derange thật sự thì dùng bản xáo
-// cuối cùng, không lặp vô hạn.
-export function scrambleWord(word) {
-  const chars = word.split("");
-  if (chars.length < 2) return word;
-  let attempt = [...chars];
-  for (let tries = 0; tries < 30; tries++) {
-    for (let i = attempt.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [attempt[i], attempt[j]] = [attempt[j], attempt[i]];
-    }
-    if (attempt.every((c, i) => c !== chars[i])) break;
-  }
-  return attempt.join("");
-}
-
-// Gộp mọi câu hỏi của mọi Part thành 1 danh sách phẳng, đánh số "Question N." liên tục xuyên suốt
-// Test — dùng để đồng bộ số thứ tự giữa nội dung chính và sidebar. Reading Flyers (`isFlyers`):
-// mỗi chỗ trống THẬT của 1 câu gapfill (xem gapfillBlankCount()) tách thành 1 phần tử riêng
-// (`gapIndex` = vị trí trong `question.answers`), mỗi phần tử là 1 "Question N" độc lập — khác
-// Starters/Movers vẫn gộp cả đoạn gapfill thành 1 Question duy nhất (`gapIndex: null`).
-function flattenQuestions(parts, isFlyers) {
-  const flat = [];
-  let n = 1;
-  parts.forEach((part, partIndex) => {
-    (part.questions ?? []).forEach((q, qIndex) => {
-      if (isFlyers && q.type === "gapfill") {
-        const offset = q.firstGapIsExample ? 1 : 0;
-        const answers = q.answers ?? [];
-        for (let gapIndex = offset; gapIndex < answers.length; gapIndex++) {
-          flat.push({ question: q, part, partIndex, qIndex, gapIndex, qNumber: n });
-          n += 1;
-        }
-      } else {
-        flat.push({ question: q, part, partIndex, qIndex, gapIndex: null, qNumber: n });
-        n += 1;
-      }
-    });
-  });
-  return flat;
-}
 
 function isAnswered(question, value, gapIndex) {
   if (question.type === "gapfill") {
@@ -701,7 +606,7 @@ function WordBankQuestion({ question, qNumber, value, onChange }) {
             className="reading-gap-input"
             value={value ?? ""}
             onChange={e => onChange(e.target.value)}
-            size={Math.max(6, (question.answer?.length ?? 8) + 2)}
+            size={Math.max(6, (question.answer?.length ?? question.answerLength ?? 8) + 2)}
           />
         </p>
       </div>
@@ -715,8 +620,11 @@ function WordBankQuestion({ question, qNumber, value, onChange }) {
 // chọn ô chữ cái trước đó). `value` lưu mảng ký tự học sinh đã gõ theo đúng vị trí (value[i] = ký
 // tự ở ô thứ i), không liên quan tới thứ tự xáo trộn hiển thị.
 function WordScrambleQuestion({ question, qNumber, value, onChange }) {
+  // Đề học sinh không có `answer` (đáp án tách riêng, lib/grading/answerKeys.js) — dùng `scrambled` + `answerLength`
+  // lưu sẵn; giáo viên (đề đã ghép đáp án) hoặc đề cũ chưa tách thì xáo từ đáp án như trước.
   const answer = question.answer ?? "";
-  const scrambled = useMemo(() => scrambleWord(answer), [answer]);
+  const scrambled = useMemo(() => (question.answer ? scrambleWord(answer) : question.scrambled ?? ""), [answer, question.scrambled, question.answer]);
+  const length = question.answer ? answer.length : question.answerLength ?? scrambled.length;
   const typed = value ?? [];
   const inputRefs = useRef([]);
 
@@ -725,7 +633,7 @@ function WordScrambleQuestion({ question, qNumber, value, onChange }) {
     const next = [...typed];
     next[pos] = char;
     onChange(next);
-    if (char && pos < answer.length - 1) inputRefs.current[pos + 1]?.focus();
+    if (char && pos < length - 1) inputRefs.current[pos + 1]?.focus();
   }
 
   function handleKeyDown(pos, e) {
@@ -753,7 +661,7 @@ function WordScrambleQuestion({ question, qNumber, value, onChange }) {
 
         {/* Ô trả lời kiểu nhập mã PIN — mỗi ô 1 ký tự, gõ xong tự nhảy ô kế tiếp. */}
         <div className="reading-scramble-pin-row">
-          {answer.split("").map((_, pos) => (
+          {Array.from({ length }, (_, pos) => (
             <input
               key={pos}
               ref={el => (inputRefs.current[pos] = el)}
@@ -842,148 +750,17 @@ function gapfillReviewLabel(question, gapIndex) {
   });
 }
 
-// Chấm điểm TOÀN BỘ bài + dựng sẵn nội dung hiển thị cho từng câu (đáp án học sinh chọn/gõ vs đáp
-// án đúng) — dùng ngay khi bấm "Nộp bài", kết quả đưa thẳng vào ReadingReportView.jsx.
-function buildResults(flat, answers, isFlyers) {
-  let earnedPoints = 0;
-  let totalPoints = 0;
-  const items = flat.map(({ question, part, partIndex, qIndex, qNumber, gapIndex }) => {
-    const value = answers[partIndex]?.[qIndex];
-    const qPoints = effectiveQuestionPoints(part, question, isFlyers);
-    totalPoints += qPoints;
-
-    // Reading Flyers: mỗi chỗ trống gapfill đã được tách thành 1 flat item riêng (gapIndex khác
-    // null) — chấm độc lập như 1 câu-1-đáp-án bình thường, KHÔNG gộp vào mảng `blanks[]` như
-    // Starters/Movers (chốt 2026-09-02).
-    if (question.type === "gapfill" && gapIndex != null) {
-      const correct = question.answers?.[gapIndex];
-      const isCorrect = answerMatches(value?.[gapIndex], correct);
-      const earned = isCorrect ? qPoints : 0;
-      earnedPoints += earned;
-      return {
-        qNumber,
-        question,
-        isCorrect,
-        earned,
-        total: qPoints,
-        studentAnswer: value?.[gapIndex]?.trim() || "(để trống)",
-        correctAnswer: correct,
-        questionLabel: gapfillReviewLabel(question, gapIndex),
-      };
-    }
-
-    if (question.type === "yesno") {
-      const isCorrect = value === question.answer;
-      const earned = isCorrect ? qPoints : 0;
-      earnedPoints += earned;
-      return {
-        qNumber,
-        question,
-        isCorrect,
-        earned,
-        total: qPoints,
-        studentAnswer: value ? (value === "yes" ? "Yes" : "No") : "(chưa trả lời)",
-        correctAnswer: question.answer === "yes" ? "Yes" : "No",
-      };
-    }
-
-    if (question.type === "gapfill") {
-      // Chỗ trống ví dụ (Part 4, `firstGapIsExample`) không tính điểm — bỏ khỏi mẫu số chia đều
-      // VÀ khỏi danh sách chấm, offset +1 khi đọc lại value[] (index 0 vẫn là ví dụ trong mảng gốc).
-      const offset = question.firstGapIsExample ? 1 : 0;
-      const gapAnswers = (question.answers ?? []).slice(offset);
-      const perGap = gapAnswers.length ? qPoints / gapAnswers.length : 0;
-      let gapEarned = 0;
-      const blanks = gapAnswers.map((a, gi) => {
-        const ok = answerMatches(value?.[gi + offset], a);
-        if (ok) gapEarned += perGap;
-        return { correct: ok, studentAnswer: value?.[gi + offset]?.trim() || "(để trống)", correctAnswer: a };
-      });
-      earnedPoints += gapEarned;
-      return {
-        qNumber,
-        question,
-        isCorrect: gapAnswers.length > 0 && blanks.every(b => b.correct),
-        earned: Math.round(gapEarned * 100) / 100,
-        total: qPoints,
-        blanks,
-      };
-    }
-
-    if (question.type === "short-answer") {
-      const isCorrect = answerMatches(value, question.answer);
-      const earned = isCorrect ? qPoints : 0;
-      earnedPoints += earned;
-      return {
-        qNumber,
-        question,
-        isCorrect,
-        earned,
-        total: qPoints,
-        studentAnswer: (value ?? "").trim() || "(chưa trả lời)",
-        correctAnswer: question.answer,
-      };
-    }
-
-    if (question.type === "word-bank") {
-      const isCorrect = answerMatches(value, question.answer);
-      const earned = isCorrect ? qPoints : 0;
-      earnedPoints += earned;
-      return {
-        qNumber,
-        question,
-        isCorrect,
-        earned,
-        total: qPoints,
-        studentAnswer: (value ?? "").trim() || "(chưa trả lời)",
-        correctAnswer: question.answer,
-      };
-    }
-
-    if (question.type === "multiple-choice") {
-      const options = question.options ?? [];
-      const isCorrect = value === question.answerIndex;
-      const earned = isCorrect ? qPoints : 0;
-      earnedPoints += earned;
-      return {
-        qNumber,
-        question,
-        isCorrect,
-        earned,
-        total: qPoints,
-        studentAnswer: value !== undefined && value !== null ? options[value] ?? "(chưa trả lời)" : "(chưa trả lời)",
-        correctAnswer: options[question.answerIndex] ?? "",
-      };
-    }
-
-    if (question.type === "free-writing") {
-      // Không có đáp án đúng/sai — chỉ ghi lại nội dung học sinh viết, KHÔNG cộng vào
-      // totalPoints/earnedPoints (đã loại trừ ở effectiveQuestionPoints, qPoints luôn = 0 ở đây).
-      return {
-        qNumber,
-        question,
-        ungraded: true,
-        studentAnswer: (value ?? "").trim() || "(chưa viết)",
-      };
-    }
-
-    // word-scramble
-    const built = (value ?? []).join("");
-    const isCorrect = normalizeAnswer(built) === normalizeAnswer(question.answer);
-    const earned = isCorrect ? qPoints : 0;
-    earnedPoints += earned;
-    return {
-      qNumber,
-      question,
-      isCorrect,
-      earned,
-      total: qPoints,
-      studentAnswer: built || "(chưa trả lời)",
-      correctAnswer: (question.answer ?? "").toUpperCase(),
-    };
+// Chấm TOÀN BỘ bài bằng bộ chấm chung (lib/grading/reading.js — Worker cũng dùng đúng hàm này) + gắn thêm câu
+// hỏi gốc/nhãn chỗ trống cho màn tổng kết đầy đủ của giáo viên (ReadingReportView.jsx).
+function buildResults(parts, flat, answers, seriesId) {
+  const graded = gradeReading(parts, answers, seriesId);
+  const items = graded.items.map((item, i) => {
+    const { question } = flat[i];
+    return item.gapIndex != null && question.type === "gapfill"
+      ? { ...item, question, questionLabel: gapfillReviewLabel(question, item.gapIndex) }
+      : { ...item, question };
   });
-
-  return { items, earnedPoints: Math.round(earnedPoints * 100) / 100, totalPoints };
+  return { items, earnedPoints: graded.earnedPoints, totalPoints: graded.totalPoints };
 }
 
 // Component chính — hiện TOÀN BỘ Test (mọi Part nối tiếp) trên 1 trang cuộn được, nộp bài 1 lần
@@ -996,7 +773,7 @@ export default function ReadingRunner({ parts, onFinish, studentUid, seriesId, l
   // khác (yesno/word-scramble/short-answer) vốn đã mặc định 1 điểm/câu nên không đổi hành vi).
   const { isStaff, isTester } = useAuth();
   const canReview = isStaff || isTester; // báo cáo chấm đầy đủ cho admin/giáo viên/tài khoản đặc biệt
-  const isFlyers = seriesId === "flyers" || seriesId === "movers" || seriesId === "starters";
+  const isFlyers = isFlyersStyle(seriesId);
   const flat = useMemo(() => flattenQuestions(parts, isFlyers), [parts, isFlyers]);
   // answers[partIndex][qIndex] = giá trị trả lời — giữ cấu trúc lồng theo Part/câu để khớp đúng
   // dữ liệu gốc (parts[].questions[]), dễ tính điểm theo từng Part nếu cần sau này.
@@ -1005,8 +782,11 @@ export default function ReadingRunner({ parts, onFinish, studentUid, seriesId, l
   // Bấm "Nộp bài" KHÔNG nộp ngay — luôn phải xác nhận qua modal (nếu còn câu chưa làm thì cảnh báo
   // rõ số câu còn thiếu), tránh nộp nhầm do lỡ tay (yêu cầu người dùng 2026-08-26).
   const [confirmingSubmit, setConfirmingSubmit] = useState(false);
-  // Đồng hồ chung (ExamTimer.jsx): hết giờ tự nộp bài; dừng khi đã có kết quả.
-  const timer = useExamTimer({ limitMinutes, running: !results, onExpire: submit });
+  // Đang nộp qua máy chủ: { error? } — null = chưa nộp / đã xong.
+  const [submitState, setSubmitState] = useState(null);
+  const submitToServer = useTestSubmission({ kind: "reading", seriesId, level, testId, openingId, lessonLabel, studentName });
+  // Đồng hồ chung (ExamTimer.jsx): hết giờ tự nộp bài; dừng khi đang nộp/đã có kết quả.
+  const timer = useExamTimer({ limitMinutes, running: !results && !submitState, onExpire: submit });
 
   function setAnswer(partIndex, qIndex, val) {
     setAnswers(a => {
@@ -1016,19 +796,24 @@ export default function ReadingRunner({ parts, onFinish, studentUid, seriesId, l
     });
   }
 
-  function submit() {
+  // Nộp bài: máy chủ chấm + ghi kết quả + cộng lượt (lib/testSubmit.js). Học sinh chỉ nhận lại điểm. Admin/giáo
+  // viên/tài khoản đặc biệt có đề kèm đáp án nên chấm ngay tại chỗ để xem báo cáo đầy đủ (vẫn gửi máy chủ lưu lại).
+  async function submit() {
     setConfirmingSubmit(false);
-    const built = buildResults(flat, answers, isFlyers);
-    setResults(built);
-    saveTestResult({
-      openingId,
-      mode: "reading", seriesId, level, testId, lessonLabel, studentName, studentClass, uid: studentUid,
-      correct: built.earnedPoints, total: built.totalPoints, elapsedMs: timer.getElapsedMs(),
-      items: built.items.map(({ question, ...rest }) => ({ ...rest, type: question.type, prompt: rest.questionLabel ?? question.text ?? question.prompt ?? "" })),
-    });
-    // Tính 1 lượt nộp bài (chốt 2026-08-27, xem lib/attempts.js) — chỉ khi có studentUid (học
-    // sinh đã đăng nhập thật, không phải admin/teacher tự test).
-    if (studentUid) incrementAttempt({ uid: studentUid, mode: "reading", testId: attemptKey(testId, openingId), seriesId, level });
+    const payload = { answers, elapsedMs: timer.getElapsedMs() };
+    if (canReview) {
+      setResults(buildResults(parts, flat, answers, seriesId));
+      submitToServer(payload).catch(() => {});
+      return;
+    }
+    setSubmitState({});
+    try {
+      const r = await submitToServer(payload);
+      setResults({ earnedPoints: r.correct, totalPoints: r.total });
+      setSubmitState(null);
+    } catch (error) {
+      setSubmitState({ error });
+    }
   }
 
   if (!flat.length) return null;
@@ -1036,6 +821,8 @@ export default function ReadingRunner({ parts, onFinish, studentUid, seriesId, l
   const unansweredCount = flat.filter(
     ({ question, partIndex, qIndex, gapIndex }) => !isAnswered(question, answers[partIndex]?.[qIndex], gapIndex)
   ).length;
+
+  if (submitState) return <SubmitStatus error={submitState.error} onRetry={submit} />;
 
   if (results && canReview) {
     return (

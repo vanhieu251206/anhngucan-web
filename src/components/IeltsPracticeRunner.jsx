@@ -1,9 +1,9 @@
 import { useMemo, useRef, useState } from "react";
 import ExamTimer, { useExamTimer } from "./ExamTimer.jsx";
 import { useAuth } from "../lib/authContext.jsx";
-import { saveTestResult } from "../lib/testResults.js";
-import { incrementAttempt } from "../lib/attempts.js";
-import { attemptKey } from "../lib/openings.js";
+import { useTestSubmission } from "../lib/testSubmit.js";
+import SubmitStatus from "./SubmitStatus.jsx";
+import { flattenPassages as flattenQuestions, isIeltsCorrect as isCorrect } from "../lib/grading/ielts.js";
 import { deriveTableDiagramBlanks, normalizeBlankHolder, textBlankCount } from "../lib/tableDiagramBlanks.js";
 import { optimizeImage } from "../lib/cloudinaryImage.js";
 
@@ -13,45 +13,9 @@ import { optimizeImage } from "../lib/cloudinaryImage.js";
 // timer/không highlight) — đây là màn CÓ chấm điểm nhưng KHÔNG dùng attempts.js (mục Luyện đề cho
 // làm lại thoải mái để luyện tập, không giới hạn lượt như Speaking/Reading YLE — chốt 2026-09-10).
 
-function normalizeAnswer(s) {
-  return String(s ?? "")
-    .toLowerCase()
-    .trim()
-    .replace(/[.,!?;:]+$/g, "")
-    .replace(/\s+/g, " ");
-}
+// Quy tắc chấm (flattenQuestions/isCorrect) nằm ở lib/grading/ielts.js — dùng chung với Worker chấm bài.
+export { isCorrect };
 
-// Đánh số câu hỏi liên tục xuyên suốt cả Test (giống đề thi thật, không reset về 1 ở mỗi passage).
-// Dạng "table-diagram" không có `group.questions` tường minh — danh sách chỗ trống được TÍNH TỰ
-// ĐỘNG từ số dấu "___" tìm thấy trong bảng/đoạn văn/sơ đồ, xem lib/tableDiagramBlanks.js.
-function flattenQuestions(passages) {
-  const flat = [];
-  let n = 1;
-  (passages ?? []).forEach((passage, pi) => {
-    (passage.groups ?? []).forEach((group, gi) => {
-      const qs = group.type === "table-diagram" ? deriveTableDiagramBlanks(group)
-        : group.type === "diagram" ? (group.diagramPoints ?? []).map(p => ({ acceptedAnswers: p.answer ?? "" }))
-        : (group.questions ?? []);
-      qs.forEach((q, qi) => {
-        flat.push({ number: n, passageIndex: pi, groupIndex: gi, questionIndex: qi, type: group.type, q });
-        n++;
-      });
-    });
-  });
-  return flat;
-}
-
-export function isCorrect(entry, value) {
-  const { type, q } = entry;
-  if (value == null || value === "") return false;
-  if (type === "multiple-choice") return Number(value) === q.answerIndex;
-  if (type === "tfng") return value === q.answer;
-  const accepted = String(q.acceptedAnswers ?? "").split("|").map(normalizeAnswer).filter(Boolean);
-  return accepted.includes(normalizeAnswer(value));
-}
-
-// Gộp các câu liền mạch thành từng đoạn văn (đoạn mới bắt đầu khi câu có cờ `newParagraph`),
-// đúng cách sách in xuống dòng chia đoạn, thay vì dồn cả bài thành 1 khối văn bản liền.
 function groupIntoParagraphs(sentences) {
   const paragraphs = [];
   (sentences ?? []).forEach(s => {
@@ -498,12 +462,16 @@ export default function IeltsPracticeRunner({ test, onBack, mode = "practice", r
   // Học sinh làm bài thật: nộp xong chỉ khoá bài + hiện điểm, KHÔNG tô đúng/sai hay hiện đáp án. Chỉ Preview CMS (readOnly) hiện đáp án.
   const { isStaff, isTester } = useAuth();
   const reveal = readOnly || isStaff || isTester;
+  // Học sinh: máy chủ chấm (lib/testSubmit.js) → điểm trả về. submitState: { error? } khi đang nộp/lỗi.
+  const [serverScore, setServerScore] = useState(null);
+  const [submitState, setSubmitState] = useState(null);
+  const submitToServer = useTestSubmission({ kind: "ielts-reading", seriesId, level, testId: test.id, openingId, lessonLabel: test.title, studentName });
   const questionRefs = useRef({});
   // Đồng hồ chung (ExamTimer.jsx): hết giờ tự nộp bài. Chỉ chạy ở chế độ làm bài thật (không phải
   // đọc hiểu/preview).
   const timer = useExamTimer({
     limitMinutes: test.timeLimitMinutes,
-    running: !isComprehension && !readOnly && !submitted,
+    running: !isComprehension && !readOnly && !submitted && !submitState,
     onExpire: submitNow,
   });
 
@@ -521,27 +489,35 @@ export default function IeltsPracticeRunner({ test, onBack, mode = "practice", r
   }
 
   // Chốt bài: khoá + lưu chi tiết từng câu cho giáo viên/admin (học sinh chỉ thấy điểm). Không lưu ở Preview CMS.
-  function submitNow() {
+  async function submitNow() {
     if (submitted) return;
-    setSubmitted(true);
-    if (studentUid) incrementAttempt({ uid: studentUid, mode: "ielts-reading", testId: attemptKey(test.id, openingId), seriesId, level });
-    let correct = 0;
-    const items = flat.map(entry => {
-      const ok = isCorrect(entry, answers[entry.number]);
-      if (ok) correct++;
-      return { qNumber: entry.number, studentAnswer: String(answers[entry.number] ?? ""), correctAnswer: String(entry.q?.answer ?? entry.q?.acceptedAnswers ?? entry.q?.answerIndex ?? ""), isCorrect: ok };
-    });
-    saveTestResult({ openingId, mode: "ielts-reading", seriesId, level, testId: test.id, lessonLabel: test.title, studentName, studentClass, uid: studentUid, correct, total: flat.length, elapsedMs: timer.getElapsedMs(), items });
+    const payload = { answers, elapsedMs: timer.getElapsedMs() };
+    if (reveal) {
+      // Admin/giáo viên/tài khoản đặc biệt: đề có đáp án, chấm tại chỗ; vẫn gửi máy chủ để lưu như trước.
+      setSubmitted(true);
+      if (!readOnly) submitToServer(payload).catch(() => {});
+      return;
+    }
+    setSubmitState({});
+    try {
+      const r = await submitToServer(payload);
+      setServerScore({ correct: r.correct, total: r.total });
+      setSubmitted(true);
+      setSubmitState(null);
+    } catch (error) {
+      setSubmitState({ error });
+    }
   }
 
   const score = useMemo(() => {
     if (!submitted) return null;
+    if (!reveal) return serverScore;
     let correct = 0;
     flat.forEach(entry => {
       if (isCorrect(entry, answers[entry.number])) correct++;
     });
     return { correct, total: flat.length };
-  }, [submitted, flat, answers]);
+  }, [submitted, flat, answers, reveal, serverScore]);
 
   const passage = test.passages[activePassage];
   const passageQuestions = flat.filter(e => e.passageIndex === activePassage);
@@ -673,13 +649,15 @@ export default function IeltsPracticeRunner({ test, onBack, mode = "practice", r
       {!isComprehension && !readOnly && (
       <div className="ielts-practice-sidebar">
         <ExamTimer timer={timer} />
-        {!submitted ? (
+        {submitState ? (
+          <SubmitStatus error={submitState.error} onRetry={submitNow} />
+        ) : !submitted ? (
           <button type="button" className="btn btn-primary ielts-practice-submit" onClick={submitNow}>
             NỘP BÀI
           </button>
         ) : (
           <div className="ielts-practice-score">
-            Điểm: {score.correct}/{score.total}
+            Điểm: {score?.correct}/{score?.total}
           </div>
         )}
         <div className="ielts-practice-navgrid">

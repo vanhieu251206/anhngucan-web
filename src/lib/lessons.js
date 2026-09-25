@@ -1,5 +1,6 @@
 import { doc, getDoc, getDocs, collection } from "firebase/firestore";
 import { db } from "./firebase.js";
+import { withAnswersAll } from "./answerStore.js";
 
 // Loader phía học sinh: GỘP dữ liệu hardcode có sẵn trong level (yleData.js — vd level.speakingPart1
 // của starters-1, luôn hiện dưới id cố định "test1") VỚI các Test soạn qua CMS lưu trong Firestore —
@@ -40,10 +41,11 @@ export async function loadLevelContent(series, level) {
   let readingTests = [];
   try {
     const readingSnap = await getDocs(collection(db, "lessons", lessonId, "readingTests"));
-    readingTests = readingSnap.docs
+    // Học sinh nhận đề KHÔNG có đáp án; admin/giáo viên/tài khoản đặc biệt được ghép đáp án (lib/answerStore.js).
+    readingTests = await withAnswersAll(lessonId, "readingTests", readingSnap.docs
       .map(d => ({ id: d.id, ...d.data() }))
       .filter(t => t.parts?.length)
-      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0)));
   } catch {
     // Lỗi mạng/Firestore — coi như chưa có gì mới, không chặn học.
   }
@@ -67,10 +69,10 @@ export async function loadLevelContent(series, level) {
   let practiceTests = [];
   try {
     const practiceSnap = await getDocs(collection(db, "lessons", lessonId, "practiceTests"));
-    practiceTests = practiceSnap.docs
+    practiceTests = await withAnswersAll(lessonId, "practiceTests", practiceSnap.docs
       .map(d => ({ id: d.id, ...d.data() }))
       .filter(t => t.passages?.length)
-      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0)));
   } catch {
     // Lỗi mạng/Firestore — coi như chưa có gì mới, không chặn học.
   }
@@ -79,10 +81,10 @@ export async function loadLevelContent(series, level) {
   let ieltsListeningTests = [];
   try {
     const ieltsListeningSnap = await getDocs(collection(db, "lessons", lessonId, "listeningTests"));
-    ieltsListeningTests = ieltsListeningSnap.docs
+    ieltsListeningTests = await withAnswersAll(lessonId, "listeningTests", ieltsListeningSnap.docs
       .map(d => ({ id: d.id, ...d.data() }))
       .filter(t => t.sections?.length)
-      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0)));
   } catch {
     // Lỗi mạng/Firestore — coi như chưa có gì mới, không chặn học.
   }

@@ -1,12 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { normalize } from "../lib/speech.js";
-import { incrementAttempt } from "../lib/attempts.js";
 import { BEE } from "./sceneVisuals.jsx";
 import ExamTimer, { useExamTimer } from "./ExamTimer.jsx";
 import TestScoreReport from "./TestScoreReport.jsx";
 import { useAuth } from "../lib/authContext.jsx";
-import { saveTestResult } from "../lib/testResults.js";
-import { attemptKey } from "../lib/openings.js";
+import { useTestSubmission } from "../lib/testSubmit.js";
+import SubmitStatus from "./SubmitStatus.jsx";
 
 // Runner học sinh cho Dictation (Nghe & gõ lại) — mô phỏng dailydictation.com: chấm theo TỪNG TỪ
 // (không phải khớp cả câu 1 lần) — từ gõ đúng hiện xanh, từ còn lại (sai/chưa gõ tới) bị CHE bằng
@@ -270,15 +269,34 @@ export default function DictationRunner({ sentences, onFinish, studentUid, serie
   // "Câu tiếp theo" chỉ SANG câu kế (không đụng dữ liệu câu khác) — khi đang ở câu CUỐI mới thật sự
   // chốt bài + tính 1 lượt nộp bài, khác trước đây (mỗi lần next mới "commit" 1 kết quả) vì giờ có
   // thể nhảy qua lại tự do nên kết quả cuối cùng phải tính lại từ `answers` lúc chốt bài.
+  // Dictation chấm từng câu ngay lúc làm (phản hồi đúng/sai tức thì) nên điểm do trình duyệt tính; máy chủ vẫn kiểm
+  // soát lượt/hạn chót/thời gian, kẹp điểm hợp lệ, ghi kết quả + cộng lượt (lib/testSubmit.js).
+  const submitToServer = useTestSubmission({ kind: "dictation", seriesId, level, testId, openingId, lessonLabel, studentName });
+  const [submitState, setSubmitState] = useState(null); // { error? } khi đang nộp/lỗi (chỉ học sinh chờ)
+  const payloadRef = useRef(null);
+
+  async function sendResult() {
+    setSubmitState({});
+    try {
+      await submitToServer(payloadRef.current);
+      setSubmitState(null);
+    } catch (error) {
+      setSubmitState({ error });
+    }
+  }
+
   function finishRun() {
     setDone(true);
-    saveTestResult({
-      openingId,
-      mode: "dictation", seriesId, level, testId, lessonLabel, studentName, studentClass, uid: studentUid,
-      correct: answers.filter(a => a.attemptStatus === "correct").length, total, elapsedMs: timer.getElapsedMs(),
-      items: sentences.map((sn, i) => ({ qNumber: i + 1, correctAnswer: sn.text, studentAnswer: answers[i].attemptStatus === "skipped" ? "" : answers[i].typed, isCorrect: answers[i].attemptStatus === "correct" })),
-    });
-    if (studentUid) incrementAttempt({ uid: studentUid, mode: "dictation", testId: attemptKey(testId, openingId), seriesId, level });
+    payloadRef.current = {
+      elapsedMs: timer.getElapsedMs(),
+      client: {
+        correct: answers.filter(a => a.attemptStatus === "correct").length,
+        total,
+        items: sentences.map((sn, i) => ({ qNumber: i + 1, correctAnswer: sn.text, studentAnswer: answers[i].attemptStatus === "skipped" ? "" : answers[i].typed, isCorrect: answers[i].attemptStatus === "correct" })),
+      },
+    };
+    if (canReview) submitToServer(payloadRef.current).catch(() => {});
+    else sendResult();
   }
 
   // Đồng hồ chung (ExamTimer.jsx): hết giờ tự chốt bài; dừng khi đã xong.
@@ -347,6 +365,8 @@ export default function DictationRunner({ sentences, onFinish, studentUid, serie
       </div>
     );
   }
+
+  if (done && submitState) return <SubmitStatus error={submitState.error} onRetry={sendResult} />;
 
   if (done) {
     const correctCount = answers.filter(a => a.attemptStatus === "correct").length;

@@ -97,7 +97,7 @@ export function gradePracticeTestGroups(groups, answers) {
       const effectiveType = g.type === "split-reading" ? q.type : g.type;
       let isCorrect = false;
       if (effectiveType === "multiple-choice" || effectiveType === "pronunciation-underline") {
-        isCorrect = userAnswer === q.answerIndex;
+        isCorrect = userAnswer != null && userAnswer === q.answerIndex;
       } else if (effectiveType === "fill-blank") {
         isCorrect = isFillBlankCorrect(userAnswer, q.acceptedAnswers);
       } else if (effectiveType === "word-bank") {

@@ -20,14 +20,14 @@ function b64urlDecode(str) {
   return Uint8Array.from(s, c => c.charCodeAt(0));
 }
 
-function adminError(status, error) {
+export function adminError(status, error) {
   return { status, error };
 }
 
 // ---------- Access token của service account (OAuth2, JWT ký RS256) ----------
 let cachedToken = null; // { token, exp }
 
-async function getAccessToken(sa) {
+export async function getAccessToken(sa) {
   const now = Math.floor(Date.now() / 1000);
   if (cachedToken && cachedToken.exp - 60 > now) return cachedToken.token;
   const enc = new TextEncoder();
@@ -125,7 +125,7 @@ async function lookupAuthUser(projectId, token, query) {
   return users?.[0] ?? null;
 }
 
-function parseServiceAccount(env) {
+export function parseServiceAccount(env) {
   // Bỏ BOM đầu chuỗi (PowerShell 5.1 tự thêm khi pipe file vào `wrangler secret put`).
   return JSON.parse(env.FIREBASE_SERVICE_ACCOUNT.replace(/^﻿/, ""));
 }

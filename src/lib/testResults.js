@@ -1,10 +1,10 @@
-import { addDoc, collection, doc, getDoc, getDocs, query, where, writeBatch, serverTimestamp, Timestamp } from "firebase/firestore";
+import { collection, doc, getDocs, query, where, writeBatch, Timestamp } from "firebase/firestore";
 import { db } from "./firebase.js";
-import { isHistoryDisabled } from "./historyGuard.js";
 
 // Kết quả CHI TIẾT từng câu của 1 lượt nộp bài (mọi dạng bài). Học sinh chỉ thấy số câu đúng/tổng
 // (components/TestScoreReport.jsx); phần chi tiết (câu trả lời của em, đáp án đúng) lưu ở đây CHỈ để giáo viên/admin
-// xem lại. Mọi lỗi ghi đều bị nuốt để không chặn luồng nộp bài của học sinh.
+// xem lại. Kết quả do Worker chấm + ghi khi học sinh nộp bài (worker/src/submit.js, lib/testSubmit.js, 2026-09-25) —
+// trình duyệt không tự ghi nữa (firestore.rules chặn).
 // items: mảng tuỳ ý theo từng dạng bài (question/studentAnswer/correctAnswer/isCorrect...).
 //
 // THỜI HẠN LƯU (chốt 2026-09-25): kết quả chỉ tồn tại từ lúc nộp tới HẾT 48 GIỜ SAU HẠN CHÓT của lần mở bài, sau đó
@@ -28,50 +28,6 @@ export const RESULT_MODE_LABEL = {
 export async function listResultsForOpening(openingId) {
   const snap = await getDocs(query(collection(db, "testResults"), where("openingId", "==", openingId)));
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
-}
-
-async function openingDeadline(openingId) {
-  if (!openingId) return null;
-  try {
-    const snap = await getDoc(doc(db, "openings", openingId));
-    return snap.exists() ? snap.data().expiresAt?.toDate?.() ?? null : null;
-  } catch {
-    return null;
-  }
-}
-
-export async function saveTestResult({
-  mode, seriesId, level, testId, lessonLabel, studentName, studentClass, uid, correct, total, elapsedMs, items, sessionId, openingId,
-}) {
-  if (isHistoryDisabled()) return;
-  try {
-    // Mốc xoá = hạn chót lần mở bài + 48h (nộp trễ hơn hạn chót thì tính từ lúc nộp). Lần mở cũ không có hạn chót
-    // → 48h kể từ lúc nộp.
-    const deadline = await openingDeadline(openingId);
-    const base = Math.max(deadline?.getTime() ?? 0, Date.now());
-    await addDoc(collection(db, "testResults"), {
-      mode: mode ?? null,
-      seriesId: seriesId ?? null,
-      level: level ?? null,
-      testId: testId ?? null,
-      lessonLabel: lessonLabel ?? null,
-      studentName: studentName ?? null,
-      studentClass: studentClass ?? null,
-      uid: uid ?? null,
-      // Speaking: id phiên trong speakingSessions, để trang Kết quả không hiện trùng 1 lượt 2 lần.
-      sessionId: sessionId ?? null,
-      openingId: openingId ?? null,
-      purgeAfter: Timestamp.fromMillis(base + RESULT_KEEP_MS),
-      correct: correct ?? 0,
-      total: total ?? 0,
-      elapsedMs: elapsedMs ?? null,
-      // JSON round-trip: Firestore từ chối giá trị undefined/hàm nằm trong dữ liệu lồng nhau.
-      items: JSON.parse(JSON.stringify(items ?? [])),
-      submittedAt: serverTimestamp(),
-    });
-  } catch {
-    // Không chặn luồng học nếu ghi lỗi.
-  }
 }
 
 // Mốc xoá hiệu lực của 1 kết quả: nếu lần mở bài được GIA HẠN sau khi nộp thì lùi theo hạn chót mới.

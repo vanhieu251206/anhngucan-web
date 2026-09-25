@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { isWriteItem, itemReady } from "../lib/grading/canvasParts.js";
 
 // Luyện đề Listening Starters — Part 4 (nghe và tô màu). Giáo viên tô sẵn vùng từng cái bánh trong CMS
 // (StartersListeningPart4Editor.jsx: chạm để tô nhanh cả vùng kín, hoặc dùng cọ/tẩy cho chuẩn). Học sinh chọn
@@ -26,10 +27,8 @@ export const PALETTE = [
 ];
 export const hexOf = id => PALETTE.find(p => p.id === id)?.hex;
 
-export const isWriteItem = it => it.kind === "write";
+export { isWriteItem, itemReady };
 const normText = t => String(t ?? "").toLowerCase().replace(/\s+/g, " ").trim();
-// Câu tô màu hợp lệ = có màu + vùng đã tô; câu viết chữ hợp lệ = có khung + đáp án.
-export const itemReady = it => (isWriteItem(it) ? !!it.box && !!it.answer?.trim() : !!it.ops?.length && !!it.color);
 export const part4Has = p => !!p?.imageUrl && !!p?.items?.some(i => (isWriteItem(i) ? !!i.box : !!i.ops?.length));
 
 const shuffled = arr => {

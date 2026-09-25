@@ -5,10 +5,10 @@ import StartersListeningPart3Runner from "./StartersListeningPart3.jsx";
 import StartersListeningPart4Runner, { part4Has } from "./StartersListeningPart4.jsx";
 import MoversListeningPart3Runner from "./MoversListeningPart3.jsx";
 import ExamTimer, { useExamTimer } from "./ExamTimer.jsx";
-import { saveTestResult } from "../lib/testResults.js";
 import { useAuth } from "../lib/authContext.jsx";
-import { incrementAttempt } from "../lib/attempts.js";
-import { attemptKey } from "../lib/openings.js";
+import { useTestSubmission } from "../lib/testSubmit.js";
+import { serverGrader } from "../lib/grading/listeningExam.js";
+import SubmitStatus from "./SubmitStatus.jsx";
 
 const Part3Dispatch = props => (props.part.variant === "movers" ? <MoversListeningPart3Runner {...props} /> : <StartersListeningPart3Runner {...props} />);
 
@@ -35,7 +35,13 @@ export default function StartersListeningTestRunner({ test, studentUid, studentN
   const [submitted, setSubmitted] = useState(false);
   const [attempt, setAttempt] = useState(0);
   // Đồng hồ chung (ExamTimer.jsx): hết giờ tự nộp bài; đóng băng khi đã nộp, đếm lại khi "Làm lại".
-  const timer = useExamTimer({ limitMinutes: test.timeLimitMinutes, running: !submitted, onExpire: doSubmit, resetKey: attempt });
+  // Học sinh: máy chủ chấm (lib/testSubmit.js — đề học sinh không có đáp án), điểm từng Part trả về ở serverResult.
+  const [submitState, setSubmitState] = useState(null); // { error? } khi đang nộp/lỗi
+  const [serverResult, setServerResult] = useState(null);
+  const submitToServer = useTestSubmission({
+    kind: "listening-exam", seriesId, level, testId: test.testId ?? test.id, openingId, lessonLabel, studentName, resetKey: attempt,
+  });
+  const timer = useExamTimer({ limitMinutes: test.timeLimitMinutes, running: !submitted && !submitState, onExpire: doSubmit, resetKey: attempt });
   const [scores, setScores] = useState({});
 
   const [activeKey, setActiveKey] = useState(available[0]?.key);
@@ -60,26 +66,40 @@ export default function StartersListeningTestRunner({ test, studentUid, studentN
     sectionRefs.current[key]?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
-  const report = key => s => setScores(prev => (prev[key]?.score === s.score && prev[key]?.total === s.total ? prev : { ...prev, [key]: s }));
-  const total = available.reduce((sum, p) => sum + (scores[p.key]?.total ?? 0), 0);
-  const score = available.reduce((sum, p) => sum + (scores[p.key]?.score ?? 0), 0);
+  // Mỗi Part báo { score, total, answers } — answers là câu trả lời thô để máy chủ chấm lại.
+  const report = key => s => setScores(prev => ({ ...prev, [key]: s }));
+  // Điểm hiển thị: học sinh dùng điểm máy chủ trả về; admin/giáo viên (đề có đáp án) dùng điểm chấm tại chỗ.
+  const shownScores = serverResult?.parts ?? scores;
+  const total = serverResult ? serverResult.total : available.reduce((sum, p) => sum + (scores[p.key]?.total ?? 0), 0);
+  const score = serverResult ? serverResult.correct : available.reduce((sum, p) => sum + (scores[p.key]?.score ?? 0), 0);
 
   // Học sinh chỉ thấy tổng số câu đúng; chi tiết theo Part lưu cho giáo viên/admin (lib/testResults.js).
-  function doSubmit() {
-    if (submitted) return;
-    setSubmitted(true);
-    const tid = test.testId ?? test.id;
-    if (studentUid) incrementAttempt({ uid: studentUid, mode: "listening-exam", testId: attemptKey(tid, openingId), seriesId, level });
-    saveTestResult({
-      openingId,
-      mode: "listening-exam", seriesId, level, testId: test.testId ?? test.id, lessonLabel, studentName, studentClass, uid: studentUid,
-      correct: score, total, elapsedMs: timer.getElapsedMs(),
-      items: available.map(p => ({ part: p.key, correct: scores[p.key]?.score ?? 0, total: scores[p.key]?.total ?? 0 })),
-    });
+  async function doSubmit() {
+    if (submitted || (submitState && !submitState.error)) return;
+    // Part chấm được ở máy chủ gửi câu trả lời thô; Part tô màu/viết vào tranh (canvas) gửi điểm tự chấm.
+    const parts = Object.fromEntries(
+      available.map(p => [p.key, serverGrader(p.key, test.parts[p.key]) ? { answers: scores[p.key]?.answers ?? null } : { score: scores[p.key]?.score ?? 0 }]),
+    );
+    const payload = { answers: { parts }, elapsedMs: timer.getElapsedMs() };
+    if (canReview) {
+      setSubmitted(true);
+      submitToServer(payload).catch(() => {});
+      return;
+    }
+    setSubmitState({});
+    try {
+      setServerResult(await submitToServer(payload));
+      setSubmitted(true);
+      setSubmitState(null);
+    } catch (error) {
+      setSubmitState({ error });
+    }
   }
 
   function reset() {
     setScores({});
+    setServerResult(null);
+    setSubmitState(null);
     setSubmitted(false);
     setAttempt(a => a + 1);
   }
@@ -89,7 +109,7 @@ export default function StartersListeningTestRunner({ test, studentUid, studentN
       <ExamTimer timer={timer} />
       <nav className="exam-side" aria-label="Danh sách Part">
         {available.map(p => {
-          const sc = scores[p.key];
+          const sc = shownScores[p.key];
           return (
             <button
               key={p.key}
@@ -102,7 +122,9 @@ export default function StartersListeningTestRunner({ test, studentUid, studentN
             </button>
           );
         })}
-        {!submitted ? (
+        {submitState ? (
+          <SubmitStatus error={submitState.error} onRetry={doSubmit} />
+        ) : !submitted ? (
           <button type="button" className="btn btn-primary exam-side-submit" onClick={doSubmit}>Nộp bài</button>
         ) : (
           <>

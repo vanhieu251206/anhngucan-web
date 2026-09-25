@@ -8,9 +8,8 @@ import ExamTimer, { useExamTimer } from "./ExamTimer.jsx";
 import { useAuth } from "../lib/authContext.jsx";
 import { logSpeechAttempt } from "../lib/speechLog.js";
 import { startSpeakingSession, finishSpeakingSession, logSpeakingEvent } from "../lib/speakingSessions.js";
-import { incrementAttempt } from "../lib/attempts.js";
-import { attemptKey } from "../lib/openings.js";
-import { saveTestResult } from "../lib/testResults.js";
+import { useTestSubmission } from "../lib/testSubmit.js";
+import SubmitStatus from "./SubmitStatus.jsx";
 import { saveRecording, submitRun, getRunRecordings, cleanupExpiredAudio } from "../lib/audioReviewCache.js";
 import { optimizeImage } from "../lib/cloudinaryImage.js";
 
@@ -196,6 +195,11 @@ export default function SceneRunner({
   // trong ngày vẫn phải tách riêng từng lượt.
   const runIdRef = useRef(crypto.randomUUID());
   const [reviewOpen, setReviewOpen] = useState(false);
+  // Speaking chấm từng scene ngay lúc làm nên điểm do trình duyệt tính; máy chủ kiểm soát lượt/hạn chót/thời gian,
+  // kẹp điểm hợp lệ, ghi kết quả + cộng lượt (lib/testSubmit.js).
+  const submitToServer = useTestSubmission({ kind: "speaking", seriesId, level, testId, openingId, lessonLabel, studentName });
+  const [submitState, setSubmitState] = useState(null); // { error? } khi đang nộp/lỗi (chỉ học sinh chờ)
+  const payloadRef = useRef(null);
   // Đồng hồ chung (ExamTimer.jsx): hết giờ tự nộp bài; dừng khi mở màn tổng kết.
   const timer = useExamTimer({ limitMinutes, running: !reviewOpen, onExpire: finishRun });
 
@@ -267,20 +271,28 @@ export default function SceneRunner({
     stopCurrent();
     if (progressKey) sessionStorage.removeItem(PROGRESS_KEY_PREFIX + progressKey);
     finishSpeakingSession(sessionIdRef.current);
-    // Tính 1 lượt nộp bài (chốt 2026-08-27, xem lib/attempts.js) — chỉ khi có studentUid (học
-    // sinh đã đăng nhập thật, không phải admin/teacher tự test).
-    if (studentUid) incrementAttempt({ uid: studentUid, mode: "speaking", testId: attemptKey(testId, openingId), seriesId, level });
     if (progressKey) submitRun(progressKey, runIdRef.current);
     // Điểm + chi tiết từng câu cho trang Kết quả học sinh (học sinh chỉ thấy số câu đúng/tổng).
     const graded = scenes.filter(sc => sc.type !== "narration").length;
     const entries = Object.entries(results).map(([i, r]) => ({ sceneIndex: Number(i), ...r })).sort((a, b) => a.sceneIndex - b.sceneIndex);
-    saveTestResult({
-      openingId,
-      mode: "speaking", seriesId, level, testId, lessonLabel, studentName, studentClass, uid: studentUid,
-      correct: entries.filter(r => r.result === "correct").length, total: graded, elapsedMs: timer.getElapsedMs(),
-      items: entries, sessionId: sessionIdRef.current,
-    });
+    payloadRef.current = {
+      elapsedMs: timer.getElapsedMs(),
+      sessionId: sessionIdRef.current,
+      client: { correct: entries.filter(r => r.result === "correct").length, total: graded, items: entries },
+    };
+    if (canReview) submitToServer(payloadRef.current).catch(() => {});
+    else sendResult();
     setReviewOpen(true);
+  }
+
+  async function sendResult() {
+    setSubmitState({});
+    try {
+      await submitToServer(payloadRef.current);
+      setSubmitState(null);
+    } catch (error) {
+      setSubmitState({ error });
+    }
   }
 
   function goNext() {
@@ -303,6 +315,8 @@ export default function SceneRunner({
     stopCurrent();
     setIndex(i => i - 1);
   }
+
+  if (reviewOpen && submitState) return <SubmitStatus error={submitState.error} onRetry={sendResult} />;
 
   if (reviewOpen) {
     // Học sinh chỉ thấy số câu đúng/tổng — chi tiết từng câu đã ghi ở speakingSessions cho giáo viên/admin.

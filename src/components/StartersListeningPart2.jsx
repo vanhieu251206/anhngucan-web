@@ -1,15 +1,13 @@
 import { useEffect, useState } from "react";
 import { optimizeImage } from "../lib/cloudinaryImage.js";
+import { isPart2Right as isRight } from "../lib/grading/listeningExam.js";
 
 // Luyện đề Listening Starters — Part 2 (nghe và viết tên hoặc số). Trình bày y như trang sách: tiêu đề,
 // đề bài, tranh, 2 câu Examples đã điền sẵn (chữ viết tay trên dòng chấm), rồi 5 Questions có dòng chấm
 // để điền. Dùng chung cho màn làm bài (học sinh) và xem trước trong CMS (`preview`).
 // Dữ liệu (soạn ở StartersListeningExamStudio.jsx): { audioUrl, imageUrl, examples: [{ question, answer }],
 // questions: [{ question, prefix, answer }] } — `answer` có thể gồm nhiều đáp án chấp nhận, cách nhau bằng "/".
-const norm = s => String(s ?? "").toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, "").replace(/\s+/g, " ").trim();
-const accepted = answer => String(answer ?? "").split("/").map(norm).filter(Boolean);
-const isRight = (q, value) => accepted(q.answer).includes(norm(value));
-
+// Quy tắc chấm (isRight) ở lib/grading/listeningExam.js — dùng chung với Worker chấm bài phía máy chủ.
 export function Part2Sheet({ part, values = [], onChange, submitted = false, reveal = true, preview = false }) {
   const questions = (part.questions ?? []).filter(q => q.question?.trim());
   const examples = (part.examples ?? []).filter(e => e.question?.trim());
@@ -85,8 +83,8 @@ export default function StartersListeningPart2Runner({ part, submitted, reveal =
 
   const score = questions.filter((q, i) => isRight(q, values[i])).length;
   useEffect(() => {
-    onScore?.({ score, total: questions.length });
-  }, [score, questions.length]); // eslint-disable-line react-hooks/exhaustive-deps
+    onScore?.({ score, total: questions.length, answers: values });
+  }, [score, questions.length, values]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function setValue(i, v) {
     setValues(vs => {

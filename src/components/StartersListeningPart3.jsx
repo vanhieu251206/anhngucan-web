@@ -70,10 +70,10 @@ export default function StartersListeningPart3Runner({ part, submitted, reveal =
   const questions = (part.questions ?? []).filter(q => q.question?.trim());
   const [values, setValues] = useState([]);
 
-  const score = questions.filter((q, i) => values[i] === q.answer).length;
+  const score = questions.filter((q, i) => values[i] != null && values[i] === q.answer).length;
   useEffect(() => {
-    onScore?.({ score, total: questions.length });
-  }, [score, questions.length]); // eslint-disable-line react-hooks/exhaustive-deps
+    onScore?.({ score, total: questions.length, answers: values });
+  }, [score, questions.length, values]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function setValue(i, v) {
     setValues(vs => {

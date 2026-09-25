@@ -79,7 +79,7 @@ export function gradeVocabularyGroups(groups, answers) {
       const userAnswer = answers?.[`${gi}-${qi}`];
       let isCorrect = false;
       if (g.type === "multiple-choice" || g.type === "pronunciation-underline") {
-        isCorrect = userAnswer === q.answerIndex;
+        isCorrect = userAnswer != null && userAnswer === q.answerIndex;
       } else if (g.type === "fill-blank") {
         isCorrect = isFillBlankCorrect(userAnswer, q.acceptedAnswers);
       } else if (g.type === "word-bank") {
@@ -87,9 +87,10 @@ export function gradeVocabularyGroups(groups, answers) {
       } else if (g.type === "categorize") {
         isCorrect = userAnswer != null && userAnswer !== "" && Number(userAnswer) === q.columnIndex;
       } else if (g.type === "true-false-table") {
-        isCorrect = userAnswer === q.answer;
+        isCorrect = userAnswer != null && userAnswer === q.answer;
       } else if (g.type === "reorder") {
-        isCorrect = userAnswer != null && userAnswer !== "" && Number(userAnswer) === qi + 1;
+        // Đề đã tách đáp án (lib/grading/answerKeys.js) lưu thứ tự đã xáo + vị trí đúng `correctPos`; đề cũ: thứ tự lưu = đáp án.
+        isCorrect = userAnswer != null && userAnswer !== "" && Number(userAnswer) === (q.correctPos ?? qi + 1);
       } else if (g.type === "word-scramble") {
         isCorrect = isFillBlankCorrect(userAnswer, q.acceptedAnswers);
       } else if (g.type === "listen-and-type") {

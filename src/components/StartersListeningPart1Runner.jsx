@@ -1,32 +1,21 @@
 import { useEffect, useRef, useState } from "react";
 import { optimizeImage } from "../lib/cloudinaryImage.js";
+import { matchesPair, part1QuestionCount, part1Questions } from "../lib/grading/listeningExam.js";
 
 // Luyện đề Listening Starters — Part 1 (nghe và nối tên với người trong tranh). Đáp án soạn ở
 // StartersListeningExamStudio.jsx: pairs[{ id: "example"|"q1".."q5", a: rect, b: rect }], rect là khung
 // { x, y, w, h } theo % ảnh. Học sinh chạm 1 điểm (hiện khung vuông nhỏ), chạm điểm thứ 2 → nối thành
 // 1 nét. Khung vuông nhỏ lấy điểm chạm làm tâm; nếu 2 khung này chạm 2 khung của cùng 1 cặp (thứ tự
 // nào cũng được) thì cặp đó đúng.
-const POINT_SIZE = 22; // px — khớp .p1r-point; khung vuông này lấy điểm chạm làm tâm
-// Điểm chạm đúng khi khung vuông nhỏ (tâm = điểm chạm) chạm/chồng lên khung đáp án.
-function hits(pt, r, size) {
-  const hx = (POINT_SIZE / 2 / size.w) * 100;
-  const hy = (POINT_SIZE / 2 / size.h) * 100;
-  return pt.x + hx >= r.x && pt.x - hx <= r.x + r.w && pt.y + hy >= r.y && pt.y - hy <= r.y + r.h;
-}
-
-function matchesPair(conn, pair, size) {
-  return (
-    (hits(conn.p1, pair.a, size) && hits(conn.p2, pair.b, size)) ||
-    (hits(conn.p1, pair.b, size) && hits(conn.p2, pair.a, size))
-  );
-}
+// Quy tắc chấm (khung vuông quanh điểm chạm chạm khung đáp án) ở lib/grading/listeningExam.js — dùng chung với Worker.
 const center = r => ({ x: r.x + r.w / 2, y: r.y + r.h / 2 });
 
 // reveal=false (màn học sinh làm Luyện đề): vẫn KHOÁ bài sau khi nộp nhưng KHÔNG tô đúng/sai hay hiện đáp án.
 export default function StartersListeningPart1Runner({ part, submitted, reveal = true, onScore }) {
   const show = submitted && reveal;
-  const pairs = (part.pairs ?? []).filter(p => p.a && p.b);
-  const questions = pairs.filter(p => p.id !== "example"); // ví dụ đã nối sẵn trong ảnh, bỏ qua dữ liệu cũ
+  // Đề học sinh không có khung đáp án (tách riêng — lib/grading/answerKeys.js): số câu lấy từ `questionCount`.
+  const questionCount = part1QuestionCount(part);
+  const questions = part1Questions(part); // ví dụ đã nối sẵn trong ảnh, bỏ qua dữ liệu cũ
 
   const [conns, setConns] = useState([]); // [{ p1, p2 }]
   const [pending, setPending] = useState(null); // điểm chạm thứ nhất, chờ điểm thứ hai
@@ -60,15 +49,16 @@ export default function StartersListeningPart1Runner({ part, submitted, reveal =
   const solved = questions.filter(q => conns.some(c => matchesPair(c, q, size)));
   const missed = questions.filter(q => !solved.includes(q));
   const solvedCount = solved.length;
+  // `answers` (nét nối + kích thước khung ảnh lúc làm) gửi máy chủ chấm lại — học sinh không có đáp án để tự chấm.
   useEffect(() => {
-    onScore?.({ score: solvedCount, total: questions.length });
-  }, [solvedCount, questions.length]); // eslint-disable-line react-hooks/exhaustive-deps
+    onScore?.({ score: solvedCount, total: questionCount, answers: { conns, size } });
+  }, [solvedCount, questionCount, conns, size.w, size.h]); // eslint-disable-line react-hooks/exhaustive-deps
   const isRight = c => questions.some(q => matchesPair(c, q, size));
 
   return (
     <div className="p1r">
       <h2 className="p2s-title">Part 1</h2>
-      <p className="p2s-count">– {questions.length} questions –</p>
+      <p className="p2s-count">– {questionCount} questions –</p>
       <p className="p2s-instr">Listen and draw lines. There is one example.</p>
       <p className="p1r-sub">Nghe audio, rồi chạm vào tên của bạn nhỏ, sau đó chạm vào bạn ấy trong tranh. Con sẽ thấy một đường nối giữa tên và bạn ấy.</p>
       {part.audioUrl && <audio className="p2r-audio" src={part.audioUrl} controls />}

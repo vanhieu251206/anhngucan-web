@@ -161,27 +161,36 @@ service cloud.firestore {
 
     // Id doc = "<uid>_<mode>_<testId>" (lib/attempts.js) — học sinh chỉ đọc lượt của chính mình; kiểm tra theo id
     // vì doc chưa tồn tại (lần làm đầu tiên) thì không có resource.data để so uid.
+    // Nộp bài qua máy chủ (chốt 2026-09-25, worker/src/submit.js): Worker (service account, bỏ qua rules) kiểm tra
+    // lớp/hạn chót/số lượt/thời gian, tự chấm rồi ghi kết quả + cộng lượt. Trình duyệt KHÔNG được tự ghi 2 collection
+    // dưới đây nữa (trước đó học sinh có thể gửi điểm tự bịa hoặc không cộng lượt).
+    // Id doc = "<uid>_<mode>_<testId>" — học sinh chỉ đọc lượt của chính mình; kiểm tra theo id vì doc chưa tồn tại
+    // (lần làm đầu tiên) thì không có resource.data để so uid.
     match /attempts/{attemptId} {
       allow read: if isStaff() || (isSignedIn() && attemptId.matches(request.auth.uid + '_.*'));
-      allow create: if isSignedIn()
-        && request.resource.data.uid == request.auth.uid
-        && request.resource.data.count == 1;
-      allow update: if isSignedIn()
-        && resource.data.uid == request.auth.uid
-        && request.resource.data.uid == request.auth.uid
-        && request.resource.data.count == resource.data.count + 1;
+      allow create, update: if false;
       allow delete: if isStaff();
     }
 
-    // Kết quả chi tiết từng câu (mọi dạng bài) — học sinh chỉ ghi, chỉ giáo viên/admin đọc. Admin/giáo viên xoá được:
+    // Kết quả chi tiết từng câu (mọi dạng bài) — chỉ Worker ghi, chỉ giáo viên/admin đọc. Admin/giáo viên xoá được:
     // kết quả chỉ giữ tới 48h sau hạn chót lần mở bài rồi bị xoá hẳn (lib/testResults.js, chốt 2026-09-25).
     match /testResults/{resultId} {
       allow read: if isStaff();
-      // Học sinh ghi kết quả của chính mình; admin/giáo viên làm thử bài thì ghi với uid = null.
-      allow create: if isSignedIn() && (request.resource.data.uid == request.auth.uid
-        || (isStaff() && request.resource.data.uid == null));
-      allow update: if false;
+      allow create, update: if false;
       allow delete: if isStaff();
+    }
+
+    // Mốc giờ bắt đầu làm bài (Worker ghi/đọc để tính thời gian làm bài theo giờ máy chủ) — trình duyệt không đụng tới.
+    match /testStarts/{startId} {
+      allow read, write: if false;
+    }
+
+    // Đáp án tách khỏi đề (lib/grading/answerKeys.js, 2026-09-25): học sinh KHÔNG đọc được; admin/giáo viên/tài khoản
+    // đặc biệt đọc để soạn bài/xem đáp án; Worker đọc để chấm. Ghi theo quyền soạn bộ đề (cùng quyền với đề bài).
+    match /answerKeys/{keyId} {
+      allow read: if isStaff() || role() == "tester";
+      allow create, update: if canManageSeries(request.resource.data.seriesId);
+      allow delete: if canManageSeries(resource.data.seriesId);
     }
 
     // "Mở bài" cho lớp (lib/openings.js): học sinh đăng nhập đọc để biết bài nào đang mở cho lớp mình, chỉ

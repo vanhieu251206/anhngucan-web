@@ -1,5 +1,6 @@
 import { doc, setDoc, deleteDoc, getDoc, getDocs, collection, serverTimestamp } from "firebase/firestore";
 import { db } from "./firebase.js";
+import { deleteWithAnswers, saveWithAnswers, withAnswers, withAnswersAll } from "./answerStore.js";
 
 function lessonId(seriesId, level) {
   return `${seriesId}-${level}`;
@@ -60,19 +61,21 @@ export async function deleteTest(seriesId, level, testId) {
 // `wordBank` (ngân hàng từ dùng chung cho các câu "word-bank" trong Part, chỉ Movers trở lên).
 export async function listReadingTests(seriesId, level) {
   const snap = await getDocs(collection(db, "lessons", lessonId(seriesId, level), "readingTests"));
-  return snap.docs
+  const list = snap.docs
     .map(d => ({ id: d.id, ...d.data() }))
     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  return withAnswersAll(lessonId(seriesId, level), "readingTests", list);
 }
 
 export async function getReadingTest(seriesId, level, testId) {
   const snap = await getDoc(doc(db, "lessons", lessonId(seriesId, level), "readingTests", testId));
-  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+  return snap.exists() ? withAnswers(lessonId(seriesId, level), "readingTests", { id: snap.id, ...snap.data() }) : null;
 }
 
 // parts PHẢI đã resolve hết ảnh thành URL đầy đủ (Cloudinary) trước khi gọi hàm này, giống saveTest.
 export async function saveReadingTest(seriesId, level, testId, { title, order, parts, maxAttempts, timeLimitMinutes }, uid) {
-  await setDoc(doc(db, "lessons", lessonId(seriesId, level), "readingTests", testId), {
+  // Tách đáp án ra answerKeys (lib/answerStore.js) — học sinh tải đề không thấy đáp án.
+  await saveWithAnswers(seriesId, lessonId(seriesId, level), "readingTests", testId, {
     testId,
     title,
     order,
@@ -85,7 +88,7 @@ export async function saveReadingTest(seriesId, level, testId, { title, order, p
 }
 
 export async function deleteReadingTest(seriesId, level, testId) {
-  await deleteDoc(doc(db, "lessons", lessonId(seriesId, level), "readingTests", testId));
+  await deleteWithAnswers(lessonId(seriesId, level), "readingTests", testId);
 }
 
 // Dictation (Nghe & gõ lại) — cấu trúc tương tự Reading/Speaking (subcollection riêng "dictationTests"
@@ -166,20 +169,21 @@ export async function deleteComprehensionTest(seriesId, level, testId) {
 // (PracticeStudio.jsx), Claude không tự điền nội dung đề thi thật (xem CLAUDE.md mục 1, 7).
 export async function listPracticeTests(seriesId, level) {
   const snap = await getDocs(collection(db, "lessons", lessonId(seriesId, level), "practiceTests"));
-  return snap.docs
+  const list = snap.docs
     .map(d => ({ id: d.id, ...d.data() }))
     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  return withAnswersAll(lessonId(seriesId, level), "practiceTests", list);
 }
 
 export async function getPracticeTest(seriesId, level, testId) {
   const snap = await getDoc(doc(db, "lessons", lessonId(seriesId, level), "practiceTests", testId));
-  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+  return snap.exists() ? withAnswers(lessonId(seriesId, level), "practiceTests", { id: snap.id, ...snap.data() }) : null;
 }
 
 export async function savePracticeTest(
   seriesId, level, testId, { title, order, timeLimitMinutes, passages, maxAttempts }, uid
 ) {
-  await setDoc(doc(db, "lessons", lessonId(seriesId, level), "practiceTests", testId), {
+  await saveWithAnswers(seriesId, lessonId(seriesId, level), "practiceTests", testId, {
     testId,
     title,
     order,
@@ -192,7 +196,7 @@ export async function savePracticeTest(
 }
 
 export async function deletePracticeTest(seriesId, level, testId) {
-  await deleteDoc(doc(db, "lessons", lessonId(seriesId, level), "practiceTests", testId));
+  await deleteWithAnswers(lessonId(seriesId, level), "practiceTests", testId);
 }
 
 // LISTENING (IELTS full test) — cấu trúc riêng (chốt 2026-09-11), song song với `practiceTests`
@@ -202,20 +206,21 @@ export async function deletePracticeTest(seriesId, level, testId) {
 // type "multiple-choice"|"tfng"|"short-answer" + questions).
 export async function listIeltsListeningTests(seriesId, level) {
   const snap = await getDocs(collection(db, "lessons", lessonId(seriesId, level), "listeningTests"));
-  return snap.docs
+  const list = snap.docs
     .map(d => ({ id: d.id, ...d.data() }))
     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  return withAnswersAll(lessonId(seriesId, level), "listeningTests", list);
 }
 
 export async function getIeltsListeningTest(seriesId, level, testId) {
   const snap = await getDoc(doc(db, "lessons", lessonId(seriesId, level), "listeningTests", testId));
-  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+  return snap.exists() ? withAnswers(lessonId(seriesId, level), "listeningTests", { id: snap.id, ...snap.data() }) : null;
 }
 
 export async function saveIeltsListeningTest(
   seriesId, level, testId, { title, order, sections, maxAttempts, timeLimitMinutes }, uid
 ) {
-  await setDoc(doc(db, "lessons", lessonId(seriesId, level), "listeningTests", testId), {
+  await saveWithAnswers(seriesId, lessonId(seriesId, level), "listeningTests", testId, {
     testId,
     title,
     order,
@@ -228,7 +233,7 @@ export async function saveIeltsListeningTest(
 }
 
 export async function deleteIeltsListeningTest(seriesId, level, testId) {
-  await deleteDoc(doc(db, "lessons", lessonId(seriesId, level), "listeningTests", testId));
+  await deleteWithAnswers(lessonId(seriesId, level), "listeningTests", testId);
 }
 
 // KET/PET VOCABULARY — cấu trúc riêng theo Grade (6-9) → Unit (1-16), KHÁC Level/Test của YLE/IELTS
@@ -241,11 +246,11 @@ export async function deleteIeltsListeningTest(seriesId, level, testId) {
 // sách câu hỏi phẳng `questions` sang nhóm, chốt người dùng 2026-09-17, cùng cơ chế Practice Test).
 export async function getVocabularyUnit(grade, unit) {
   const snap = await getDoc(doc(db, "lessons", lessonId("ket-pet", grade), "vocabularyUnits", `unit${unit}`));
-  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+  return snap.exists() ? withAnswers(lessonId("ket-pet", grade), "vocabularyUnits", { id: snap.id, ...snap.data() }) : null;
 }
 
 export async function saveVocabularyUnit(grade, unit, groups, uid) {
-  await setDoc(doc(db, "lessons", lessonId("ket-pet", grade), "vocabularyUnits", `unit${unit}`), {
+  await saveWithAnswers("ket-pet", lessonId("ket-pet", grade), "vocabularyUnits", `unit${unit}`, {
     groups,
     updatedAt: serverTimestamp(),
     updatedBy: uid,
@@ -260,11 +265,11 @@ export async function saveVocabularyUnit(grade, unit, groups, uid) {
 // để tránh nhầm khi đọc code).
 export async function getKetPetPracticeTest(grade, unit, testNumber) {
   const snap = await getDoc(doc(db, "lessons", lessonId("ket-pet", grade), "practiceTests", `unit${unit}-test${testNumber}`));
-  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+  return snap.exists() ? withAnswers(lessonId("ket-pet", grade), "practiceTests", { id: snap.id, ...snap.data() }) : null;
 }
 
 export async function saveKetPetPracticeTest(grade, unit, testNumber, groups, uid) {
-  await setDoc(doc(db, "lessons", lessonId("ket-pet", grade), "practiceTests", `unit${unit}-test${testNumber}`), {
+  await saveWithAnswers("ket-pet", lessonId("ket-pet", grade), "practiceTests", `unit${unit}-test${testNumber}`, {
     groups,
     updatedAt: serverTimestamp(),
     updatedBy: uid,
@@ -277,17 +282,20 @@ export async function saveKetPetPracticeTest(grade, unit, testNumber, groups, ui
 // items khung + màu) — schema chi tiết xem các file dashboard/StartersListeningPart*Editor.jsx.
 export async function getListeningExamTest(seriesId, level, testId) {
   const snap = await getDoc(doc(db, "lessons", lessonId(seriesId, level), "listeningExamTests", testId));
-  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+  return snap.exists() ? withAnswers(lessonId(seriesId, level), "listeningExamTests", { id: snap.id, ...snap.data() }) : null;
 }
 
 export async function listListeningExamTests(seriesId, level) {
   const snap = await getDocs(collection(db, "lessons", lessonId(seriesId, level), "listeningExamTests"));
-  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  return withAnswersAll(lessonId(seriesId, level), "listeningExamTests", snap.docs.map(d => ({ id: d.id, ...d.data() })));
 }
 
 export async function saveListeningExamTest(seriesId, level, testId, { title, parts }, uid) {
-  await setDoc(
-    doc(db, "lessons", lessonId(seriesId, level), "listeningExamTests", testId),
+  await saveWithAnswers(
+    seriesId,
+    lessonId(seriesId, level),
+    "listeningExamTests",
+    testId,
     { testId, title, parts, updatedAt: serverTimestamp(), updatedBy: uid },
     { merge: true },
   );

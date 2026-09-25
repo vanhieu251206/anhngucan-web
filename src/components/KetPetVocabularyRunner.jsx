@@ -1,9 +1,7 @@
 import { useEffect, useState } from "react";
 import Header from "./Header.jsx";
 import { useAuth } from "../lib/authContext.jsx";
-import { incrementAttempt } from "../lib/attempts.js";
-import { saveTestResult } from "../lib/testResults.js";
-import { attemptKey } from "../lib/openings.js";
+import { useTestSubmission } from "../lib/testSubmit.js";
 import KetPetVocabularyQuiz from "./KetPetVocabularyQuiz.jsx";
 import { getVocabularyUnit } from "../lib/adminLessons.js";
 
@@ -23,17 +21,20 @@ export default function KetPetVocabularyRunner({ grade, unit, onNavigate, onBack
     return () => { cancelled = true; };
   }, [grade, unit]);
 
-  // Học sinh nộp bài: đếm 1 lượt (theo lần mở bài) + lưu chi tiết cho giáo viên; học sinh chỉ thấy số câu đúng.
+  const submitToServer = useTestSubmission({
+    kind: "ketpet-vocab", seriesId: "ket-pet", level: grade, testId: `unit${unit}`, openingId: ctx?.openingId,
+    lessonLabel: `KET/PET Grade ${grade} · Unit ${unit} · Vocabulary`, studentName: ctx?.studentName,
+  });
+
+  // Máy chủ chấm + ghi kết quả + cộng lượt (lib/testSubmit.js). Học sinh: trả Promise điểm để quiz hiện; admin/giáo
+  // viên (có đáp án) chấm tại chỗ, chỉ gửi máy chủ để lưu.
   function handleSubmitted(graded, answers) {
-    const tid = `unit${unit}`;
-    if (ctx?.studentUid) incrementAttempt({ uid: ctx.studentUid, mode: "ketpet-vocab", testId: attemptKey(tid, ctx.openingId), seriesId: "ket-pet", level: grade });
-    saveTestResult({
-      openingId: ctx?.openingId,
-      mode: "ketpet-vocab", seriesId: "ket-pet", level: grade, testId: tid, lessonLabel: `KET/PET Grade ${grade} · Unit ${unit} · Vocabulary`,
-      studentName: ctx?.studentName, studentClass: ctx?.studentClass, uid: ctx?.studentUid,
-      correct: graded.correct, total: graded.total,
-      items: graded.results.flatMap((row, gi) => row.map((ok, qi) => ({ group: gi + 1, qNumber: qi + 1, isCorrect: ok, studentAnswer: String(answers[`${gi}-${qi}`] ?? "") }))),
-    });
+    const pending = submitToServer({ answers });
+    if (canReview) {
+      pending.catch(() => {});
+      return undefined;
+    }
+    return pending;
   }
 
   return (

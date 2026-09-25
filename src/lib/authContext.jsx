@@ -3,6 +3,7 @@ import { onAuthStateChanged, signOut } from "firebase/auth";
 import { doc, getDoc, onSnapshot } from "firebase/firestore";
 import { auth, db } from "./firebase.js";
 import { setHistoryDisabled } from "./historyGuard.js";
+import { setAnswerAccess } from "./answerStore.js";
 
 const AuthContext = createContext(null);
 
@@ -71,6 +72,8 @@ export function AuthProvider({ children }) {
   // cờ đã bật trước khi bất kỳ Runner nào kịp mount và gọi hàm ghi.
   const isTester = role === "tester";
   setHistoryDisabled(isTester);
+  // Chỉ admin/giáo viên/tài khoản đặc biệt được ghép đáp án vào đề khi tải (lib/answerStore.js).
+  setAnswerAccess(isStaff || isTester);
 
   const value = {
     user,

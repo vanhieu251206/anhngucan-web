@@ -2,6 +2,7 @@ import { useState } from "react";
 import ExamTimer, { useExamTimer } from "./ExamTimer.jsx";
 import { gradePracticeTestGroups, toRoman } from "../lib/ketPetPracticeTest.js";
 import UnderlineText from "./UnderlineText.jsx";
+import SubmitStatus from "./SubmitStatus.jsx";
 
 // Phần tương tác thuần (không Header/chrome) của 1 Test Practice Test KET/PET — TÁI DÙNG cho cả màn
 // học sinh làm thật (KetPetPracticeTestRunner.jsx, fetch từ Firestore) LẪN Preview trong CMS
@@ -27,15 +28,29 @@ export default function KetPetPracticeTestQuiz({ groups, revealAnswers = false, 
   function setAnswer(gi, qi, value) {
     setAnswers(a => ({ ...a, [`${gi}-${qi}`]: value }));
   }
-  function handleSubmit() {
-    if (result) return;
+  // Học sinh: onSubmitted trả về Promise điểm do MÁY CHỦ chấm (đề học sinh không có đáp án — lib/testSubmit.js);
+  // chờ điểm đó rồi mới hiện. Preview CMS / admin / giáo viên (có đáp án) chấm tại chỗ như trước.
+  const [submitState, setSubmitState] = useState(null); // { error? } khi đang nộp/lỗi
+  async function handleSubmit() {
+    if (result || (submitState && !submitState.error)) return;
     const graded = gradePracticeTestGroups(groups, answers);
-    setResult(graded);
-    onSubmitted?.(graded, answers);
+    const pending = onSubmitted?.(graded, answers);
+    if (!pending || revealAnswers) {
+      setResult(graded);
+      return;
+    }
+    setSubmitState({});
+    try {
+      const r = await pending;
+      setResult({ correct: r.correct, total: r.total, results: [] });
+      setSubmitState(null);
+    } catch (error) {
+      setSubmitState({ error });
+    }
   }
 
   // Đồng hồ chung (ExamTimer.jsx) — chỉ hiện ở màn học sinh làm bài thật (có onSubmitted); hết giờ tự nộp.
-  const timer = useExamTimer({ limitMinutes, running: !result, onExpire: handleSubmit });
+  const timer = useExamTimer({ limitMinutes, running: !result && !submitState, onExpire: handleSubmit });
   function handleRetry() {
     setAnswers({});
     setResult(null);
@@ -262,7 +277,9 @@ export default function KetPetPracticeTestQuiz({ groups, revealAnswers = false, 
       </section>
 
       <div className="vocab-footer">
-        {result == null ? (
+        {submitState ? (
+          <SubmitStatus error={submitState.error} onRetry={handleSubmit} />
+        ) : result == null ? (
           <button type="button" className="vocab-submit-btn" onClick={handleSubmit}>Nộp bài</button>
         ) : (
           <>

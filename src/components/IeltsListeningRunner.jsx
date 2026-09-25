@@ -1,44 +1,15 @@
 import { useMemo, useState } from "react";
 import ExamTimer, { useExamTimer } from "./ExamTimer.jsx";
 import { useAuth } from "../lib/authContext.jsx";
-import { saveTestResult } from "../lib/testResults.js";
-import { incrementAttempt } from "../lib/attempts.js";
-import { attemptKey } from "../lib/openings.js";
+import { useTestSubmission } from "../lib/testSubmit.js";
+import SubmitStatus from "./SubmitStatus.jsx";
+import { flattenSections as flattenQuestions, isIeltsCorrect as isCorrect } from "../lib/grading/ielts.js";
 
 // Màn làm bài IELTS Listening (Test 1-4 → Section 1-4) — mô phỏng cấu trúc IeltsPracticeRunner.jsx
 // (Reading): audio + câu hỏi cuộn riêng bên phải, tab chuyển Section, timer, nộp bài chấm điểm
 // ngay. Không giới hạn lượt làm (cùng tinh thần Luyện đề Reading, chốt 2026-09-10/11).
 
-function normalizeAnswer(s) {
-  return String(s ?? "")
-    .toLowerCase()
-    .trim()
-    .replace(/[.,!?;:]+$/g, "")
-    .replace(/\s+/g, " ");
-}
-
-function flattenQuestions(sections) {
-  const flat = [];
-  let n = 1;
-  (sections ?? []).forEach((section, si) => {
-    (section.groups ?? []).forEach((group, gi) => {
-      (group.questions ?? []).forEach((q, qi) => {
-        flat.push({ number: n, sectionIndex: si, groupIndex: gi, questionIndex: qi, type: group.type, q });
-        n++;
-      });
-    });
-  });
-  return flat;
-}
-
-function isCorrect(entry, value) {
-  const { type, q } = entry;
-  if (value == null || value === "") return false;
-  if (type === "multiple-choice") return Number(value) === q.answerIndex;
-  if (type === "tfng") return value === q.answer;
-  const accepted = String(q.acceptedAnswers ?? "").split("|").map(normalizeAnswer).filter(Boolean);
-  return accepted.includes(normalizeAnswer(value));
-}
+// Quy tắc chấm nằm ở lib/grading/ielts.js — dùng chung với Worker chấm bài phía máy chủ.
 
 export default function IeltsListeningRunner({ test, onBack, studentUid, studentName, studentClass, seriesId, level, openingId }) {
   const flat = useMemo(() => flattenQuestions(test.sections), [test]);
@@ -48,34 +19,45 @@ export default function IeltsListeningRunner({ test, onBack, studentUid, student
   const { isStaff, isTester } = useAuth();
   const reveal = isStaff || isTester; // học sinh thật chỉ thấy điểm; admin/giáo viên/tài khoản đặc biệt thấy đáp án
   // Đồng hồ chung (ExamTimer.jsx): hết giờ tự nộp bài.
-  const timer = useExamTimer({ limitMinutes: test.timeLimitMinutes, running: !submitted, onExpire: submitNow });
+  // Học sinh: máy chủ chấm (lib/testSubmit.js) → điểm trả về. submitState: { error? } khi đang nộp/lỗi.
+  const [serverScore, setServerScore] = useState(null);
+  const [submitState, setSubmitState] = useState(null);
+  const submitToServer = useTestSubmission({ kind: "ielts-listening", seriesId, level, testId: test.id, openingId, lessonLabel: test.title, studentName });
+  const timer = useExamTimer({ limitMinutes: test.timeLimitMinutes, running: !submitted && !submitState, onExpire: submitNow });
 
   function setAnswer(number, value) {
     setAnswers(a => ({ ...a, [number]: value }));
   }
 
   // Chốt bài: khoá + lưu chi tiết từng câu cho giáo viên/admin (học sinh chỉ thấy điểm). Không lưu ở Preview CMS.
-  function submitNow() {
+  async function submitNow() {
     if (submitted) return;
-    setSubmitted(true);
-    if (studentUid) incrementAttempt({ uid: studentUid, mode: "ielts-listening", testId: attemptKey(test.id, openingId), seriesId, level });
-    let correct = 0;
-    const items = flat.map(entry => {
-      const ok = isCorrect(entry, answers[entry.number]);
-      if (ok) correct++;
-      return { qNumber: entry.number, studentAnswer: String(answers[entry.number] ?? ""), correctAnswer: String(entry.q?.answer ?? entry.q?.acceptedAnswers ?? entry.q?.answerIndex ?? ""), isCorrect: ok };
-    });
-    saveTestResult({ openingId, mode: "ielts-listening", seriesId, level, testId: test.id, lessonLabel: test.title, studentName, studentClass, uid: studentUid, correct, total: flat.length, elapsedMs: timer.getElapsedMs(), items });
+    const payload = { answers, elapsedMs: timer.getElapsedMs() };
+    if (reveal) {
+      setSubmitted(true);
+      submitToServer(payload).catch(() => {});
+      return;
+    }
+    setSubmitState({});
+    try {
+      const r = await submitToServer(payload);
+      setServerScore({ correct: r.correct, total: r.total });
+      setSubmitted(true);
+      setSubmitState(null);
+    } catch (error) {
+      setSubmitState({ error });
+    }
   }
 
   const score = useMemo(() => {
     if (!submitted) return null;
+    if (!reveal) return serverScore;
     let correct = 0;
     flat.forEach(entry => {
       if (isCorrect(entry, answers[entry.number])) correct++;
     });
     return { correct, total: flat.length };
-  }, [submitted, flat, answers]);
+  }, [submitted, flat, answers, reveal, serverScore]);
 
   const section = test.sections[activeSection];
   const sectionQuestions = flat.filter(e => e.sectionIndex === activeSection);
@@ -185,13 +167,15 @@ export default function IeltsListeningRunner({ test, onBack, studentUid, student
 
       <div className="ielts-practice-sidebar">
         <ExamTimer timer={timer} />
-        {!submitted ? (
+        {submitState ? (
+          <SubmitStatus error={submitState.error} onRetry={submitNow} />
+        ) : !submitted ? (
           <button type="button" className="btn btn-primary ielts-practice-submit" onClick={submitNow}>
             NỘP BÀI
           </button>
         ) : (
           <div className="ielts-practice-score">
-            Điểm: {score.correct}/{score.total}
+            Điểm: {score?.correct}/{score?.total}
           </div>
         )}
         <div className="ielts-practice-navgrid">
