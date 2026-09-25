@@ -70,27 +70,39 @@ export default function LoginPage({ onNavigate }) {
     }
     setLoading(true);
     try {
-      let cred = null;
+      let snap = null;
+      let orphan = false;
       let tooMany = false;
       for (const addr of toAuthEmails(email)) {
         try {
-          cred = await signInWithEmailAndPassword(auth, addr, password);
-          break;
+          const cred = await signInWithEmailAndPassword(auth, addr, password);
+          const s = await getDoc(doc(db, "users", cred.user.uid));
+          if (s.exists()) {
+            snap = s;
+            break;
+          }
+          // Tài khoản Auth mồ côi (hồ sơ đã xoá) — vd học sinh "pool" cũ che mất tài khoản đặc biệt "pool"
+          // cùng tên: đăng xuất rồi thử địa chỉ kế tiếp thay vì chặn luôn.
+          orphan = true;
+          await signOut(auth);
         } catch (err) {
           if (err?.code === "auth/too-many-requests") tooMany = true;
           // thử địa chỉ kế tiếp
         }
       }
-      if (!cred) {
+      if (!snap) {
+        if (orphan) {
+          setError("Tài khoản này không còn tồn tại — hỏi giáo viên nhé.");
+          return;
+        }
         const fails = readFails().count + 1;
         writeFails({ count: fails, until: fails >= FREE_FAILS ? Date.now() + LOCK_STEP_MS * (fails - FREE_FAILS + 1) : 0 });
         throw new Error(tooMany ? "too-many" : "login-failed");
       }
       writeFails(null);
-      const snap = await getDoc(doc(db, "users", cred.user.uid));
-      if (!snap.exists() || snap.data().disabled) {
+      if (snap.data().disabled) {
         await signOut(auth);
-        setError(snap.exists() ? "Tài khoản này đã bị khoá — hỏi giáo viên nhé." : "Tài khoản này không còn tồn tại — hỏi giáo viên nhé.");
+        setError("Tài khoản này đã bị khoá — hỏi giáo viên nhé.");
         return;
       }
       const role = snap.data().role;

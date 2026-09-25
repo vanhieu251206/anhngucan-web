@@ -143,11 +143,6 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
     if (series.levels.length === 1 && !isIelts) return series.levels[0];
     return series.levels.find(l => l.number === n) ?? null;
   });
-  // Cấp mở sẵn từ URL (F5/link) nhưng lớp của học sinh không được gán → về màn chọn cấp.
-  useEffect(() => {
-    if (bookReady && level && !canLevel(series.id, level.number)) setLevel(null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bookReady, level, series.id]);
   const [content, setContent] = useState(null); // { listening, tests, readingTests } — đọc qua lib/lessons.js
   const [selectedTest, setSelectedTest] = useState(null);
   const [selectedReadingTest, setSelectedReadingTest] = useState(null);
@@ -190,6 +185,12 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
   const { user, isStaff, isTester, isAdmin, profile } = useAuth();
   // Học sinh chỉ vào được cấp thuộc sách của lớp mình — cấp khác hiện xám (lib/useClassBook.js).
   const { canLevel, ready: bookReady } = useClassBook();
+  // Cấp mở sẵn từ URL (F5/link) nhưng lớp của học sinh không được gán → về màn chọn cấp.
+  // Phải đặt SAU useClassBook() — mảng phụ thuộc được đọc ngay lúc render, đặt trước là lỗi trắng trang.
+  useEffect(() => {
+    if (bookReady && level && !canLevel(series.id, level.number)) setLevel(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bookReady, level, series.id]);
   // Tên/lớp gắn vào báo cáo quá trình làm bài (speakingSessions, xem SceneRunner.jsx +
   // StudentResultsPage.jsx) — từ 2026-08-27 lấy THẲNG từ hồ sơ tài khoản đã đăng nhập
   // (users/{uid}.displayName/className, xem authContext.jsx), không còn gõ tay qua
