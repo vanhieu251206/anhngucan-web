@@ -73,8 +73,13 @@ export async function verifyIdToken(idToken, projectId) {
   const parts = (idToken || "").split(".");
   if (parts.length !== 3) throw adminError(401, "invalid-token");
   const dec = new TextDecoder();
-  const header = JSON.parse(dec.decode(b64urlDecode(parts[0])));
-  const payload = JSON.parse(dec.decode(b64urlDecode(parts[1])));
+  let header, payload;
+  try {
+    header = JSON.parse(dec.decode(b64urlDecode(parts[0])));
+    payload = JSON.parse(dec.decode(b64urlDecode(parts[1])));
+  } catch {
+    throw adminError(401, "invalid-token"); // token hỏng/giả — không để rơi thành lỗi 500
+  }
   const jwk = (await getJwks()).find(k => k.kid === header.kid);
   if (header.alg !== "RS256" || !jwk) throw adminError(401, "invalid-token");
   const key = await crypto.subtle.importKey("jwk", jwk, { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["verify"]);
