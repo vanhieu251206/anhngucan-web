@@ -9,8 +9,7 @@ import ReadingRunner from "../components/ReadingRunner.jsx";
 import IeltsPracticeRunner from "../components/IeltsPracticeRunner.jsx";
 import IeltsListeningRunner from "../components/IeltsListeningRunner.jsx";
 import DictationRunner from "../components/DictationRunner.jsx";
-import OpeningPasswordScreen from "../components/OpeningPasswordScreen.jsx";
-import { checkOpening, openingNeedsPassword } from "../lib/openings.js";
+import { checkOpening } from "../lib/openings.js";
 import StartersListeningTestRunner, { testHasContent } from "../components/StartersListeningTestRunner.jsx";
 import { listListeningExamTests } from "../lib/adminLessons.js";
 import { useAuth } from "../lib/authContext.jsx";
@@ -204,8 +203,6 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
   const [checkingAttempts, setCheckingAttempts] = useState(false);
   // Lần mở bài (lib/openings.js) đang dùng để làm bài: cho biết số phút, và khoá đếm lượt riêng của lần mở đó.
   const [activeOpening, setActiveOpening] = useState(null);
-  // Chờ học sinh nhập mật khẩu vào bài: { opening, title, launch }
-  const [gate, setGate] = useState(null);
 
   useEffect(() => {
     setParams({ level: level ? level.number : null, test: null });
@@ -364,21 +361,6 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
   // ---------- Màn chặn (hết lượt nộp bài HOẶC giáo viên chưa mở bài này cho lớp) ----------
   if (blocked) {
     return <BlockedScreen title={blocked.title} message={blocked.message} onBack={() => setBlocked(null)} />;
-  }
-  if (gate) {
-    return (
-      <OpeningPasswordScreen
-        opening={gate.opening}
-        title={gate.title}
-        onBack={() => setGate(null)}
-        onSuccess={() => {
-          const { opening, launch } = gate;
-          setGate(null);
-          setActiveOpening(opening);
-          launch(opening);
-        }}
-      />
-    );
   }
 
   // ---------- Test IELTS Reading đang làm ----------
@@ -688,12 +670,8 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
       setBlocked({ title: result.title, message: result.message });
       return;
     }
-    if (openingNeedsPassword(result.opening)) {
-      setGate({ opening: result.opening, title: test.title, launch });
-    } else {
-      setActiveOpening(result.opening);
-      launch(result.opening);
-    }
+    setActiveOpening(result.opening);
+    launch(result.opening);
   }
 
   function requestStart(type, test) {

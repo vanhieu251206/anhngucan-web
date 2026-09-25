@@ -5,6 +5,7 @@ import { uploadToCloudinary } from "../../lib/cloudinaryUpload.js";
 import { pdfToPageImages } from "../../lib/pdfToImages.js";
 import KidsBookSoundEditor from "./KidsBookSoundEditor.jsx";
 import KidsBookTabsEditor from "./KidsBookTabsEditor.jsx";
+import { optimizeImage } from "../../lib/cloudinaryImage.js";
 
 // Soạn 1 quyển sách cố định của Kids (Student Book/Workbook theo Grade — xem KidsContentPage.jsx)
 // — danh sách ảnh từng trang (lật kiểu flipbook, xem BookReader.jsx) + các track audio đặt ngay
@@ -122,7 +123,7 @@ export default function KidsBookStudio({ title, pages, sounds, tabs, onTabsChang
         {(pages ?? []).map((p, i) => (
           <div className="kids-page-thumb" key={i}>
             <span className="admin-scene-list-index">{i + 1}</span>
-            {p && <img src={p} alt={`Trang ${i + 1}`} />}
+            {p && <img src={optimizeImage(p)} alt={`Trang ${i + 1}`} />}
             <div className="admin-scene-list-actions">
               <button type="button" className="admin-link-btn" onClick={() => movePage(i, -1)} disabled={i === 0}>↑</button>
               <button type="button" className="admin-link-btn" onClick={() => movePage(i, 1)} disabled={i === pages.length - 1}>↓</button>

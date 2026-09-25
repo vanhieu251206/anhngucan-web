@@ -10,6 +10,7 @@ import { MoversPart3Editor, MoversPart3Preview, blankMoversPart3, normalizeMover
 import { listListeningExamTests, getListeningExamTest, saveListeningExamTest } from "../../lib/adminLessons.js";
 import { uploadToCloudinary } from "../../lib/cloudinaryUpload.js";
 import { useAuth } from "../../lib/authContext.jsx";
+import { optimizeImage } from "../../lib/cloudinaryImage.js";
 
 // CMS "Luyện đề" Listening — Starters (Part 1-4) và Movers + Flyers (Part 1-5, giống hệt cơ chế của nhau,
 // chốt cùng người dùng 2026-09-22: Flyers dùng đúng Part2/3/4/5 của Movers). Part 1 (nghe & nối tên với người trong tranh).
@@ -130,7 +131,7 @@ function Part1Preview({ part, onChange, activeSlot, onActiveSlot }) {
           {...(activeSlot ? handlers : {})}
           style={{ cursor: activeSlot ? "crosshair" : "default", touchAction: activeSlot ? "none" : "auto" }}
         >
-          <img src={part.imageUrl} alt="" draggable={false} />
+          <img src={optimizeImage(part.imageUrl)} alt="" draggable={false} />
           <svg className="admin-p1-pair-lines" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
             {done.map(p => {
               const a = center(p.a);

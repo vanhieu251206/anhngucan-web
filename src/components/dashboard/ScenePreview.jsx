@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { ExaminerLine, SceneStage, MIC_ICON } from "../sceneVisuals.jsx";
 import { useFitBoxSize } from "../../lib/useFitBoxSize.js";
+import { optimizeImage } from "../../lib/cloudinaryImage.js";
 
 // Kích thước GỐC của thẻ trắng thật ở màn Speaking học sinh (`.sentence-box`:
 // width: min(600px,94vw); height: min(640px,88vh)) — render nội dung preview LUÔN ở đúng kích
@@ -77,7 +78,7 @@ function EditableSceneStage({ sceneImage, rect, onRectChange, overlayClassName }
   return (
     <SceneStage innerRef={stageRef} cursor="crosshair">
       <div {...handlers} style={{ position: "absolute", inset: 0 }}>
-        <img alt="Tranh của bài" className="part1-scene-img" src={sceneImage} onError={e => (e.currentTarget.style.display = "none")} draggable={false} />
+        <img alt="Tranh của bài" className="part1-scene-img" src={optimizeImage(sceneImage)} onError={e => (e.currentTarget.style.display = "none")} draggable={false} />
         <RectOverlay rect={shown} className={overlayClassName} />
       </div>
     </SceneStage>
@@ -111,7 +112,7 @@ export default function ScenePreview({ scene, onChange }) {
                 onRectChange={highlight => onChange({ highlight })}
               />
             )}
-            {scene.card?.image && <img className="part1-single-card" src={scene.card.image} alt="" />}
+            {scene.card?.image && <img className="part1-single-card" src={optimizeImage(scene.card.image)} alt="" />}
             {scene.answerTemplate && (
               <div className="answer-template">💡 Gợi ý: <strong>{scene.answerTemplate}</strong></div>
             )}
@@ -134,7 +135,7 @@ export default function ScenePreview({ scene, onChange }) {
         {scene.type === "narration" && scene.demoCard?.card?.image && scene.demoCard?.target && (
           <img alt="Thẻ đã đặt"
             className="dropped-card"
-            src={scene.demoCard.card.image}
+            src={optimizeImage(scene.demoCard.card.image)}
             style={{
               left: `${scene.demoCard.target.x + scene.demoCard.target.w / 2}%`,
               top: `${scene.demoCard.target.y + scene.demoCard.target.h / 2}%`,
@@ -160,7 +161,7 @@ export default function ScenePreview({ scene, onChange }) {
           />
         )}
         {scene.type === "drag-drop" && scene.card?.image && (
-          <img className="drag-card" src={scene.card.image} alt="" draggable={false} />
+          <img className="drag-card" src={optimizeImage(scene.card.image)} alt="" draggable={false} />
         )}
 
         {scene.type === "card-select" && (
@@ -169,7 +170,7 @@ export default function ScenePreview({ scene, onChange }) {
               const correctIds = scene.correctIds ?? (scene.correctId ? [scene.correctId] : []);
               return (scene.options ?? []).map((opt, i) => (
                 <div key={i} className={`part1-option${opt.id && correctIds.includes(opt.id) ? " is-correct" : ""}`}>
-                  {opt.image && <img src={opt.image} alt="" />}
+                  {opt.image && <img src={optimizeImage(opt.image)} alt="" />}
                 </div>
               ));
             })()}

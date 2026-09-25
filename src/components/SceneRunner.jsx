@@ -12,6 +12,7 @@ import { incrementAttempt } from "../lib/attempts.js";
 import { attemptKey } from "../lib/openings.js";
 import { saveTestResult } from "../lib/testResults.js";
 import { saveRecording, submitRun, getRunRecordings, cleanupExpiredAudio } from "../lib/audioReviewCache.js";
+import { optimizeImage } from "../lib/cloudinaryImage.js";
 
 // Lời khen dùng chung cho MỌI bài (không riêng lesson nào) — audio thật lấy từ
 // Bài học/_dung-chung/praises/voice.txt, KHÔNG có TTS trình duyệt dự phòng.
@@ -127,7 +128,7 @@ function SceneImageWithHighlight({ scene }) {
     <SceneStage cursor="default">
       <img alt="Tranh của bài"
         className="part1-scene-img"
-        src={scene.sceneImage}
+        src={optimizeImage(scene.sceneImage)}
         onError={e => (e.currentTarget.style.display = "none")}
       />
       {scene.highlight && (
@@ -144,7 +145,7 @@ function SceneImageWithHighlight({ scene }) {
       {scene.demoCard && (
         <img
           className="dropped-card"
-          src={scene.demoCard.card.image}
+          src={optimizeImage(scene.demoCard.card.image)}
           alt={scene.demoCard.card.label}
           style={{
             left: `${scene.demoCard.target.x + scene.demoCard.target.w / 2}%`,
@@ -590,7 +591,7 @@ function MicScene({ scene, onNext, lessonId, sceneIndex, onAttempt, onSaveRecord
         <ExaminerLine text={scene.examinerLine} />
         <SceneImageWithHighlight scene={scene} />
         {scene.card && (
-          <img className="part1-single-card" src={scene.card.image} alt={scene.card.label} />
+          <img className="part1-single-card" src={optimizeImage(scene.card.image)} alt={scene.card.label} />
         )}
       </div>
       <div className="scene-foot">
@@ -709,7 +710,7 @@ function SceneClickScene({ scene, onNext, sceneIndex, onAttempt }) {
         <SceneStage extraClassName={wrong ? "is-shake" : ""} onClick={() => choose(false)}>
           <img alt="Tranh của bài"
             className="part1-scene-img"
-            src={scene.sceneImage}
+            src={optimizeImage(scene.sceneImage)}
             onError={e => (e.currentTarget.style.display = "none")}
           />
           <button
@@ -817,7 +818,7 @@ function CardSelectScene({ scene, onNext, sceneIndex, onAttempt }) {
               onClick={() => choose(opt.id)}
               aria-label={opt.label}
             >
-              <img alt="Thẻ lựa chọn" src={opt.image} onError={e => (e.currentTarget.style.display = "none")} />
+              <img alt="Thẻ lựa chọn" src={optimizeImage(opt.image)} onError={e => (e.currentTarget.style.display = "none")} />
             </button>
           ))}
         </div>
@@ -952,13 +953,13 @@ function DragDropScene({ scene, onNext, sceneIndex, onAttempt }) {
         <SceneStage extraClassName={wrong ? "is-shake" : ""} innerRef={sceneRef}>
           <img alt="Tranh của bài"
             className="part1-scene-img"
-            src={scene.sceneImage}
+            src={optimizeImage(scene.sceneImage)}
             onError={e => (e.currentTarget.style.display = "none")}
           />
           {(correct || revealed) && (
             <img alt="Thẻ đã đặt"
               className="dropped-card"
-              src={scene.card.image}
+              src={optimizeImage(scene.card.image)}
               style={{
                 left: `${scene.target.x + scene.target.w / 2}%`,
                 top: `${scene.target.y + scene.target.h / 2}%`,
@@ -971,7 +972,7 @@ function DragDropScene({ scene, onNext, sceneIndex, onAttempt }) {
         {!correct && !revealed && (
           <img
             className="drag-card"
-            src={scene.card.image}
+            src={optimizeImage(scene.card.image)}
             alt={scene.card.label}
             draggable={false}
             onMouseDown={onDragStart}

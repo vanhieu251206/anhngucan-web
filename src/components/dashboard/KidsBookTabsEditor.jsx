@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useConfirm } from "./ConfirmDialog.jsx";
 import BookTabs from "../BookTabs.jsx";
+import { optimizeImage } from "../../lib/cloudinaryImage.js";
 
 const RATIO = 3 / 4;
 const TAB_SIZE = 26;
@@ -203,7 +204,7 @@ export default function KidsBookTabsEditor({ pages, tabs, onChange, onClose }) {
                 onMouseLeave={() => setLoupe(null)}
                 onClick={handlePageClick}
               >
-                <img src={src} alt={`Trang ${current + 1}`} draggable="false" />
+                <img src={optimizeImage(src)} alt={`Trang ${current + 1}`} draggable="false" />
                 {pickingIndex != null && (
                   <div
                     className="kids-color-loupe"

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { optimizeImage } from "../lib/cloudinaryImage.js";
 
 // Luyện đề Listening Starters — Part 3 (nghe và tick vào ô đúng). Trình bày y như trang sách: tiêu đề,
 // đề bài, 1 câu ví dụ đã tick sẵn, rồi 5 câu, mỗi câu có 3 ảnh A/B/C và 3 ô vuông để tick. Dùng chung cho
@@ -17,7 +18,7 @@ function Options({ images, value, onPick, correct, submitted, reveal = true, loc
         return (
           <div className={`p3s-opt${state}`} key={L}>
             <button type="button" className="p3s-img-btn" disabled={locked || submitted} onClick={() => onPick(L)}>
-              {images?.[i] ? <img src={images[i]} alt="" draggable={false} /> : <span className="p3s-img-empty" />}
+              {images?.[i] ? <img src={optimizeImage(images[i])} alt="" draggable={false} /> : <span className="p3s-img-empty" />}
             </button>
             <button type="button" className="p3s-choice" disabled={locked || submitted} onClick={() => onPick(L)}>
               <span className="p3s-letter">{L}</span>

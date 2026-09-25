@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import PasswordInput from "../../components/PasswordInput.jsx";
 import { YLE_SERIES, KET_PET_GRADES, KET_PET_UNITS_PER_GRADE, KIDS_GRADES } from "../../lib/yleData.js";
 import { loadLevelContent } from "../../lib/lessons.js";
 import { listListeningExamTests } from "../../lib/adminLessons.js";
 import { listClassNames, listClassDocs, bookAllowsLevel } from "../../lib/classes.js";
-import { OPENING_KINDS, listOpenings, createOpening, updateOpening, closeOpening, isExpired, openingNeedsPassword } from "../../lib/openings.js";
+import { OPENING_KINDS, listOpenings, createOpening, updateOpening, closeOpening, isExpired } from "../../lib/openings.js";
 import { useAuth } from "../../lib/authContext.jsx";
 import { useConfirm } from "../../components/dashboard/ConfirmDialog.jsx";
 import { listResultsForOpening } from "../../lib/testResults.js";
@@ -48,7 +47,6 @@ export default function OpeningsPage() {
   const [unit, setUnit] = useState(1);
   const [testChoice, setTestChoice] = useState("");
   const [choices, setChoices] = useState([]); // [{ id, title }]
-  const [password, setPassword] = useState("");
   const [expiresAt, setExpiresAt] = useState("");
   const [maxAttempts, setMaxAttempts] = useState("");
   const [minutes, setMinutes] = useState("");
@@ -154,14 +152,12 @@ export default function OpeningsPage() {
       await createOpening(
         {
           className, seriesId, level: levelNo, kind, testId: test.id, testTitle: test.title,
-          password: password.trim(),
           expiresAt: expiresAt ? new Date(expiresAt) : null,
           maxAttempts: maxAttempts ? Number(maxAttempts) : null,
           timeLimitMinutes: minutes ? Number(minutes) : null,
         },
         user.uid
       );
-      setPassword("");
       setShowForm(false);
       reload();
     } catch (err) {
@@ -180,7 +176,6 @@ export default function OpeningsPage() {
         expiresAt: editing.expiresAt ? new Date(editing.expiresAt) : null,
         maxAttempts: editing.maxAttempts ? Number(editing.maxAttempts) : null,
         timeLimitMinutes: editing.minutes ? Number(editing.minutes) : null,
-        password: editing.password?.trim() || "",
       });
       setEditing(null);
       reload();
@@ -263,10 +258,6 @@ export default function OpeningsPage() {
             </select>
           </label>
           <label className="admin-mini-field">
-            <span>Mật khẩu vào bài (để trống = không cần)</span>
-            <PasswordInput className="admin-input" value={password} onChange={e => setPassword(e.target.value)} />
-          </label>
-          <label className="admin-mini-field">
             <span>Hạn chót</span>
             <input className="admin-input" type="datetime-local" required value={expiresAt} onChange={e => setExpiresAt(e.target.value)} />
           </label>
@@ -306,10 +297,6 @@ export default function OpeningsPage() {
                 <span>Thời gian làm bài (phút)</span>
                 <input className="admin-input" type="number" min="1" value={editing.minutes} onChange={e => setEditing({ ...editing, minutes: e.target.value })} />
               </label>
-              <label className="admin-mini-field">
-                <span>{editing.hasPassword ? "Đổi mật khẩu (để trống = giữ nguyên)" : "Đặt mật khẩu vào bài (để trống = không cần)"}</span>
-                <PasswordInput className="admin-input" value={editing.password} onChange={e => setEditing({ ...editing, password: e.target.value })} />
-              </label>
               <div className="opening-form-actions">
                 {error && <p className="admin-error">{error}</p>}
                 <button type="button" className="admin-pill-btn" onClick={() => setEditing(null)}>Huỷ</button>
@@ -332,7 +319,7 @@ export default function OpeningsPage() {
           <div style={{ overflowX: "auto" }}>
             <table className="admin-table opening-table">
               <thead>
-                <tr><th>Lớp</th><th>Bài</th><th>Hạn chót</th><th>Lượt</th><th>Phút</th><th>Mật khẩu</th><th>Trạng thái</th><th></th></tr>
+                <tr><th>Lớp</th><th>Bài</th><th>Hạn chót</th><th>Lượt</th><th>Phút</th><th>Trạng thái</th><th></th></tr>
               </thead>
               <tbody>
                 {sorted.map(o => (
@@ -345,7 +332,6 @@ export default function OpeningsPage() {
                     <td>{o.expiresAt?.toDate ? o.expiresAt.toDate().toLocaleString("vi-VN", { dateStyle: "short", timeStyle: "short" }) : "Không hạn"}</td>
                     <td>{o.maxAttempts ?? "∞"}</td>
                     <td>{o.timeLimitMinutes ?? "—"}</td>
-                    <td>{openingNeedsPassword(o) ? "🔒 Có" : "—"}</td>
                     <td>{isExpired(o) ? <span className="opening-chip opening-chip-off">Hết hạn</span> : <span className="opening-chip opening-chip-on">Đang mở</span>}</td>
                     <td>
                       <div className="opening-actions">
@@ -354,7 +340,7 @@ export default function OpeningsPage() {
                             {downloadingId === o.id ? "Đang tạo PDF..." : "⬇ Phiếu chấm"}
                           </button>
                         )}
-                        <button className="opening-btn" onClick={() => setEditing({ id: o.id, className: o.className, testTitle: o.testTitle, kind: o.kind, hasPassword: openingNeedsPassword(o), expiresAt: toLocalInput(o.expiresAt?.toDate?.()), maxAttempts: o.maxAttempts ?? "", minutes: o.timeLimitMinutes ?? "", password: "" })}>✏️ Sửa</button>
+                        <button className="opening-btn" onClick={() => setEditing({ id: o.id, className: o.className, testTitle: o.testTitle, kind: o.kind, expiresAt: toLocalInput(o.expiresAt?.toDate?.()), maxAttempts: o.maxAttempts ?? "", minutes: o.timeLimitMinutes ?? "" })}>✏️ Sửa</button>
                         <button className="opening-btn opening-btn-danger" onClick={() => handleClose(o)}>🗑 Đóng bài</button>
                       </div>
                     </td>

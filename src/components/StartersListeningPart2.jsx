@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { optimizeImage } from "../lib/cloudinaryImage.js";
 
 // Luyện đề Listening Starters — Part 2 (nghe và viết tên hoặc số). Trình bày y như trang sách: tiêu đề,
 // đề bài, tranh, 2 câu Examples đã điền sẵn (chữ viết tay trên dòng chấm), rồi 5 Questions có dòng chấm
@@ -28,7 +29,7 @@ export function Part2Sheet({ part, values = [], onChange, submitted = false, rev
       )}
       {part.audioUrl && <audio className="p2r-audio" src={part.audioUrl} controls />}
 
-      {part.imageUrl && <img className="p2s-img" src={part.imageUrl} alt="" draggable={false} />}
+      {part.imageUrl && <img className="p2s-img" src={optimizeImage(part.imageUrl)} alt="" draggable={false} />}
 
       {movers && part.heading?.trim() && <h3 className="p2s-head" style={{ textAlign: "center" }}>{part.heading}</h3>}
 

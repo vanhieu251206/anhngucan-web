@@ -3,6 +3,7 @@ import AudioUploadField from "./AudioUploadField.jsx";
 import { useConfirm } from "./ConfirmDialog.jsx";
 import { uploadToCloudinary } from "../../lib/cloudinaryUpload.js";
 import SoundMarkWidget from "../SoundMarkWidget.jsx";
+import { optimizeImage } from "../../lib/cloudinaryImage.js";
 
 const RATIO = 3 / 4;
 
@@ -221,7 +222,7 @@ export default function KidsBookSoundEditor({ pages, sounds, onChange, onClose }
         <div className="kids-sound-editor-stage" ref={stageRef}>
           {box && (
             <div ref={pageRef} className="kids-sound-editor-page" style={{ width: box.width, height: box.height }} onClick={addMark}>
-              <img src={src} alt={`Trang ${current + 1}`} draggable="false" />
+              <img src={optimizeImage(src)} alt={`Trang ${current + 1}`} draggable="false" />
               {marks.map((m, mi) => {
                 const trackNum = flat.findIndex(t => t.pageIndex === current && t.markIndex === mi) + 1;
                 const key = `${current}-${mi}`;

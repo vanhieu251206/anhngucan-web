@@ -6,6 +6,7 @@ import { saveTestResult } from "../lib/testResults.js";
 import { attemptKey } from "../lib/openings.js";
 import ExamTimer, { useExamTimer } from "./ExamTimer.jsx";
 import { incrementAttempt } from "../lib/attempts.js";
+import { optimizeImage } from "../lib/cloudinaryImage.js";
 
 // Runner học sinh cho Reading & Writing — 1 TRANG SCROLL DÀI duy nhất cho cả Test (mọi Part nối
 // tiếp nhau), có sidebar trái "Danh sách câu hỏi" để nhảy nhanh đến từng câu, giống bố cục các
@@ -154,7 +155,7 @@ function TickCrossQuestion({ question, qNumber, value, onChange }) {
     <div className="reading-question" id={`rq-${qNumber}`}>
       <QuestionBadge qNumber={qNumber} />
       <div className="reading-question-body reading-tickcross-body">
-        {question.image && <img src={question.image} alt="" className="reading-question-img" />}
+        {question.image && <img src={optimizeImage(question.image)} alt="" className="reading-question-img" />}
         <div className="reading-tickcross-side">
           <p className="reading-question-text">{question.text}</p>
           <div className="reading-tickcross-btns">
@@ -185,7 +186,7 @@ function YesNoQuestion({ question, qNumber, value, onChange }) {
       <QuestionBadge qNumber={qNumber} />
       <div className="reading-question-body">
         <p className="reading-question-text">{question.text}</p>
-        {question.image && <img src={question.image} alt="" className="reading-question-img" />}
+        {question.image && <img src={optimizeImage(question.image)} alt="" className="reading-question-img" />}
         <div className="reading-yesno-btns">
           {["yes", "no"].map(opt => (
             <button
@@ -215,7 +216,7 @@ function GapfillQuestion({ question, qNumber, qNumbers, values, onChange, hideIm
     <div className="reading-question" id={split ? undefined : `rq-${qNumber}`}>
       {!split && <QuestionBadge qNumber={qNumber} />}
       <div className="reading-question-body">
-        {!hideImage && question.image && <img src={question.image} alt="" className="reading-question-img" />}
+        {!hideImage && question.image && <img src={optimizeImage(question.image)} alt="" className="reading-question-img" />}
         <p className="reading-gapfill-text">
           {segments.map((seg, i) => {
             const isLast = i === segments.length - 1;
@@ -321,7 +322,7 @@ function ShortAnswerQuestion({ question, qNumber, value, onChange }) {
     <div className="reading-question" id={`rq-${qNumber}`}>
       <QuestionBadge qNumber={qNumber} />
       <div className="reading-question-body">
-        {question.image && <img src={question.image} alt="" className="reading-question-img" />}
+        {question.image && <img src={optimizeImage(question.image)} alt="" className="reading-question-img" />}
         <p className="reading-question-text">
           {(question.prompt ?? "").includes("___") ? (
             (question.prompt ?? "").split("___").map((seg, i, arr) => (
@@ -411,7 +412,7 @@ export function WordBankBox({ words }) {
         const img = bankImage(w);
         return (
           <span key={i} className={`reading-wordbank-chip${img ? " has-img" : ""}`}>
-            {img && <img src={img} alt="" className="reading-wordbank-chip-img" />}
+            {img && <img src={optimizeImage(img)} alt="" className="reading-wordbank-chip-img" />}
             {bankLabel(w)}
           </span>
         );
@@ -554,7 +555,7 @@ export function ExampleRow({ example, mode }) {
       <div className="reading-question reading-example-row">
         <div className="reading-question-badge reading-example-badge">Example</div>
         <div className="reading-question-body">
-          {example.image && <img src={example.image} alt="" className="reading-question-img" />}
+          {example.image && <img src={optimizeImage(example.image)} alt="" className="reading-question-img" />}
           <div className="reading-scramble-prompt">
             {scrambled.split("").map((c, i) => (
               <span className="reading-scramble-prompt-tile" key={i}>{c}</span>
@@ -624,7 +625,7 @@ export function ExamplesPairRow({ examplesPair, mode }) {
             <div className="reading-question reading-example-row" key={i}>
               <div className="reading-question-badge reading-example-badge">Example</div>
               <div className="reading-question-body reading-tickcross-body">
-                {ex.image && <img src={ex.image} alt="" className="reading-question-img" />}
+                {ex.image && <img src={optimizeImage(ex.image)} alt="" className="reading-question-img" />}
                 <div className="reading-tickcross-side">
                   <p className="reading-question-text">{ex.prompt}</p>
                   <span className={`reading-tickcross-btn is-selected${ex.answer === "no" ? " is-cross" : " is-tick"}`}>
@@ -661,7 +662,7 @@ export function StoryParagraph({ text, image }) {
   if (!text?.trim()) return null;
   return (
     <>
-      {image && <img src={image} alt="" className="reading-part-img" />}
+      {image && <img src={optimizeImage(image)} alt="" className="reading-part-img" />}
       <p className="reading-story-text">{text}</p>
     </>
   );
@@ -748,7 +749,7 @@ function WordScrambleQuestion({ question, qNumber, value, onChange }) {
           ))}
         </div>
 
-        {question.image && <img src={question.image} alt="" className="reading-question-img" />}
+        {question.image && <img src={optimizeImage(question.image)} alt="" className="reading-question-img" />}
 
         {/* Ô trả lời kiểu nhập mã PIN — mỗi ô 1 ký tự, gõ xong tự nhảy ô kế tiếp. */}
         <div className="reading-scramble-pin-row">
@@ -1077,13 +1078,13 @@ export default function ReadingRunner({ parts, onFinish, studentUid, seriesId, l
                 còn cộng dồn thêm border/padding của head khiến khoảng trắng dưới ảnh to bất thường
                 so với các khoảng cách khác (phản hồi người dùng 2026-09-06, rà soát lại toàn bộ Part). */}
             {part.fixedLayout !== "movers-part1" && part.image && (
-              <img src={part.image} alt="" className="reading-part-img" />
+              <img src={optimizeImage(part.image)} alt="" className="reading-part-img" />
             )}
             {part.caption && <p className="reading-part-caption">{part.caption}</p>}
             {part.fixedLayout === "movers-part1" && (part.partImages?.[0] || part.partImages?.[1]) && (
               <div className="reading-part-images-pair">
-                {part.partImages?.[0] && <img src={part.partImages[0]} alt="" />}
-                {part.partImages?.[1] && <img src={part.partImages[1]} alt="" />}
+                {part.partImages?.[0] && <img src={optimizeImage(part.partImages[0])} alt="" />}
+                {part.partImages?.[1] && <img src={optimizeImage(part.partImages[1])} alt="" />}
               </div>
             )}
             {/* Part 3 Movers: khung "Example" (ngân hàng từ CÓ ẢNH) nằm GIỮA đoạn truyện gapfill và
@@ -1197,7 +1198,7 @@ export default function ReadingRunner({ parts, onFinish, studentUid, seriesId, l
                     : null;
                 const startersImgEl =
                   startersImgIndex != null && part.storyImages?.[startersImgIndex] ? (
-                    <img src={part.storyImages[startersImgIndex]} alt="" className="reading-part-img" />
+                    <img src={optimizeImage(part.storyImages[startersImgIndex])} alt="" className="reading-part-img" />
                   ) : null;
 
                 let body;

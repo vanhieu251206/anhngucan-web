@@ -5,6 +5,7 @@ import { saveTestResult } from "../lib/testResults.js";
 import { incrementAttempt } from "../lib/attempts.js";
 import { attemptKey } from "../lib/openings.js";
 import { deriveTableDiagramBlanks, normalizeBlankHolder, textBlankCount } from "../lib/tableDiagramBlanks.js";
+import { optimizeImage } from "../lib/cloudinaryImage.js";
 
 // Màn làm bài "LUYỆN ĐỀ" IELTS Reading — mô phỏng giao diện đề thi thật: đồng hồ đếm giờ, khung
 // đoạn văn cuộn riêng bên trái, khung câu hỏi cuộn riêng bên phải, ô điều hướng số câu hỏi, bật/tắt
@@ -201,7 +202,7 @@ export function DiagramGroup({ g, gi, activePassage, flat, answers, submitted, r
       {g.diagramTitle && <p className="ielts-practice-table-title">{g.diagramTitle}</p>}
       {g.diagramImage && (
         <div className="ielts-practice-diagram">
-          <img src={g.diagramImage} alt="" />
+          <img src={optimizeImage(g.diagramImage)} alt="" />
         </div>
       )}
       {points.length > 0 && (
@@ -278,7 +279,7 @@ export function TableDiagramGroup({ g, gi, activePassage, flat, answers, submitt
       {g.diagramImage && g.diagramTitle && <p className="ielts-practice-table-title">{g.diagramTitle}</p>}
       {g.diagramImage && (
         <div className="ielts-practice-diagram">
-          <img src={g.diagramImage} alt="" />
+          <img src={optimizeImage(g.diagramImage)} alt="" />
           {(g.diagramPoints ?? []).map((p, pi) => {
             const questionIndex = textBlankCount(g) + pi;
             const entry = flat.find(e => e.passageIndex === activePassage && e.groupIndex === gi && e.questionIndex === questionIndex);

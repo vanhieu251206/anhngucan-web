@@ -185,25 +185,11 @@ service cloud.firestore {
     }
 
     // "Mở bài" cho lớp (lib/openings.js): học sinh đăng nhập đọc để biết bài nào đang mở cho lớp mình, chỉ
-    // admin/teacher tạo/sửa/đóng. Mật khẩu vào bài lưu dạng hash SHA-256.
+    // admin/teacher tạo/sửa/đóng. Không còn mật khẩu vào bài (bỏ 2026-09-25).
     match /openings/{openingId} {
       allow read: if isSignedIn();
       allow create, update: if canManageClass(request.resource.data.className);
       allow delete: if canManageClass(resource.data.className);
-    }
-
-    // Mật khẩu vào bài dạng ẩn (lib/openings.js, 2026-09-25): id doc = "<openingId>_<sha256>". Học sinh chỉ `get`
-    // đúng doc để kiểm tra mật khẩu — CẤM list (nếu không sẽ đọc được hash về dò offline). Giáo viên list theo
-    // openingId để xoá khoá cũ khi đổi mật khẩu/đóng bài. Quyền tạo/xoá theo lớp của lần mở bài.
-    match /openingKeys/{keyId} {
-      allow get: if isSignedIn();
-      allow list: if isStaff();
-      allow create: if keyId.matches(request.resource.data.openingId + '_[0-9a-f]{64}')
-        && canManageClass(getAfter(/databases/(default)/documents/openings/$(request.resource.data.openingId)).data.className);
-      allow update: if false;
-      // Lần mở bài đã bị xoá (vd xoá lớp) thì mọi staff dọn được khoá mồ côi.
-      allow delete: if isStaff() && (!exists(/databases/(default)/documents/openings/$(resource.data.openingId))
-        || canManageClass(get(/databases/(default)/documents/openings/$(resource.data.openingId)).data.className));
     }
 
     // Lớp học (lib/classes.js, chốt 2026-09-25): id doc = tên lớp. Tạo lớp trước rồi mới thêm học sinh vào lớp.

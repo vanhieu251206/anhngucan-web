@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { optimizeImage } from "../lib/cloudinaryImage.js";
 
 // Luyện đề Listening Movers — Part 3 (nghe và chọn chữ cái A–H cho từng người). Trình bày như trang sách: đề bài,
 // 1 dòng ví dụ điền sẵn + 5 dòng (ảnh người, nhãn, ô chữ cái), rồi lưới 8 tranh A–H. Dùng chung cho màn làm bài
@@ -12,7 +13,7 @@ function Row({ row, num, value, correct, submitted, reveal = true, locked, onPic
   const wrong = submitted && reveal && !ok;
   return (
     <div className="p3m-row">
-      <div className="p3m-photo">{row.image ? <img src={row.image} alt="" draggable={false} /> : <span className="p3s-img-empty" />}</div>
+      <div className="p3m-photo">{row.image ? <img src={optimizeImage(row.image)} alt="" draggable={false} /> : <span className="p3s-img-empty" />}</div>
       <div className="p3m-main">
         <div className="p3m-label">
           {num != null && <span className="p3s-num">{num}</span>}
@@ -69,7 +70,7 @@ export function MoversPart3Sheet({ part, values = [], onChange, submitted = fals
       <div className="p3m-pics">
         {MOVERS_LETTERS.map((L, i) => (
           <div className="p3m-pic" key={L}>
-            {part.pictures?.[i] ? <img src={part.pictures[i]} alt="" draggable={false} /> : <span className="p3s-img-empty" />}
+            {part.pictures?.[i] ? <img src={optimizeImage(part.pictures[i])} alt="" draggable={false} /> : <span className="p3s-img-empty" />}
             <strong>{L}</strong>
           </div>
         ))}

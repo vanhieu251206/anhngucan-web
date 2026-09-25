@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { playLine, normalize, isRecordingSupported } from "../lib/speech.js";
 import { assessPronunciation, describePronunciationError } from "../lib/pronunciationApi.js";
+import { optimizeImage } from "../lib/cloudinaryImage.js";
 
 const MIC_ICON = `${import.meta.env.BASE_URL}assets/img/icons/mic.png`;
 
@@ -115,7 +116,7 @@ export default function SpeakingMode({ lesson, onFinish }) {
       {step.image && (
         <img alt="Tranh của câu hỏi"
           className="speaking-img"
-          src={step.image}
+          src={optimizeImage(step.image)}
           onError={e => (e.currentTarget.style.display = "none")}
         />
       )}

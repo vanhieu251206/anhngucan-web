@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import ImageUploadField from "./ImageUploadField.jsx";
 import { useConfirm } from "./ConfirmDialog.jsx";
 import { WORD_SCRAMBLE_DEFAULT_TEXT, scrambleWord, questionPoints, gapfillBlankCount, QuestionBadge, WordBankBox, ExampleRow, ExamplesPairRow, StoryParagraph, AnswerTableRow, LetteredAnswerBox, ConversationSelectRow, optionLetter, bankLabel, bankImage } from "../ReadingRunner.jsx";
+import { optimizeImage } from "../../lib/cloudinaryImage.js";
 
 // Mỗi loại câu hỏi gắn với `series` — danh sách seriesId được PHÉP dùng type này. Khi soạn bài,
 // menu "+ Thêm câu hỏi" chỉ hiện type khớp seriesId của bài đang soạn (xem questionTypesFor()) —
@@ -1838,7 +1839,7 @@ function WordScramblePreview({ question, qNumber }) {
                 <span key={i} className="reading-scramble-prompt-tile reading-scramble-tile-preview">{c}</span>
               ))}
             </div>
-            {question.image && <img src={question.image} alt="" className="reading-question-img" />}
+            {question.image && <img src={optimizeImage(question.image)} alt="" className="reading-question-img" />}
             <div className="reading-scramble-pin-row">
               {answer.split("").map((_, i) => (
                 <span key={i} className="reading-scramble-pin-input" />
@@ -1847,7 +1848,7 @@ function WordScramblePreview({ question, qNumber }) {
           </>
         ) : (
           <>
-            {question.image && <img src={question.image} alt="" className="reading-question-img" />}
+            {question.image && <img src={optimizeImage(question.image)} alt="" className="reading-question-img" />}
             <em>(chưa nhập từ vựng đáp án)</em>
           </>
         )}
@@ -1865,7 +1866,7 @@ function QuestionPreview({ question, qNumber, qNumbers, hideImage, tickCross }) 
         <div className="reading-question reading-question-preview">
           <QuestionBadge qNumber={qNumber} />
           <div className="reading-question-body reading-tickcross-body">
-            {question.image && <img src={question.image} alt="" className="reading-question-img" />}
+            {question.image && <img src={optimizeImage(question.image)} alt="" className="reading-question-img" />}
             <div className="reading-tickcross-side">
               <p className="reading-question-text">{question.text || <em>(chưa nhập câu khẳng định)</em>}</p>
               <span className={`reading-tickcross-btn is-selected${question.answer === "no" ? " is-cross" : " is-tick"}`}>
@@ -1881,7 +1882,7 @@ function QuestionPreview({ question, qNumber, qNumbers, hideImage, tickCross }) 
         <QuestionBadge qNumber={qNumber} />
         <div className="reading-question-body">
           <p className="reading-question-text">{question.text || <em>(chưa nhập câu khẳng định)</em>}</p>
-          {question.image && <img src={question.image} alt="" className="reading-question-img" />}
+          {question.image && <img src={optimizeImage(question.image)} alt="" className="reading-question-img" />}
           <div className="reading-yesno-btns">
             <span className={`reading-yesno-btn${question.answer === "yes" ? " is-selected" : ""}`}>Yes</span>
             <span className={`reading-yesno-btn${question.answer === "no" ? " is-selected" : ""}`}>No</span>
@@ -1897,7 +1898,7 @@ function QuestionPreview({ question, qNumber, qNumbers, hideImage, tickCross }) 
       <div className="reading-question reading-question-preview">
         {!split && <QuestionBadge qNumber={qNumber} />}
         <div className="reading-question-body">
-          {!hideImage && question.image && <img src={question.image} alt="" className="reading-question-img" />}
+          {!hideImage && question.image && <img src={optimizeImage(question.image)} alt="" className="reading-question-img" />}
           <p className="reading-gapfill-text">
             {segments.map((seg, i) => {
               const isLast = i === segments.length - 1;
@@ -2006,7 +2007,7 @@ function QuestionPreview({ question, qNumber, qNumbers, hideImage, tickCross }) 
     <div className="reading-question reading-question-preview">
       <QuestionBadge qNumber={qNumber} />
       <div className="reading-question-body">
-        {question.image && <img src={question.image} alt="" className="reading-question-img" />}
+        {question.image && <img src={optimizeImage(question.image)} alt="" className="reading-question-img" />}
         <p className="reading-question-text">
           {question.prompt ? (
             question.prompt.includes("___") ? (
@@ -2101,13 +2102,13 @@ function TestPreview({ parts, stats, activePartIndex, seriesId }) {
                 {part.instruction && <p className="reading-part-instruction">{part.instruction}</p>}
               </div>
               {part.fixedLayout !== "movers-part1" && part.image && (
-                <img src={part.image} alt="" className="reading-part-img" />
+                <img src={optimizeImage(part.image)} alt="" className="reading-part-img" />
               )}
               {part.caption && <p className="reading-part-caption">{part.caption}</p>}
               {part.fixedLayout === "movers-part1" && (part.partImages?.[0] || part.partImages?.[1]) && (
                 <div className="reading-part-images-pair">
-                  {part.partImages?.[0] && <img src={part.partImages[0]} alt="" />}
-                  {part.partImages?.[1] && <img src={part.partImages[1]} alt="" />}
+                  {part.partImages?.[0] && <img src={optimizeImage(part.partImages[0])} alt="" />}
+                  {part.partImages?.[1] && <img src={optimizeImage(part.partImages[1])} alt="" />}
                 </div>
               )}
               {part.fixedLayout === "flyers-part2" ? (
@@ -2223,7 +2224,7 @@ function TestPreview({ parts, stats, activePartIndex, seriesId }) {
                         {groupLabel && <h4 className="reading-group-label">{groupLabel}</h4>}
                         {storyBreak && <StoryParagraph text={storyBreak} image={part.storyImages?.[storyParagraphIndex]} />}
                         {startersImgIndex != null && part.storyImages?.[startersImgIndex] && (
-                          <img src={part.storyImages[startersImgIndex]} alt="" className="reading-part-img" />
+                          <img src={optimizeImage(part.storyImages[startersImgIndex])} alt="" className="reading-part-img" />
                         )}
                         <QuestionPreview
                           question={q}

@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import HTMLFlipBook from "react-pageflip";
 import SoundMarkWidget from "./SoundMarkWidget.jsx";
 import BookTabs from "./BookTabs.jsx";
+import { optimizeImage } from "../lib/cloudinaryImage.js";
 
 // Tỉ lệ khung 1 trang mặc định (khổ dọc kiểu sách giáo trình thiếu nhi, 3:4) — dùng khi chưa đo
 // được ảnh trang thật, để không bị vỡ layout trước khi ảnh đầu tiên tải xong.
@@ -215,7 +216,7 @@ export default function BookReader({ book, onBack }) {
         recompute();
       }
     };
-    img.src = pages[0];
+    img.src = optimizeImage(pages[0]); // cùng URL với <img> trang sách để trình duyệt dùng lại cache
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pages[0]]);
 
@@ -318,7 +319,7 @@ export default function BookReader({ book, onBack }) {
   function renderPageContent(i) {
     return (
       <>
-        <img src={pages[i]} alt={`${book.title} — trang ${i + 1}`} draggable="false" />
+        <img src={optimizeImage(pages[i])} alt={`${book.title} — trang ${i + 1}`} draggable="false" />
         {(sounds[i] ?? []).map((m, mi) => {
           const key = `${i}-${mi}`;
           return m.url ? (

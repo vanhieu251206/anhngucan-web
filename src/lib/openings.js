@@ -1,18 +1,12 @@
-import { collection, deleteField, doc, getDoc, getDocs, query, serverTimestamp, where, writeBatch, Timestamp } from "firebase/firestore";
+import { addDoc, collection, deleteDoc, doc, getDocs, query, serverTimestamp, updateDoc, where, Timestamp } from "firebase/firestore";
 import { db } from "./firebase.js";
-import { sha256Hex } from "./seriesAccess.js";
 import { getAttemptCount } from "./attempts.js";
 
 // "Mở bài" (chốt 2026-09-20, thay mật khẩu theo bộ đề + giao bài 1-bài-mỗi-lớp cũ): MẶC ĐỊNH MỌI BÀI ĐỀU
-// KHOÁ. Giáo viên mở từng bài cho từng LỚP; 1 lớp có thể có nhiều bài mở cùng lúc. Mỗi lần mở có: mật khẩu
-// vào bài (lưu hash SHA-256), hạn chót, số lượt tối đa, số phút làm bài. Học sinh chỉ vào được khi bài đang
-// mở cho lớp của em VÀ nhập đúng mật khẩu. Toàn bộ kiểm tra ở trình duyệt (không có server) — đủ dùng cho nội
-// dung ít nhạy cảm, cùng đánh đổi đã chấp nhận với mật khẩu hash trước đây (xem CLAUDE.md mục 2).
-//
-// Mật khẩu (audit bảo mật 2026-09-25): doc lần mở chỉ lưu `hasPassword`. Hash SHA-256("<openingId>:<mật khẩu>") là
-// ID của 1 doc riêng `openingKeys/<openingId>_<hash>` — học sinh chỉ `get` được đúng doc (rules cấm list) nên không
-// lấy được hash về dò offline, mỗi lần đoán phải hỏi Firestore. Lần mở cũ còn field `passwordHash` (hash đọc được)
-// vẫn chạy như trước cho tới khi giáo viên đặt lại mật khẩu.
+// KHOÁ. Giáo viên mở từng bài cho từng LỚP; 1 lớp có thể có nhiều bài mở cùng lúc. Mỗi lần mở có: hạn chót,
+// số lượt tối đa, số phút làm bài. Học sinh (đã đăng nhập) chỉ vào được khi bài đang mở cho lớp của em.
+// Mật khẩu vào bài đã BỎ HẲN (chốt 2026-09-25): đăng nhập + mở theo lớp + hạn chót + số lượt đã đủ kiểm soát. Lần
+// mở cũ còn field `passwordHash`/`hasPassword` thì bị bỏ qua (học sinh vào thẳng).
 //
 // kind: "speaking" | "reading" | "dictation" | "listening-exam" | "ielts-reading" | "ielts-listening" |
 //       "ketpet-vocab" | "ketpet-test"
@@ -28,20 +22,7 @@ export const OPENING_KINDS = {
 };
 
 const COL = "openings";
-const KEYS = "openingKeys";
 
-async function keyDocId(openingId, password) {
-  return `${openingId}_${await sha256Hex(`${openingId}:${password}`)}`;
-}
-
-async function oldKeyRefs(openingId) {
-  const snap = await getDocs(query(collection(db, KEYS), where("openingId", "==", openingId)));
-  return snap.docs.map(d => d.ref);
-}
-
-export function openingNeedsPassword(opening) {
-  return !!(opening.hasPassword || opening.passwordHash);
-}
 
 export async function listOpenings() {
   const snap = await getDocs(collection(db, COL));
@@ -49,53 +30,37 @@ export async function listOpenings() {
 }
 
 export async function createOpening(
-  { className, seriesId, level, kind, testId, testTitle, password, expiresAt, maxAttempts, timeLimitMinutes },
+  { className, seriesId, level, kind, testId, testTitle, expiresAt, maxAttempts, timeLimitMinutes },
   uid
 ) {
-  const ref = doc(collection(db, COL));
-  const batch = writeBatch(db);
-  batch.set(ref, {
+  await addDoc(collection(db, COL), {
     className,
     seriesId,
     level,
     kind,
     testId,
     testTitle: testTitle ?? null,
-    hasPassword: !!password,
     expiresAt: expiresAt ? Timestamp.fromDate(expiresAt) : null,
     maxAttempts: maxAttempts ?? null,
     timeLimitMinutes: timeLimitMinutes ?? null,
     createdAt: serverTimestamp(),
     createdBy: uid,
   });
-  if (password) batch.set(doc(db, KEYS, await keyDocId(ref.id, password)), { openingId: ref.id });
-  await batch.commit();
 }
 
-// patch có thể gồm: expiresAt (Date|null), maxAttempts, timeLimitMinutes, password (chuỗi mới; bỏ trống = giữ nguyên).
-export async function updateOpening(id, { expiresAt, maxAttempts, timeLimitMinutes, password }) {
+// patch có thể gồm: expiresAt (Date|null), maxAttempts, timeLimitMinutes.
+export async function updateOpening(id, { expiresAt, maxAttempts, timeLimitMinutes }) {
   const patch = {
     expiresAt: expiresAt ? Timestamp.fromDate(expiresAt) : null,
     maxAttempts: maxAttempts ?? null,
     timeLimitMinutes: timeLimitMinutes ?? null,
     updatedAt: serverTimestamp(),
   };
-  const batch = writeBatch(db);
-  if (password) {
-    patch.hasPassword = true;
-    patch.passwordHash = deleteField();
-    (await oldKeyRefs(id)).forEach(ref => batch.delete(ref));
-    batch.set(doc(db, KEYS, await keyDocId(id, password)), { openingId: id });
-  }
-  batch.update(doc(db, COL, id), patch);
-  await batch.commit();
+  await updateDoc(doc(db, COL, id), patch);
 }
 
 export async function closeOpening(id) {
-  const batch = writeBatch(db);
-  (await oldKeyRefs(id)).forEach(ref => batch.delete(ref));
-  batch.delete(doc(db, COL, id));
-  await batch.commit();
+  await deleteDoc(doc(db, COL, id));
 }
 
 export function isExpired(opening) {
@@ -136,11 +101,4 @@ export async function checkOpening({ uid, className }, { seriesId, level, kind, 
     title: "Hết lượt làm bài rồi 🐝",
     message: `Bài này chỉ được làm tối đa ${o.maxAttempts} lượt và con đã dùng hết. Nếu cần làm lại, hãy nhờ giáo viên cấp thêm lượt nhé.`,
   };
-}
-
-// Lỗi mạng/rules ném ngoại lệ — nơi gọi báo "không kiểm tra được", không cho qua.
-export async function verifyOpeningPassword(opening, plain) {
-  if (opening.passwordHash) return (await sha256Hex(plain)) === opening.passwordHash;
-  if (!opening.hasPassword) return true;
-  return (await getDoc(doc(db, KEYS, await keyDocId(opening.id, plain)))).exists();
 }

@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { uploadToCloudinary } from "../../lib/cloudinaryUpload";
 import { useAuth } from "../../lib/authContext.jsx";
+import { optimizeImage } from "../../lib/cloudinaryImage.js";
 
 // Dán URL có sẵn HOẶC bấm "Chọn file để upload" để đẩy thẳng lên Cloudinary (free, không thẻ) —
 // thay cho Firebase Storage đã bỏ vì bắt buộc gói Blaze.
@@ -42,7 +43,7 @@ export default function ImageUploadField({ label, value, onChange }) {
   return (
     <div className="admin-upload-field" onPaste={handlePaste}>
       {label && <span className="admin-upload-label">{label}</span>}
-      {value && <img src={value} alt="" className="admin-upload-preview-img" />}
+      {value && <img src={optimizeImage(value)} alt="" className="admin-upload-preview-img" />}
       {isAdmin && (
         <div className="admin-paste-box" tabIndex={0} role="button" aria-label="Dán ảnh">
           {uploading ? "Đang tải lên..." : "📋 Bấm vào đây rồi Ctrl+V để dán ảnh"}

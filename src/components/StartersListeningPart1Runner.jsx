@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { optimizeImage } from "../lib/cloudinaryImage.js";
 
 // Luyện đề Listening Starters — Part 1 (nghe và nối tên với người trong tranh). Đáp án soạn ở
 // StartersListeningExamStudio.jsx: pairs[{ id: "example"|"q1".."q5", a: rect, b: rect }], rect là khung
@@ -78,7 +79,7 @@ export default function StartersListeningPart1Runner({ part, submitted, reveal =
         onClick={handleStageClick}
         style={{ cursor: submitted ? "default" : "crosshair" }}
       >
-        <img src={part.imageUrl} alt="" draggable={false} />
+        <img src={optimizeImage(part.imageUrl)} alt="" draggable={false} />
 
         <svg className="p1r-lines" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
           {conns.map((c, i) => (

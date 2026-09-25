@@ -1,17 +1,15 @@
 import { useState } from "react";
 import { useAuth } from "./authContext.jsx";
-import { checkOpening, openingNeedsPassword } from "./openings.js";
-import OpeningPasswordScreen from "../components/OpeningPasswordScreen.jsx";
+import { checkOpening } from "./openings.js";
 
 // Hook dùng chung cho các trang ngoài LessonsPage (vd KetPetPage): bài MẶC ĐỊNH KHOÁ, học sinh chỉ vào được khi
-// giáo viên đã mở cho lớp (còn hạn, còn lượt) + nhập đúng mật khẩu (nếu có). Xem lib/openings.js.
+// giáo viên đã mở cho lớp (còn hạn, còn lượt). Xem lib/openings.js.
 // guardStart(kind, test{ id, title }, { seriesId, level }, launch(opening|null)).
-// `screen` khác null khi cần chặn cả trang bằng màn nhập mật khẩu/màn báo bị khoá — trang gọi phải return nó.
+// `screen` khác null khi cần chặn cả trang bằng màn báo bị khoá — trang gọi phải return nó.
 export function useOpeningGuard() {
   const { user, profile, isStaff, isTester } = useAuth();
   const [checking, setChecking] = useState(false);
   const [blocked, setBlocked] = useState(null);
-  const [gate, setGate] = useState(null);
   const [activeOpening, setActiveOpening] = useState(null);
 
   async function guardStart(kind, test, { seriesId, level }, launch) {
@@ -34,11 +32,8 @@ export function useOpeningGuard() {
       setBlocked({ title: result.title, message: result.message });
       return;
     }
-    if (openingNeedsPassword(result.opening)) setGate({ opening: result.opening, title: test.title, launch });
-    else {
-      setActiveOpening(result.opening);
-      launch(result.opening);
-    }
+    setActiveOpening(result.opening);
+    launch(result.opening);
   }
 
   let screen = null;
@@ -55,20 +50,6 @@ export function useOpeningGuard() {
           </div>
         </div>
       </div>
-    );
-  } else if (gate) {
-    screen = (
-      <OpeningPasswordScreen
-        opening={gate.opening}
-        title={gate.title}
-        onBack={() => setGate(null)}
-        onSuccess={() => {
-          const { opening, launch } = gate;
-          setGate(null);
-          setActiveOpening(opening);
-          launch(opening);
-        }}
-      />
     );
   }
 
