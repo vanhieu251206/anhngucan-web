@@ -1,7 +1,23 @@
 import Header from "../components/Header.jsx";
 import { YLE_SERIES } from "../lib/yleData.js";
+import { formatSchedule, formatBook } from "../lib/classes.js";
+import { useClassBook } from "../lib/useClassBook.js";
 
-const BEE_IMG = `${import.meta.env.BASE_URL}assets/img/mascot/bee.png`;
+// Học sinh thấy lớp + lịch học + sách của lớp mình (chốt 2026-09-25).
+function StudentClassChip({ cls }) {
+  if (!cls) return null;
+  const schedule = formatSchedule(cls);
+  const book = formatBook(cls.book);
+  return (
+    <div className="student-class-chip">
+      <span>Lớp {cls.name}</span>
+      {schedule && <span>· 🗓 {schedule}</span>}
+      {book && <span>· 📘 {book}</span>}
+    </div>
+  );
+}
+
+const BEE_IMG = `${import.meta.env.BASE_URL}assets/img/mascot/co-can.png`;
 
 // Chỉ Starters đã có bài Speaking hoàn chỉnh (Test 1, Part 1) — xem CLAUDE.md mục 6.
 // Đây là dữ liệu tĩnh mô tả từng bộ đề — không phải số liệu tiến độ học sinh (app chưa
@@ -112,6 +128,8 @@ function SeriesModes({ skills }) {
 }
 
 export default function HomePage({ onNavigate, onSelectSeries }) {
+  // Học sinh chỉ vào được bộ đề của lớp mình — bộ khác hiện xám (lib/useClassBook.js).
+  const { cls, canSeries } = useClassBook();
   return (
     <div className="home-v2">
       <Header page="home" onNavigate={onNavigate} />
@@ -121,10 +139,11 @@ export default function HomePage({ onNavigate, onSelectSeries }) {
         <div className="dark-hero-inner">
           {/* ---------- 3. Banner động viên ---------- */}
           <div className="motivation-banner">
-            <img className="motivation-bee" src={BEE_IMG} alt="Ong linh vật Anh Ngữ C.A.N" />
+            <img className="motivation-bee" src={BEE_IMG} alt="Linh vật Anh Ngữ C.A.N" />
             <div className="motivation-copy">
               <h2>Chào mừng đến với Anh Ngữ C.A.N — người bạn đồng hành luyện thi tiếng Anh mỗi ngày!</h2>
               <p>Học cùng chú ong C.A.N mỗi ngày để tự tin chinh phục mọi kỳ thi nhé 🐝</p>
+              <StudentClassChip cls={cls} />
             </div>
           </div>
         </div>
@@ -155,10 +174,12 @@ export default function HomePage({ onNavigate, onSelectSeries }) {
                 </div>
               );
             }
+            const locked = !canSeries(s.id);
             return (
               <button
-                className="content-card-v2"
+                className={`content-card-v2${locked ? " is-locked" : ""}`}
                 key={s.id}
+                disabled={locked}
                 onClick={() => onSelectSeries(s.id)}
                 style={{ "--accent": info.accent }}
               >
@@ -168,7 +189,7 @@ export default function HomePage({ onNavigate, onSelectSeries }) {
                 <div className="content-card-v2-body">
                   <div className="series-card-top">
                     <SeriesModes skills={skills} />
-                    <span className="series-status is-ready">Đang mở</span>
+                    {locked ? <span className="series-status">🔒</span> : <span className="series-status is-ready">Đang mở</span>}
                   </div>
                 </div>
               </button>

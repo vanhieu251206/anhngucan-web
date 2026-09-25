@@ -12,6 +12,8 @@
 // dev -- --host, xem CLAUDE.md). Đổi/thêm origin nếu đổi domain deploy. Không có xác thực người
 // gọi (học sinh là khách ẩn danh) — rủi ro bị lạm dụng đã được chấp nhận tương tự cơ chế mật khẩu
 // hash client-side, giảm nhẹ bằng giới hạn CORS này.
+import { deleteStudent } from "./admin.js";
+
 const ALLOWED_ORIGINS = ["https://vanhieu251206.github.io"];
 
 // Vite tự bump cổng (5173, 5174, 5175...) nếu cổng trước đó đang bận (vd nhiều phiên dev server
@@ -47,7 +49,7 @@ function corsHeaders(origin) {
   return {
     "Access-Control-Allow-Origin": isAllowedOrigin(origin) ? origin : ALLOWED_ORIGINS[0],
     "Access-Control-Allow-Methods": "POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
   };
 }
 
@@ -121,6 +123,18 @@ export default {
 
     if (request.method === "OPTIONS") {
       return new Response(null, { headers });
+    }
+
+    // Xoá hẳn tài khoản học sinh (xem admin.js) — cần Firebase ID token của admin/giáo viên chính.
+    if (request.method === "POST" && new URL(request.url).pathname.endsWith("/admin/delete-student")) {
+      try {
+        return new Response(JSON.stringify(await deleteStudent(request, env)), {
+          headers: { ...headers, "Content-Type": "application/json" },
+        });
+      } catch (err) {
+        if (err && err.error) return jsonError(headers, err.error, err.status || 500);
+        return jsonError(headers, "worker-exception", 500, String(err));
+      }
     }
 
     if (request.method !== "POST" || !new URL(request.url).pathname.endsWith("/transcribe")) {

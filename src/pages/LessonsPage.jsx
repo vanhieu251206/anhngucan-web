@@ -15,6 +15,7 @@ import StartersListeningTestRunner, { testHasContent } from "../components/Start
 import { listListeningExamTests } from "../lib/adminLessons.js";
 import { useAuth } from "../lib/authContext.jsx";
 import { readParams, setParams } from "../lib/urlState.js";
+import { useClassBook } from "../lib/useClassBook.js";
 
 const WIZARD_STEPS = ["Bộ đề", "Cấp độ", "Bài học"];
 
@@ -143,6 +144,11 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
     if (series.levels.length === 1 && !isIelts) return series.levels[0];
     return series.levels.find(l => l.number === n) ?? null;
   });
+  // Cấp mở sẵn từ URL (F5/link) nhưng lớp của học sinh không được gán → về màn chọn cấp.
+  useEffect(() => {
+    if (bookReady && level && !canLevel(series.id, level.number)) setLevel(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bookReady, level, series.id]);
   const [content, setContent] = useState(null); // { listening, tests, readingTests } — đọc qua lib/lessons.js
   const [selectedTest, setSelectedTest] = useState(null);
   const [selectedReadingTest, setSelectedReadingTest] = useState(null);
@@ -183,6 +189,8 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
   // Kỹ năng YLE đang chọn (listening/speaking/reading/dictation) — null = màn chọn kỹ năng.
   const [selectedSkill, setSelectedSkill] = useState(null);
   const { user, isStaff, isTester, isAdmin, profile } = useAuth();
+  // Học sinh chỉ vào được cấp thuộc sách của lớp mình — cấp khác hiện xám (lib/useClassBook.js).
+  const { canLevel, ready: bookReady } = useClassBook();
   // Tên/lớp gắn vào báo cáo quá trình làm bài (speakingSessions, xem SceneRunner.jsx +
   // StudentResultsPage.jsx) — từ 2026-08-27 lấy THẲNG từ hồ sơ tài khoản đã đăng nhập
   // (users/{uid}.displayName/className, xem authContext.jsx), không còn gõ tay qua
@@ -331,7 +339,8 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
           {series.levels.map(l => (
             <button
               key={l.id}
-              className="content-card-v2 content-card-v2-center"
+              className={`content-card-v2 content-card-v2-center${canLevel(series.id, l.number) ? "" : " is-locked"}`}
+              disabled={!canLevel(series.id, l.number)}
               onClick={() => setLevel(l)}
               style={{ "--accent": series.color }}
             >

@@ -3,6 +3,7 @@ import Header from "../components/Header.jsx";
 import BookReader from "../components/BookReader.jsx";
 import { KIDS_GRADES, KIDS_BOOK_KINDS } from "../lib/yleData.js";
 import { getKidsBook } from "../lib/adminLessons.js";
+import { useClassBook } from "../lib/useClassBook.js";
 
 const KIDS_ACCENT = "#F2A93B";
 
@@ -12,6 +13,8 @@ const KIDS_ACCENT = "#F2A93B";
 // chưa có nội dung thật nên vẫn hiện "Sắp có".
 export default function KidsPage({ onNavigate }) {
   const [grade, setGrade] = useState(null);
+  // Học sinh chỉ vào được Grade thuộc sách của lớp mình — Grade khác hiện xám (lib/useClassBook.js).
+  const { canLevel } = useClassBook();
   const [book, setBook] = useState(null); // { id, title, pages } đang đọc, null = màn chọn sách
   const [loadingKind, setLoadingKind] = useState(null);
 
@@ -61,7 +64,8 @@ export default function KidsPage({ onNavigate }) {
               <button
                 key={g}
                 type="button"
-                className="content-card-v2 content-card-v2-center"
+                className={`content-card-v2 content-card-v2-center${canLevel("kids", g) ? "" : " is-locked"}`}
+                disabled={!canLevel("kids", g)}
                 style={{ "--accent": KIDS_ACCENT }}
                 onClick={() => setGrade(g)}
               >
@@ -69,7 +73,7 @@ export default function KidsPage({ onNavigate }) {
                   <span>{`Grade ${g}`}</span>
                 </div>
                 <div className="content-card-v2-body">
-                  <span className="series-status is-ready">Đang mở</span>
+                  {canLevel("kids", g) ? <span className="series-status is-ready">Đang mở</span> : <span className="series-status">🔒</span>}
                 </div>
               </button>
             ))}

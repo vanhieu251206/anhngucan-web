@@ -17,7 +17,7 @@ const ADMIN_ITEMS = [
   { key: "overview", label: "Tổng quan" },
   { key: "create-lesson", label: "Tạo bài" },
   { key: "image-splitter", label: "Tách ảnh" },
-  { key: "students", label: "Tài khoản học sinh" },
+  { key: "students", label: "Quản lý học sinh" },
   { key: "openings", label: "Mở bài" },
   { key: "results", label: "Kết quả học sinh" },
   { key: "teachers", label: "Cấu hình tài khoản giáo viên" },
@@ -36,7 +36,7 @@ const ADMIN_ITEMS = [
 const TEACHER_ITEMS = [
   { key: "overview", label: "Tổng quan" },
   { key: "create-lesson", label: "Tạo bài" },
-  { key: "students", label: "Tài khoản học sinh" },
+  { key: "students", label: "Quản lý học sinh" },
   { key: "openings", label: "Mở bài" },
   { key: "results", label: "Kết quả học sinh" },
   { key: "teachers", label: "Phân quyền giáo viên phụ" },

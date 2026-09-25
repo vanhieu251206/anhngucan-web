@@ -386,7 +386,7 @@ button { font-family: inherit; }
 }
 .motivation-bee {
   width: 76px;
-  height: 76px;
+  height: 104px;
   object-fit: contain;
   flex-shrink: 0;
   filter: drop-shadow(0 8px 12px rgba(0, 0, 0, 0.25));
@@ -1469,7 +1469,7 @@ button { font-family: inherit; }
   .sentence-text, .examiner-line .sentence-text { font-size: 1.75rem; }
   .speaking-img, .part1-scene-img { max-height: none; }
   .mic-btn { width: 94px; height: 94px; }
-  .examiner-bee { width: 68px; height: 68px; }
+  .examiner-bee { width: 68px; height: 92px; }
   .part1-option img { width: 100%; }
 }
 @media (min-width: 1280px) {
@@ -1580,7 +1580,7 @@ button { font-family: inherit; }
   display: flex; align-items: center; gap: 12px; justify-content: center; text-align: left;
   width: 100%;
 }
-.examiner-bee { width: 56px; height: 56px; object-fit: contain; flex-shrink: 0; }
+.examiner-bee { width: 56px; height: 76px; object-fit: contain; flex-shrink: 0; }
 /* max-width nhỏ hơn hẳn bề rộng khung — nếu để full width, câu thoại dài xuống 2 dòng sẽ chiếm
    gần hết .examiner-line (width: 100%) khiến "justify-content: center" mất tác dụng thấy rõ,
    cả khối ong+chữ bị dạt lệch trái thay vì nằm giữa (bug thật gặp ở scene 49/52 Part 4 —
@@ -1606,7 +1606,7 @@ button { font-family: inherit; }
 .review-report { display: flex; flex-direction: column; text-align: left; }
 
 .review-hero { text-align: center; flex-shrink: 0; padding-bottom: 4px; }
-.review-hero-bee { width: 56px; height: 56px; object-fit: contain; animation: review-bee-bob 2.4s ease-in-out infinite; }
+.review-hero-bee { width: 56px; height: 76px; object-fit: contain; animation: review-bee-bob 2.4s ease-in-out infinite; }
 @keyframes review-bee-bob {
   0%, 100% { transform: translateY(0) rotate(-4deg); }
   50% { transform: translateY(-6px) rotate(4deg); }
@@ -1888,7 +1888,7 @@ button { font-family: inherit; }
   .home-topbar-mobile-menu { display: flex; }
   .hero-feature-sep { display: none; }
   .motivation-banner { padding: 18px 18px; gap: 14px; }
-  .motivation-bee { width: 54px; height: 54px; }
+  .motivation-bee { width: 54px; height: 74px; }
   .motivation-copy h2 { font-size: 1.05rem; }
   .motivation-copy p { font-size: 0.9rem; }
   .motivation-mini-row { grid-template-columns: 1fr; min-width: 0; width: 100%; }
@@ -3016,7 +3016,7 @@ button { font-family: inherit; }
   background: #fff; border-radius: var(--radius-card, 24px); box-shadow: var(--shadow-soft, 0 10px 30px rgba(0,0,0,0.12));
   padding: 44px 40px; display: flex; flex-direction: column; align-items: center; gap: 20px; text-align: center;
 }
-.dictation-mascot { width: 108px; height: 108px; object-fit: contain; }
+.dictation-mascot { width: 108px; height: 140px; object-fit: contain; }
 .dictation-instruction { font-weight: 700; color: #333; margin: 0; font-size: 1.15rem; }
 .dictation-audio-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 12px; width: 100%; }
 /* AudioBar trong DictationRunner.jsx — thanh audio GỌN kiểu trình duyệt (play/pause + thời gian +
@@ -3233,7 +3233,7 @@ button { font-family: inherit; }
 @media (max-width: 640px) {
   .dictation-runner { padding: 18px 12px 50px; gap: 14px; }
   .dictation-card { padding: 28px 18px; gap: 16px; border-radius: 18px; }
-  .dictation-mascot { width: 76px; height: 76px; }
+  .dictation-mascot { width: 76px; height: 100px; }
   .dictation-instruction { font-size: 1rem; }
   .dictation-audio-bar { min-width: 0; width: 100%; max-width: none; padding: 6px 12px 6px 6px; }
   .dictation-audio-playbtn { width: 34px; height: 34px; }
@@ -4485,3 +4485,41 @@ button.wizard-step:focus-visible { outline: 3px solid var(--color-secondary); ou
 .student-username { background: #f3f5fb; padding: 2px 8px; border-radius: 6px; font-size: 0.85rem; }
 .student-create-form { max-width: none; width: 100%; margin-top: 12px; }
 .student-create-form .admin-input, .student-create-form .password-input-wrap { width: 100%; max-width: none; box-sizing: border-box; }
+
+/* Tài khoản học sinh theo lớp (pages/dashboard/StudentAccountsPage.jsx) */
+.class-table .class-row { cursor: pointer; }
+.class-table .class-row:hover td { background: #f6f8ff; }
+.class-head-count { font-size: 0.95rem; font-weight: 600; }
+.class-head-schedule { margin: 4px 0 0; }
+.class-modal { width: min(460px, calc(100vw - 32px)); }
+.class-day-picker { display: flex; flex-wrap: wrap; gap: 6px; }
+.class-day-chip {
+  min-width: 44px; padding: 7px 10px; border-radius: 999px; border: 1.5px solid #e4e7ee; background: #fff;
+  font: inherit; font-weight: 700; font-size: 0.88rem; color: #4b5563; cursor: pointer;
+}
+.class-day-chip.is-on { background: #3b5bdb; border-color: #3b5bdb; color: #fff; }
+.class-time-input { max-width: 160px; }
+.class-mode-tabs { display: inline-flex; gap: 4px; padding: 4px; background: #f1f3f8; border-radius: 999px; margin: 8px 0 4px; }
+.class-mode-tab { border: 0; background: transparent; padding: 6px 16px; border-radius: 999px; font: inherit; font-weight: 700; font-size: 0.88rem; color: #6b7280; cursor: pointer; }
+.class-mode-tab.is-active { background: #fff; color: #3b5bdb; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08); }
+
+/* Lớp + lịch học của học sinh trên trang chủ (HomePage.jsx) */
+.student-class-chip {
+  display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 10px; padding: 6px 14px;
+  border-radius: 999px; background: rgba(255, 255, 255, 0.22); color: #fff; font-weight: 700; font-size: 0.92rem;
+}
+
+/* Bộ đề/cấp không thuộc sách của lớp học sinh (lib/useClassBook.js) — xám, không bấm được */
+.content-card-v2.is-locked { filter: grayscale(1); opacity: 0.5; cursor: not-allowed; }
+.content-card-v2.is-locked:hover { transform: none; box-shadow: none; }
+
+/* Ô "Sách" trong bảng lớp — bấm để gán nhanh, rê chuột thì hiện viền + ✏️ */
+.class-book-cell {
+  display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; margin: -5px -10px;
+  border: 1.5px solid transparent; border-radius: 999px; background: transparent; font: inherit; color: inherit; cursor: pointer;
+}
+.class-book-cell.is-empty { color: #9ca3af; }
+.class-book-cell-icon { font-size: 0.8rem; opacity: 0; transition: opacity 0.15s; }
+.class-book-cell:hover, .class-book-cell:focus-visible { border-color: #3b5bdb; background: #f6f8ff; color: #3b5bdb; }
+.class-book-cell:hover .class-book-cell-icon, .class-book-cell:focus-visible .class-book-cell-icon { opacity: 1; }
+@media (hover: none) { .class-book-cell-icon { opacity: 0.6; } }

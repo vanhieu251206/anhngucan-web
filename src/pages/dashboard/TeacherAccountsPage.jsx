@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { createTeacherAccount, listTeachers, listStudents, updateTeacherScope } from "../../lib/adminUsers.js";
+import { createTeacherAccount, listTeachers, updateTeacherScope } from "../../lib/adminUsers.js";
+import { listClassNames } from "../../lib/classes.js";
 import { YLE_SERIES } from "../../lib/yleData.js";
 import { useAuth } from "../../lib/authContext.jsx";
 import PasswordInput from "../../components/PasswordInput.jsx";
@@ -58,7 +59,7 @@ function ScopeEditor({ teacher, classes, onSaved, onCancel }) {
           <CheckboxGroup options={YLE_SERIES.map(s => s.id)} value={allowedSeriesIds} onChange={setAllowedSeriesIds} labelOf={seriesTitle} />
           <p className="admin-muted-text" style={{ margin: "12px 0 6px" }}>Được mở bài / xem kết quả cho lớp</p>
           {classes.length === 0 ? (
-            <p className="admin-muted-text">Chưa có lớp nào (tạo tài khoản học sinh kèm lớp trước).</p>
+            <p className="admin-muted-text">Chưa có lớp nào (tạo lớp ở mục "Quản lý học sinh" trước).</p>
           ) : (
             <CheckboxGroup options={classes} value={allowedClasses} onChange={setAllowedClasses} />
           )}
@@ -93,9 +94,7 @@ export default function TeacherAccountsPage() {
     listTeachers()
       .then(list => setTeachers(list.filter(t => t.uid !== user?.uid)))
       .catch(err => setLoadError(err.message || String(err)));
-    listStudents().then(list => {
-      setClasses([...new Set(list.map(s => s.className).filter(Boolean))].sort());
-    });
+    listClassNames().then(setClasses);
   }
 
   useEffect(reload, []);

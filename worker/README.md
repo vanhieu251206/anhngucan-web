@@ -55,3 +55,19 @@ sẽ chạy Worker ở `http://localhost:8787` để test cục bộ trước kh
 
 Nếu deploy web ở domain khác `vanhieu251206.github.io`, sửa `ALLOWED_ORIGINS` trong `src/index.js`
 rồi deploy lại.
+
+## Xoá hẳn tài khoản học sinh (`/admin/delete-student`, thêm 2026-09-25)
+
+Nút "Xoá" học sinh trong Dashboard gọi Worker này để xoá CẢ tài khoản đăng nhập (Firebase Auth) lẫn hồ sơ
+(Firestore) — trình duyệt không tự xoá được tài khoản Auth của người khác, còn Cloud Functions cần gói Blaze.
+Chỉ admin + giáo viên chính gọi được (Worker tự kiểm tra), chỉ xoá được tài khoản `@hocsinh.local`.
+Code ở `src/admin.js`. Cần thêm khoá service account (làm 1 lần):
+
+1. Firebase Console → ⚙ **Project settings** → tab **Service accounts** → **Generate new private key** → tải
+   file `.json` về. **Lưu file này NGOÀI thư mục dự án** (không để lọt lên GitHub — khoá có toàn quyền project).
+2. Trong thư mục `worker/`, chạy (PowerShell, thay đường dẫn file vừa tải):
+   ```
+   Get-Content "C:\duong-dan\key.json" -Raw | npx wrangler secret put FIREBASE_SERVICE_ACCOUNT
+   ```
+3. `npm run deploy`
+4. Xoá file `.json` trên máy (khoá đã nằm trên Cloudflare), hoặc cất nơi an toàn.

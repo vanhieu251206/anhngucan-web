@@ -4,7 +4,7 @@ import { useFitBoxSize } from "../lib/useFitBoxSize.js";
 // Thành phần hiển thị THUẦN TUÝ dùng chung giữa SceneRunner.jsx (chạy bài thật cho học sinh)
 // và ScenePreview.jsx (xem trước trực tiếp trong CMS "Tạo bài") — để màn soạn bài nhìn Y HỆT
 // màn học sinh sẽ thấy, không phải 2 bộ giao diện khác nhau.
-export const BEE = `${import.meta.env.BASE_URL}assets/img/mascot/bee.png`;
+export const BEE = `${import.meta.env.BASE_URL}assets/img/mascot/co-can.png`;
 export const MIC_ICON = `${import.meta.env.BASE_URL}assets/img/icons/mic.png`;
 
 // Tỉ lệ gốc ảnh Scene chuẩn của dự án (16:9, đổi từ 4:3 ngày 2026-08-15) — dùng làm mặc định

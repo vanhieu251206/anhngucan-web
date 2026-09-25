@@ -20,7 +20,7 @@ const ATTEMPT_ICON = { correct: "✅", revealed: "💡", wrong: "❌" };
 
 // 3 mốc phản hồi cảm xúc theo % đúng — cùng tinh thần "ong giám khảo phản ứng theo kết quả" như
 // Duolingo (mascot đổi trạng thái theo điểm), nhưng chỉ đổi text+class vì dự án chỉ có 1 ảnh ong
-// (public/assets/img/mascot/bee.png), không có bộ ảnh biểu cảm riêng.
+// (public/assets/img/mascot/co-can.png), không có bộ ảnh biểu cảm riêng.
 export function reviewTier(pct) {
   if (pct >= 80) return { className: "review-tier-great", title: "Xuất sắc!", note: "Bé làm rất tốt bài này." };
   if (pct >= 50) return { className: "review-tier-ok", title: "Làm tốt lắm!", note: "Chỉ còn vài câu cần luyện thêm." };

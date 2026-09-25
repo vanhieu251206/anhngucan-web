@@ -68,7 +68,7 @@ App Hoc Tieng Anh/
 │       └── LessonsPage.jsx        # luồng: chọn bộ đề → chọn cấp → Listening/Speaking (khoá bằng PasswordGate nếu guest chưa unlock)
 ├── public/assets/
 │   ├── img/speaking/<series>/<level>/test<n>/part<n>/   # ảnh Scene + Object card từng bài Speaking
-│   └── img/mascot/bee.png         # linh vật ong — đại diện GIÁM KHẢO, hiện cạnh mọi câu thoại giám khảo
+│   └── img/mascot/co-can.png      # linh vật cô bé nón lá (thay ong 2026-09-25) — đại diện GIÁM KHẢO, hiện cạnh mọi câu thoại giám khảo
 ├── docs/quy-trinh/                # quy trình soạn Speaking (B0 chia scene, B1 tạo ảnh, B2/B3 đưa vào code...)
 │                                  # KHÔNG đẩy lên GitHub (gitignore) — chỉ hỗ trợ chuẩn bị dữ liệu nội bộ
 └── Bài học/                       # thư mục staging: nơi thả ảnh/dữ liệu thô khi soạn 1 bài — KHÔNG đẩy lên GitHub
@@ -90,7 +90,7 @@ Mỗi bài Speaking (1 series + 1 cấp + 1 Test + 1 Part) được soạn theo 
 | `card-select` (The-chon) | Học sinh chọn đúng thẻ trong 4 lựa chọn (luôn đủ 4, lấy từ đúng bộ Object card của Test đó). |
 | `drag-drop` (Dat-vi-tri) | Học sinh kéo-thả thẻ vào đúng vị trí trên ảnh Scene. |
 
-Mỗi scene đều hiện **linh vật ong** (`public/assets/img/mascot/bee.png`) cạnh câu thoại giám khảo — ong đại diện cho giám khảo trong toàn bộ luồng Speaking.
+Mỗi scene đều hiện **linh vật** (`public/assets/img/mascot/co-can.png`, cô bé nón lá — thay ong `bee.png` từ 2026-09-25) cạnh câu thoại giám khảo — linh vật đại diện cho giám khảo trong toàn bộ luồng Speaking.
 
 Đã hoàn chỉnh: **Starters 1 – Test 1 – Part 1** (11 scene, dữ liệu trong `yleData.js`). Các bài khác (Part 2/3/4, Test 2/3, cấp độ khác) làm dần theo cùng quy trình.
 
@@ -111,7 +111,7 @@ Mỗi scene đều hiện **linh vật ong** (`public/assets/img/mascot/bee.png`
 - **Phase 2 (soạn bài không cần code/CMS) và Phase 3 (theo dõi tiến độ học sinh) CHƯA làm** — chỉ làm khi người dùng chủ động yêu cầu tiếp.
 
 - **Cập nhật 2026-09-20 (thay thế mô tả cũ về mật khẩu chung/mật khẩu theo bộ đề/guest ở trên):**
-  - **Đăng nhập bắt buộc để học.** Học sinh có tài khoản do giáo viên tạo hàng loạt (Dashboard → "Tài khoản học sinh": dán "Tên, Lớp" + 1 mật khẩu ban đầu chung; tên đăng nhập = họ tên bỏ dấu, trùng thì thêm số; `users/{uid}.mustChangePassword` buộc đổi mật khẩu lần đầu, xem `ForceChangePassword.jsx`). Không còn `SeriesPasswordGate`/mật khẩu theo bộ đề trong luồng học sinh (file còn, không dùng). Quên mật khẩu → phải tạo lại tài khoản (không có Admin SDK).
+  - **Đăng nhập bắt buộc để học.** Học sinh có tài khoản do giáo viên tạo hàng loạt (Dashboard → "Quản lý học sinh": TẠO LỚP trước (collection `classes`, id = tên lớp, có lịch học `days`/`time` + sách `book = { seriesId, levels }` (đúng 1 bộ đề, levels rỗng = cả bộ; học sinh chỉ vào được bộ đề/cấp của lớp mình, còn lại xám — `lib/useClassBook.js`; lớp chưa gán sách = khoá hết), tạo 1 lớp hoặc dán nhiều lớp thô "CAN-ANH2-246-16H30" tự tách tên + lịch, `lib/classes.js`; học sinh thấy lịch lớp mình ở trang chủ), vào lớp rồi dán mỗi dòng 1 tên + 1 mật khẩu ban đầu chung; tên đăng nhập = họ tên bỏ dấu, trùng thì thêm số; `users/{uid}.mustChangePassword` buộc đổi mật khẩu lần đầu, xem `ForceChangePassword.jsx`). Không còn `SeriesPasswordGate`/mật khẩu theo bộ đề trong luồng học sinh (file còn, không dùng). Quên mật khẩu → phải tạo lại tài khoản (không có Admin SDK). **Xoá học sinh (2026-09-25, người dùng chọn):** qua Cloudflare Worker `POST /admin/delete-student` (`worker/src/admin.js`, secret `FIREBASE_SERVICE_ACCOUNT`) xoá cả Firebase Auth lẫn hồ sơ — chỉ admin + giáo viên chính, chỉ tài khoản `@hocsinh.local`; tạo trùng tên với tài khoản Auth mồ côi thì tự dọn để dùng lại tên.
   - **Mọi bài MẶC ĐỊNH KHOÁ, giáo viên "Mở bài" theo lớp** (Dashboard → "Mở bài", `lib/openings.js`, collection `openings`): mỗi lần mở có mật khẩu vào bài (hash SHA-256), hạn chót, số lượt, số phút; 1 lớp mở được nhiều bài cùng lúc; cấp thêm lượt = sửa số lượt của lần mở. Lượt đếm theo (học sinh, dạng bài, `testId@openingId`) qua `attempts.js`. Admin/teacher/tester vào thẳng. Lỗi mạng khi kiểm tra = chặn (không cho qua).
   - **Học sinh CHỈ thấy số câu đúng/tổng sau khi nộp** (`TestScoreReport.jsx`), KHÔNG hiện đáp án/giải thích/lời khen; Preview trong CMS mới hiện đáp án (`revealAnswers`/`reveal`/`readOnly`). Chi tiết từng câu lưu ở `testResults` (`lib/testResults.js`), giáo viên xem ở "Kết quả học sinh". Đồng hồ chung `ExamTimer.jsx` (đếm ngược theo số phút của lần mở/bài, hết giờ tự nộp).
   - Đáp án nhiều cách viết cho câu trả lời ngắn Reading: ngăn bằng dấu `|`.

@@ -28,20 +28,27 @@ function myProfile() {
     : null;
 }
 
+// Dùng .get(field, mặc định): hồ sơ giáo viên cũ KHÔNG có field restricted/allowed... — truy cập thẳng field
+// không tồn tại làm rules báo lỗi → bị từ chối quyền (lỗi thật 2026-09-25 khi xoá học sinh).
 function isRestrictedTeacher() {
-  return role() == "teacher" && myProfile() != null && myProfile().restricted == true;
+  return role() == "teacher" && myProfile() != null && myProfile().get('restricted', false) == true;
+}
+
+// Admin + giáo viên chính (không bị giới hạn) — được tạo/sửa/xoá tài khoản học sinh và lớp (chốt 2026-09-25).
+function isFullStaff() {
+  return isAdmin() || (role() == "teacher" && !isRestrictedTeacher());
 }
 
 function canManageSeries(seriesId) {
   return isAdmin()
     || (role() == "teacher" && (!isRestrictedTeacher()
-      || (myProfile().allowedSeriesIds != null && seriesId in myProfile().allowedSeriesIds)));
+      || seriesId in myProfile().get('allowedSeriesIds', [])));
 }
 
 function canManageClass(className) {
   return isAdmin()
     || (role() == "teacher" && (!isRestrictedTeacher()
-      || (myProfile().allowedClasses != null && className in myProfile().allowedClasses)));
+      || className in myProfile().get('allowedClasses', [])));
 }
 
 service cloud.firestore {
@@ -62,10 +69,11 @@ service cloud.firestore {
     match /users/{uid} {
       allow read: if isSignedIn();
       allow write: if isAdmin();
-      // Giáo viên được tạo hồ sơ HỌC SINH (Dashboard → Tài khoản học sinh), không được tạo admin/teacher.
-      allow create: if isStaff() && request.resource.data.role == 'student';
-      // ... và khoá/mở khoá/xoá hồ sơ học sinh (chỉ đụng tới tài khoản role student).
-      allow update, delete: if isStaff() && resource.data.role == 'student';
+      // Admin + giáo viên chính được tạo hồ sơ HỌC SINH (Dashboard → Tài khoản học sinh), không được tạo
+      // admin/teacher. Giáo viên phụ (restricted) chỉ xem, không thêm/sửa/xoá học sinh (chốt 2026-09-25).
+      allow create: if isFullStaff() && request.resource.data.role == 'student';
+      // ... và khoá/mở khoá/chuyển lớp/xoá hồ sơ học sinh (chỉ đụng tới tài khoản role student).
+      allow update, delete: if isFullStaff() && resource.data.role == 'student';
       // Học sinh tự xoá cờ "phải đổi mật khẩu lần đầu" trên hồ sơ của chính mình (chỉ đúng field này).
       allow update: if isSignedIn() && request.auth.uid == uid
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['mustChangePassword']);
@@ -170,6 +178,13 @@ service cloud.firestore {
       allow read: if isSignedIn();
       allow create, update: if canManageClass(request.resource.data.className);
       allow delete: if canManageClass(resource.data.className);
+    }
+
+    // Lớp học (lib/classes.js, chốt 2026-09-25): id doc = tên lớp. Tạo lớp trước rồi mới thêm học sinh vào lớp.
+    // Chỉ admin + giáo viên chính tạo/xoá lớp.
+    match /classes/{classId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isFullStaff();
     }
 
     match /classAssignments/{className} {

@@ -1,7 +1,7 @@
 import { initializeApp, deleteApp } from "firebase/app";
 import { getAuth, createUserWithEmailAndPassword, signOut } from "firebase/auth";
-import { doc, setDoc, getDoc, updateDoc, deleteDoc, collection, query, where, getDocs, serverTimestamp } from "firebase/firestore";
-import { db } from "./firebase.js";
+import { doc, setDoc, getDoc, updateDoc, collection, query, where, getDocs, serverTimestamp } from "firebase/firestore";
+import { db, auth } from "./firebase.js";
 
 // Domain giả cho tài khoản học sinh — Firebase Auth bắt buộc định dạng email, học sinh (trẻ em)
 // không có email thật nên dùng "username@hocsinh.local" (không phải domain thật, không gửi mail
@@ -107,11 +107,46 @@ export async function setStudentDisabled(uid, disabled) {
   await updateDoc(doc(db, "users", uid), { disabled });
 }
 
-// XOÁ: xoá hồ sơ Firestore (mất tên/lớp/quyền → không dùng được nữa, kể cả đang đăng nhập). Tài khoản trong
-// Firebase Auth vẫn còn (client không xoá được tài khoản người khác) — dọn thêm ở Firebase Console →
-// Authentication nếu muốn. Kết quả/lượt làm cũ giữ nguyên.
+// Chuyển học sinh sang lớp khác ("" = chưa xếp lớp).
+export async function setStudentClass(uid, className) {
+  await updateDoc(doc(db, "users", uid), { className });
+}
+
+// XOÁ HẲN (2026-09-25): gọi Cloudflare Worker (worker/src/admin.js, giữ khoá service account) xoá cả tài khoản
+// Firebase Auth lẫn hồ sơ Firestore → tên đăng nhập dùng lại được. Trình duyệt không tự xoá được tài khoản Auth
+// của người khác. Kết quả/lượt làm cũ giữ nguyên.
+const WORKER_URL = import.meta.env.VITE_WORKER_URL;
+
+const ADMIN_ERRORS = {
+  "admin-not-configured": "Worker chưa có khoá quản trị Firebase (FIREBASE_SERVICE_ACCOUNT) — xem worker/README.md.",
+  forbidden: "Chỉ admin và giáo viên chính được xoá tài khoản.",
+  "not-a-student": "Chỉ xoá được tài khoản học sinh.",
+};
+
+async function callAdminWorker(path, body) {
+  if (!WORKER_URL) throw new Error("Chưa cấu hình VITE_WORKER_URL.");
+  const idToken = await auth.currentUser?.getIdToken();
+  const res = await fetch(`${WORKER_URL}${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw Object.assign(new Error(ADMIN_ERRORS[data.error] ?? `Lỗi xoá tài khoản (${data.error || res.status}).`), { code: data.error });
+  return data;
+}
+
 export async function deleteStudent(uid) {
-  await deleteDoc(doc(db, "users", uid));
+  await callAdminWorker("/admin/delete-student", { uid });
+}
+
+// Tên đăng nhập bị giữ bởi tài khoản Auth mồ côi (hồ sơ đã xoá kiểu cũ) → xoá để dùng lại tên. Trả về true nếu dọn được.
+async function purgeOrphanUsername(username) {
+  try {
+    return (await callAdminWorker("/admin/delete-student", { username })).deleted === true;
+  } catch {
+    return false;
+  }
 }
 
 export async function listStudents({ className } = {}) {
@@ -160,13 +195,19 @@ export async function bulkCreateStudents(rows, password) {
       username = `${base}${n}`;
     }
     takenUsernames.add(username);
-    // Tên đăng nhập đã có trong Firebase Auth nhưng không có hồ sơ Firestore (tài khoản mồ côi) → thử số kế tiếp.
+    // Tên đăng nhập đã có trong Firebase Auth nhưng không có hồ sơ Firestore (tài khoản mồ côi, vd xoá kiểu cũ) →
+    // nhờ Worker dọn tài khoản đó để dùng lại đúng tên; không dọn được thì thử số kế tiếp.
+    let purged = false;
     for (let attempt = 0; attempt < 5; attempt++) {
       try {
         await createStudentAccount({ displayName: row.displayName, className: row.className, username, password });
         results.push({ ...row, username, ok: true });
         break;
       } catch (err) {
+        if (err.code === "auth/email-already-in-use" && !purged) {
+          purged = true;
+          if (await purgeOrphanUsername(username)) continue;
+        }
         if (err.code === "auth/email-already-in-use" && attempt < 4) {
           do {
             n += 1;

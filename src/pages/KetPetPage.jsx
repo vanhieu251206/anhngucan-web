@@ -5,12 +5,15 @@ import KetPetPracticeTestRunner from "../components/KetPetPracticeTestRunner.jsx
 import { KET_PET_GRADES, KET_PET_UNITS_PER_GRADE } from "../lib/yleData.js";
 import { useAuth } from "../lib/authContext.jsx";
 import { useOpeningGuard } from "../lib/useOpeningGuard.jsx";
+import { useClassBook } from "../lib/useClassBook.js";
 
 // Khung điều hướng KET/PET: Grade (6-9) → Unit (1-16) → Vocabulary/Practice Test (Test 1-4).
 // KHÁC cấu trúc Level/Test/Part của YLE (Starters/Movers/Flyers) nên KHÔNG đi qua LessonsPage.jsx
 // — tổ chức theo chương trình SGK phổ thông (Grade/Unit), chốt với người dùng 2026-09-14.
 export default function KetPetPage({ onNavigate }) {
   const [grade, setGrade] = useState(null);
+  // Học sinh chỉ vào được Grade thuộc sách của lớp mình — Grade khác hiện xám (lib/useClassBook.js).
+  const { canLevel } = useClassBook();
   const [unit, setUnit] = useState(null);
   const [vocabActive, setVocabActive] = useState(false);
   const [practiceTestOpen, setPracticeTestOpen] = useState(false);
@@ -105,7 +108,8 @@ export default function KetPetPage({ onNavigate }) {
             {KET_PET_GRADES.map(g => (
               <button
                 key={g}
-                className="content-card-v2 content-card-v2-center ielts-skill-tile"
+                className={`content-card-v2 content-card-v2-center ielts-skill-tile${canLevel("ket-pet", g) ? "" : " is-locked"}`}
+                disabled={!canLevel("ket-pet", g)}
                 style={{ "--accent": "#8B5CF6" }}
                 onClick={() => setGrade(g)}
               >

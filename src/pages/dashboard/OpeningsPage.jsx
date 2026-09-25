@@ -3,7 +3,7 @@ import PasswordInput from "../../components/PasswordInput.jsx";
 import { YLE_SERIES, KET_PET_GRADES, KET_PET_UNITS_PER_GRADE } from "../../lib/yleData.js";
 import { loadLevelContent } from "../../lib/lessons.js";
 import { listListeningExamTests } from "../../lib/adminLessons.js";
-import { listStudents } from "../../lib/adminUsers.js";
+import { listClassNames } from "../../lib/classes.js";
 import { OPENING_KINDS, listOpenings, createOpening, updateOpening, closeOpening, isExpired } from "../../lib/openings.js";
 import { useAuth } from "../../lib/authContext.jsx";
 import { useConfirm } from "../../components/dashboard/ConfirmDialog.jsx";
@@ -65,8 +65,8 @@ export default function OpeningsPage() {
   }
   useEffect(() => {
     reload();
-    listStudents().then(list => {
-      let cls = [...new Set(list.map(s => s.className).filter(Boolean))].sort();
+    listClassNames().then(list => {
+      let cls = list;
       if (allowedClassSet) cls = cls.filter(c => allowedClassSet.has(c));
       setClasses(cls);
       setClassName(c => c || cls[0] || "");
@@ -177,7 +177,7 @@ export default function OpeningsPage() {
           <div className="opening-modal" role="dialog" aria-modal="true" onClick={e => e.stopPropagation()}>
             <h2>Mở bài cho lớp</h2>
             <p className="admin-muted-text">Mặc định mọi bài đều khoá. Mở bài nào thì học sinh của lớp đó mới vào làm được.</p>
-            {classes.length === 0 && <p className="admin-hint">Chưa có lớp nào — tạo tài khoản học sinh (kèm lớp) trước.</p>}
+            {classes.length === 0 && <p className="admin-hint">Chưa có lớp nào — tạo lớp ở mục "Quản lý học sinh" trước.</p>}
         <form className="admin-form opening-form-grid" onSubmit={handleCreate}>
           <label className="admin-mini-field">
             <span>Lớp</span>
