@@ -14,7 +14,7 @@ const KIDS_ACCENT = "#F2A93B";
 export default function KidsPage({ onNavigate }) {
   const [grade, setGrade] = useState(null);
   // Học sinh chỉ vào được Grade thuộc sách của lớp mình — Grade khác hiện xám (lib/useClassBook.js).
-  const { canLevel } = useClassBook();
+  const { canLevel, ready: bookReady } = useClassBook();
   const [book, setBook] = useState(null); // { id, title, pages } đang đọc, null = màn chọn sách
   const [loadingKind, setLoadingKind] = useState(null);
 
@@ -64,7 +64,7 @@ export default function KidsPage({ onNavigate }) {
               <button
                 key={g}
                 type="button"
-                className={`content-card-v2 content-card-v2-center${canLevel("kids", g) ? "" : " is-locked"}`}
+                className={`content-card-v2 content-card-v2-center${bookReady && !canLevel("kids", g) ? " is-locked" : ""}`}
                 disabled={!canLevel("kids", g)}
                 style={{ "--accent": KIDS_ACCENT }}
                 onClick={() => setGrade(g)}
@@ -73,7 +73,7 @@ export default function KidsPage({ onNavigate }) {
                   <span>{`Grade ${g}`}</span>
                 </div>
                 <div className="content-card-v2-body">
-                  {canLevel("kids", g) ? <span className="series-status is-ready">Đang mở</span> : <span className="series-status">🔒</span>}
+                  {bookReady && !canLevel("kids", g) ? <span className="series-status">🔒</span> : <span className="series-status is-ready">Đang mở</span>}
                 </div>
               </button>
             ))}

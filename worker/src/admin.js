@@ -69,7 +69,7 @@ async function getJwks() {
   return keys;
 }
 
-async function verifyIdToken(idToken, projectId) {
+export async function verifyIdToken(idToken, projectId) {
   const parts = (idToken || "").split(".");
   if (parts.length !== 3) throw adminError(401, "invalid-token");
   const dec = new TextDecoder();
@@ -120,11 +120,22 @@ async function lookupAuthUser(projectId, token, query) {
   return users?.[0] ?? null;
 }
 
+function parseServiceAccount(env) {
+  // Bỏ BOM đầu chuỗi (PowerShell 5.1 tự thêm khi pipe file vào `wrangler secret put`).
+  return JSON.parse(env.FIREBASE_SERVICE_ACCOUNT.replace(/^﻿/, ""));
+}
+
+// Project id Firebase để xác minh ID token — lấy từ khoá service account (đã có sẵn cho /admin/delete-student).
+export function firebaseProjectId(env) {
+  if (env.FIREBASE_PROJECT_ID) return env.FIREBASE_PROJECT_ID;
+  if (!env.FIREBASE_SERVICE_ACCOUNT) throw adminError(500, "auth-not-configured");
+  return parseServiceAccount(env).project_id;
+}
+
 // body: { uid } (xoá học sinh đang có) hoặc { username } (dọn tài khoản Auth mồ côi để dùng lại tên đăng nhập).
 export async function deleteStudent(request, env) {
   if (!env.FIREBASE_SERVICE_ACCOUNT) throw adminError(500, "admin-not-configured");
-  // Bỏ BOM đầu chuỗi (PowerShell 5.1 tự thêm khi pipe file vào `wrangler secret put`).
-  const sa = JSON.parse(env.FIREBASE_SERVICE_ACCOUNT.replace(/^﻿/, ""));
+  const sa = parseServiceAccount(env);
   const projectId = sa.project_id;
 
   const callerUid = await verifyIdToken((request.headers.get("Authorization") || "").replace(/^Bearer\s+/i, ""), projectId);

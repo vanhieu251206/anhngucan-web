@@ -77,7 +77,7 @@ function EditableSceneStage({ sceneImage, rect, onRectChange, overlayClassName }
   return (
     <SceneStage innerRef={stageRef} cursor="crosshair">
       <div {...handlers} style={{ position: "absolute", inset: 0 }}>
-        <img className="part1-scene-img" src={sceneImage} onError={e => (e.currentTarget.style.display = "none")} draggable={false} />
+        <img alt="Tranh của bài" className="part1-scene-img" src={sceneImage} onError={e => (e.currentTarget.style.display = "none")} draggable={false} />
         <RectOverlay rect={shown} className={overlayClassName} />
       </div>
     </SceneStage>
@@ -132,7 +132,7 @@ export default function ScenePreview({ scene, onChange }) {
           />
         )}
         {scene.type === "narration" && scene.demoCard?.card?.image && scene.demoCard?.target && (
-          <img
+          <img alt="Thẻ đã đặt"
             className="dropped-card"
             src={scene.demoCard.card.image}
             style={{

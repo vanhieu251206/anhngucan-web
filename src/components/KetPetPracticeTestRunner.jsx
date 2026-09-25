@@ -29,6 +29,7 @@ export default function KetPetPracticeTestRunner({ grade, unit, testNumber, onNa
     const tid = `unit${unit}-test${testNumber}`;
     if (ctx?.studentUid) incrementAttempt({ uid: ctx.studentUid, mode: "ketpet-test", testId: attemptKey(tid, ctx.openingId), seriesId: "ket-pet", level: grade });
     saveTestResult({
+      openingId: ctx?.openingId,
       mode: "ketpet-test", seriesId: "ket-pet", level: grade, testId: tid, lessonLabel: `KET/PET Grade ${grade} · Unit ${unit} · Test ${testNumber}`,
       studentName: ctx?.studentName, studentClass: ctx?.studentClass, uid: ctx?.studentUid,
       correct: graded.correct, total: graded.total,

@@ -1,4 +1,5 @@
 import { initializeApp } from "firebase/app";
+import { initializeAppCheck, ReCaptchaV3Provider } from "firebase/app-check";
 import { getAuth } from "firebase/auth";
 import { initializeFirestore } from "firebase/firestore";
 
@@ -16,6 +17,15 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
+
+// Firebase App Check (reCAPTCHA v3, miễn phí) chống bot/script lạ gọi thẳng Firestore/Auth bằng API key công khai
+// (audit bảo mật 2026-09-25). CHỈ bật khi có VITE_RECAPTCHA_SITE_KEY. Bật xong phải theo dõi tab App Check trên
+// Firebase Console vài ngày rồi mới bấm "Enforce" — enforce sớm mà thiếu domain (kể cả localhost khi dev) là
+// chặn luôn người dùng thật.
+const RECAPTCHA_SITE_KEY = import.meta.env.VITE_RECAPTCHA_SITE_KEY;
+if (RECAPTCHA_SITE_KEY) {
+  initializeAppCheck(app, { provider: new ReCaptchaV3Provider(RECAPTCHA_SITE_KEY), isTokenAutoRefreshEnabled: true });
+}
 
 export const auth = getAuth(app);
 // ignoreUndefinedProperties: các form CMS (scene-forms/*.jsx) hay set field = undefined khi bỏ

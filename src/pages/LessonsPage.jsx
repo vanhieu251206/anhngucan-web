@@ -10,7 +10,7 @@ import IeltsPracticeRunner from "../components/IeltsPracticeRunner.jsx";
 import IeltsListeningRunner from "../components/IeltsListeningRunner.jsx";
 import DictationRunner from "../components/DictationRunner.jsx";
 import OpeningPasswordScreen from "../components/OpeningPasswordScreen.jsx";
-import { checkOpening } from "../lib/openings.js";
+import { checkOpening, openingNeedsPassword } from "../lib/openings.js";
 import StartersListeningTestRunner, { testHasContent } from "../components/StartersListeningTestRunner.jsx";
 import { listListeningExamTests } from "../lib/adminLessons.js";
 import { useAuth } from "../lib/authContext.jsx";
@@ -93,7 +93,7 @@ function ContentSkeleton() {
 
 // Màn chặn dùng chung cho 2 lý do: (1) hết lượt nộp bài tối đa của 1 Test (`test.maxAttempts`,
 // xem lib/attempts.js) — chỉ áp dụng Speaking/Reading (có nộp bài); (2) giáo viên CHƯA MỞ bài này
-// cho lớp của học sinh (`classAssignments/{className}`, xem lib/classAssignments.js) — áp dụng cả
+// cho lớp của học sinh (collection `openings`, xem lib/openings.js) — áp dụng cả
 // Listening/Speaking/Reading, chốt 2026-08-27: "giáo viên phải mở mới cho vô làm".
 function BlockedScreen({ title, message, onBack }) {
   return (
@@ -339,7 +339,7 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
           {series.levels.map(l => (
             <button
               key={l.id}
-              className={`content-card-v2 content-card-v2-center${canLevel(series.id, l.number) ? "" : " is-locked"}`}
+              className={`content-card-v2 content-card-v2-center${bookReady && !canLevel(series.id, l.number) ? " is-locked" : ""}`}
               disabled={!canLevel(series.id, l.number)}
               onClick={() => setLevel(l)}
               style={{ "--accent": series.color }}
@@ -688,7 +688,7 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
       setBlocked({ title: result.title, message: result.message });
       return;
     }
-    if (result.opening.passwordHash) {
+    if (openingNeedsPassword(result.opening)) {
       setGate({ opening: result.opening, title: test.title, launch });
     } else {
       setActiveOpening(result.opening);

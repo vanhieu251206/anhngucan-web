@@ -1,4 +1,4 @@
-import { doc, setDoc, getDoc, deleteDoc, getDocs, collection, serverTimestamp } from "firebase/firestore";
+import { doc, setDoc, getDoc, getDocs, collection, query, where, writeBatch, serverTimestamp } from "firebase/firestore";
 import { db } from "./firebase.js";
 import { listStudents } from "./adminUsers.js";
 import { YLE_SERIES, KIDS_GRADES, KET_PET_GRADES } from "./yleData.js";
@@ -115,7 +115,51 @@ export async function setClassSchedule(name, { days, time }) {
   await setDoc(doc(db, "classes", name), { days, time }, { merge: true });
 }
 
-// Chỉ xoá lớp TRỐNG (trang gọi đã kiểm tra không còn học sinh) — không đụng tới hồ sơ học sinh/bài đã mở.
-export async function deleteClass(name) {
-  await deleteDoc(doc(db, "classes", name));
+// Dữ liệu đang gắn theo tên lớp: học sinh (className), bài đang mở (openings.className), phạm vi giáo viên phụ
+// (users.allowedClasses). Xoá/đổi tên lớp cập nhật TẤT CẢ trong 1 lần ghi (writeBatch — hoặc xong hết, hoặc không
+// đổi gì, tránh lớp bị chuyển dở dang). Chốt 2026-09-25.
+async function classRefs(name, myUid) {
+  const [students, openings, teachers] = await Promise.all([
+    getDocs(query(collection(db, "users"), where("role", "==", "student"), where("className", "==", name))),
+    getDocs(query(collection(db, "openings"), where("className", "==", name))),
+    getDocs(query(collection(db, "users"), where("allowedClasses", "array-contains", name))),
+  ]);
+  // Giáo viên không sửa được phạm vi của chính mình (firestore.rules) — bỏ qua hồ sơ của người đang thao tác.
+  const teacherDocs = teachers.docs.filter(d => d.data().role === "teacher" && d.id !== myUid);
+  return { students: students.docs, openings: openings.docs, teachers: teacherDocs };
+}
+
+// Xoá lớp: học sinh chuyển sang "Chưa xếp lớp" (KHÔNG xoá tài khoản), đóng các bài đang mở của lớp, gỡ lớp khỏi
+// phạm vi giáo viên phụ.
+export async function deleteClass(name, myUid) {
+  const refs = await classRefs(name, myUid);
+  const batch = writeBatch(db);
+  refs.students.forEach(d => batch.update(d.ref, { className: "" }));
+  refs.openings.forEach(d => batch.delete(d.ref));
+  refs.teachers.forEach(d => batch.update(d.ref, { allowedClasses: (d.data().allowedClasses ?? []).filter(c => c !== name) }));
+  batch.delete(doc(db, "classes", name));
+  await batch.commit();
+}
+
+// Đổi tên lớp: tạo doc lớp mới (giữ lịch/sách), xoá doc cũ, cập nhật học sinh + bài đang mở + phạm vi giáo viên phụ
+// theo tên mới. Kết quả bài làm cũ vẫn lưu tên lớp lúc nộp (trang Kết quả nhóm theo lớp hiện tại của học sinh).
+export async function renameClass(oldName, newName, myUid) {
+  const name = normalizeClassName(newName);
+  if (!name) throw new Error("Chưa nhập tên lớp.");
+  if (name === oldName) return name;
+  if (name.includes("/")) throw new Error('Tên lớp không được chứa dấu "/".');
+  const [oldSnap, newSnap, refs] = await Promise.all([
+    getDoc(doc(db, "classes", oldName)),
+    getDoc(doc(db, "classes", name)),
+    classRefs(oldName, myUid),
+  ]);
+  if (newSnap.exists()) throw new Error(`Lớp "${name}" đã có.`);
+  const batch = writeBatch(db);
+  batch.set(doc(db, "classes", name), { ...(oldSnap.exists() ? oldSnap.data() : { createdAt: serverTimestamp(), createdBy: myUid ?? null }) });
+  if (oldSnap.exists()) batch.delete(oldSnap.ref);
+  refs.students.forEach(d => batch.update(d.ref, { className: name }));
+  refs.openings.forEach(d => batch.update(d.ref, { className: name }));
+  refs.teachers.forEach(d => batch.update(d.ref, { allowedClasses: (d.data().allowedClasses ?? []).map(c => (c === oldName ? name : c)) }));
+  await batch.commit();
+  return name;
 }

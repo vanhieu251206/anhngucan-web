@@ -53,7 +53,7 @@ sẽ chạy Worker ở `http://localhost:8787` để test cục bộ trước kh
 
 ## Đổi domain app
 
-Nếu deploy web ở domain khác `vanhieu251206.github.io`, sửa `ALLOWED_ORIGINS` trong `src/index.js`
+Web chạy ở `anhngucan.com` (tên miền riêng) + `vanhieu251206.github.io`. Đổi/thêm domain thì sửa `ALLOWED_ORIGINS` trong `src/index.js`
 rồi deploy lại.
 
 ## Xoá hẳn tài khoản học sinh (`/admin/delete-student`, thêm 2026-09-25)
@@ -71,3 +71,11 @@ Code ở `src/admin.js`. Cần thêm khoá service account (làm 1 lần):
    ```
 3. `npm run deploy`
 4. Xoá file `.json` trên máy (khoá đã nằm trên Cloudflare), hoặc cất nơi an toàn.
+
+## Bảo vệ `/transcribe` (thêm 2026-09-25)
+
+`/transcribe` BẮT BUỘC Firebase ID token của tài khoản đã đăng nhập (header `Authorization: Bearer ...`, web tự
+gửi — `src/lib/pronunciationApi.js`) và giới hạn mỗi tài khoản 20 lượt/phút (binding `TRANSCRIBE_LIMITER` trong
+`wrangler.toml`). Xác minh token dùng project id lấy từ secret `FIREBASE_SERVICE_ACCOUNT` (mục trên) — **phải có
+secret này thì ghi âm mới chạy**. Sửa xong nhớ `npm run deploy` lại, và deploy Worker TRƯỚC hoặc CÙNG LÚC với web
+(Worker cũ vẫn chạy được với web mới, nhưng web cũ sẽ bị Worker mới từ chối vì không gửi token).

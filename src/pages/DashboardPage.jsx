@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../lib/authContext.jsx";
+import { purgeExpiredResults } from "../lib/testResults.js";
 import Sidebar from "../components/Sidebar.jsx";
 import OverviewPage from "./dashboard/OverviewPage.jsx";
 import CreateLessonPage from "./dashboard/CreateLessonPage.jsx";
@@ -26,11 +27,8 @@ const ADMIN_ITEMS = [
 ];
 // Giáo viên cũng được soạn bài (create-lesson) như admin, chỉ không có "Cấu hình tài khoản giáo
 // viên" (chỉ admin mới tạo/quản được tài khoản giáo viên khác).
-// Lưu ý: "results" đã BỎ khỏi luồng học sinh thật (chốt 2026-09-17, xem lib/seriesAccess.js —
-// học sinh giờ vào bằng mật khẩu theo bộ đề, không còn tài khoản/lớp), giữ lại nguyên trạng CMS
-// phòng khi cần dùng lại, không xoá. Mục "Tài khoản học sinh" và "Giao bài cho lớp" đã xoá hẳn
-// (không còn dùng, StudentAccountsPage.jsx/AssignmentsPage.jsx đã xoá — người dùng yêu cầu
-// 2026-09-17).
+// Học sinh học bằng tài khoản theo LỚP (mục "Quản lý học sinh", 2026-09-25) — cơ chế mật khẩu theo bộ đề cũ
+// (SeriesPasswordGate/SeriesPasswordsPage) đã xoá hẳn.
 // Giáo viên KHÔNG bị giới hạn (mặc định, chưa bật `restricted`) — thêm mục "Phân quyền giáo viên
 // phụ" để tự phân công phạm vi cho người dạy ngắn hạn, không cần đợi admin (chốt 2026-09-22).
 const TEACHER_ITEMS = [
@@ -55,6 +53,11 @@ export default function DashboardPage({ onNavigate }) {
   const { user, isAdmin, isTeacher, profile, logout } = useAuth();
   const isRestrictedTeacher = isTeacher && !!profile?.restricted;
   const items = isAdmin ? ADMIN_ITEMS : isRestrictedTeacher ? RESTRICTED_TEACHER_ITEMS : isTeacher ? TEACHER_ITEMS : [];
+  // Mỗi lần admin/giáo viên vào khu vực quản trị: xoá hẳn kết quả làm bài đã quá 48h sau hạn chót (không có server
+  // chạy định kỳ — xem lib/testResults.js purgeExpiredResults).
+  useEffect(() => {
+    if (isAdmin || isTeacher) purgeExpiredResults();
+  }, [isAdmin, isTeacher]);
   // Mục sidebar đang mở: ưu tiên URL (?section=... — để F5 quay lại đúng tab thay vì luôn về
   // "Tổng quan", phản hồi người dùng 2026-08-23), cuối cùng mới tới mục đầu tiên của role.
   const [section, setSectionState] = useState(

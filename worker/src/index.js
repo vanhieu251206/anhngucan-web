@@ -9,12 +9,15 @@
 // (src/lib/pronunciationApi.js) tự thử lại vài lần rồi báo lỗi thẳng cho học sinh.
 //
 // CORS chỉ cho phép gọi từ domain GitHub Pages của app + localhost/LAN lúc test local (npm run
-// dev -- --host, xem CLAUDE.md). Đổi/thêm origin nếu đổi domain deploy. Không có xác thực người
-// gọi (học sinh là khách ẩn danh) — rủi ro bị lạm dụng đã được chấp nhận tương tự cơ chế mật khẩu
-// hash client-side, giảm nhẹ bằng giới hạn CORS này.
-import { deleteStudent } from "./admin.js";
+// dev -- --host, xem CLAUDE.md). Đổi/thêm origin nếu đổi domain deploy. CORS chỉ chặn được trình
+// duyệt, không chặn được script gọi thẳng — nên /transcribe BẮT BUỘC Firebase ID token của tài khoản
+// đã đăng nhập + giới hạn số lượt/phút theo tài khoản (audit bảo mật 2026-09-25: trước đó ai biết URL
+// cũng đốt được hạn mức AssemblyAI, mà hết free tier là tốn tiền thật).
+import { deleteStudent, firebaseProjectId, verifyIdToken } from "./admin.js";
 
-const ALLOWED_ORIGINS = ["https://vanhieu251206.github.io"];
+// anhngucan.com: tên miền riêng của GitHub Pages (public/CNAME, từ 2026-09-18) — thiếu mục này làm ghi âm Speaking
+// và xoá học sinh bị trình duyệt chặn CORS trên web thật (phát hiện 2026-09-25).
+const ALLOWED_ORIGINS = ["https://anhngucan.com", "https://www.anhngucan.com", "https://vanhieu251206.github.io"];
 
 // Vite tự bump cổng (5173, 5174, 5175...) nếu cổng trước đó đang bận (vd nhiều phiên dev server
 // chạy song song) — chốt cứng 1 cổng từng gây lỗi CORS thật khi dev server không chạy đúng ở 5173
@@ -133,7 +136,8 @@ export default {
         });
       } catch (err) {
         if (err && err.error) return jsonError(headers, err.error, err.status || 500);
-        return jsonError(headers, "worker-exception", 500, String(err));
+        console.error(err);
+        return jsonError(headers, "worker-exception", 500);
       }
     }
 
@@ -146,6 +150,14 @@ export default {
     }
 
     try {
+      const idToken = (request.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
+      const uid = await verifyIdToken(idToken, firebaseProjectId(env));
+      // Binding TRANSCRIBE_LIMITER khai báo trong wrangler.toml — thiếu binding thì bỏ qua giới hạn thay vì chặn hẳn.
+      if (env.TRANSCRIBE_LIMITER) {
+        const { success } = await env.TRANSCRIBE_LIMITER.limit({ key: uid });
+        if (!success) return jsonError(headers, "rate-limited", 429);
+      }
+
       const incomingForm = await request.formData();
       const audio = incomingForm.get("audio");
       if (!audio) {
@@ -164,9 +176,11 @@ export default {
       });
     } catch (err) {
       if (err && err.error) {
-        return jsonError(headers, err.error, err.status || 500, err.detail);
+        if (err.detail) console.error(err.error, err.detail);
+        return jsonError(headers, err.error, err.status || 500);
       }
-      return jsonError(headers, "worker-exception", 500, String(err));
+      console.error(err);
+      return jsonError(headers, "worker-exception", 500);
     }
   },
 };

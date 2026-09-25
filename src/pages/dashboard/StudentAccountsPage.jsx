@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import PasswordInput from "../../components/PasswordInput.jsx";
 import { listStudents, bulkCreateStudents, setStudentDisabled, deleteStudent, setStudentClass } from "../../lib/adminUsers.js";
-import { listClassDocs, createClass, deleteClass, setClassSchedule, setClassBook, parseClassLine, formatSchedule, formatBook, BOOK_OPTIONS, DAY_OPTIONS, dayLabel } from "../../lib/classes.js";
+import { listClassDocs, createClass, deleteClass, renameClass, setClassSchedule, setClassBook, parseClassLine, formatSchedule, formatBook, BOOK_OPTIONS, DAY_OPTIONS, dayLabel } from "../../lib/classes.js";
 import { useAuth } from "../../lib/authContext.jsx";
 import { useConfirm } from "../../components/dashboard/ConfirmDialog.jsx";
 import { downloadStudentCardPdf, downloadAllStudentCardPdfs } from "../../lib/studentCardPdf.js";
@@ -210,8 +210,11 @@ export default function StudentAccountsPage() {
     e.preventDefault();
     setSavingClass(true);
     try {
-      await setClassSchedule(scheduleEdit.name, { days: scheduleEdit.days, time: scheduleEdit.time });
-      await setClassBook(scheduleEdit.name, scheduleEdit.book);
+      // Đổi tên trước (cập nhật học sinh/bài đang mở/phạm vi giáo viên phụ theo tên mới), rồi lưu lịch + sách.
+      const name = await renameClass(scheduleEdit.name, scheduleEdit.newName, user?.uid);
+      await setClassSchedule(name, { days: scheduleEdit.days, time: scheduleEdit.time });
+      await setClassBook(name, scheduleEdit.book);
+      if (selectedClass === scheduleEdit.name) setSelectedClass(name);
       setScheduleEdit(null);
       reload();
     } catch (err) {
@@ -243,17 +246,17 @@ export default function StudentAccountsPage() {
 
   function openScheduleEdit(c) {
     setClassError("");
-    setScheduleEdit({ name: c.name, days: c.days ?? [], time: c.time ?? "", book: c.book ?? null });
+    setScheduleEdit({ name: c.name, newName: c.name, days: c.days ?? [], time: c.time ?? "", book: c.book ?? null });
   }
 
-  // Xoá lớp: học sinh của lớp KHÔNG bị xoá, chỉ chuyển sang "Chưa xếp lớp".
+  // Xoá lớp (lib/classes.js deleteClass, 1 lần ghi): học sinh KHÔNG bị xoá, chỉ chuyển sang "Chưa xếp lớp"; đóng
+  // các bài đang mở của lớp; gỡ lớp khỏi phạm vi giáo viên phụ.
   async function handleDeleteClass(c) {
     const n = c.students.length;
-    const msg = n ? `Xoá lớp ${c.name}? ${n} học sinh của lớp sẽ chuyển sang "Chưa xếp lớp" (không bị xoá tài khoản).` : `Xoá lớp ${c.name}?`;
+    const msg = `Xoá lớp ${c.name}?${n ? ` ${n} học sinh sẽ chuyển sang "Chưa xếp lớp" (không bị xoá tài khoản).` : ""} Các bài đang mở của lớp cũng sẽ bị đóng.`;
     if (!(await confirm(msg, { danger: true }))) return;
     try {
-      for (const s of c.students) await setStudentClass(s.uid, "");
-      await deleteClass(c.name);
+      await deleteClass(c.name, user?.uid);
       setSelectedClass(null);
       reload();
     } catch (err) {
@@ -534,6 +537,10 @@ export default function StudentAccountsPage() {
           <div className="opening-modal class-modal" role="dialog" aria-modal="true" onClick={e => e.stopPropagation()}>
             <h2>Lớp {scheduleEdit.name}</h2>
             <form className="admin-form student-create-form" onSubmit={handleSaveSchedule}>
+              <label className="admin-mini-field">
+                <span>Tên lớp</span>
+                <input className="admin-input" value={scheduleEdit.newName} onChange={e => setScheduleEdit({ ...scheduleEdit, newName: e.target.value })} />
+              </label>
               <ScheduleFields days={scheduleEdit.days} time={scheduleEdit.time} onChange={v => setScheduleEdit({ ...scheduleEdit, ...v })} />
               <BookFields book={scheduleEdit.book} onChange={book => setScheduleEdit({ ...scheduleEdit, book })} />
               <div className="opening-form-actions">

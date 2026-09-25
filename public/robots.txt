@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+# Khu vực quản trị và bài làm cần đăng nhập — không có gì để máy tìm kiếm lập chỉ mục.
+Disallow: /*?page=dashboard
+Disallow: /*?page=settings
+Disallow: /*?page=login
+
+Sitemap: https://anhngucan.com/sitemap.xml

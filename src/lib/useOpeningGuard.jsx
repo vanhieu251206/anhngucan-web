@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useAuth } from "./authContext.jsx";
-import { checkOpening } from "./openings.js";
+import { checkOpening, openingNeedsPassword } from "./openings.js";
 import OpeningPasswordScreen from "../components/OpeningPasswordScreen.jsx";
 
 // Hook dùng chung cho các trang ngoài LessonsPage (vd KetPetPage): bài MẶC ĐỊNH KHOÁ, học sinh chỉ vào được khi
@@ -34,7 +34,7 @@ export function useOpeningGuard() {
       setBlocked({ title: result.title, message: result.message });
       return;
     }
-    if (result.opening.passwordHash) setGate({ opening: result.opening, title: test.title, launch });
+    if (openingNeedsPassword(result.opening)) setGate({ opening: result.opening, title: test.title, launch });
     else {
       setActiveOpening(result.opening);
       launch(result.opening);

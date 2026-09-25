@@ -10,10 +10,26 @@ import KidsPage from "./pages/KidsPage.jsx";
 import { useAuth } from "./lib/authContext.jsx";
 import { readParams, setParams } from "./lib/urlState.js";
 import ForceChangePassword from "./components/ForceChangePassword.jsx";
+import PrivacyPage from "./pages/PrivacyPage.jsx";
+import NotFoundPage from "./pages/NotFoundPage.jsx";
+import { trackPage } from "./lib/analytics.js";
 
 // Dashboard (CMS quản trị) chỉ admin/teacher dùng, học sinh không bao giờ vào — tách thành chunk
 // riêng (React.lazy) để 100 học sinh không phải tải kèm code CMS lúc mở app (xem audit P2).
 const DashboardPage = lazy(() => import("./pages/DashboardPage.jsx"));
+
+// Tiêu đề tab riêng cho từng trang (SEO + dễ phân biệt khi mở nhiều tab). Trang không có trong danh sách = 404.
+const SITE_NAME = "Anh Ngữ C.A.N";
+const PAGE_TITLES = {
+  home: `${SITE_NAME} — Học tiếng Anh vui vẻ cho bé`,
+  lessons: `Bài học — ${SITE_NAME}`,
+  about: `Giới thiệu — ${SITE_NAME}`,
+  contact: `Liên hệ — ${SITE_NAME}`,
+  login: `Đăng nhập — ${SITE_NAME}`,
+  privacy: `Chính sách bảo mật — ${SITE_NAME}`,
+  dashboard: `Quản trị — ${SITE_NAME}`,
+  settings: `Quản trị — ${SITE_NAME}`,
+};
 
 // Đọc trang + bộ đề ban đầu từ URL (?page=...&series=...) — để F5/mở lại URL đã chia sẻ vào
 // đúng trang thay vì luôn bật về Trang chủ. Xem src/lib/urlState.js.
@@ -44,6 +60,11 @@ export default function App() {
       series: page === "lessons" ? lessonSeriesId : null,
     });
   }, [page, lessonSeriesId]);
+
+  useEffect(() => {
+    document.title = PAGE_TITLES[page] ?? `Không tìm thấy trang — ${SITE_NAME}`;
+    trackPage(page, document.title);
+  }, [page]);
 
   // Nút Back/Forward của trình duyệt — đọc lại URL, KHÔNG tự push thêm history entry mới.
   useEffect(() => {
@@ -139,8 +160,13 @@ export default function App() {
 
       <main id="app">
         {page === "about" && <AboutPage onNavigate={setPage} />}
-        {page === "contact" && <ContactPage />}
+        {page === "contact" && <ContactPage onNavigate={setPage} />}
         {page === "login" && <LoginPage onNavigate={setPage} />}
+        {page === "privacy" && <PrivacyPage />}
+        {/* dashboard/settings khi chưa đăng nhập bằng tài khoản quản trị → về form đăng nhập thay vì trang trắng. */}
+        {(page === "dashboard" || page === "settings") &&
+          (user ? <NotFoundPage onNavigate={setPage} /> : <LoginPage onNavigate={setPage} />)}
+        {!PAGE_TITLES[page] && <NotFoundPage onNavigate={setPage} />}
       </main>
     </>
   );

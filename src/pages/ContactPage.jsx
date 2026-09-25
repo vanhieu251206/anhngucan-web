@@ -1,4 +1,4 @@
-export default function ContactPage() {
+export default function ContactPage({ onNavigate }) {
   return (
     <section className="section">
       <h1 className="page-title">Liên hệ</h1>
@@ -9,8 +9,8 @@ export default function ContactPage() {
 
       <div className="contact-grid">
         <div className="contact-card">
-          <h3>Email</h3>
-          <p>hello@anhngucan.vn</p>
+          <h3>Điện thoại / Zalo</h3>
+          <p><a href="tel:+84903032288">0903 03 22 88</a></p>
         </div>
         <div className="contact-card">
           <h3>Thời gian hỗ trợ</h3>
@@ -21,6 +21,11 @@ export default function ContactPage() {
           <p>Liên hệ để được hướng dẫn thêm bài học mới vào hệ thống.</p>
         </div>
       </div>
+
+      <p className="contact-privacy">
+        Xem <button type="button" className="auth-privacy-link" onClick={() => onNavigate("privacy")}>chính sách bảo mật</button>{" "}
+        để biết chúng mình dùng dữ liệu của học sinh thế nào.
+      </p>
     </section>
   );
 }

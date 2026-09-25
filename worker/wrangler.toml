@@ -4,3 +4,11 @@ compatibility_date = "2024-11-01"
 
 # ASSEMBLYAI_API_KEY được set qua `wrangler secret put ASSEMBLYAI_API_KEY`, KHÔNG khai báo ở đây
 # (tránh commit lộ key lên Git). Xem README.md trong thư mục này để biết cách deploy.
+
+# Giới hạn mỗi tài khoản tối đa 20 lượt nhận diện giọng nói/phút (/transcribe) — chặn lạm dụng đốt hạn mức
+# AssemblyAI. Cú pháp [[unsafe.bindings]] dành cho wrangler 3.x (wrangler 4 đổi sang [[ratelimits]]).
+[[unsafe.bindings]]
+name = "TRANSCRIBE_LIMITER"
+type = "ratelimit"
+namespace_id = "1001"
+simple = { limit = 20, period = 60 }

@@ -12,6 +12,8 @@
 // hoặc gọi lỗi, tự thử lại 2 lần với lỗi tạm thời (mất mạng/timeout/Worker quá tải) trước khi báo
 // lỗi thẳng cho học sinh.
 
+import { auth } from "./firebase.js";
+
 const WORKER_URL = import.meta.env.VITE_WORKER_URL;
 
 const MAX_ATTEMPTS = 3; // 1 lần gọi gốc + 2 lần thử lại
@@ -44,11 +46,17 @@ async function transcribeViaWorker(blob) {
   const form = new FormData();
   form.append("audio", blob, "audio.webm");
 
+  // Worker bắt buộc Firebase ID token của tài khoản đang đăng nhập (chặn người ngoài gọi thẳng đốt hạn mức
+  // AssemblyAI). getIdToken() tự làm mới token khi sắp hết hạn.
+  const idToken = await auth.currentUser?.getIdToken();
+  if (!idToken) throw new Error("not-signed-in");
+
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
     const res = await fetch(`${WORKER_URL}/transcribe`, {
       method: "POST",
+      headers: { Authorization: `Bearer ${idToken}` },
       body: form,
       signal: controller.signal,
     });
@@ -92,6 +100,9 @@ export function describePronunciationError(err) {
   }
   if (err?.name === "AbortError" || err instanceof TypeError) {
     return "Mất kết nối mạng, kiểm tra Wi-Fi/4G rồi thử lại nhé!";
+  }
+  if (message === "not-signed-in" || message === "worker-error-401") {
+    return "Phiên đăng nhập đã hết hạn, tải lại trang rồi thử lại nhé!";
   }
   const match = /^worker-error-(\d+)$/.exec(message);
   if (match) {

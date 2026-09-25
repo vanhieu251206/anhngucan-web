@@ -71,6 +71,7 @@ export default function StartersListeningTestRunner({ test, studentUid, studentN
     const tid = test.testId ?? test.id;
     if (studentUid) incrementAttempt({ uid: studentUid, mode: "listening-exam", testId: attemptKey(tid, openingId), seriesId, level });
     saveTestResult({
+      openingId,
       mode: "listening-exam", seriesId, level, testId: test.testId ?? test.id, lessonLabel, studentName, studentClass, uid: studentUid,
       correct: score, total, elapsedMs: timer.getElapsedMs(),
       items: available.map(p => ({ part: p.key, correct: scores[p.key]?.score ?? 0, total: scores[p.key]?.total ?? 0 })),

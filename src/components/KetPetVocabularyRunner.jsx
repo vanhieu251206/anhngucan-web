@@ -28,6 +28,7 @@ export default function KetPetVocabularyRunner({ grade, unit, onNavigate, onBack
     const tid = `unit${unit}`;
     if (ctx?.studentUid) incrementAttempt({ uid: ctx.studentUid, mode: "ketpet-vocab", testId: attemptKey(tid, ctx.openingId), seriesId: "ket-pet", level: grade });
     saveTestResult({
+      openingId: ctx?.openingId,
       mode: "ketpet-vocab", seriesId: "ket-pet", level: grade, testId: tid, lessonLabel: `KET/PET Grade ${grade} · Unit ${unit} · Vocabulary`,
       studentName: ctx?.studentName, studentClass: ctx?.studentClass, uid: ctx?.studentUid,
       correct: graded.correct, total: graded.total,

@@ -273,6 +273,7 @@ export default function DictationRunner({ sentences, onFinish, studentUid, serie
   function finishRun() {
     setDone(true);
     saveTestResult({
+      openingId,
       mode: "dictation", seriesId, level, testId, lessonLabel, studentName, studentClass, uid: studentUid,
       correct: answers.filter(a => a.attemptStatus === "correct").length, total, elapsedMs: timer.getElapsedMs(),
       items: sentences.map((sn, i) => ({ qNumber: i + 1, correctAnswer: sn.text, studentAnswer: answers[i].attemptStatus === "skipped" ? "" : answers[i].typed, isCorrect: answers[i].attemptStatus === "correct" })),

@@ -113,7 +113,7 @@ export default function SpeakingMode({ lesson, onFinish }) {
         Câu {index + 1} / {queue.length}
       </div>
       {step.image && (
-        <img
+        <img alt="Tranh của câu hỏi"
           className="speaking-img"
           src={step.image}
           onError={e => (e.currentTarget.style.display = "none")}

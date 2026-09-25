@@ -13,7 +13,7 @@ import { useClassBook } from "../lib/useClassBook.js";
 export default function KetPetPage({ onNavigate }) {
   const [grade, setGrade] = useState(null);
   // Học sinh chỉ vào được Grade thuộc sách của lớp mình — Grade khác hiện xám (lib/useClassBook.js).
-  const { canLevel } = useClassBook();
+  const { canLevel, ready: bookReady } = useClassBook();
   const [unit, setUnit] = useState(null);
   const [vocabActive, setVocabActive] = useState(false);
   const [practiceTestOpen, setPracticeTestOpen] = useState(false);
@@ -108,7 +108,7 @@ export default function KetPetPage({ onNavigate }) {
             {KET_PET_GRADES.map(g => (
               <button
                 key={g}
-                className={`content-card-v2 content-card-v2-center ielts-skill-tile${canLevel("ket-pet", g) ? "" : " is-locked"}`}
+                className={`content-card-v2 content-card-v2-center ielts-skill-tile${bookReady && !canLevel("ket-pet", g) ? " is-locked" : ""}`}
                 disabled={!canLevel("ket-pet", g)}
                 style={{ "--accent": "#8B5CF6" }}
                 onClick={() => setGrade(g)}

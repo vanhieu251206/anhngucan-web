@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { onAuthStateChanged, signOut } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, onSnapshot } from "firebase/firestore";
 import { auth, db } from "./firebase.js";
 import { setHistoryDisabled } from "./historyGuard.js";
 
@@ -23,9 +23,15 @@ export function AuthProvider({ children }) {
   }
 
   useEffect(() => {
+    // Theo dõi TRỰC TIẾP hồ sơ users/{uid} (onSnapshot, 2026-09-25) thay vì đọc 1 lần lúc đăng nhập: giáo viên
+    // chuyển lớp / khoá / xoá tài khoản là có hiệu lực ngay trên máy học sinh đang mở web (trước đó phải tải lại
+    // trang, học sinh vừa chuyển lớp vẫn làm được bài đang mở của lớp cũ).
+    let stopProfile = null;
     // onAuthStateChanged tự bắn ngay lần đầu với trạng thái hiện tại — return cleanup để tránh
     // đăng ký trùng listener (React 19 StrictMode gọi effect 2 lần ở dev).
-    const unsubscribe = onAuthStateChanged(auth, async firebaseUser => {
+    const unsubscribe = onAuthStateChanged(auth, firebaseUser => {
+      stopProfile?.();
+      stopProfile = null;
       setUser(firebaseUser);
       if (!firebaseUser) {
         setRole(null);
@@ -33,23 +39,30 @@ export function AuthProvider({ children }) {
         setLoading(false);
         return;
       }
-      try {
-        const snap = await getDoc(doc(db, "users", firebaseUser.uid));
-        // Học sinh bị khoá, hoặc hồ sơ đã bị xoá (tài khoản Auth còn nhưng không còn quyền) → đăng xuất.
-        if (!snap.exists() || snap.data().disabled) {
-          await signOut(auth);
-          return;
+      stopProfile = onSnapshot(
+        doc(db, "users", firebaseUser.uid),
+        snap => {
+          // Học sinh bị khoá, hoặc hồ sơ đã bị xoá (tài khoản Auth còn nhưng không còn quyền) → đăng xuất.
+          if (!snap.exists() || snap.data().disabled) {
+            signOut(auth);
+            return;
+          }
+          setRole(snap.data().role);
+          setProfile(snap.data());
+          setLoading(false);
+        },
+        () => {
+          // Đọc role lỗi (mất mạng...) — coi như chưa xác định, không chặn cả app.
+          setRole(null);
+          setProfile(null);
+          setLoading(false);
         }
-        setRole(snap.data().role);
-        setProfile(snap.data());
-      } catch {
-        // Đọc role lỗi (mất mạng...) — coi như chưa xác định, không chặn cả app.
-        setRole(null);
-        setProfile(null);
-      }
-      setLoading(false);
+      );
     });
-    return unsubscribe;
+    return () => {
+      unsubscribe();
+      stopProfile?.();
+    };
   }, []);
 
   const isStaff = role === "admin" || role === "teacher";

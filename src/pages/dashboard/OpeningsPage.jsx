@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import PasswordInput from "../../components/PasswordInput.jsx";
-import { YLE_SERIES, KET_PET_GRADES, KET_PET_UNITS_PER_GRADE } from "../../lib/yleData.js";
+import { YLE_SERIES, KET_PET_GRADES, KET_PET_UNITS_PER_GRADE, KIDS_GRADES } from "../../lib/yleData.js";
 import { loadLevelContent } from "../../lib/lessons.js";
 import { listListeningExamTests } from "../../lib/adminLessons.js";
-import { listClassNames } from "../../lib/classes.js";
-import { OPENING_KINDS, listOpenings, createOpening, updateOpening, closeOpening, isExpired } from "../../lib/openings.js";
+import { listClassNames, listClassDocs, bookAllowsLevel } from "../../lib/classes.js";
+import { OPENING_KINDS, listOpenings, createOpening, updateOpening, closeOpening, isExpired, openingNeedsPassword } from "../../lib/openings.js";
 import { useAuth } from "../../lib/authContext.jsx";
 import { useConfirm } from "../../components/dashboard/ConfirmDialog.jsx";
+import { listResultsForOpening } from "../../lib/testResults.js";
+import { downloadClassResultSheets, canDownloadSheets } from "../../lib/resultSheetPdf.js";
 
 // Dạng bài mở được theo từng bộ đề.
 function kindsFor(seriesId) {
@@ -35,6 +37,7 @@ export default function OpeningsPage() {
   const allowedClassSet = isRestricted ? new Set(profile?.allowedClasses ?? []) : null;
   const confirm = useConfirm();
   const [classes, setClasses] = useState([]);
+  const [classBooks, setClassBooks] = useState({}); // tên lớp -> sách được gán (lib/classes.js)
   const [openings, setOpenings] = useState(null);
   const [error, setError] = useState("");
 
@@ -52,10 +55,18 @@ export default function OpeningsPage() {
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(null); // { id, ...fields }
   const [showForm, setShowForm] = useState(false);
+  const [downloadingId, setDownloadingId] = useState(null);
 
   const isKetPet = seriesId === "ket-pet";
   const series = YLE_SERIES.find(s => s.id === seriesId);
-  const levelOptions = isKetPet ? KET_PET_GRADES : (series?.levels ?? []).map(l => l.number);
+  // Chỉ cho mở bài thuộc SÁCH của lớp (2026-09-25) — mở bài ngoài sách thì học sinh thấy xám, không vào được.
+  // Lớp chưa gán sách: vẫn chọn tự do nhưng hiện cảnh báo.
+  const book = classBooks[className] ?? null;
+  const seriesChoices = book ? YLE_SERIES.filter(s => s.id === book.seriesId) : YLE_SERIES;
+  // Kids chia Grade 1-5 (KIDS_GRADES), khác 4 cấp mặc định của buildSeries.
+  const baseLevels = isKetPet ? KET_PET_GRADES : seriesId === "kids" ? KIDS_GRADES : (series?.levels ?? []).map(l => l.number);
+  const levelOptions = book?.seriesId === seriesId ? baseLevels.filter(n => bookAllowsLevel(book, seriesId, n)) : baseLevels;
+  const levelKey = levelOptions.join(",");
   const kinds = kindsFor(seriesId);
 
   function reload() {
@@ -65,6 +76,9 @@ export default function OpeningsPage() {
   }
   useEffect(() => {
     reload();
+    listClassDocs()
+      .then(docs => setClassBooks(Object.fromEntries(docs.map(c => [c.name, c.book ?? null]))))
+      .catch(() => {});
     listClassNames().then(list => {
       let cls = list;
       if (allowedClassSet) cls = cls.filter(c => allowedClassSet.has(c));
@@ -74,12 +88,22 @@ export default function OpeningsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Đổi bộ đề → đưa cấp/dạng bài về giá trị hợp lệ.
+  // Đổi lớp → nhảy về đúng bộ đề của sách lớp đó.
   useEffect(() => {
-    setLevelNo(levelOptions[0]);
-    setKind(kindsFor(seriesId)[0]);
+    if (book && book.seriesId !== seriesId) setSeriesId(book.seriesId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [className, book?.seriesId]);
+
+  // Đổi bộ đề → đưa dạng bài về giá trị hợp lệ.
+  useEffect(() => {
+    setKind(kindsFor(seriesId)[0]);
   }, [seriesId]);
+
+  // Cấp đang chọn không còn hợp lệ (đổi bộ đề / đổi lớp có sách khác) → về cấp đầu tiên được phép.
+  useEffect(() => {
+    if (!levelOptions.includes(levelNo)) setLevelNo(levelOptions[0]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seriesId, levelKey]);
 
   // Nạp danh sách bài chọn được theo bộ đề/cấp/dạng.
   useEffect(() => {
@@ -100,7 +124,9 @@ export default function OpeningsPage() {
         if (kind === "listening-exam") {
           list = (await listListeningExamTests(seriesId, levelNo)).map(t => ({ id: t.id, title: t.title ?? t.id }));
         } else {
-          const content = await loadLevelContent(series, series.levels.find(l => l.number === levelNo));
+          const levelObj = series.levels.find(l => l.number === levelNo);
+          // Kids Grade 5 chưa có cấp tương ứng trong dữ liệu bài học → chưa có bài để mở.
+          const content = levelObj ? await loadLevelContent(series, levelObj) : {};
           const src = { speaking: content.tests, reading: content.readingTests, dictation: content.dictationTests, "ielts-reading": content.practiceTests, "ielts-listening": content.ieltsListeningTests }[kind] ?? [];
           list = src.map(t => ({ id: t.id, title: t.title ?? t.id }));
         }
@@ -121,6 +147,8 @@ export default function OpeningsPage() {
     setError("");
     const test = choices.find(c => c.id === testChoice);
     if (!className || !test) return setError("Chọn lớp và bài cần mở.");
+    // Bắt buộc có hạn chót: kết quả bài làm chỉ giữ tới 48h sau hạn chót rồi bị xoá (lib/testResults.js).
+    if (!expiresAt) return setError("Chọn hạn chót cho bài.");
     setSaving(true);
     try {
       await createOpening(
@@ -145,6 +173,7 @@ export default function OpeningsPage() {
 
   async function handleSaveEdit() {
     setError("");
+    if (!editing.expiresAt) return setError("Chọn hạn chót cho bài.");
     setSaving(true);
     try {
       await updateOpening(editing.id, {
@@ -159,6 +188,20 @@ export default function OpeningsPage() {
       setError(err.message || String(err));
     } finally {
       setSaving(false);
+    }
+  }
+
+  // Phiếu chấm bài cả lớp (1 PDF: bảng điểm + mỗi lượt nộp 1 phiếu) — chỉ sau hạn chót, trong 48h trước khi kết quả bị xoá.
+  async function handleSheets(o) {
+    setError("");
+    setDownloadingId(o.id);
+    try {
+      const results = await listResultsForOpening(o.id);
+      await downloadClassResultSheets({ results, className: o.className, title: o.testTitle, deadline: o.expiresAt?.toDate?.() });
+    } catch (err) {
+      setError(err.message || String(err));
+    } finally {
+      setDownloadingId(null);
     }
   }
 
@@ -178,6 +221,7 @@ export default function OpeningsPage() {
             <h2>Mở bài cho lớp</h2>
             <p className="admin-muted-text">Mặc định mọi bài đều khoá. Mở bài nào thì học sinh của lớp đó mới vào làm được.</p>
             {classes.length === 0 && <p className="admin-hint">Chưa có lớp nào — tạo lớp ở mục "Quản lý học sinh" trước.</p>}
+            {className && !book && <p className="admin-hint">Lớp {className} chưa gán sách — học sinh chưa vào được bài nào.</p>}
         <form className="admin-form opening-form-grid" onSubmit={handleCreate}>
           <label className="admin-mini-field">
             <span>Lớp</span>
@@ -188,7 +232,7 @@ export default function OpeningsPage() {
           <label className="admin-mini-field">
             <span>Bộ đề</span>
             <select className="admin-input" value={seriesId} onChange={e => setSeriesId(e.target.value)}>
-              {YLE_SERIES.map(s => <option key={s.id} value={s.id}>{s.title}</option>)}
+              {seriesChoices.map(s => <option key={s.id} value={s.id}>{s.title}</option>)}
             </select>
           </label>
           <label className="admin-mini-field">
@@ -223,8 +267,8 @@ export default function OpeningsPage() {
             <PasswordInput className="admin-input" value={password} onChange={e => setPassword(e.target.value)} />
           </label>
           <label className="admin-mini-field">
-            <span>Hạn chót (để trống = không hạn)</span>
-            <input className="admin-input" type="datetime-local" value={expiresAt} onChange={e => setExpiresAt(e.target.value)} />
+            <span>Hạn chót</span>
+            <input className="admin-input" type="datetime-local" required value={expiresAt} onChange={e => setExpiresAt(e.target.value)} />
           </label>
           <label className="admin-mini-field">
             <span>Số lượt làm tối đa (để trống = không giới hạn)</span>
@@ -251,8 +295,8 @@ export default function OpeningsPage() {
             <p className="admin-muted-text">Lớp {editing.className} · {editing.testTitle} · {OPENING_KINDS[editing.kind] ?? editing.kind}</p>
             <form className="admin-form opening-form-grid" onSubmit={e => { e.preventDefault(); handleSaveEdit(); }}>
               <label className="admin-mini-field">
-                <span>Hạn chót (để trống = không hạn)</span>
-                <input className="admin-input" type="datetime-local" value={editing.expiresAt} onChange={e => setEditing({ ...editing, expiresAt: e.target.value })} />
+                <span>Hạn chót</span>
+                <input className="admin-input" type="datetime-local" required value={editing.expiresAt} onChange={e => setEditing({ ...editing, expiresAt: e.target.value })} />
               </label>
               <label className="admin-mini-field">
                 <span>Số lượt làm tối đa (để trống = không giới hạn)</span>
@@ -281,6 +325,7 @@ export default function OpeningsPage() {
           <h2>Các bài đang mở</h2>
           <button className="admin-btn-primary" type="button" onClick={() => { setError(""); setShowForm(true); }}>+ Mở bài</button>
         </div>
+        {error && !showForm && !editing && <p className="admin-error">{error}</p>}
         {openings === null && <p className="admin-muted-text">Đang tải...</p>}
         {openings && sorted.length === 0 && <p className="admin-muted-text">Chưa mở bài nào.</p>}
         {openings && sorted.length > 0 && (
@@ -300,11 +345,16 @@ export default function OpeningsPage() {
                     <td>{o.expiresAt?.toDate ? o.expiresAt.toDate().toLocaleString("vi-VN", { dateStyle: "short", timeStyle: "short" }) : "Không hạn"}</td>
                     <td>{o.maxAttempts ?? "∞"}</td>
                     <td>{o.timeLimitMinutes ?? "—"}</td>
-                    <td>{o.passwordHash ? "🔒 Có" : "—"}</td>
+                    <td>{openingNeedsPassword(o) ? "🔒 Có" : "—"}</td>
                     <td>{isExpired(o) ? <span className="opening-chip opening-chip-off">Hết hạn</span> : <span className="opening-chip opening-chip-on">Đang mở</span>}</td>
                     <td>
                       <div className="opening-actions">
-                        <button className="opening-btn" onClick={() => setEditing({ id: o.id, className: o.className, testTitle: o.testTitle, kind: o.kind, hasPassword: !!o.passwordHash, expiresAt: toLocalInput(o.expiresAt?.toDate?.()), maxAttempts: o.maxAttempts ?? "", minutes: o.timeLimitMinutes ?? "", password: "" })}>✏️ Sửa</button>
+                        {canDownloadSheets(o.expiresAt?.toMillis?.()) && (
+                          <button className="opening-btn" disabled={!!downloadingId} onClick={() => handleSheets(o)}>
+                            {downloadingId === o.id ? "Đang tạo PDF..." : "⬇ Phiếu chấm"}
+                          </button>
+                        )}
+                        <button className="opening-btn" onClick={() => setEditing({ id: o.id, className: o.className, testTitle: o.testTitle, kind: o.kind, hasPassword: openingNeedsPassword(o), expiresAt: toLocalInput(o.expiresAt?.toDate?.()), maxAttempts: o.maxAttempts ?? "", minutes: o.timeLimitMinutes ?? "", password: "" })}>✏️ Sửa</button>
                         <button className="opening-btn opening-btn-danger" onClick={() => handleClose(o)}>🗑 Đóng bài</button>
                       </div>
                     </td>

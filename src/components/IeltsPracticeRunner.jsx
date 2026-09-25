@@ -530,7 +530,7 @@ export default function IeltsPracticeRunner({ test, onBack, mode = "practice", r
       if (ok) correct++;
       return { qNumber: entry.number, studentAnswer: String(answers[entry.number] ?? ""), correctAnswer: String(entry.q?.answer ?? entry.q?.acceptedAnswers ?? entry.q?.answerIndex ?? ""), isCorrect: ok };
     });
-    saveTestResult({ mode: "ielts-reading", seriesId, level, testId: test.id, lessonLabel: test.title, studentName, studentClass, uid: studentUid, correct, total: flat.length, elapsedMs: timer.getElapsedMs(), items });
+    saveTestResult({ openingId, mode: "ielts-reading", seriesId, level, testId: test.id, lessonLabel: test.title, studentName, studentClass, uid: studentUid, correct, total: flat.length, elapsedMs: timer.getElapsedMs(), items });
   }
 
   const score = useMemo(() => {

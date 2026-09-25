@@ -2,20 +2,14 @@ import { useEffect, useMemo, useState } from "react";
 import { collection, getDocs, limit, orderBy, query } from "firebase/firestore";
 import { db } from "../../lib/firebase.js";
 import { useAuth } from "../../lib/authContext.jsx";
+import { listStudents } from "../../lib/adminUsers.js";
+import { purgeExpiredResults, isResultVisible, loadOpeningDeadlines, RESULT_MODE_LABEL } from "../../lib/testResults.js";
+import { downloadResultSheet, canDownloadSheets } from "../../lib/resultSheetPdf.js";
 import { SpeakingReportView, groupIntoReportItems } from "../../components/SpeakingReportView.jsx";
 
 const PAGE_SIZE = 500;
 
-const MODE_LABEL = {
-  speaking: "Speaking",
-  reading: "Reading & Writing",
-  dictation: "Dictation",
-  "listening-exam": "Listening",
-  "ielts-reading": "IELTS Reading",
-  "ielts-listening": "IELTS Listening",
-  "ketpet-vocab": "KET/PET Vocabulary",
-  "ketpet-test": "KET/PET Practice Test",
-};
+const MODE_LABEL = RESULT_MODE_LABEL;
 
 function fmtScore(n) {
   return Number(n).toFixed(2).replace(/\.?0+$/, "");
@@ -37,13 +31,16 @@ const isStaffTest = name => (name ?? "").startsWith("[Test");
 // Chuẩn hoá 2 nguồn về cùng 1 dạng hàng:
 //  - testResults: mọi dạng bài (kể cả Speaking từ nay) — có điểm + chi tiết từng câu.
 //  - speakingSessions cũ (trước khi Speaking có điểm): chỉ hiện nếu chưa có testResults trùng sessionId.
-function toRows(results, sessions) {
+// currentClassByUid: lớp HIỆN TẠI của học sinh (2026-09-25) — kết quả nhóm/lọc theo lớp hiện tại để học sinh chuyển
+// lớp vẫn hiện đủ cho giáo viên lớp mới; `classAtSubmit` giữ lớp lúc nộp để đối chiếu.
+function toRows(results, sessions, currentClassByUid = {}) {
   const seenSession = new Set(results.map(r => r.sessionId).filter(Boolean));
   const fromResults = results.map(r => ({
     key: `r-${r.id}`,
     kind: "result",
     studentName: r.studentName,
-    studentClass: r.studentClass,
+    studentClass: (r.uid && currentClassByUid[r.uid]) || r.studentClass,
+    classAtSubmit: r.studentClass,
     lessonLabel: r.lessonLabel,
     mode: r.mode,
     when: r.submittedAt?.toDate ? r.submittedAt.toDate() : null,
@@ -58,7 +55,8 @@ function toRows(results, sessions) {
       key: `s-${s.id}`,
       kind: "session",
       studentName: s.studentName,
-      studentClass: s.studentClass,
+      studentClass: (s.uid && currentClassByUid[s.uid]) || s.studentClass,
+      classAtSubmit: s.studentClass,
       lessonLabel: s.lessonLabel,
       mode: "speaking",
       when: s.startedAt?.toDate ? s.startedAt.toDate() : null,
@@ -94,15 +92,30 @@ export default function StudentResultsPage() {
   const [dateTo, setDateTo] = useState("");
   const [showStaff, setShowStaff] = useState(false);
   const [openRow, setOpenRow] = useState(null);
+  const [deadlines, setDeadlines] = useState(new Map()); // openingId -> hạn chót (ms)
+  const [downloadingKey, setDownloadingKey] = useState(null);
 
   useEffect(() => {
-    Promise.all([
-      getDocs(query(collection(db, "testResults"), orderBy("submittedAt", "desc"), limit(PAGE_SIZE))),
-      getDocs(query(collection(db, "speakingSessions"), orderBy("updatedAt", "desc"), limit(PAGE_SIZE))),
-    ])
-      .then(([rs, ss]) =>
-        setRows(toRows(rs.docs.map(d => ({ id: d.id, ...d.data() })), ss.docs.map(d => ({ id: d.id, ...d.data() }))))
+    // Dọn kết quả đã quá 48h sau hạn chót trước khi tải (lib/testResults.js) — kết quả hết hạn không hiện nữa.
+    purgeExpiredResults()
+      .then(() =>
+        Promise.all([
+          getDocs(query(collection(db, "testResults"), orderBy("submittedAt", "desc"), limit(PAGE_SIZE))),
+          getDocs(query(collection(db, "speakingSessions"), orderBy("updatedAt", "desc"), limit(PAGE_SIZE))),
+          listStudents().catch(() => []),
+          loadOpeningDeadlines().catch(() => new Map()),
+        ])
       )
+      .then(([rs, ss, students, deadlines]) => {
+        setDeadlines(deadlines);
+        const currentClassByUid = Object.fromEntries(students.map(st => [st.uid, st.className || ""]));
+        const results = rs.docs.map(d => ({ id: d.id, ...d.data() })).filter(r => isResultVisible(r, deadlines));
+        // Phiên Speaking cũ không có kết quả: chỉ hiện trong 48h kể từ lần cập nhật cuối (như lúc bị dọn).
+        const sessions = ss.docs
+          .map(d => ({ id: d.id, ...d.data() }))
+          .filter(s => (s.updatedAt?.toMillis?.() ?? Date.now()) + 48 * 3600 * 1000 > Date.now());
+        setRows(toRows(results, sessions, currentClassByUid));
+      })
       .catch(err => setError(err.message));
   }, []);
 
@@ -110,7 +123,7 @@ export default function StudentResultsPage() {
     () =>
       (rows ?? [])
         .filter(r => showStaff || !isStaffTest(r.studentName))
-        .filter(r => !isRestricted || allowedClassSet.has(r.studentClass)),
+        .filter(r => !isRestricted || allowedClassSet.has(r.studentClass) || allowedClassSet.has(r.classAtSubmit)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [rows, showStaff, isRestricted, profile]
   );
@@ -130,6 +143,17 @@ export default function StudentResultsPage() {
   const scored = filtered.filter(r => scorePct(r) != null);
   const avg = scored.length ? Math.round(scored.reduce((s, r) => s + scorePct(r), 0) / scored.length) : null;
   const studentCount = new Set(filtered.map(r => `${r.studentName}|${r.studentClass}`)).size;
+
+  async function handleSheet(r) {
+    setDownloadingKey(r.key);
+    try {
+      await downloadResultSheet(r.raw, { className: r.studentClass });
+    } catch (err) {
+      setError(err.message || String(err));
+    } finally {
+      setDownloadingKey(null);
+    }
+  }
 
   function exportCsv() {
     const esc = v => `"${String(v ?? "").replace(/"/g, '""')}"`;
@@ -214,6 +238,7 @@ export default function StudentResultsPage() {
                         <td>
                           <div className="opening-test-title">{r.studentName || "—"}</div>
                           {r.studentClass && <span className="opening-chip opening-chip-class">{r.studentClass}</span>}
+                          {r.classAtSubmit && r.classAtSubmit !== r.studentClass && <div className="opening-test-kind">lúc nộp: lớp {r.classAtSubmit}</div>}
                         </td>
                         <td>
                           <div className="opening-test-title">{r.lessonLabel || "—"}</div>
@@ -230,7 +255,17 @@ export default function StudentResultsPage() {
                             </span>
                           )}
                         </td>
-                        <td><button className="opening-btn" onClick={() => setOpenRow(r)}>Chi tiết</button></td>
+                        <td>
+                          <div className="opening-actions">
+                            {/* Phiếu chấm bài (PDF in trắng đen): chỉ từ lúc hết hạn nộp tới khi kết quả bị xoá (lib/resultSheetPdf.js). */}
+                            {r.kind === "result" && canDownloadSheets(deadlines.get(r.raw.openingId)) && (
+                              <button className="opening-btn" disabled={!!downloadingKey} onClick={() => handleSheet(r)}>
+                                {downloadingKey === r.key ? "..." : "⬇ Phiếu"}
+                              </button>
+                            )}
+                            <button className="opening-btn" onClick={() => setOpenRow(r)}>Chi tiết</button>
+                          </div>
+                        </td>
                       </tr>
                     );
                   })}

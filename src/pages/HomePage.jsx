@@ -4,7 +4,8 @@ import { formatSchedule, formatBook } from "../lib/classes.js";
 import { useClassBook } from "../lib/useClassBook.js";
 
 // Học sinh thấy lớp + lịch học + sách của lớp mình (chốt 2026-09-25).
-function StudentClassChip({ cls }) {
+function StudentClassChip({ cls, error }) {
+  if (error) return <div className="student-class-chip">Không tải được thông tin lớp — con tải lại trang nhé.</div>;
   if (!cls) return null;
   const schedule = formatSchedule(cls);
   const book = formatBook(cls.book);
@@ -129,7 +130,7 @@ function SeriesModes({ skills }) {
 
 export default function HomePage({ onNavigate, onSelectSeries }) {
   // Học sinh chỉ vào được bộ đề của lớp mình — bộ khác hiện xám (lib/useClassBook.js).
-  const { cls, canSeries } = useClassBook();
+  const { cls, error, ready, canSeries } = useClassBook();
   return (
     <div className="home-v2">
       <Header page="home" onNavigate={onNavigate} />
@@ -143,7 +144,7 @@ export default function HomePage({ onNavigate, onSelectSeries }) {
             <div className="motivation-copy">
               <h2>Chào mừng đến với Anh Ngữ C.A.N — người bạn đồng hành luyện thi tiếng Anh mỗi ngày!</h2>
               <p>Học cùng chú ong C.A.N mỗi ngày để tự tin chinh phục mọi kỳ thi nhé 🐝</p>
-              <StudentClassChip cls={cls} />
+              <StudentClassChip cls={cls} error={error} />
             </div>
           </div>
         </div>
@@ -174,12 +175,13 @@ export default function HomePage({ onNavigate, onSelectSeries }) {
                 </div>
               );
             }
-            const locked = !canSeries(s.id);
+            // Đang tải lớp: chưa cho bấm nhưng chưa tô xám (tránh chớp xám rồi sáng lại).
+            const locked = ready && !canSeries(s.id);
             return (
               <button
                 className={`content-card-v2${locked ? " is-locked" : ""}`}
                 key={s.id}
-                disabled={locked}
+                disabled={!canSeries(s.id)}
                 onClick={() => onSelectSeries(s.id)}
                 style={{ "--accent": info.accent }}
               >

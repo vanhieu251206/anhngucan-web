@@ -22,6 +22,29 @@ function toAuthEmails(input) {
   return [`${u}@${STUDENT_EMAIL_DOMAIN}`, `${u}@${TESTER_EMAIL_DOMAIN}`];
 }
 
+// Chặn dò mật khẩu ngay trên trình duyệt (audit bảo mật 2026-09-25): sai liên tiếp FREE_FAILS lần thì phải chờ, mỗi
+// lần sai thêm chờ lâu hơn. Chỉ là lớp phụ — Firebase Auth vẫn tự chặn phía server (auth/too-many-requests).
+const FREE_FAILS = 5;
+const LOCK_STEP_MS = 30 * 1000;
+const FAIL_KEY = "loginFails";
+
+function readFails() {
+  try {
+    return JSON.parse(localStorage.getItem(FAIL_KEY)) ?? { count: 0, until: 0 };
+  } catch {
+    return { count: 0, until: 0 };
+  }
+}
+
+function writeFails(value) {
+  try {
+    if (value) localStorage.setItem(FAIL_KEY, JSON.stringify(value));
+    else localStorage.removeItem(FAIL_KEY);
+  } catch {
+    // Trình duyệt chặn lưu trữ — bỏ qua, vẫn còn giới hạn phía Firebase.
+  }
+}
+
 export default function LoginPage({ onNavigate }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -40,18 +63,30 @@ export default function LoginPage({ onNavigate }) {
   async function handleSubmit(e) {
     e.preventDefault();
     setError("");
+    const waitMs = readFails().until - Date.now();
+    if (waitMs > 0) {
+      setError(`Sai quá nhiều lần — đợi ${Math.ceil(waitMs / 1000)} giây rồi thử lại nhé.`);
+      return;
+    }
     setLoading(true);
     try {
       let cred = null;
+      let tooMany = false;
       for (const addr of toAuthEmails(email)) {
         try {
           cred = await signInWithEmailAndPassword(auth, addr, password);
           break;
-        } catch {
+        } catch (err) {
+          if (err?.code === "auth/too-many-requests") tooMany = true;
           // thử địa chỉ kế tiếp
         }
       }
-      if (!cred) throw new Error("login-failed");
+      if (!cred) {
+        const fails = readFails().count + 1;
+        writeFails({ count: fails, until: fails >= FREE_FAILS ? Date.now() + LOCK_STEP_MS * (fails - FREE_FAILS + 1) : 0 });
+        throw new Error(tooMany ? "too-many" : "login-failed");
+      }
+      writeFails(null);
       const snap = await getDoc(doc(db, "users", cred.user.uid));
       if (!snap.exists() || snap.data().disabled) {
         await signOut(auth);
@@ -60,8 +95,8 @@ export default function LoginPage({ onNavigate }) {
       }
       const role = snap.data().role;
       onNavigate(role === "admin" || role === "teacher" ? "dashboard" : "lessons");
-    } catch {
-      setError("Sai tài khoản hoặc mật khẩu.");
+    } catch (err) {
+      setError(err?.message === "too-many" ? "Đăng nhập sai quá nhiều lần — đợi vài phút rồi thử lại nhé." : "Sai tài khoản hoặc mật khẩu.");
     } finally {
       setLoading(false);
     }
@@ -95,6 +130,9 @@ export default function LoginPage({ onNavigate }) {
             {loading ? "Đang đăng nhập..." : "Đăng nhập"}
           </button>
           {error && <p className="auth-error">{error}</p>}
+          <button type="button" className="auth-privacy-link" onClick={() => onNavigate("privacy")}>
+            Chính sách bảo mật
+          </button>
         </form>
       </div>
     </section>

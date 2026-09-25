@@ -125,7 +125,7 @@ function SceneImageWithHighlight({ scene }) {
   if (!scene.sceneImage) return null;
   return (
     <SceneStage cursor="default">
-      <img
+      <img alt="Tranh của bài"
         className="part1-scene-img"
         src={scene.sceneImage}
         onError={e => (e.currentTarget.style.display = "none")}
@@ -274,6 +274,7 @@ export default function SceneRunner({
     const graded = scenes.filter(sc => sc.type !== "narration").length;
     const entries = Object.entries(results).map(([i, r]) => ({ sceneIndex: Number(i), ...r })).sort((a, b) => a.sceneIndex - b.sceneIndex);
     saveTestResult({
+      openingId,
       mode: "speaking", seriesId, level, testId, lessonLabel, studentName, studentClass, uid: studentUid,
       correct: entries.filter(r => r.result === "correct").length, total: graded, elapsedMs: timer.getElapsedMs(),
       items: entries, sessionId: sessionIdRef.current,
@@ -706,7 +707,7 @@ function SceneClickScene({ scene, onNext, sceneIndex, onAttempt }) {
         <ExaminerLine text={scene.examinerLine} />
         {!correct && !revealed && !wrong && <div className="scene-hint-inline">Chạm vào đáp án đúng</div>}
         <SceneStage extraClassName={wrong ? "is-shake" : ""} onClick={() => choose(false)}>
-          <img
+          <img alt="Tranh của bài"
             className="part1-scene-img"
             src={scene.sceneImage}
             onError={e => (e.currentTarget.style.display = "none")}
@@ -816,7 +817,7 @@ function CardSelectScene({ scene, onNext, sceneIndex, onAttempt }) {
               onClick={() => choose(opt.id)}
               aria-label={opt.label}
             >
-              <img src={opt.image} onError={e => (e.currentTarget.style.display = "none")} />
+              <img alt="Thẻ lựa chọn" src={opt.image} onError={e => (e.currentTarget.style.display = "none")} />
             </button>
           ))}
         </div>
@@ -949,13 +950,13 @@ function DragDropScene({ scene, onNext, sceneIndex, onAttempt }) {
       <div className="scene-body">
         <ExaminerLine text={scene.examinerLine} />
         <SceneStage extraClassName={wrong ? "is-shake" : ""} innerRef={sceneRef}>
-          <img
+          <img alt="Tranh của bài"
             className="part1-scene-img"
             src={scene.sceneImage}
             onError={e => (e.currentTarget.style.display = "none")}
           />
           {(correct || revealed) && (
-            <img
+            <img alt="Thẻ đã đặt"
               className="dropped-card"
               src={scene.card.image}
               style={{

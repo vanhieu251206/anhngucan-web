@@ -1,5 +1,5 @@
 import { addDoc, collection, doc, serverTimestamp, updateDoc } from "firebase/firestore";
-import { db } from "./firebase.js";
+import { auth, db } from "./firebase.js";
 import { isHistoryDisabled } from "./historyGuard.js";
 
 // Báo cáo QUÁ TRÌNH làm bài Speaking (chốt 2026-08-24) — 1 session = 1 lần học sinh (đã nhập họ
@@ -12,6 +12,8 @@ export async function startSpeakingSession({ studentName, studentClass, seriesId
   if (isHistoryDisabled()) return null;
   try {
     const ref = await addDoc(collection(db, "speakingSessions"), {
+      // firestore.rules chỉ cho ghi/cập nhật phiên của chính tài khoản đang đăng nhập.
+      uid: auth.currentUser?.uid ?? null,
       studentName: studentName ?? null,
       studentClass: studentClass ?? null,
       seriesId: seriesId ?? null,

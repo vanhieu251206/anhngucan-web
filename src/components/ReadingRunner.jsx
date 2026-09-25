@@ -1020,6 +1020,7 @@ export default function ReadingRunner({ parts, onFinish, studentUid, seriesId, l
     const built = buildResults(flat, answers, isFlyers);
     setResults(built);
     saveTestResult({
+      openingId,
       mode: "reading", seriesId, level, testId, lessonLabel, studentName, studentClass, uid: studentUid,
       correct: built.earnedPoints, total: built.totalPoints, elapsedMs: timer.getElapsedMs(),
       items: built.items.map(({ question, ...rest }) => ({ ...rest, type: question.type, prompt: rest.questionLabel ?? question.text ?? question.prompt ?? "" })),

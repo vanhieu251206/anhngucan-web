@@ -58,22 +58,18 @@ service cloud.firestore {
       allow read, write: if isStaff();
     }
 
-    // Hash mật khẩu theo TỪNG BỘ ĐỀ (Starters/Movers/Flyers/...) — thay tài khoản học sinh (chốt
-    // 2026-09-17, xem lib/seriesAccess.js). Đọc công khai (học sinh chưa đăng nhập cần so khớp
-    // ngay trên trình duyệt), chỉ admin/teacher ghi được.
-    match /settings/seriesPasswords {
-      allow read: if true;
-      allow write: if isStaff();
-    }
-
     match /users/{uid} {
-      allow read: if isSignedIn();
+      // Chỉ admin/giáo viên đọc hồ sơ người khác; học sinh/tester chỉ đọc hồ sơ của chính mình (2026-09-25 —
+      // trước đó mọi tài khoản đăng nhập đọc được tên/lớp/tên đăng nhập của toàn bộ học sinh).
+      allow read: if isStaff() || (isSignedIn() && request.auth.uid == uid);
       allow write: if isAdmin();
       // Admin + giáo viên chính được tạo hồ sơ HỌC SINH (Dashboard → Tài khoản học sinh), không được tạo
       // admin/teacher. Giáo viên phụ (restricted) chỉ xem, không thêm/sửa/xoá học sinh (chốt 2026-09-25).
       allow create: if isFullStaff() && request.resource.data.role == 'student';
       // ... và khoá/mở khoá/chuyển lớp/xoá hồ sơ học sinh (chỉ đụng tới tài khoản role student).
-      allow update, delete: if isFullStaff() && resource.data.role == 'student';
+      // Không được đổi role (chặn nâng tài khoản học sinh thành admin/teacher rồi đăng nhập bằng nó, 2026-09-25).
+      allow update: if isFullStaff() && resource.data.role == 'student' && request.resource.data.role == 'student';
+      allow delete: if isFullStaff() && resource.data.role == 'student';
       // Học sinh tự xoá cờ "phải đổi mật khẩu lần đầu" trên hồ sơ của chính mình (chỉ đúng field này).
       allow update: if isSignedIn() && request.auth.uid == uid
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['mustChangePassword']);
@@ -86,8 +82,10 @@ service cloud.firestore {
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['restricted', 'allowedSeriesIds', 'allowedClasses']);
     }
 
+    // Nội dung bài (có cả đáp án) chỉ tài khoản đã đăng nhập đọc được (audit bảo mật 2026-09-25 — trước đó ai biết
+    // API key công khai cũng đọc thẳng được đáp án qua Firestore REST). Mọi trang bài học đều đã bắt đăng nhập.
     match /lessons/{lessonId} {
-      allow read: if true;
+      allow read: if isSignedIn();
       // Doc lesson gốc luôn có field seriesId (xem lib/adminLessons.js) — dùng thẳng để biết bộ đề.
       allow create, update: if canManageSeries(request.resource.data.seriesId);
       allow delete: if canManageSeries(resource.data.seriesId);
@@ -95,66 +93,76 @@ service cloud.firestore {
       // Các subcollection bên dưới KHÔNG tự lưu seriesId (chỉ lưu ở doc lesson cha) — lấy seriesId
       // của doc cha qua get() để biết giáo viên có được thao tác bộ đề này không.
       match /tests/{testId} {
-        allow read: if true;
+        allow read: if isSignedIn();
         allow write: if canManageSeries(get(/databases/(default)/documents/lessons/$(lessonId)).data.seriesId);
       }
 
       match /readingTests/{testId} {
-        allow read: if true;
+        allow read: if isSignedIn();
         allow write: if canManageSeries(get(/databases/(default)/documents/lessons/$(lessonId)).data.seriesId);
       }
 
       match /dictationTests/{testId} {
-        allow read: if true;
+        allow read: if isSignedIn();
         allow write: if canManageSeries(get(/databases/(default)/documents/lessons/$(lessonId)).data.seriesId);
       }
 
       match /comprehensionTests/{testId} {
-        allow read: if true;
+        allow read: if isSignedIn();
         allow write: if canManageSeries(get(/databases/(default)/documents/lessons/$(lessonId)).data.seriesId);
       }
 
       match /practiceTests/{testId} {
-        allow read: if true;
+        allow read: if isSignedIn();
         allow write: if canManageSeries(get(/databases/(default)/documents/lessons/$(lessonId)).data.seriesId);
       }
 
       match /listeningExamTests/{testId} {
-        allow read: if true;
+        allow read: if isSignedIn();
         allow write: if canManageSeries(get(/databases/(default)/documents/lessons/$(lessonId)).data.seriesId);
       }
 
       match /listeningTests/{testId} {
-        allow read: if true;
+        allow read: if isSignedIn();
         allow write: if canManageSeries(get(/databases/(default)/documents/lessons/$(lessonId)).data.seriesId);
       }
 
       match /vocabularyUnits/{unitId} {
-        allow read: if true;
+        allow read: if isSignedIn();
         allow write: if canManageSeries(get(/databases/(default)/documents/lessons/$(lessonId)).data.seriesId);
       }
     }
 
+    // Ghi phải đăng nhập + đúng uid của chính mình; chỉ admin/giáo viên đọc (audit bảo mật 2026-09-25 — trước đó
+    // ai cũng ghi được kể cả chưa đăng nhập, và mọi tài khoản đọc được log/phiên của học sinh khác).
     match /speechLogs/{logId} {
-      allow read: if isSignedIn();
-      allow create: if true;
+      allow read: if isStaff();
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
       allow update, delete: if false;
     }
 
+    // Admin/giáo viên xoá được (tự dọn kết quả quá 48h sau hạn chót — lib/testResults.js purgeExpiredResults).
     match /speakingSessions/{sessionId} {
-      allow read: if isSignedIn();
-      allow create, update: if true;
-      allow delete: if false;
+      allow read: if isStaff();
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      // Học sinh chỉ cập nhật mốc thời gian trên phiên của chính mình (lib/speakingSessions.js).
+      allow update: if isSignedIn() && resource.data.uid == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['updatedAt', 'finishedAt']);
+      allow delete: if isStaff();
 
       match /events/{eventId} {
-        allow read: if isSignedIn();
-        allow create: if true;
-        allow update, delete: if false;
+        allow read: if isStaff();
+        allow create: if isSignedIn()
+          && get(/databases/(default)/documents/speakingSessions/$(sessionId)).data.uid == request.auth.uid;
+        allow update: if false;
+        allow delete: if isStaff();
       }
     }
 
+    // Id doc = "<uid>_<mode>_<testId>" (lib/attempts.js) — học sinh chỉ đọc lượt của chính mình; kiểm tra theo id
+    // vì doc chưa tồn tại (lần làm đầu tiên) thì không có resource.data để so uid.
     match /attempts/{attemptId} {
-      allow read: if isSignedIn();
+      allow read: if isStaff() || (isSignedIn() && attemptId.matches(request.auth.uid + '_.*'));
       allow create: if isSignedIn()
         && request.resource.data.uid == request.auth.uid
         && request.resource.data.count == 1;
@@ -165,11 +173,15 @@ service cloud.firestore {
       allow delete: if isStaff();
     }
 
-    // Kết quả chi tiết từng câu (mọi dạng bài) — học sinh chỉ ghi, chỉ giáo viên/admin đọc.
+    // Kết quả chi tiết từng câu (mọi dạng bài) — học sinh chỉ ghi, chỉ giáo viên/admin đọc. Admin/giáo viên xoá được:
+    // kết quả chỉ giữ tới 48h sau hạn chót lần mở bài rồi bị xoá hẳn (lib/testResults.js, chốt 2026-09-25).
     match /testResults/{resultId} {
       allow read: if isStaff();
-      allow create: if true;
-      allow update, delete: if false;
+      // Học sinh ghi kết quả của chính mình; admin/giáo viên làm thử bài thì ghi với uid = null.
+      allow create: if isSignedIn() && (request.resource.data.uid == request.auth.uid
+        || (isStaff() && request.resource.data.uid == null));
+      allow update: if false;
+      allow delete: if isStaff();
     }
 
     // "Mở bài" cho lớp (lib/openings.js): học sinh đăng nhập đọc để biết bài nào đang mở cho lớp mình, chỉ
@@ -180,16 +192,25 @@ service cloud.firestore {
       allow delete: if canManageClass(resource.data.className);
     }
 
+    // Mật khẩu vào bài dạng ẩn (lib/openings.js, 2026-09-25): id doc = "<openingId>_<sha256>". Học sinh chỉ `get`
+    // đúng doc để kiểm tra mật khẩu — CẤM list (nếu không sẽ đọc được hash về dò offline). Giáo viên list theo
+    // openingId để xoá khoá cũ khi đổi mật khẩu/đóng bài. Quyền tạo/xoá theo lớp của lần mở bài.
+    match /openingKeys/{keyId} {
+      allow get: if isSignedIn();
+      allow list: if isStaff();
+      allow create: if keyId.matches(request.resource.data.openingId + '_[0-9a-f]{64}')
+        && canManageClass(getAfter(/databases/(default)/documents/openings/$(request.resource.data.openingId)).data.className);
+      allow update: if false;
+      // Lần mở bài đã bị xoá (vd xoá lớp) thì mọi staff dọn được khoá mồ côi.
+      allow delete: if isStaff() && (!exists(/databases/(default)/documents/openings/$(resource.data.openingId))
+        || canManageClass(get(/databases/(default)/documents/openings/$(resource.data.openingId)).data.className));
+    }
+
     // Lớp học (lib/classes.js, chốt 2026-09-25): id doc = tên lớp. Tạo lớp trước rồi mới thêm học sinh vào lớp.
     // Chỉ admin + giáo viên chính tạo/xoá lớp.
     match /classes/{classId} {
       allow read: if isSignedIn();
       allow create, update, delete: if isFullStaff();
-    }
-
-    match /classAssignments/{className} {
-      allow read: if isSignedIn();
-      allow write: if isStaff();
     }
 
     // Sách online (Kids) — xem lib/adminLessons.js listKidsBooks/saveKidsBook. Không theo cấu trúc
