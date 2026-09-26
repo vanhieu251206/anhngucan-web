@@ -4571,3 +4571,9 @@ button.wizard-step:focus-visible { outline: 3px solid var(--color-secondary); ou
 }
 .teacher-modal-segment button.is-on { background: #fff; color: #3b5bdb; box-shadow: 0 1px 3px rgba(17, 24, 39, 0.12); }
 .teacher-modal .opening-form-actions { margin-top: 4px; }
+.teacher-row-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.teacher-row-disabled td { color: #9ca3af; }
+.teacher-locked-chip {
+  display: inline-block; margin-left: 8px; padding: 2px 10px; border-radius: 999px;
+  background: #fee2e2; color: #b91c1c; font-size: 0.78rem; font-weight: 700;
+}

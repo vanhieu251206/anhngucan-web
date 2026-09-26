@@ -166,17 +166,49 @@ export async function deleteStudent(request, env) {
   if (!body.uid && profile) throw adminError(409, "not-orphan");
   if (!authUser && !profile) return { deleted: false };
 
-  if (authUser) {
+  await deleteAccount(projectId, token, authUser?.localId, profile ? targetUid : null);
+  return { deleted: true };
+}
+
+// Xoá cả tài khoản Auth (nếu có) lẫn hồ sơ Firestore (nếu có).
+async function deleteAccount(projectId, token, authUid, profileUid) {
+  if (authUid) {
     const res = await fetch(`https://identitytoolkit.googleapis.com/v1/projects/${projectId}/accounts:delete`, {
       method: "POST",
       headers: { authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ localId: authUser.localId }),
+      body: JSON.stringify({ localId: authUid }),
     });
     if (!res.ok) throw adminError(502, "auth-delete-failed");
   }
-  if (profile) {
-    const res = await fetch(userDocUrl(projectId, targetUid), { method: "DELETE", headers: { authorization: `Bearer ${token}` } });
+  if (profileUid) {
+    const res = await fetch(userDocUrl(projectId, profileUid), { method: "DELETE", headers: { authorization: `Bearer ${token}` } });
     if (!res.ok) throw adminError(502, "firestore-delete-failed");
   }
+}
+
+// Xoá HẲN tài khoản giáo viên (2026-09-26). body: { uid }. Admin xoá được mọi giáo viên; giáo viên chính chỉ xoá
+// được giáo viên PHỤ (restricted). Không ai tự xoá chính mình, không bao giờ đụng tới admin/học sinh.
+export async function deleteTeacher(request, env) {
+  if (!env.FIREBASE_SERVICE_ACCOUNT) throw adminError(500, "admin-not-configured");
+  const sa = parseServiceAccount(env);
+  const projectId = sa.project_id;
+
+  const callerUid = await verifyIdToken((request.headers.get("Authorization") || "").replace(/^Bearer\s+/i, ""), projectId);
+  const token = await getAccessToken(sa);
+  const caller = await getUserDoc(projectId, callerUid, token);
+  const isAdmin = caller?.role === "admin";
+  if (!caller || !(isAdmin || (caller.role === "teacher" && !caller.restricted))) throw adminError(403, "forbidden");
+
+  const body = await request.json().catch(() => ({}));
+  const uid = body.uid ? String(body.uid) : "";
+  if (!uid) throw adminError(400, "missing-target");
+  if (uid === callerUid) throw adminError(403, "forbidden");
+
+  const profile = await getUserDoc(projectId, uid, token);
+  if (!profile || profile.role !== "teacher") throw adminError(403, "not-a-teacher");
+  if (!isAdmin && !profile.restricted) throw adminError(403, "not-a-sub-teacher");
+
+  const authUser = await lookupAuthUser(projectId, token, { localId: [uid] });
+  await deleteAccount(projectId, token, authUser?.localId, uid);
   return { deleted: true };
 }

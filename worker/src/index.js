@@ -13,7 +13,7 @@
 // duyệt, không chặn được script gọi thẳng — nên /transcribe BẮT BUỘC Firebase ID token của tài khoản
 // đã đăng nhập + giới hạn số lượt/phút theo tài khoản (audit bảo mật 2026-09-25: trước đó ai biết URL
 // cũng đốt được hạn mức AssemblyAI, mà hết free tier là tốn tiền thật).
-import { deleteStudent, firebaseProjectId, verifyIdToken } from "./admin.js";
+import { deleteStudent, deleteTeacher, firebaseProjectId, verifyIdToken } from "./admin.js";
 import { startTest, submitTest } from "./submit.js";
 
 // anhngucan.com: tên miền riêng của GitHub Pages (public/CNAME, từ 2026-09-18) — thiếu mục này làm ghi âm Speaking
@@ -148,6 +148,19 @@ export default {
     if (request.method === "POST" && new URL(request.url).pathname.endsWith("/admin/delete-student")) {
       try {
         return new Response(JSON.stringify(await deleteStudent(request, env)), {
+          headers: { ...headers, "Content-Type": "application/json" },
+        });
+      } catch (err) {
+        if (err && err.error) return jsonError(headers, err.error, err.status || 500);
+        console.error(err);
+        return jsonError(headers, "worker-exception", 500);
+      }
+    }
+
+    // Xoá hẳn tài khoản giáo viên (admin: mọi giáo viên; giáo viên chính: chỉ giáo viên phụ) — xem admin.js.
+    if (request.method === "POST" && new URL(request.url).pathname.endsWith("/admin/delete-teacher")) {
+      try {
+        return new Response(JSON.stringify(await deleteTeacher(request, env)), {
           headers: { ...headers, "Content-Type": "application/json" },
         });
       } catch (err) {

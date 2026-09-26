@@ -4,8 +4,10 @@ function isSignedIn() {
   return request.auth != null;
 }
 
+// Tài khoản bị khoá (disabled) coi như không có vai trò — mất mọi quyền theo vai trò (2026-09-26).
 function role() {
   return isSignedIn() && exists(/databases/(default)/documents/users/$(request.auth.uid))
+      && get(/databases/(default)/documents/users/$(request.auth.uid)).data.get('disabled', false) != true
     ? get(/databases/(default)/documents/users/$(request.auth.uid)).data.role
     : null;
 }
@@ -84,6 +86,11 @@ service cloud.firestore {
       allow update: if isStaff() && resource.data.role == 'teacher' && request.resource.data.role == 'teacher'
         && (isAdmin() || (!isRestrictedTeacher() && request.auth.uid != uid))
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['restricted', 'allowedSeriesIds', 'allowedClasses']);
+      // Khoá/mở khoá giáo viên (2026-09-26): admin khoá được mọi giáo viên khác; giáo viên chính chỉ khoá giáo viên phụ.
+      allow update: if isFullStaff() && request.auth.uid != uid
+        && resource.data.role == 'teacher' && request.resource.data.role == 'teacher'
+        && (isAdmin() || resource.data.get('restricted', false) == true)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['disabled']);
     }
 
     // Nội dung bài (có cả đáp án) chỉ tài khoản đã đăng nhập đọc được (audit bảo mật 2026-09-25 — trước đó ai biết

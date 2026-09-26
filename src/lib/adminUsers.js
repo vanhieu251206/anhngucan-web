@@ -126,6 +126,8 @@ const ADMIN_ERRORS = {
   "admin-not-configured": "Worker chưa có khoá quản trị Firebase (FIREBASE_SERVICE_ACCOUNT) — xem worker/README.md.",
   forbidden: "Chỉ admin và giáo viên chính được xoá tài khoản.",
   "not-a-student": "Chỉ xoá được tài khoản học sinh.",
+  "not-a-teacher": "Tài khoản này không phải giáo viên.",
+  "not-a-sub-teacher": "Giáo viên chính chỉ xoá được giáo viên phụ.",
 };
 
 async function callAdminWorker(path, body) {
@@ -139,6 +141,16 @@ async function callAdminWorker(path, body) {
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw Object.assign(new Error(ADMIN_ERRORS[data.error] ?? `Lỗi xoá tài khoản (${data.error || res.status}).`), { code: data.error });
   return data;
+}
+
+// Xoá hẳn tài khoản giáo viên (admin: mọi giáo viên; giáo viên chính: chỉ giáo viên phụ) — worker/src/admin.js.
+export async function deleteTeacher(uid) {
+  await callAdminWorker("/admin/delete-teacher", { uid });
+}
+
+// Khoá/mở khoá giáo viên — cùng cờ `disabled` như học sinh (authContext.jsx tự đăng xuất; firestore.rules coi như mất quyền).
+export async function setTeacherDisabled(uid, disabled) {
+  await updateDoc(doc(db, "users", uid), { disabled });
 }
 
 export async function deleteStudent(uid) {
