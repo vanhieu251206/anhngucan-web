@@ -11,7 +11,7 @@ const SIDEBAR_ICONS = {
 
 // Component thuần, không có logic auth — DashboardPage.jsx tính sẵn `items`/thông tin user
 // theo role rồi truyền xuống, Sidebar chỉ lo hiển thị + báo lại khi chọn mục/bấm nút khác.
-export default function Sidebar({ items, activeKey, onSelect, userEmail, roleLabel, onGoHome, onLogout }) {
+export default function Sidebar({ items, activeKey, onSelect, userEmail, roleLabel, onGoHome, onChangePassword, onLogout }) {
   return (
     <aside className="admin-sidebar">
       <div className="admin-sidebar-brand">
@@ -45,6 +45,9 @@ export default function Sidebar({ items, activeKey, onSelect, userEmail, roleLab
         </div>
         <button className="admin-pill-btn" onClick={onGoHome}>
           Về trang học sinh
+        </button>
+        <button className="admin-pill-btn" onClick={onChangePassword}>
+          Đổi mật khẩu
         </button>
         <button className="admin-pill-btn admin-pill-btn-danger" onClick={onLogout}>
           Đăng xuất

@@ -35,7 +35,11 @@ export default function ForceChangePassword() {
     <section className="login-screen">
       <div className="password-gate-card login-card">
         <h1 className="page-title">Đặt mật khẩu mới</h1>
-        <p className="lead">Chào {profile?.displayName ?? "con"}! Đây là lần đăng nhập đầu tiên, con hãy tự đặt mật khẩu của riêng mình.</p>
+        <p className="lead">
+          {profile?.role === "student"
+            ? `Chào ${profile?.displayName ?? "con"}! Đây là lần đăng nhập đầu tiên, con hãy tự đặt mật khẩu của riêng mình.`
+            : `Chào ${profile?.username ?? "thầy cô"}! Đây là lần đăng nhập đầu tiên, vui lòng đặt mật khẩu của riêng mình.`}
+        </p>
         <form className="auth-form" onSubmit={handleSubmit}>
           <PasswordInput className="auth-input" placeholder="Mật khẩu mới (ít nhất 6 ký tự)" value={pw} onChange={e => setPw(e.target.value)} required />
           <PasswordInput className="auth-input" placeholder="Nhập lại mật khẩu mới" value={pw2} onChange={e => setPw2(e.target.value)} required />

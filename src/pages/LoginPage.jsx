@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { signInWithEmailAndPassword, signOut } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "../lib/firebase.js";
-import { TESTER_EMAIL_DOMAIN, STUDENT_EMAIL_DOMAIN } from "../lib/adminUsers.js";
+import { TESTER_EMAIL_DOMAIN, STUDENT_EMAIL_DOMAIN, TEACHER_EMAIL_DOMAIN } from "../lib/adminUsers.js";
 import PasswordInput from "../components/PasswordInput.jsx";
 
 const AUTH_BG = `${import.meta.env.BASE_URL}assets/img/backgrounds/auth-bg.jpg`;
@@ -14,12 +14,12 @@ const AUTH_BG = `${import.meta.env.BASE_URL}assets/img/backgrounds/auth-bg.jpg`;
 // role từ Firestore (không đợi AuthProvider ở App.jsx kịp cập nhật) để điều hướng đúng: học sinh
 // vào thẳng "lessons", admin/teacher vào "dashboard".
 // Tài khoản đặc biệt đăng nhập bằng tên đăng nhập (không có "@") — tự nối domain giả, xem adminUsers.js.
-// Tên đăng nhập (không có "@") thử "@hocsinh.local" (học sinh) trước, không khớp thì thử "@tester.local".
+// Tên đăng nhập (không có "@") thử "@hocsinh.local" (học sinh) trước, rồi "@giaovien.local", rồi "@tester.local".
 function toAuthEmails(input) {
   const v = input.trim();
   if (v.includes("@")) return [v];
   const u = v.toLowerCase();
-  return [`${u}@${STUDENT_EMAIL_DOMAIN}`, `${u}@${TESTER_EMAIL_DOMAIN}`];
+  return [`${u}@${STUDENT_EMAIL_DOMAIN}`, `${u}@${TEACHER_EMAIL_DOMAIN}`, `${u}@${TESTER_EMAIL_DOMAIN}`];
 }
 
 // Chặn dò mật khẩu ngay trên trình duyệt (audit bảo mật 2026-09-25): sai liên tiếp FREE_FAILS lần thì phải chờ, mỗi
@@ -118,7 +118,6 @@ export default function LoginPage({ onNavigate }) {
     <section className="login-screen" style={{ "--login-bg-image": `url(${AUTH_BG})` }}>
       <div className="password-gate-card login-card">
         <h1 className="page-title">Đăng nhập</h1>
-        <p className="lead">Nhập tên đăng nhập và mật khẩu được cấp.</p>
 
         <form className="auth-form" onSubmit={handleSubmit}>
           <input
@@ -142,9 +141,6 @@ export default function LoginPage({ onNavigate }) {
             {loading ? "Đang đăng nhập..." : "Đăng nhập"}
           </button>
           {error && <p className="auth-error">{error}</p>}
-          <button type="button" className="auth-privacy-link" onClick={() => onNavigate("privacy")}>
-            Chính sách bảo mật
-          </button>
         </form>
       </div>
     </section>

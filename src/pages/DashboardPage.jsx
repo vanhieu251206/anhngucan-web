@@ -89,9 +89,10 @@ export default function DashboardPage({ onNavigate }) {
           items={items}
           activeKey={section}
           onSelect={setSection}
-          userEmail={user?.email}
+          userEmail={profile?.username ?? user?.email}
           roleLabel={isAdmin ? "Admin" : "Giáo viên"}
           onGoHome={() => onNavigate("home")}
+          onChangePassword={() => onNavigate("change-password")}
           onLogout={handleLogout}
         />
         <div className="admin-main">

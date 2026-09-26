@@ -25,6 +25,22 @@ function CheckboxGroup({ options, value, onChange, labelOf }) {
   );
 }
 
+// Chọn nhiều dạng chip (modal tạo tài khoản).
+function ChipGroup({ options, value, onChange, labelOf }) {
+  function toggle(v) {
+    onChange(value.includes(v) ? value.filter(x => x !== v) : [...value, v]);
+  }
+  return (
+    <div className="class-day-picker">
+      {options.map(o => (
+        <button key={o} type="button" className={`class-day-chip${value.includes(o) ? " is-on" : ""}`} onClick={() => toggle(o)}>
+          {labelOf ? labelOf(o) : o}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 // Sửa phạm vi 1 giáo viên (bấm giữa các dòng trong bảng) — dùng chung cho admin lẫn giáo viên
 // chính tự phân công cho người dạy ngắn hạn (chốt 2026-09-22, xem firestore.rules).
 function ScopeEditor({ teacher, classes, onSaved, onCancel }) {
@@ -77,15 +93,26 @@ function ScopeEditor({ teacher, classes, onSaved, onCancel }) {
 }
 
 export default function TeacherAccountsPage() {
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, isTeacher, profile } = useAuth();
+  const isFullStaff = isAdmin || (isTeacher && !profile?.restricted);
   const [teachers, setTeachers] = useState(null); // null = đang tải
   const [classes, setClasses] = useState([]);
   const [loadError, setLoadError] = useState("");
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState("");
   const [editingUid, setEditingUid] = useState(null);
+  const [newRestricted, setNewRestricted] = useState(false);
+  const [newSeries, setNewSeries] = useState([]);
+  const [newClasses, setNewClasses] = useState([]);
+  const [showCreate, setShowCreate] = useState(false);
+
+  function closeCreate() {
+    if (creating) return;
+    setShowCreate(false);
+    setCreateError("");
+  }
 
   function reload() {
     setLoadError("");
@@ -102,18 +129,33 @@ export default function TeacherAccountsPage() {
   async function handleCreate(e) {
     e.preventDefault();
     setCreateError("");
+    const u = username.trim().toLowerCase();
+    if (!/^[a-z0-9._-]{3,}$/.test(u)) {
+      setCreateError("Tên đăng nhập ít nhất 3 ký tự, chỉ gồm chữ không dấu, số, dấu . _ -");
+      return;
+    }
     if (password.length < 6) {
       setCreateError("Mật khẩu cần ít nhất 6 ký tự.");
       return;
     }
     setCreating(true);
     try {
-      await createTeacherAccount(email, password);
-      setEmail("");
+      // Giáo viên chính chỉ tạo được giáo viên phụ (bị giới hạn) — firestore.rules chặn tạo tài khoản không giới hạn.
+      const restricted = !isAdmin || newRestricted;
+      await createTeacherAccount(u, password, restricted ? { restricted, allowedSeriesIds: newSeries, allowedClasses: newClasses } : undefined);
+      setUsername("");
       setPassword("");
+      setNewSeries([]);
+      setNewClasses([]);
+      setShowCreate(false);
       reload();
-    } catch {
-      setCreateError("Tạo tài khoản thất bại — kiểm tra email đã dùng chưa, hoặc thử lại.");
+    } catch (err) {
+      console.error(err);
+      setCreateError(
+        err?.code === "auth/email-already-in-use" ? "Tên đăng nhập đã có người dùng."
+        : err?.code === "permission-denied" ? "Không có quyền lưu hồ sơ (firestore.rules chưa đúng bản mới)."
+        : `Tạo tài khoản thất bại (${err?.code || err?.message || err}).`
+      );
     } finally {
       setCreating(false);
     }
@@ -122,10 +164,12 @@ export default function TeacherAccountsPage() {
   return (
     <div>
       <div className="admin-card" style={{ marginBottom: 24 }}>
-        <h2>Danh sách giáo viên</h2>
-        <p className="admin-muted-text">
-          Mặc định giáo viên không giới hạn gì (như hiện tại). Bấm "Sửa phạm vi" để giới hạn cho người dạy ngắn hạn/vài lớp.
-        </p>
+        <div className="opening-list-head">
+          <h2>Danh sách giáo viên</h2>
+          {isFullStaff && (
+            <button type="button" className="admin-btn-primary" onClick={() => setShowCreate(true)}>+ Tạo tài khoản</button>
+          )}
+        </div>
         {loadError && <p className="admin-error">Không tải được danh sách: {loadError}</p>}
         {teachers === null && !loadError && <p className="admin-muted-text">Đang tải...</p>}
         {teachers && teachers.length === 0 && <p className="admin-muted-text">Chưa có giáo viên nào.</p>}
@@ -133,7 +177,7 @@ export default function TeacherAccountsPage() {
           <table className="admin-table">
             <thead>
               <tr>
-                <th>Email</th>
+                <th>Tài khoản</th>
                 <th>Phạm vi</th>
                 <th></th>
               </tr>
@@ -141,7 +185,7 @@ export default function TeacherAccountsPage() {
             <tbody>
               {teachers.map(t => (
                 <tr key={t.uid}>
-                  <td>{t.email}</td>
+                  <td>{t.username ?? t.email}</td>
                   <td>
                     {!t.restricted ? (
                       <span className="admin-muted-text">Không giới hạn</span>
@@ -175,31 +219,52 @@ export default function TeacherAccountsPage() {
         )}
       </div>
 
-      {isAdmin && (
-        <div className="admin-card">
-          <h2>Tạo tài khoản giáo viên mới</h2>
-          <p className="admin-muted-text">Tài khoản mới tạo mặc định không giới hạn — sửa phạm vi ở bảng trên nếu cần.</p>
-          <form className="admin-form" onSubmit={handleCreate}>
-            <input
-              className="admin-input"
-              type="email"
-              placeholder="Email giáo viên"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              required
-            />
-            <PasswordInput
-              className="admin-input"
-              placeholder="Mật khẩu (ít nhất 6 ký tự)"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              required
-            />
-            <button className="admin-btn-primary" type="submit" disabled={creating}>
-              {creating ? "Đang tạo..." : "Tạo tài khoản"}
-            </button>
-            {createError && <p className="admin-error">{createError}</p>}
-          </form>
+      {showCreate && (
+        <div className="confirm-overlay" role="presentation" onClick={closeCreate}>
+          <div className="opening-modal teacher-modal" role="dialog" aria-modal="true" onClick={e => e.stopPropagation()}>
+            <h2>{isAdmin ? "Tạo tài khoản giáo viên" : "Thêm giáo viên phụ"}</h2>
+            <form className="teacher-modal-form" onSubmit={handleCreate}>
+              <div className="teacher-modal-row">
+                <label className="admin-mini-field">
+                  <span>Tên đăng nhập</span>
+                  <input className="admin-input" value={username} onChange={e => setUsername(e.target.value)} autoComplete="off" autoCapitalize="none" spellCheck={false} required autoFocus />
+                </label>
+                <label className="admin-mini-field">
+                  <span>Mật khẩu</span>
+                  <PasswordInput className="admin-input" autoComplete="new-password" placeholder="Ít nhất 6 ký tự" value={password} onChange={e => setPassword(e.target.value)} required />
+                </label>
+              </div>
+              {isAdmin && (
+                <div className="teacher-modal-segment" role="radiogroup">
+                  <button type="button" className={!newRestricted ? "is-on" : ""} onClick={() => setNewRestricted(false)}>Giáo viên chính</button>
+                  <button type="button" className={newRestricted ? "is-on" : ""} onClick={() => setNewRestricted(true)}>Giáo viên phụ</button>
+                </div>
+              )}
+              {(!isAdmin || newRestricted) && (
+                <>
+                  <div className="teacher-modal-group">
+                    <span>Bộ đề được soạn bài</span>
+                    <ChipGroup options={YLE_SERIES.map(s => s.id)} value={newSeries} onChange={setNewSeries} labelOf={seriesTitle} />
+                  </div>
+                  <div className="teacher-modal-group">
+                    <span>Lớp được mở bài / xem kết quả</span>
+                    {classes.length === 0 ? (
+                      <p className="admin-muted-text">Chưa có lớp nào.</p>
+                    ) : (
+                      <ChipGroup options={classes} value={newClasses} onChange={setNewClasses} />
+                    )}
+                  </div>
+                </>
+              )}
+              <div className="opening-form-actions">
+                {createError && <p className="admin-error">{createError}</p>}
+                <button type="button" className="admin-pill-btn" onClick={closeCreate} disabled={creating}>Huỷ</button>
+                <button className="admin-btn-primary" type="submit" disabled={creating}>
+                  {creating ? "Đang tạo..." : "Tạo tài khoản"}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>

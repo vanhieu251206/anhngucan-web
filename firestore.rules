@@ -66,6 +66,10 @@ service cloud.firestore {
       // Admin + giáo viên chính được tạo hồ sơ HỌC SINH (Dashboard → Tài khoản học sinh), không được tạo
       // admin/teacher. Giáo viên phụ (restricted) chỉ xem, không thêm/sửa/xoá học sinh (chốt 2026-09-25).
       allow create: if isFullStaff() && request.resource.data.role == 'student';
+      // Giáo viên chính tạo tài khoản GIÁO VIÊN PHỤ (bắt buộc restricted = true, chỉ đúng các field này) — 2026-09-26.
+      allow create: if isFullStaff() && request.resource.data.role == 'teacher'
+        && request.resource.data.get('restricted', false) == true
+        && request.resource.data.keys().hasOnly(['role', 'email', 'username', 'mustChangePassword', 'restricted', 'allowedSeriesIds', 'allowedClasses', 'createdAt']);
       // ... và khoá/mở khoá/chuyển lớp/xoá hồ sơ học sinh (chỉ đụng tới tài khoản role student).
       // Không được đổi role (chặn nâng tài khoản học sinh thành admin/teacher rồi đăng nhập bằng nó, 2026-09-25).
       allow update: if isFullStaff() && resource.data.role == 'student' && request.resource.data.role == 'student';

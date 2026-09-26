@@ -40,11 +40,16 @@ export { STUDENT_EMAIL_DOMAIN };
 // scope: { restricted, allowedSeriesIds, allowedClasses } — bỏ trống/undefined = tài khoản KHÔNG
 // giới hạn (hoạt động y hệt giáo viên full-time hiện tại). Chỉ set khi tạo giáo viên dạy ngắn hạn/
 // vài lớp (chốt 2026-09-22, xem firestore.rules `isRestrictedTeacher()`).
-export function createTeacherAccount(email, password, scope) {
+// Giáo viên tạo từ CMS đăng nhập bằng tên đăng nhập (không email thật) — tự nối "@giaovien.local" (domain giả,
+// giống học sinh/tester), LoginPage.jsx cũng tự nối khi đăng nhập (2026-09-26).
+export const TEACHER_EMAIL_DOMAIN = "giaovien.local";
+
+export function createTeacherAccount(username, password, scope) {
   const extra = scope?.restricted
     ? { restricted: true, allowedSeriesIds: scope.allowedSeriesIds ?? [], allowedClasses: scope.allowedClasses ?? [] }
     : {};
-  return createStaffLikeAccount("teacher", email, password, extra);
+  // Mật khẩu ban đầu do người tạo đặt — giáo viên BẮT BUỘC đổi ở lần đăng nhập đầu (ForceChangePassword.jsx, như học sinh).
+  return createStaffLikeAccount("teacher", `${username}@${TEACHER_EMAIL_DOMAIN}`, password, { username, mustChangePassword: true, ...extra });
 }
 
 // Sửa phạm vi 1 tài khoản giáo viên đã có — admin HOẶC giáo viên khác đều gọi được (xem

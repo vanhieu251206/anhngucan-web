@@ -7,16 +7,35 @@ import { useAuth } from "../lib/authContext.jsx";
 // admin/teacher nằm trong Sidebar khu vực quản trị (Sidebar.jsx/DashboardPage.jsx), không ở đây.
 const NAV_ITEMS = [
   { key: "home", label: "Trang chủ" },
-  { key: "about", label: "Giới thiệu" },
-  { key: "contact", label: "Liên hệ" },
+  // Tạm ẩn (2026-09-26) — trang vẫn còn, mở lại chỉ cần bỏ comment.
+  // { key: "about", label: "Giới thiệu" },
+  // { key: "contact", label: "Liên hệ" },
 ];
 
 const ROLE_LABELS = { admin: "Admin", teacher: "Giáo viên", tester: "Tài khoản đặc biệt" };
 
+// Đã đăng nhập: chip tên (bấm để đổi mật khẩu) + nút Đăng xuất riêng; chưa đăng nhập: nút Đăng nhập.
+function UserControls({ user, label, onAuthClick, onChangePassword }) {
+  if (!user) {
+    return <button className="top-nav-login" onClick={onAuthClick}>Đăng nhập</button>;
+  }
+  return (
+    <>
+      <button type="button" className="top-nav-user" title="Đổi mật khẩu" onClick={onChangePassword}>
+        <span className="top-nav-user-avatar" aria-hidden="true">{label.trim().charAt(0).toUpperCase()}</span>
+        <span className="top-nav-user-name">{label}</span>
+      </button>
+      <button className="top-nav-login top-nav-logout" onClick={onAuthClick}>Đăng xuất</button>
+    </>
+  );
+}
+
 export default function Header({ page, onNavigate }) {
   const { user, role, profile, isStaff, logout } = useAuth();
-  // Học sinh hiện họ tên đầy đủ; admin/giáo viên/tài khoản đặc biệt hiện theo vai trò.
-  const userLabel = role === "student" ? profile?.displayName ?? "Học sinh" : ROLE_LABELS[role] ?? "Giáo viên";
+  // Học sinh hiện họ tên đầy đủ; admin/giáo viên/tài khoản đặc biệt hiện tên đăng nhập (không có thì theo vai trò).
+  const userLabel = role === "student"
+    ? profile?.displayName ?? "Học sinh"
+    : profile?.username ?? ROLE_LABELS[role] ?? "Giáo viên";
   const [menuOpen, setMenuOpen] = useState(false);
 
   function handleAuthClick() {
@@ -63,12 +82,7 @@ export default function Header({ page, onNavigate }) {
           </nav>
 
           <div className="home-topbar-actions">
-            <button className="top-nav-login" onClick={handleAuthClick} title={user?.email}>
-              {user ? `${userLabel} · Đăng xuất` : "Đăng nhập"}
-            </button>
-            <button className="top-nav-cta" onClick={() => handleNavClick("lessons")}>
-              Học thử ngay
-            </button>
+            <UserControls user={user} label={userLabel} onAuthClick={handleAuthClick} onChangePassword={() => handleNavClick("change-password")} />
           </div>
 
           <button
@@ -101,12 +115,7 @@ export default function Header({ page, onNavigate }) {
               </button>
             )}
             <div className="home-topbar-mobile-actions">
-              <button className="top-nav-login" onClick={handleAuthClick} title={user?.email}>
-                {user ? `${userLabel} · Đăng xuất` : "Đăng nhập"}
-              </button>
-              <button className="top-nav-cta" onClick={() => handleNavClick("lessons")}>
-                Học thử ngay
-              </button>
+              <UserControls user={user} label={userLabel} onAuthClick={handleAuthClick} onChangePassword={() => handleNavClick("change-password")} />
             </div>
           </div>
         )}

@@ -6,7 +6,8 @@ import { bookAllowsSeries, bookAllowsLevel } from "./classes.js";
 
 // Lớp (và sách được gán) của học sinh đang đăng nhập — xem lib/classes.js "Sách của lớp". Theo dõi trực tiếp doc
 // classes/{tên lớp} (onSnapshot): giáo viên đổi sách / chuyển lớp là có hiệu lực ngay, không cần tải lại trang
-// (Firestore tự gộp các listener cùng 1 doc). Admin/giáo viên/tester: không giới hạn.
+// (Firestore tự gộp các listener cùng 1 doc). Admin/giáo viên chính/tester: không giới hạn. Giáo viên phụ (restricted):
+// chỉ vào được bộ đề trong allowedSeriesIds (2026-09-26).
 export function useClassBook() {
   const { role, profile } = useAuth();
   const isStudent = role === "student";
@@ -33,6 +34,17 @@ export function useClassBook() {
   }, [isStudent, className]);
 
   const book = cls?.book ?? null;
+  // Giáo viên phụ: giới hạn theo bộ đề được cấp (mọi cấp trong bộ đề đó).
+  const allowedSeries = role === "teacher" && profile?.restricted ? profile.allowedSeriesIds ?? [] : null;
+  if (allowedSeries) {
+    return {
+      cls: null,
+      error: false,
+      ready: true,
+      canSeries: seriesId => allowedSeries.includes(seriesId),
+      canLevel: seriesId => allowedSeries.includes(seriesId),
+    };
+  }
   return {
     cls: isStudent ? cls : null,
     // Không tải được lớp (mất mạng...) — trang hiện lời nhắc thay vì chỉ để mọi bộ đề xám không rõ lý do.

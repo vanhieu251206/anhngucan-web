@@ -11,6 +11,7 @@ import { useAuth } from "./lib/authContext.jsx";
 import { readParams, setParams } from "./lib/urlState.js";
 import ForceChangePassword from "./components/ForceChangePassword.jsx";
 import PrivacyPage from "./pages/PrivacyPage.jsx";
+import ChangePasswordPage from "./pages/ChangePasswordPage.jsx";
 import NotFoundPage from "./pages/NotFoundPage.jsx";
 import { trackPage } from "./lib/analytics.js";
 
@@ -27,6 +28,7 @@ const PAGE_TITLES = {
   contact: `Liên hệ — ${SITE_NAME}`,
   login: `Đăng nhập — ${SITE_NAME}`,
   privacy: `Chính sách bảo mật — ${SITE_NAME}`,
+  "change-password": `Đổi mật khẩu — ${SITE_NAME}`,
   dashboard: `Quản trị — ${SITE_NAME}`,
   settings: `Quản trị — ${SITE_NAME}`,
 };
@@ -150,7 +152,7 @@ export default function App() {
     return <LessonsPage initialSeriesId={lessonSeriesId} onNavigate={setPage} />;
   }
 
-  if (page === "login" && loading) {
+  if ((page === "login" || page === "change-password") && loading) {
     return null;
   }
 
@@ -163,6 +165,7 @@ export default function App() {
         {page === "contact" && <ContactPage onNavigate={setPage} />}
         {page === "login" && <LoginPage onNavigate={setPage} />}
         {page === "privacy" && <PrivacyPage />}
+        {page === "change-password" && (user ? <ChangePasswordPage onNavigate={setPage} /> : <LoginPage onNavigate={setPage} />)}
         {/* dashboard/settings khi chưa đăng nhập bằng tài khoản quản trị → về form đăng nhập thay vì trang trắng. */}
         {(page === "dashboard" || page === "settings") &&
           (user ? <NotFoundPage onNavigate={setPage} /> : <LoginPage onNavigate={setPage} />)}
