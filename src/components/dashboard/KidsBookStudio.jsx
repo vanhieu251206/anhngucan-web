@@ -13,7 +13,7 @@ import { optimizeImage } from "../../lib/cloudinaryImage.js";
 // lật từng trang thật để đặt Track 1, Track 2... rồi tải hàng loạt file khớp theo thứ tự, chốt
 // người dùng 2026-09-23). Trang chủ yếu vào bằng "Tải sách (PDF)" (tự tách+upload hàng loạt) nên
 // danh sách bên dưới chỉ hiện thumbnail xem lại + sắp xếp/xoá trang.
-export default function KidsBookStudio({ title, pages, sounds, tabs, onTabsChange, onChange, onBack, onSave, saving, saved }) {
+export default function KidsBookStudio({ title, pages, sounds, tabs, onTabsChange, onChange, onBack, onSave, saving, saved, firstUnit }) {
   const confirm = useConfirm();
   const [pdfBusy, setPdfBusy] = useState(false);
   const [pdfStage, setPdfStage] = useState(""); // "Đang tách trang..." / "Đang tải lên 3/20..."
@@ -77,6 +77,7 @@ export default function KidsBookStudio({ title, pages, sounds, tabs, onTabsChang
       <KidsBookTabsEditor
         pages={pages}
         tabs={tabs ?? []}
+        firstUnit={firstUnit}
         onChange={onTabsChange}
         onClose={() => setTabsEditorOpen(false)}
       />

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../../lib/authContext.jsx";
-import { KIDS_GRADES, KIDS_BOOK_KINDS } from "../../lib/yleData.js";
+import { KIDS_GRADES, kidsBookKinds } from "../../lib/yleData.js";
 import { getKidsBook, saveKidsBook } from "../../lib/adminLessons.js";
 import KidsBookStudio from "../../components/dashboard/KidsBookStudio.jsx";
 import { levelAccessOf } from "../../lib/teacherScope.js";
@@ -14,9 +14,9 @@ const ACCENT = "#F2A93B";
 export default function KidsContentPage() {
   const { user, isAdmin, role, profile } = useAuth();
   const grades = KIDS_GRADES.filter(g => levelAccessOf(profile, role, "kids", g) === "edit");
-  // CMS dạng Sách (Student Book/Workbook) CHỈ admin thấy — giáo viên ẩn (chốt người dùng 2026-09-24).
-  const bookKinds = isAdmin ? KIDS_BOOK_KINDS : [];
   const [grade, setGrade] = useState(null);
+  // CMS dạng Sách (Student Book/Workbook) CHỈ admin thấy — giáo viên ẩn (chốt người dùng 2026-09-24).
+  const bookKinds = isAdmin && grade != null ? kidsBookKinds(grade) : [];
   const [kind, setKind] = useState(null); // "student" | "workbook"
   const [pages, setPages] = useState([]);
   const [sounds, setSounds] = useState([]); // Array<{x,y,url}>[] — cùng chỉ số với pages
@@ -83,10 +83,11 @@ export default function KidsContentPage() {
 
   if (loading) return <div className="admin-card">Đang tải...</div>;
 
-  const kindLabel = KIDS_BOOK_KINDS.find(k => k.key === kind)?.label;
+  const kindInfo = kidsBookKinds(grade).find(k => k.key === kind);
   return (
     <KidsBookStudio
-      title={`Grade ${grade} — ${kindLabel}`}
+      title={`Grade ${grade} — ${kindInfo?.label}`}
+      firstUnit={kindInfo?.firstUnit}
       pages={pages}
       sounds={sounds}
       tabs={tabs}

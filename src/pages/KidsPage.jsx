@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import Header from "../components/Header.jsx";
 import BookReader from "../components/BookReader.jsx";
-import { KIDS_GRADES, KIDS_BOOK_KINDS } from "../lib/yleData.js";
+import { KIDS_GRADES, kidsBookKinds } from "../lib/yleData.js";
 import { getKidsBook } from "../lib/adminLessons.js";
 import { useClassBook } from "../lib/useClassBook.js";
 
@@ -82,7 +82,7 @@ export default function KidsPage({ onNavigate }) {
 
         {grade != null && (
           <div className="content-grid kids-skill-grid">
-            {KIDS_BOOK_KINDS.map(k => (
+            {kidsBookKinds(grade).map(k => (
               <button
                 key={k.key}
                 type="button"

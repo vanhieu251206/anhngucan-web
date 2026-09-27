@@ -97,3 +97,13 @@ export const KIDS_BOOK_KINDS = [
   { key: "student", label: "Student Book" },
   { key: "workbook", label: "Workbook" },
 ];
+// Ngoại lệ (2026-09-27): Grade 5 có Student Book chia 2 tập. Tập 1 giữ key "student" để không mất sách đã soạn
+// (docId "grade5-student"), Tập 2 là "student2" (docId "grade5-student2").
+export function kidsBookKinds(grade) {
+  if (grade !== 5) return KIDS_BOOK_KINDS;
+  return [
+    { key: "student", label: "Student Book – Tập 1" },
+    { key: "student2", label: "Student Book – Tập 2", firstUnit: 11 },
+    { key: "workbook", label: "Workbook" },
+  ];
+}

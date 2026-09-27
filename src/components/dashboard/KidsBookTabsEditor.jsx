@@ -16,7 +16,8 @@ function toHex(r, g, b) {
 // unit → "Thêm tab tại trang này"; màu lấy bằng công cụ hút màu (bấm 🎯 rồi bấm vào đúng chỗ màu
 // unit trên ảnh trang, có kính lúp phóng to pixel như phần mềm thiết kế). Tab hiện xem trước ngay
 // cạnh trang bằng đúng component học sinh thấy (BookTabs.jsx).
-export default function KidsBookTabsEditor({ pages, tabs, onChange, onClose }) {
+// firstUnit: số unit của tab đầu tiên (Grade 5 Tập 2 bắt đầu từ Unit 11 — yleData.js kidsBookKinds).
+export default function KidsBookTabsEditor({ pages, tabs, onChange, onClose, firstUnit = 1 }) {
   const confirm = useConfirm();
   const [current, setCurrent] = useState(0);
   const [box, setBox] = useState(null);
@@ -160,7 +161,9 @@ export default function KidsBookTabsEditor({ pages, tabs, onChange, onClose }) {
 
   function addTabHere() {
     const last = tabs[tabs.length - 1];
-    const next = [...tabs, { label: String(tabs.length + 1), page: current, color: last?.color ?? "#F2A93B" }];
+    const lastNum = parseInt(last?.label, 10);
+    const label = String(last ? (Number.isNaN(lastNum) ? firstUnit + tabs.length : lastNum + 1) : firstUnit);
+    const next = [...tabs, { label, page: current, color: last?.color ?? "#F2A93B" }];
     onChange(next);
     startPicking(next.length - 1);
   }
