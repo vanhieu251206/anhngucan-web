@@ -61,7 +61,8 @@ function buildIeltsSeries() {
     id: "ielts",
     title: "IELTS",
     color: "#1F3A63",
-    levels: [{ id: "ielts-8", number: 8, listening: [], speaking: [] }],
+    // IELTS 8 → 21 (thêm 9-21 ngày 2026-09-27, cùng khuôn IELTS 8).
+    levels: Array.from({ length: 14 }, (_, i) => i + 8).map(n => ({ id: `ielts-${n}`, number: n, listening: [], speaking: [] })),
   };
 }
 

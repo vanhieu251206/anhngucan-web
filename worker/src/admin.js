@@ -183,6 +183,11 @@ async function deleteAccount(projectId, token, authUid, profileUid) {
   if (profileUid) {
     const res = await fetch(userDocUrl(projectId, profileUid), { method: "DELETE", headers: { authorization: `Bearer ${token}` } });
     if (!res.ok) throw adminError(502, "firestore-delete-failed");
+    // Bản sao mật khẩu (passwordVault, 2026-09-27) — xoá kèm, lỗi thì bỏ qua (tài khoản đã xoá xong).
+    await fetch(userDocUrl(projectId, profileUid).replace("/documents/users/", "/documents/passwordVault/"), {
+      method: "DELETE",
+      headers: { authorization: `Bearer ${token}` },
+    }).catch(() => {});
   }
 }
 
@@ -207,6 +212,29 @@ export async function deleteTeacher(request, env) {
   const profile = await getUserDoc(projectId, uid, token);
   if (!profile || profile.role !== "teacher") throw adminError(403, "not-a-teacher");
   if (!isAdmin && !profile.restricted) throw adminError(403, "not-a-sub-teacher");
+
+  const authUser = await lookupAuthUser(projectId, token, { localId: [uid] });
+  await deleteAccount(projectId, token, authUser?.localId, uid);
+  return { deleted: true };
+}
+
+// Xoá HẲN tài khoản đặc biệt (role "tester") — 2026-09-27, tab "Quản lý tài khoản". body: { uid }. Chỉ admin.
+export async function deleteTester(request, env) {
+  if (!env.FIREBASE_SERVICE_ACCOUNT) throw adminError(500, "admin-not-configured");
+  const sa = parseServiceAccount(env);
+  const projectId = sa.project_id;
+
+  const callerUid = await verifyIdToken((request.headers.get("Authorization") || "").replace(/^Bearer\s+/i, ""), projectId);
+  const token = await getAccessToken(sa);
+  const caller = await getUserDoc(projectId, callerUid, token);
+  if (caller?.role !== "admin") throw adminError(403, "forbidden");
+
+  const body = await request.json().catch(() => ({}));
+  const uid = body.uid ? String(body.uid) : "";
+  if (!uid) throw adminError(400, "missing-target");
+
+  const profile = await getUserDoc(projectId, uid, token);
+  if (!profile || profile.role !== "tester") throw adminError(403, "not-a-tester");
 
   const authUser = await lookupAuthUser(projectId, token, { localId: [uid] });
   await deleteAccount(projectId, token, authUser?.localId, uid);

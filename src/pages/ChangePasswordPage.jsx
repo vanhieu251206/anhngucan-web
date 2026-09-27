@@ -3,10 +3,11 @@ import { EmailAuthProvider, reauthenticateWithCredential, updatePassword } from 
 import { auth } from "../lib/firebase.js";
 import { useAuth } from "../lib/authContext.jsx";
 import PasswordInput from "../components/PasswordInput.jsx";
+import { savePasswordCopy } from "../lib/passwordVault.js";
 
 // Tự đổi mật khẩu khi đang đăng nhập (mọi tài khoản). Firebase yêu cầu xác thực lại bằng mật khẩu hiện tại trước khi đổi.
 export default function ChangePasswordPage({ onNavigate }) {
-  const { user, isStaff } = useAuth();
+  const { user, isStaff, isAdmin } = useAuth();
   const [current, setCurrent] = useState("");
   const [pw, setPw] = useState("");
   const [pw2, setPw2] = useState("");
@@ -24,6 +25,7 @@ export default function ChangePasswordPage({ onNavigate }) {
     try {
       await reauthenticateWithCredential(auth.currentUser, EmailAuthProvider.credential(user.email, current));
       await updatePassword(auth.currentUser, pw);
+      if (!isAdmin) await savePasswordCopy(user.uid, pw);
       setDone(true);
     } catch (err) {
       setError(

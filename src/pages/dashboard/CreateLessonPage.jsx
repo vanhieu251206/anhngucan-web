@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { YLE_SERIES, LISTENING_PART_LABELS, buildListeningTitles as buildListeningTitlesShared } from "../../lib/yleData.js";
 import { useAuth } from "../../lib/authContext.jsx";
+import { levelAccessOf, seriesHasAccess } from "../../lib/teacherScope.js";
 import {
   saveListening, getListening, listTests, getTest, saveTest, deleteTest,
   listReadingTests, getReadingTest, saveReadingTest, deleteReadingTest,
@@ -61,11 +62,11 @@ function initialStepFromUrl() {
 }
 
 export default function CreateLessonPage() {
-  const { user, isTeacher, profile } = useAuth();
-  // Giáo viên bị giới hạn (restricted, vd dạy ngắn hạn) chỉ soạn được bộ đề trong allowedSeriesIds
-  // — chặn thật ở firestore.rules `canManageSeries()`, đây chỉ là lọc UI cho gọn (chốt 2026-09-22).
-  const isRestricted = isTeacher && !!profile?.restricted;
-  const allowedSeries = isRestricted ? YLE_SERIES.filter(s => (profile?.allowedSeriesIds ?? []).includes(s.id)) : YLE_SERIES;
+  const { user, role, profile } = useAuth();
+  // Giáo viên phụ chỉ soạn được cấp có quyền "Sửa" (lib/teacherScope.js, 2026-09-27) — chặn thật ở firestore.rules
+  // `canEditLesson()`, đây chỉ là lọc UI cho gọn.
+  const canEditLevel = (seriesId, level) => levelAccessOf(profile, role, seriesId, level) === "edit";
+  const allowedSeries = YLE_SERIES.filter(s => seriesHasAccess(profile, role, s.id, "edit"));
   const [{ series, level, mode }, setStep] = useState(initialStepFromUrl);
 
   useEffect(() => {
@@ -119,7 +120,7 @@ export default function CreateLessonPage() {
       {series && series.id === "ket-pet" && <KetPetContentPage />}
       {series && series.id === "kids" && <KidsContentPage />}
       {series && series.id !== "ket-pet" && series.id !== "kids" && !level && (
-        <LevelPicker series={series} onPick={setLevel} />
+        <LevelPicker series={series} onPick={setLevel} canEdit={l => canEditLevel(series.id, l.number)} />
       )}
       {series && series.id !== "kids" && level && !mode && (
         <ModePicker series={series} level={level} onPick={setMode} />
@@ -204,12 +205,12 @@ function SeriesPicker({ series, onPick }) {
   );
 }
 
-function LevelPicker({ series, onPick }) {
+function LevelPicker({ series, onPick, canEdit }) {
   return (
     <div className="admin-card">
       <h2>{series.title} — chọn cấp độ</h2>
       <div className="admin-picker-grid">
-        {series.levels.map(l => (
+        {series.levels.filter(canEdit).map(l => (
           <button
             key={l.id}
             className="admin-picker-tile admin-picker-tile-level"

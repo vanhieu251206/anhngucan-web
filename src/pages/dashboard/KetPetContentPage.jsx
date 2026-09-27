@@ -4,6 +4,7 @@ import { KET_PET_GRADES, KET_PET_UNITS_PER_GRADE } from "../../lib/yleData.js";
 import { getVocabularyUnit, saveVocabularyUnit, getKetPetPracticeTest, saveKetPetPracticeTest } from "../../lib/adminLessons.js";
 import KetPetVocabularyStudio, { EMPTY_VOCAB_GROUPS } from "../../components/dashboard/KetPetVocabularyStudio.jsx";
 import KetPetPracticeTestStudio, { EMPTY_PRACTICE_TEST_GROUPS } from "../../components/dashboard/KetPetPracticeTestStudio.jsx";
+import { levelAccessOf } from "../../lib/teacherScope.js";
 
 const ACCENT = "#8B5CF6";
 
@@ -11,7 +12,8 @@ const ACCENT = "#8B5CF6";
 // CreateLessonPage.jsx vì KET/PET không đi theo Level/Test như các bộ khác (xem yleData.js, App.jsx
 // `ket-pet` branch).
 export default function KetPetContentPage() {
-  const { user } = useAuth();
+  const { user, role, profile } = useAuth();
+  const grades = KET_PET_GRADES.filter(g => levelAccessOf(profile, role, "ket-pet", g) === "edit");
   const [grade, setGrade] = useState(null);
   const [unit, setUnit] = useState(null);
   const [mode, setMode] = useState(null); // "vocabulary" | "practice-test"
@@ -65,7 +67,7 @@ export default function KetPetContentPage() {
       <div className="admin-card">
         <h2>KET / PET — chọn khối lớp</h2>
         <div className="admin-picker-grid">
-          {KET_PET_GRADES.map(g => (
+          {grades.map(g => (
             <button key={g} className="admin-picker-tile" style={{ "--accent": ACCENT }} onClick={() => setGrade(g)}>
               <span className="admin-picker-tile-dot" />
               <span className="admin-picker-tile-title">{`Grade ${g}`}</span>

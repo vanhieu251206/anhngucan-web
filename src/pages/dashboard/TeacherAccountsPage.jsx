@@ -1,14 +1,10 @@
 import { useEffect, useState } from "react";
 import { createTeacherAccount, deleteTeacher, listTeachers, setTeacherDisabled, updateTeacherScope } from "../../lib/adminUsers.js";
-import { listClassNames } from "../../lib/classes.js";
-import { YLE_SERIES } from "../../lib/yleData.js";
+import { listClassNames, BOOK_OPTIONS } from "../../lib/classes.js";
+import { levelKey, normalizedLevelAccess, summarizeLevelAccess } from "../../lib/teacherScope.js";
 import { useAuth } from "../../lib/authContext.jsx";
 import PasswordInput from "../../components/PasswordInput.jsx";
 import { useConfirm } from "../../components/dashboard/ConfirmDialog.jsx";
-
-function seriesTitle(id) {
-  return YLE_SERIES.find(s => s.id === id)?.title ?? id;
-}
 
 // Chọn nhiều dạng chip.
 function ChipGroup({ options, value, onChange, labelOf }) {
@@ -26,6 +22,81 @@ function ChipGroup({ options, value, onChange, labelOf }) {
   );
 }
 
+const ACCESS_OPTIONS = [
+  { value: "", label: "Không" },
+  { value: "view", label: "Xem" },
+  { value: "edit", label: "Sửa" },
+];
+
+function AccessSegment({ value, onChange, mixed }) {
+  return (
+    <div className="scope-segment" role="radiogroup">
+      {ACCESS_OPTIONS.map(o => (
+        <button key={o.value} type="button" role="radio" aria-checked={!mixed && value === o.value}
+          className={!mixed && value === o.value ? `is-on is-${o.value || "none"}` : ""} onClick={() => onChange(o.value)}>
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// Quyền theo từng cấp (lib/teacherScope.js, 2026-09-27): bấm bộ đề để mở danh sách cấp bên trong, mỗi cấp chọn
+// Không / Xem (xem + làm bài trên trang học sinh) / Sửa (thêm soạn bài trong CMS). Hàng "Cả bộ" đặt nhanh mọi cấp.
+function LevelAccessEditor({ value, onChange }) {
+  const [openId, setOpenId] = useState(null);
+  function setLevels(seriesId, levels, access) {
+    const next = { ...value };
+    for (const l of levels) {
+      if (access) next[levelKey(seriesId, l)] = access;
+      else delete next[levelKey(seriesId, l)];
+    }
+    onChange(next);
+  }
+  return (
+    <div className="scope-tree">
+      {BOOK_OPTIONS.map(o => {
+        const vals = o.levels.map(l => value[levelKey(o.id, l)] ?? "");
+        const edit = vals.filter(v => v === "edit").length;
+        const view = vals.filter(v => v === "view").length;
+        const allSame = vals.every(v => v === vals[0]);
+        const single = o.levels.length === 1;
+        const open = openId === o.id && !single;
+        return (
+          <div key={o.id} className={`scope-series${open ? " is-open" : ""}`}>
+            <div className="scope-series-head">
+              {single ? (
+                <span className="scope-series-title">{o.title}</span>
+              ) : (
+                <button type="button" className="scope-series-toggle" onClick={() => setOpenId(open ? null : o.id)} aria-expanded={open}>
+                  <span className="scope-caret">{open ? "▾" : "▸"}</span>
+                  <span className="scope-series-title">{o.title}</span>
+                  {(edit > 0 || view > 0) && (
+                    <span className="scope-series-count">
+                      {[edit && `Sửa ${edit}`, view && `Xem ${view}`].filter(Boolean).join(" · ")}
+                    </span>
+                  )}
+                </button>
+              )}
+              <AccessSegment value={vals[0]} mixed={!allSame} onChange={a => setLevels(o.id, o.levels, a)} />
+            </div>
+            {open && (
+              <div className="scope-levels">
+                {o.levels.map(l => (
+                  <div key={l} className="scope-level">
+                    <span>{o.levelLabel(l)}</span>
+                    <AccessSegment value={value[levelKey(o.id, l)] ?? ""} onChange={a => setLevels(o.id, [l], a)} />
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // Modal dùng chung cho Tạo (teacher = null) và Sửa phạm vi (teacher = hồ sơ đang có). Giáo viên chính chỉ tạo/sửa
 // giáo viên PHỤ (luôn restricted) — firestore.rules chặn giáo viên chính tạo tài khoản không giới hạn.
 function TeacherModal({ teacher, isAdmin, classes, onDone, onClose }) {
@@ -33,7 +104,7 @@ function TeacherModal({ teacher, isAdmin, classes, onDone, onClose }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [restricted, setRestricted] = useState(editing ? !!teacher.restricted : !isAdmin);
-  const [series, setSeries] = useState(teacher?.allowedSeriesIds ?? []);
+  const [levelAccess, setLevelAccess] = useState(() => normalizedLevelAccess(teacher));
   const [allowedClasses, setAllowedClasses] = useState(teacher?.allowedClasses ?? []);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -44,7 +115,7 @@ function TeacherModal({ teacher, isAdmin, classes, onDone, onClose }) {
     const isRestricted = !isAdmin || restricted;
     const scope = {
       restricted: isRestricted,
-      allowedSeriesIds: isRestricted ? series : [],
+      levelAccess: isRestricted ? levelAccess : {},
       allowedClasses: isRestricted ? allowedClasses : [],
     };
     let u = "";
@@ -95,8 +166,8 @@ function TeacherModal({ teacher, isAdmin, classes, onDone, onClose }) {
           {(!isAdmin || restricted) && (
             <>
               <div className="teacher-modal-group">
-                <span>Bộ đề được soạn bài</span>
-                <ChipGroup options={YLE_SERIES.map(s => s.id)} value={series} onChange={setSeries} labelOf={seriesTitle} />
+                <span>Quyền theo bộ đề / cấp</span>
+                <LevelAccessEditor value={levelAccess} onChange={setLevelAccess} />
               </div>
               <div className="teacher-modal-group">
                 <span>Lớp được mở bài / xem kết quả</span>
@@ -118,6 +189,17 @@ function TeacherModal({ teacher, isAdmin, classes, onDone, onClose }) {
         </form>
       </div>
     </div>
+  );
+}
+
+function ScopeSummary({ teacher }) {
+  const { edit, view } = summarizeLevelAccess(teacher);
+  if (!edit && !view) return <div>Bài: (chưa cấp)</div>;
+  return (
+    <>
+      {edit && <div>Sửa: {edit}</div>}
+      {view && <div>Xem: {view}</div>}
+    </>
   );
 }
 
@@ -207,7 +289,7 @@ export default function TeacherAccountsPage() {
                       <span className="admin-muted-text">Không giới hạn</span>
                     ) : (
                       <>
-                        <div>Bộ đề: {(t.allowedSeriesIds ?? []).length ? t.allowedSeriesIds.map(seriesTitle).join(", ") : "(chưa cấp)"}</div>
+                        <ScopeSummary teacher={t} />
                         <div>Lớp: {(t.allowedClasses ?? []).length ? t.allowedClasses.join(", ") : "(chưa cấp)"}</div>
                       </>
                     )}

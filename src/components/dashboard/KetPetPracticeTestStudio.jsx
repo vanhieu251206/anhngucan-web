@@ -84,26 +84,24 @@ export default function KetPetPracticeTestStudio({
         <div className="admin-practice-group" key={gi}>
           <div className="admin-practice-group-head">
             <span className="admin-practice-page-label">{`Nhóm ${toRoman(gi + 1)}`}</span>
-            {g.type !== "open-ended" && (
-              <div className="admin-practice-option-row admin-practice-group-points">
-                <label htmlFor={`group-points-${gi}`} style={{ whiteSpace: "nowrap" }}>Tổng điểm cả nhóm:</label>
-                <input
-                  id={`group-points-${gi}`}
-                  className="admin-input"
-                  type="number"
-                  min="0"
-                  step="0.5"
-                  style={{ maxWidth: 100 }}
-                  value={g.totalPoints}
-                  onChange={e => updateGroup(gi, { totalPoints: e.target.value === "" ? "" : Number(e.target.value) })}
-                />
-                <span style={{ fontSize: "0.85rem", color: "#777" }}>
-                  {g.questions.length > 0
-                    ? `= ${((Number(g.totalPoints) || 0) / g.questions.length).toFixed(2).replace(/\.?0+$/, "")} điểm/câu`
-                    : "(chưa có câu nào)"}
-                </span>
-              </div>
-            )}
+            <div className="admin-practice-option-row admin-practice-group-points">
+              <label htmlFor={`group-points-${gi}`} style={{ whiteSpace: "nowrap" }}>Tổng điểm cả nhóm:</label>
+              <input
+                id={`group-points-${gi}`}
+                className="admin-input"
+                type="number"
+                min="0"
+                step="0.5"
+                style={{ maxWidth: 100 }}
+                value={g.totalPoints}
+                onChange={e => updateGroup(gi, { totalPoints: e.target.value === "" ? "" : Number(e.target.value) })}
+              />
+              <span style={{ fontSize: "0.85rem", color: "#777" }}>
+                {g.questions.length > 0
+                  ? `= ${((Number(g.totalPoints) || 0) / g.questions.length).toFixed(2).replace(/\.?0+$/, "")} điểm/câu`
+                  : "(chưa có câu nào)"}
+              </span>
+            </div>
             <div className="admin-scene-list-actions">
               <button type="button" className="admin-link-btn" onClick={() => moveGroup(gi, -1)} disabled={gi === 0}>↑</button>
               <button type="button" className="admin-link-btn" onClick={() => moveGroup(gi, 1)} disabled={gi === groups.length - 1}>↓</button>
@@ -312,13 +310,19 @@ export default function KetPetPracticeTestStudio({
                         className="admin-input"
                         value={q.prompt}
                         onChange={e => updateQuestion(gi, qi, { prompt: e.target.value })}
-                        placeholder="1. Write a sentence using: she / not / like / spicy food"
+                        placeholder="Câu hỏi — VD: 1. “I’m tired,” she said."
+                      />
+                      <input
+                        className="admin-input"
+                        value={q.hint ?? ""}
+                        onChange={e => updateQuestion(gi, qi, { hint: e.target.value })}
+                        placeholder="Gợi ý cho sẵn (tuỳ chọn) — VD: She said that"
                       />
                       <input
                         className="admin-input"
                         value={q.sampleAnswer}
                         onChange={e => updateQuestion(gi, qi, { sampleAnswer: e.target.value })}
-                        placeholder="She doesn't like spicy food."
+                        placeholder="Đáp án — nhiều cách viết ngăn bằng | — VD: She said that she was tired."
                       />
                     </>
                   )}

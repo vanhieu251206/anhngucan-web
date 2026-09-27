@@ -9,7 +9,7 @@ export const GROUP_TYPES = [
   { key: "fill-blank", label: "Điền từ / Chia dạng đúng của từ (đáp án ngắn, có thể kèm gợi ý)" },
   { key: "word-bank", label: "Điền từ trong khung từ cho sẵn (word box)" },
   { key: "split-reading", label: "Đọc hiểu chia đôi màn hình (đoạn văn trái — câu hỏi phải, trộn được nhiều dạng con)" },
-  { key: "open-ended", label: "Tự luận (viết câu / đặt câu hỏi — chỉ hiện đáp án mẫu, không chấm điểm)" },
+  { key: "open-ended", label: "Tự luận (viết câu / đặt câu hỏi — có gợi ý sẵn, chấm theo đáp án)" },
 ];
 
 // Dạng con CHỌN RIÊNG CHO TỪNG CÂU bên trong 1 nhóm "split-reading" (khác các nhóm khác — cả nhóm
@@ -31,6 +31,33 @@ export function isFillBlankCorrect(userAnswer, acceptedAnswers) {
   return (acceptedAnswers ?? []).some(a => normalize(a) === normalized);
 }
 
+// Tự luận (chấm điểm từ 2026-09-27): câu = { prompt, hint, sampleAnswer }. `hint` là vài từ cô cho sẵn, hiện ở đầu chỗ
+// học sinh viết (học sinh viết tiếp phần còn lại). `sampleAnswer` = đáp án, nhiều cách viết ngăn bằng "|". So khớp bỏ
+// qua hoa/thường, dấu câu, khoảng trắng thừa; chấp nhận cả khi học sinh chỉ viết phần sau gợi ý lẫn chép lại cả câu.
+function normalizeSentence(str) {
+  return String(str ?? "")
+    .toLowerCase()
+    .replace(/[‘’`]/g, "'")
+    .replace(/[.,!?;:"“”()]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+export function openEndedFullAnswer(hint, userAnswer) {
+  return [hint, userAnswer].map(s => String(s ?? "").trim()).filter(Boolean).join(" ");
+}
+
+export function isOpenEndedCorrect(userAnswer, hint, sampleAnswer) {
+  const own = normalizeSentence(userAnswer);
+  if (!own) return false;
+  const candidates = new Set([own, normalizeSentence(openEndedFullAnswer(hint, userAnswer))]);
+  return String(sampleAnswer ?? "")
+    .split("|")
+    .map(normalizeSentence)
+    .filter(Boolean)
+    .some(a => candidates.has(a));
+}
+
 // 1 câu hỏi trong nhóm "split-reading" — có field `type` RIÊNG (khác các nhóm khác) vì mỗi câu tự
 // chọn dạng con (điền chỗ trống / trắc nghiệm), xem SPLIT_QUESTION_TYPES.
 export function blankSplitQuestion(subType = "fill-blank") {
@@ -47,7 +74,7 @@ export function blankGroupQuestion(type) {
   if (type === "fill-blank") return { text: "", hint: "", acceptedAnswers: [] };
   if (type === "word-bank") return { text: "", answer: "" };
   if (type === "split-reading") return blankSplitQuestion("fill-blank");
-  return { prompt: "", sampleAnswer: "" };
+  return { prompt: "", hint: "", sampleAnswer: "" };
 }
 
 // `wordBank`: danh sách từ cho sẵn dùng chung cả nhóm (chỉ dùng cho type "word-bank"). `passage` của
@@ -58,7 +85,7 @@ export function blankGroup(type = "multiple-choice") {
     instruction: "",
     passage: "",
     wordBank: type === "word-bank" ? [] : undefined,
-    totalPoints: type === "open-ended" ? 0 : 1,
+    totalPoints: 1,
     questions: [],
   };
 }
@@ -80,13 +107,13 @@ export function toRoman(n) {
 }
 
 // answers: { "gi-qi": string | number } — number (answerIndex) cho multiple-choice, string cho
-// fill-blank. Nhóm "open-ended" không chấm điểm (results[gi][qi] = null), không cộng vào total.
+// fill-blank/open-ended. Nhóm tự luận cũ có totalPoints = 0 vẫn chấm Đúng/Sai nhưng không cộng điểm.
 export function gradePracticeTestGroups(groups, answers) {
   let correct = 0;
   let total = 0;
   const results = groups.map((g, gi) => {
     const count = g.questions.length;
-    if (g.type === "open-ended" || count === 0) {
+    if (count === 0) {
       return g.questions.map(() => null);
     }
     const perQuestion = (Number(g.totalPoints) || 0) / count;
@@ -102,6 +129,8 @@ export function gradePracticeTestGroups(groups, answers) {
         isCorrect = isFillBlankCorrect(userAnswer, q.acceptedAnswers);
       } else if (effectiveType === "word-bank") {
         isCorrect = isFillBlankCorrect(userAnswer, [q.answer]);
+      } else if (effectiveType === "open-ended") {
+        isCorrect = isOpenEndedCorrect(userAnswer, q.hint, q.sampleAnswer);
       }
       total += perQuestion;
       if (isCorrect) correct += perQuestion;

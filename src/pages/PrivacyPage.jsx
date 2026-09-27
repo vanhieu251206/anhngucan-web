@@ -8,7 +8,7 @@ export default function PrivacyPage() {
 
       <h2>1. Dữ liệu chúng mình thu thập</h2>
       <ul>
-        <li>Thông tin tài khoản do giáo viên tạo: họ tên, lớp, tên đăng nhập. Mật khẩu được mã hoá, giáo viên cũng không xem được.</li>
+        <li>Thông tin tài khoản do giáo viên tạo: họ tên, lớp, tên đăng nhập. Giáo viên không xem được mật khẩu; riêng quản trị viên (admin) lưu và xem được mật khẩu để hỗ trợ khi học sinh quên.</li>
         <li>Bài làm: câu trả lời, số câu đúng, thời gian làm bài, số lượt đã làm.</li>
         <li>Giọng nói khi làm bài Speaking: đoạn ghi âm được gửi đi để chuyển thành chữ. Chúng mình chỉ lưu lại phần chữ, không lưu file âm thanh.</li>
       </ul>

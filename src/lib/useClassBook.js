@@ -3,11 +3,12 @@ import { doc, onSnapshot } from "firebase/firestore";
 import { db } from "./firebase.js";
 import { useAuth } from "./authContext.jsx";
 import { bookAllowsSeries, bookAllowsLevel } from "./classes.js";
+import { levelAccessOf, seriesHasAccess } from "./teacherScope.js";
 
 // Lớp (và sách được gán) của học sinh đang đăng nhập — xem lib/classes.js "Sách của lớp". Theo dõi trực tiếp doc
 // classes/{tên lớp} (onSnapshot): giáo viên đổi sách / chuyển lớp là có hiệu lực ngay, không cần tải lại trang
 // (Firestore tự gộp các listener cùng 1 doc). Admin/giáo viên chính/tester: không giới hạn. Giáo viên phụ (restricted):
-// chỉ vào được bộ đề trong allowedSeriesIds (2026-09-26).
+// chỉ vào được cấp được cấp quyền Xem hoặc Sửa (lib/teacherScope.js, 2026-09-27).
 export function useClassBook() {
   const { role, profile } = useAuth();
   const isStudent = role === "student";
@@ -34,15 +35,14 @@ export function useClassBook() {
   }, [isStudent, className]);
 
   const book = cls?.book ?? null;
-  // Giáo viên phụ: giới hạn theo bộ đề được cấp (mọi cấp trong bộ đề đó).
-  const allowedSeries = role === "teacher" && profile?.restricted ? profile.allowedSeriesIds ?? [] : null;
-  if (allowedSeries) {
+  // Giáo viên phụ: giới hạn theo từng cấp được cấp quyền (Xem hoặc Sửa).
+  if (role === "teacher" && profile?.restricted) {
     return {
       cls: null,
       error: false,
       ready: true,
-      canSeries: seriesId => allowedSeries.includes(seriesId),
-      canLevel: seriesId => allowedSeries.includes(seriesId),
+      canSeries: seriesId => seriesHasAccess(profile, role, seriesId),
+      canLevel: (seriesId, level) => !!levelAccessOf(profile, role, seriesId, level),
     };
   }
   return {

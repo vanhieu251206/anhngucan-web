@@ -258,14 +258,19 @@ export default function KetPetPracticeTestQuiz({ groups, revealAnswers = false, 
                   {g.type === "open-ended" && (
                     <>
                       <QBadge n={qi + 1} /><p className="vocab-question-text">{q.prompt}</p>
-                      <input
-                        className="vocab-input"
-                        value={answers[`${gi}-${qi}`] ?? ""}
-                        disabled={result != null}
-                        onChange={e => setAnswer(gi, qi, e.target.value)}
-                        placeholder="Type your answer"
-                      />
-                      {view != null && <p className="vocab-answer-key">Đáp án mẫu: {q.sampleAnswer}</p>}
+                      <div className={"open-ended-answer" + (r === true ? " is-correct" : "") + (r === false ? " is-wrong" : "")}>
+                        {q.hint && <span className="open-ended-hint">{q.hint}</span>}
+                        <input
+                          className="open-ended-input"
+                          value={answers[`${gi}-${qi}`] ?? ""}
+                          disabled={result != null}
+                          onChange={e => setAnswer(gi, qi, e.target.value)}
+                          placeholder={q.hint ? "..." : "Type your answer"}
+                        />
+                      </div>
+                      {view != null && r === false && (
+                        <p className="vocab-answer-key">Đáp án đúng: {String(q.sampleAnswer ?? "").split("|").map(s => s.trim()).filter(Boolean).join(" / ")}</p>
+                      )}
                     </>
                   )}
                 </div>

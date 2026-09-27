@@ -5,7 +5,7 @@ import Sidebar from "../components/Sidebar.jsx";
 import OverviewPage from "./dashboard/OverviewPage.jsx";
 import CreateLessonPage from "./dashboard/CreateLessonPage.jsx";
 import TeacherAccountsPage from "./dashboard/TeacherAccountsPage.jsx";
-import TesterAccountsPage from "./dashboard/TesterAccountsPage.jsx";
+import AccountsPage from "./dashboard/AccountsPage.jsx";
 import StudentAccountsPage from "./dashboard/StudentAccountsPage.jsx";
 import OpeningsPage from "./dashboard/OpeningsPage.jsx";
 import StudentResultsPage from "./dashboard/StudentResultsPage.jsx";
@@ -18,13 +18,14 @@ const ADMIN_ITEMS = [
   { key: "overview", label: "Tổng quan" },
   { key: "create-lesson", label: "Tạo bài" },
   { key: "image-splitter", label: "Tách ảnh" },
-  { key: "students", label: "Quản lý học sinh" },
+  { key: "accounts", label: "Quản lý tài khoản" },
   { key: "openings", label: "Mở bài" },
   { key: "results", label: "Kết quả học sinh" },
-  { key: "teachers", label: "Cấu hình tài khoản giáo viên" },
-  { key: "testers", label: "Tài khoản đặc biệt" },
   { key: "speech-logs", label: "Log phát âm" },
 ];
+// Admin: 3 mục cũ (Quản lý học sinh / Cấu hình tài khoản giáo viên / Tài khoản đặc biệt) gộp vào "Quản lý tài khoản"
+// (AccountsPage.jsx, 2026-09-27). Link cũ ?section=students|teachers|testers tự chuyển sang tab con tương ứng.
+const LEGACY_ACCOUNT_SECTIONS = ["students", "teachers", "testers"];
 // Giáo viên cũng được soạn bài (create-lesson) như admin, chỉ không có "Cấu hình tài khoản giáo
 // viên" (chỉ admin mới tạo/quản được tài khoản giáo viên khác).
 // Học sinh học bằng tài khoản theo LỚP (mục "Quản lý học sinh", 2026-09-25) — cơ chế mật khẩu theo bộ đề cũ
@@ -60,12 +61,17 @@ export default function DashboardPage({ onNavigate }) {
   }, [isAdmin, isTeacher]);
   // Mục sidebar đang mở: ưu tiên URL (?section=... — để F5 quay lại đúng tab thay vì luôn về
   // "Tổng quan", phản hồi người dùng 2026-08-23), cuối cùng mới tới mục đầu tiên của role.
-  const [section, setSectionState] = useState(
-    () => readParams().get("section") ?? items[0]?.key ?? "overview"
-  );
+  const [section, setSectionState] = useState(() => {
+    const s = readParams().get("section");
+    if (isAdmin && LEGACY_ACCOUNT_SECTIONS.includes(s)) {
+      setParams({ section: "accounts", tab: s }, { replace: true });
+      return "accounts";
+    }
+    return s ?? items[0]?.key ?? "overview";
+  });
   function setSection(key) {
     setSectionState(key);
-    setParams({ section: key }, { replace: true });
+    setParams({ section: key, tab: null }, { replace: true });
   }
 
   // Phòng hờ: nếu section hiện tại không hợp lệ với role (vd role đổi giữa chừng), rơi về
@@ -106,7 +112,7 @@ export default function DashboardPage({ onNavigate }) {
             {section === "students" && (isAdmin || (isTeacher && !isRestrictedTeacher)) && <StudentAccountsPage />}
             {section === "openings" && (isAdmin || isTeacher) && <OpeningsPage />}
             {section === "teachers" && (isAdmin || (isTeacher && !isRestrictedTeacher)) && <TeacherAccountsPage />}
-            {section === "testers" && isAdmin && <TesterAccountsPage />}
+            {section === "accounts" && isAdmin && <AccountsPage />}
             {section === "speech-logs" && isAdmin && <SpeechLogsPage />}
             {section === "results" && (isAdmin || isTeacher) && <StudentResultsPage />}
           </div>

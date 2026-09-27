@@ -1975,6 +1975,22 @@ button { font-family: inherit; }
   background: linear-gradient(180deg, rgba(27, 26, 58, 0.45), rgba(27, 26, 58, 0.7));
 }
 .login-screen > * { position: relative; z-index: 1; }
+/* Màn không có Header (ForceChangePassword.jsx) — phủ trọn màn hình, không hụt dải nền bên dưới. */
+.login-screen-full { height: auto; min-height: 100dvh; margin: 0; width: 100%; box-sizing: border-box; position: fixed; inset: 0; overflow-y: auto; }
+.force-pw-card { text-align: center; }
+.force-pw-card .auth-form { text-align: left; }
+.force-pw-card .lead { margin-bottom: 18px; }
+.force-pw-icon {
+  display: inline-flex; align-items: center; justify-content: center; width: 60px; height: 60px; margin-bottom: 14px;
+  border-radius: 50%; background: #fff1e8; color: var(--color-primary);
+}
+.force-pw-card .auth-error { margin: 0; text-align: center; }
+.force-pw-logout {
+  align-self: center; border: 0; background: none; padding: 6px 12px; font: inherit; font-weight: 700;
+  color: var(--color-muted); cursor: pointer; text-decoration: underline; text-underline-offset: 3px;
+}
+.force-pw-logout:hover { color: var(--color-primary); }
+@media (max-width: 480px) { .login-card.force-pw-card { padding: 32px 22px; } }
 
 .password-gate { text-align: left; }
 .password-gate-card {
@@ -3137,6 +3153,17 @@ button { font-family: inherit; }
 .vocab-input:focus { outline: none; border-color: var(--color-primary); }
 .vocab-input.is-correct { border-color: #2fb872; background: #f0fbf4; }
 .vocab-input.is-wrong { border-color: #e0576b; background: #fdf1f2; }
+/* Tự luận KET/PET: gợi ý cô cho sẵn đứng đầu, học sinh viết tiếp trong cùng 1 khung (KetPetPracticeTestQuiz.jsx). */
+.open-ended-answer {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap; width: 100%; box-sizing: border-box;
+  border: 2px solid #ece6da; border-radius: 12px; background: #fff; padding: 6px 12px;
+}
+.open-ended-answer:focus-within { border-color: var(--color-primary); }
+.open-ended-answer.is-correct { border-color: #2fb872; background: #f0fbf4; }
+.open-ended-answer.is-wrong { border-color: #e0576b; background: #fdf1f2; }
+.open-ended-hint { font-weight: 700; color: #3b3350; white-space: pre-wrap; }
+.open-ended-input { flex: 1; min-width: 160px; border: 0; background: transparent; padding: 6px 0; font: inherit; font-size: 1rem; }
+.open-ended-input:focus { outline: none; }
 .vocab-answer-key { margin: 8px 0 0; font-size: 0.9rem; color: #666; }
 .vocab-audio { width: 100%; margin: 0 0 14px; }
 
@@ -4571,6 +4598,28 @@ button.wizard-step:focus-visible { outline: 3px solid var(--color-secondary); ou
 }
 .teacher-modal-segment button.is-on { background: #fff; color: #3b5bdb; box-shadow: 0 1px 3px rgba(17, 24, 39, 0.12); }
 .teacher-modal .opening-form-actions { margin-top: 4px; }
+/* Quyền giáo viên phụ theo bộ đề → cấp (LevelAccessEditor, 2026-09-27) */
+.scope-tree { display: flex; flex-direction: column; border: 1.5px solid #e4e7ee; border-radius: 14px; overflow: hidden; }
+.scope-series + .scope-series { border-top: 1px solid #eef0f4; }
+.scope-series-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 12px; }
+.scope-series.is-open .scope-series-head { background: #f6f8ff; }
+.scope-series-toggle { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; border: 0; background: none; padding: 4px 0; font: inherit; cursor: pointer; text-align: left; }
+.scope-caret { width: 12px; color: #6b7280; font-size: 0.8rem; }
+.scope-series-title { font-weight: 700; color: #1f2937; }
+.scope-series > .scope-series-head > .scope-series-title { flex: 1; padding-left: 20px; }
+.scope-series-count { font-size: 0.78rem; font-weight: 700; color: #3b5bdb; background: #e8edff; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+.scope-levels { display: flex; flex-direction: column; padding: 4px 12px 10px 32px; background: #fafbff; }
+.scope-level { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 5px 0; }
+.scope-level > span { font-size: 0.9rem; color: #4b5563; font-weight: 600; }
+.scope-segment { display: inline-flex; flex-shrink: 0; padding: 3px; border-radius: 999px; background: #f2f4f8; gap: 2px; }
+.scope-segment button { border: 0; background: transparent; padding: 5px 12px; border-radius: 999px; font: inherit; font-weight: 700; font-size: 0.82rem; color: #6b7280; cursor: pointer; }
+.scope-segment button.is-on { background: #fff; box-shadow: 0 1px 3px rgba(17, 24, 39, 0.12); color: #4b5563; }
+.scope-segment button.is-on.is-view { color: #0f8a6a; }
+.scope-segment button.is-on.is-edit { color: #3b5bdb; }
+@media (max-width: 480px) {
+  .scope-series-head, .scope-level { flex-wrap: wrap; }
+  .scope-levels { padding-left: 12px; }
+}
 .teacher-row-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
 .teacher-row-disabled td { color: #9ca3af; }
 .teacher-locked-chip {

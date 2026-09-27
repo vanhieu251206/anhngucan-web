@@ -93,6 +93,12 @@ export default function App() {
     return null;
   }
 
+  // Tài khoản mới (học sinh/giáo viên): bắt buộc đặt mật khẩu mới trước khi dùng bất kỳ trang nào — đặt TRƯỚC
+  // nhánh Dashboard để giáo viên không đi vòng qua khu vực quản trị (lỗi 2026-09-27).
+  if (!loading && user && profile?.mustChangePassword) {
+    return <ForceChangePassword />;
+  }
+
   // "Cài đặt" (đổi mật khẩu chung mở khoá bài học) đã BỎ HẲN cùng lối vào guest cũ (chốt
   // 2026-08-27, xem StudentAccountsPage.jsx thay thế bằng mật khẩu chung cho tài khoản học sinh
   // thật) — link/URL cũ (?page=settings) chuyển thẳng vào Dashboard mặc định thay vì trang trống.
@@ -112,11 +118,6 @@ export default function App() {
         <DashboardPage onNavigate={setPage} />
       </Suspense>
     );
-  }
-
-  // Học sinh vừa nhận tài khoản: bắt buộc đặt mật khẩu mới trước khi dùng bất kỳ trang nào.
-  if (!loading && user && profile?.mustChangePassword) {
-    return <ForceChangePassword />;
   }
 
   // Trang chủ và Bài học dùng chung 1 kiểu màn hình riêng (logo + nút riêng, không Header/Footer

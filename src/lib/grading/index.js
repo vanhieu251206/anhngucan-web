@@ -3,7 +3,7 @@
 import { gradeReading } from "./reading.js";
 import { flattenPassages, flattenSections, gradeIelts } from "./ielts.js";
 import { gradeVocabularyGroups } from "../ketPetVocabulary.js";
-import { gradePracticeTestGroups } from "../ketPetPracticeTest.js";
+import { gradePracticeTestGroups, openEndedFullAnswer } from "../ketPetPracticeTest.js";
 import { serverGrader } from "./listeningExam.js";
 import { itemReady } from "./canvasParts.js";
 
@@ -75,7 +75,12 @@ export function gradeSubmission(kind, test, raw) {
     const groups = test.groups ?? [];
     const g = kind === "ketpet-vocab" ? gradeVocabularyGroups(groups, raw) : gradePracticeTestGroups(groups, raw);
     const items = g.results.flatMap((row, gi) =>
-      row.map((ok, qi) => ({ group: gi + 1, qNumber: qi + 1, isCorrect: ok, studentAnswer: String(raw?.[`${gi}-${qi}`] ?? "") })),
+      row.map((ok, qi) => {
+        const ans = String(raw?.[`${gi}-${qi}`] ?? "");
+        // Tự luận: ghép cả phần gợi ý cô cho sẵn để phiếu chấm/kết quả hiện đủ câu học sinh viết.
+        const studentAnswer = groups[gi]?.type === "open-ended" && ans.trim() ? openEndedFullAnswer(groups[gi].questions?.[qi]?.hint, ans) : ans;
+        return { group: gi + 1, qNumber: qi + 1, isCorrect: ok, studentAnswer };
+      }),
     );
     return { correct: g.correct, total: g.total, items, results: g.results };
   }

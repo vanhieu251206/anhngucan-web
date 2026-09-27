@@ -2,6 +2,7 @@ import { initializeApp, deleteApp } from "firebase/app";
 import { getAuth, createUserWithEmailAndPassword, signOut } from "firebase/auth";
 import { doc, setDoc, getDoc, updateDoc, collection, query, where, getDocs, serverTimestamp } from "firebase/firestore";
 import { db, auth } from "./firebase.js";
+import { savePasswordCopy } from "./passwordVault.js";
 
 // Domain giả cho tài khoản học sinh — Firebase Auth bắt buộc định dạng email, học sinh (trẻ em)
 // không có email thật nên dùng "username@hocsinh.local" (không phải domain thật, không gửi mail
@@ -37,7 +38,8 @@ const firebaseConfig = {
 // khoản, không đụng gì tới app/auth chính đang giữ phiên đăng nhập admin.
 export { STUDENT_EMAIL_DOMAIN };
 
-// scope: { restricted, allowedSeriesIds, allowedClasses } — bỏ trống/undefined = tài khoản KHÔNG
+// scope: { restricted, levelAccess, allowedClasses } — levelAccess theo từng cấp (lib/teacherScope.js, 2026-09-27;
+// thay allowedSeriesIds theo bộ đề — field cũ luôn ghi [] khi lưu bằng giao diện mới) — bỏ trống/undefined = tài khoản KHÔNG
 // giới hạn (hoạt động y hệt giáo viên full-time hiện tại). Chỉ set khi tạo giáo viên dạy ngắn hạn/
 // vài lớp (chốt 2026-09-22, xem firestore.rules `isRestrictedTeacher()`).
 // Giáo viên tạo từ CMS đăng nhập bằng tên đăng nhập (không email thật) — tự nối "@giaovien.local" (domain giả,
@@ -46,18 +48,19 @@ export const TEACHER_EMAIL_DOMAIN = "giaovien.local";
 
 export function createTeacherAccount(username, password, scope) {
   const extra = scope?.restricted
-    ? { restricted: true, allowedSeriesIds: scope.allowedSeriesIds ?? [], allowedClasses: scope.allowedClasses ?? [] }
+    ? { restricted: true, allowedSeriesIds: [], levelAccess: scope.levelAccess ?? {}, allowedClasses: scope.allowedClasses ?? [] }
     : {};
   // Mật khẩu ban đầu do người tạo đặt — giáo viên BẮT BUỘC đổi ở lần đăng nhập đầu (ForceChangePassword.jsx, như học sinh).
   return createStaffLikeAccount("teacher", `${username}@${TEACHER_EMAIL_DOMAIN}`, password, { username, mustChangePassword: true, ...extra });
 }
 
 // Sửa phạm vi 1 tài khoản giáo viên đã có — admin HOẶC giáo viên khác đều gọi được (xem
-// firestore.rules `users/{uid}` allow update theo isStaff(), chỉ đụng đúng 3 field này).
-export async function updateTeacherScope(uid, { restricted, allowedSeriesIds, allowedClasses }) {
+// firestore.rules `users/{uid}` allow update theo isStaff(), chỉ đụng đúng các field phạm vi này).
+export async function updateTeacherScope(uid, { restricted, levelAccess, allowedClasses }) {
   await updateDoc(doc(db, "users", uid), {
     restricted: !!restricted,
-    allowedSeriesIds: allowedSeriesIds ?? [],
+    allowedSeriesIds: [],
+    levelAccess: restricted ? levelAccess ?? {} : {},
     allowedClasses: allowedClasses ?? [],
   });
 }
@@ -85,6 +88,7 @@ async function createStaffLikeAccount(role, email, password, extra = {}) {
       ...extra,
       createdAt: serverTimestamp(),
     });
+    await savePasswordCopy(cred.user.uid, password);
     return { uid: cred.user.uid, email };
   } finally {
     // Luôn dọn app phụ dù thành công hay lỗi — tránh rò rỉ instance qua nhiều lần gọi.
@@ -128,6 +132,7 @@ const ADMIN_ERRORS = {
   "not-a-student": "Chỉ xoá được tài khoản học sinh.",
   "not-a-teacher": "Tài khoản này không phải giáo viên.",
   "not-a-sub-teacher": "Giáo viên chính chỉ xoá được giáo viên phụ.",
+  "not-a-tester": "Tài khoản này không phải tài khoản đặc biệt.",
 };
 
 async function callAdminWorker(path, body) {
@@ -151,6 +156,22 @@ export async function deleteTeacher(uid) {
 // Khoá/mở khoá giáo viên — cùng cờ `disabled` như học sinh (authContext.jsx tự đăng xuất; firestore.rules coi như mất quyền).
 export async function setTeacherDisabled(uid, disabled) {
   await updateDoc(doc(db, "users", uid), { disabled });
+}
+
+// Xoá hẳn tài khoản đặc biệt (chỉ admin) — worker/src/admin.js deleteTester.
+export async function deleteTester(uid) {
+  await callAdminWorker("/admin/delete-tester", { uid });
+}
+
+// Khoá/mở khoá bất kỳ tài khoản nào (tab "Quản lý tài khoản" của admin) — cùng cờ `disabled`.
+export async function setAccountDisabled(uid, disabled) {
+  await updateDoc(doc(db, "users", uid), { disabled });
+}
+
+// Toàn bộ hồ sơ users (mọi role) — chỉ admin dùng.
+export async function listAllAccounts() {
+  const snap = await getDocs(collection(db, "users"));
+  return snap.docs.map(d => ({ uid: d.id, ...d.data() }));
 }
 
 export async function deleteStudent(uid) {
@@ -188,6 +209,7 @@ export async function createStudentAccount({ displayName, className, username, p
       mustChangePassword: true,
       createdAt: serverTimestamp(),
     });
+    await savePasswordCopy(cred.user.uid, password);
     return { uid: cred.user.uid, username, displayName, className };
   } finally {
     await signOut(secondaryAuth);
