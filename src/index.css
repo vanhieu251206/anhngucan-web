@@ -4228,6 +4228,9 @@ button.wizard-step:focus-visible { outline: 3px solid var(--color-secondary); ou
 .p4s-swatch.is-active { border-color: var(--color-primary); box-shadow: 0 0 0 3px rgba(245, 113, 31, 0.25); background: #fff7f1; }
 .p4s-stage { position: relative; line-height: 0; box-shadow: 0 0 0 2px #e4dfd3; border-radius: 12px; overflow: hidden; }
 .p4s-canvas { width: 100%; height: auto; display: block; touch-action: manipulation; }
+/* Con trỏ cọ tô màu: vòng tròn đúng bằng nét tô (width = cỡ cọ % bề rộng ảnh), viền đen + trắng để thấy trên mọi nền. */
+.p4-brush-cursor { display: none; position: absolute; aspect-ratio: 1; transform: translate(-50%, -50%); border-radius: 50%; pointer-events: none; box-sizing: border-box; border: 1.5px solid rgba(0, 0, 0, 0.8); box-shadow: 0 0 0 1px #fff, inset 0 0 0 1px #fff; background: color-mix(in srgb, var(--c) 30%, transparent); min-width: 4px; }
+.p4-brush-cursor.is-erase { background: rgba(255, 255, 255, 0.35); border-style: dashed; }
 .p4s-frame { position: absolute; box-sizing: border-box; border: 4px solid; border-radius: 8px; pointer-events: none; line-height: 1; }
 .p4s-frame.is-ok { border-color: #2e9d5b; background: rgba(46, 157, 91, 0.15); }
 .p4s-frame.is-wrong { border-color: #d64545; background: rgba(214, 69, 69, 0.12); }

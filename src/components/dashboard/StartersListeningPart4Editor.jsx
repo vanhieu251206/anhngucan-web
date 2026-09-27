@@ -158,6 +158,7 @@ export function Part4Preview({ part, onChange, activeId, onActiveId }) {
   const [size, setSize] = useState(2.5);
   const [live, setLive] = useState(null); // nét đang kéo: { pts: [x, y, ...] }
   const [zoom, setZoom] = useState(1);
+  const cursorRef = useRef(null); // vòng tròn con trỏ cọ, đúng bằng cỡ nét tô
   const activeItem = part.items.find(i => i.id === activeId);
   const writing = !!activeItem && isWriteItem(activeItem);
   const count = part.items.filter(i => (isWriteItem(i) ? !!i.box : !!i.ops?.length)).length;
@@ -171,7 +172,7 @@ export function Part4Preview({ part, onChange, activeId, onActiveId }) {
     return Object.fromEntries(
       part.items.filter(it => !isWriteItem(it)).map(it => {
         const ops = it.id === activeId && live ? [...it.ops, { t: "brush", size, e: tool === "erase", pts: live.pts }] : it.ops;
-        return [it.id, buildMask(ops, art.w, art.h, art.orig)];
+        return [it.id, buildMask(ops, art.w, art.h, art.orig, false)];
       }),
     );
   }, [art, part.items, activeId, live, size, tool]);
@@ -192,16 +193,28 @@ export function Part4Preview({ part, onChange, activeId, onActiveId }) {
     onChange({ ...part, items: part.items.map(i => (i.id === activeId ? { ...i, ops: [...i.ops, op] } : i)) });
   }
 
+  function showCursor(x, y) {
+    const el = cursorRef.current;
+    if (!el) return;
+    el.style.left = `${x}%`;
+    el.style.top = `${y}%`;
+    el.style.display = "block";
+  }
+  function hideCursor() {
+    if (cursorRef.current) cursorRef.current.style.display = "none";
+  }
   function down(e) {
     if (!activeId || !art.orig || writing) return;
     e.preventDefault();
     const [x, y] = point(e);
+    showCursor(x, y);
     e.currentTarget.setPointerCapture?.(e.pointerId);
     setLive({ pts: [x, y] });
   }
   function move(e) {
-    if (!live) return;
     const [x, y] = point(e);
+    showCursor(x, y);
+    if (!live) return;
     const n = live.pts.length;
     if (Math.hypot(x - live.pts[n - 2], y - live.pts[n - 1]) < 0.25) return;
     setLive({ pts: [...live.pts, x, y] });
@@ -254,8 +267,12 @@ export function Part4Preview({ part, onChange, activeId, onActiveId }) {
             onPointerMove={move}
             onPointerUp={up}
             onPointerCancel={up}
-            style={{ cursor: activeId ? "crosshair" : "default", touchAction: activeId ? "none" : "auto" }}
+            onPointerLeave={hideCursor}
+            style={{ cursor: activeId && !writing ? "none" : activeId ? "crosshair" : "default", touchAction: activeId ? "none" : "auto" }}
           />
+          {activeId && !writing && (
+            <div ref={cursorRef} className={`p4-brush-cursor${tool === "erase" ? " is-erase" : ""}`} style={{ width: `${size}%`, "--c": hexOf(activeItem?.color) ?? "#000" }} />
+          )}
           {part.items.filter(isWriteItem).map(it => it.box && (
             <div key={it.id} className="admin-p1-frame is-b" style={{ left: `${it.box.x}%`, top: `${it.box.y}%`, width: `${it.box.w}%`, height: `${it.box.h}%` }}>
               <span>{it.id.slice(1)}</span>

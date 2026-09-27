@@ -214,15 +214,18 @@ function TestEditor({ series, level, testId, uid, onBack }) {
     slots.push(v => setPart2(p => ({ ...p, imageUrl: v })));
 
     if (moversLike) {
+      const part3Pictures = [];
       for (let i = 0; i < 8; i++) {
         const idx = i;
-        slots.push(v => setPart3(p => ({ ...p, pictures: p.pictures.map((u, j) => (j === idx ? v : u)) })));
+        part3Pictures.push(v => setPart3(p => ({ ...p, pictures: p.pictures.map((u, j) => (j === idx ? v : u)) })));
       }
-      slots.push(v => setPart3(p => ({ ...p, example: { ...p.example, image: v } })));
+      const part3Rows = [v => setPart3(p => ({ ...p, example: { ...p.example, image: v } }))];
       for (let i = 0; i < 5; i++) {
         const idx = i;
-        slots.push(v => setPart3(p => ({ ...p, questions: p.questions.map((q, j) => (j === idx ? { ...q, image: v } : q)) })));
+        part3Rows.push(v => setPart3(p => ({ ...p, questions: p.questions.map((q, j) => (j === idx ? { ...q, image: v } : q)) })));
       }
+      // Sách Movers in 8 tranh A-H TRƯỚC danh sách câu; sách Flyers in danh sách câu (ảnh người) trước, 8 tranh A-H ở trang sau.
+      slots.push(...(flyers ? [...part3Rows, ...part3Pictures] : [...part3Pictures, ...part3Rows]));
       for (let s = 0; s < 3; s++) {
         const idx = s;
         slots.push(v => setPart4(p => ({ ...p, example: { ...p.example, images: p.example.images.map((u, j) => (j === idx ? v : u)) } })));
@@ -312,7 +315,7 @@ function TestEditor({ series, level, testId, uid, onBack }) {
       (has3 ? (moversLike ? validateMoversPart3(part3) : validatePart3(part3)) : null) ||
       (moversLike ? (has4 ? validatePart3(part4) : null) : part4.items.some(i => i.ops?.length) ? validatePart4(part4) : null) ||
       (has5 ? validatePart4(part5) : null) ||
-      (!has1 && !has2 && !has3 && !has4 && !has5 ? "Chưa có nội dung nào để xuất bản." : null);
+      (!has1 && !has2 && !has3 && !has4 && !has5 && ![part1, part2, part3, part4, part5].some(p => p.audioUrl) ? "Chưa có nội dung nào để xuất bản." : null);
     if (err) {
       alert(err);
       return;
@@ -321,7 +324,11 @@ function TestEditor({ series, level, testId, uid, onBack }) {
     setSaving(true);
     setSaved(false);
     try {
-      await saveListeningExamTest(series.id, level.number, testId, { title, parts: moversLike ? Object.fromEntries(Object.entries({ part1, part2, part3, part4, part5 }).filter(([k]) => ({ part1: has1, part2: has2, part3: has3, part4: has4, part5: has5 })[k])) : { part1, part2, part3, part4 } }, uid);
+      // Part mới chỉ có audio (chưa ảnh/đáp án) vẫn lưu để không mất audio đã tải — học sinh chỉ thấy Part có nội dung
+      // (StartersListeningTestRunner.jsx PARTS[].has) nên không lộ Part dở dang.
+      const keep = { part1: has1, part2: has2, part3: has3, part4: has4, part5: has5 };
+      const all = { part1, part2, part3, part4, part5 };
+      await saveListeningExamTest(series.id, level.number, testId, { title, parts: moversLike ? Object.fromEntries(Object.entries(all).filter(([k, v]) => keep[k] || !!v.audioUrl)) : { part1, part2, part3, part4 } }, uid);
       setSaved(true);
     } catch (e) {
       alert(`Không xuất bản được: ${e.message}`);

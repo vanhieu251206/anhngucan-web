@@ -89,7 +89,10 @@ export function regionOf(orig, sx, sy) {
 }
 
 // Ảnh mask (canvas, alpha>0 = thuộc cái bánh) dựng từ danh sách ops.
-export function buildMask(ops, w, h, orig) {
+// binarize: mép nét tẩy (destination-out) khử răng cưa để lại điểm ảnh alpha rất nhỏ, không thấy bằng mắt nhưng vẫn
+// bị tính là thuộc vùng → khung đáp án/chấm điểm ôm cả chỗ đã tô nhầm rồi tẩy. Làm tròn alpha về 0/255 để bỏ hẳn.
+// Editor vẽ lại liên tục khi kéo cọ nên tắt bước này (chỉ để hiển thị, không ảnh hưởng mắt nhìn).
+export function buildMask(ops, w, h, orig, binarize = true) {
   const c = document.createElement("canvas");
   c.width = w;
   c.height = h;
@@ -121,6 +124,12 @@ export function buildMask(ops, w, h, orig) {
     }
   }
   ctx.globalCompositeOperation = "source-over";
+  if (binarize && ops?.some(op => op.e)) {
+    const id = ctx.getImageData(0, 0, w, h);
+    const d = id.data;
+    for (let i = 3; i < d.length; i += 4) d[i] = d[i] >= 128 ? 255 : 0;
+    ctx.putImageData(id, 0, 0);
+  }
   return c;
 }
 
@@ -330,6 +339,7 @@ export default function StartersListeningPart4Runner({ part, submitted, reveal =
   const canvasRef = useRef(null);
   const layerRef = useRef(null); // canvas lớp tô của học sinh
   const liveRef = useRef(null); // nét đang kéo: { pts, size, e, c }
+  const cursorRef = useRef(null); // vòng tròn con trỏ cọ, đúng bằng cỡ nét tô
   const art = useLineArt(part.imageUrl);
   const [color, setColor] = useState(null);
   const [tool, setTool] = useState("brush");
@@ -370,19 +380,31 @@ export default function StartersListeningPart4Runner({ part, submitted, reveal =
     const rect = canvasRef.current.getBoundingClientRect();
     return [Math.round(((e.clientX - rect.left) / rect.width) * 10000) / 100, Math.round(((e.clientY - rect.top) / rect.height) * 10000) / 100];
   }
+  function showCursor(x, y) {
+    const el = cursorRef.current;
+    if (!el) return;
+    el.style.left = `${x}%`;
+    el.style.top = `${y}%`;
+    el.style.display = "block";
+  }
+  function hideCursor() {
+    if (cursorRef.current) cursorRef.current.style.display = "none";
+  }
   function down(e) {
     if (submitted || !art.orig || (!color && tool !== "erase")) return;
     e.preventDefault();
     const [x, y] = point(e);
+    showCursor(x, y);
     e.currentTarget.setPointerCapture?.(e.pointerId);
     liveRef.current = { pts: [x, y], size, e: tool === "erase", c: color };
     drawStroke(layerRef.current.getContext("2d"), art.w, art.h, size, tool === "erase", hexOf(color), [x, y]);
     repaint();
   }
   function move(e) {
+    const [x, y] = point(e);
+    showCursor(x, y);
     const live = liveRef.current;
     if (!live) return;
-    const [x, y] = point(e);
     const n = live.pts.length;
     if (Math.hypot(x - live.pts[n - 2], y - live.pts[n - 1]) < 0.2) return;
     live.pts.push(x, y);
@@ -504,8 +526,10 @@ export default function StartersListeningPart4Runner({ part, submitted, reveal =
           onPointerMove={move}
           onPointerUp={up}
           onPointerCancel={up}
-          style={{ cursor: canPaint ? "crosshair" : "default", touchAction: canPaint ? "none" : "auto" }}
+          onPointerLeave={hideCursor}
+          style={{ cursor: canPaint ? "none" : "default", touchAction: canPaint ? "none" : "auto" }}
         />
+        {canPaint && <div ref={cursorRef} className={`p4-brush-cursor${tool === "erase" ? " is-erase" : ""}`} style={{ width: `${size}%`, "--c": hexOf(color) ?? "#000" }} />}
         {submitted && reveal &&
           colourItems.map(it => {
             const b = boxes[it.id];
