@@ -224,8 +224,8 @@ function TestEditor({ series, level, testId, uid, onBack }) {
         const idx = i;
         part3Rows.push(v => setPart3(p => ({ ...p, questions: p.questions.map((q, j) => (j === idx ? { ...q, image: v } : q)) })));
       }
-      // Sách Movers in 8 tranh A-H TRƯỚC danh sách câu; sách Flyers in danh sách câu (ảnh người) trước, 8 tranh A-H ở trang sau.
-      slots.push(...(flyers ? [...part3Rows, ...part3Pictures] : [...part3Pictures, ...part3Rows]));
+      // Sách Movers và Flyers đều in danh sách câu (ảnh người) trước, 8 tranh A-H ở trang sau.
+      slots.push(...part3Rows, ...part3Pictures);
       for (let s = 0; s < 3; s++) {
         const idx = s;
         slots.push(v => setPart4(p => ({ ...p, example: { ...p.example, images: p.example.images.map((u, j) => (j === idx ? v : u)) } })));
