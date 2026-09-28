@@ -17,7 +17,18 @@ import { trackPage } from "./lib/analytics.js";
 
 // Dashboard (CMS quản trị) chỉ admin/teacher dùng, học sinh không bao giờ vào — tách thành chunk
 // riêng (React.lazy) để 100 học sinh không phải tải kèm code CMS lúc mở app (xem audit P2).
-const DashboardPage = lazy(() => import("./pages/DashboardPage.jsx"));
+// Tab cũ sau deploy mới → chunk cũ 404: lúc mới chuyển trang chưa dở thao tác gì nên tự tải lại 1 lần (cờ chống lặp).
+const DashboardPage = lazy(() =>
+  import("./pages/DashboardPage.jsx").then(
+    m => { try { sessionStorage.removeItem("chunkReload"); } catch {} return m; },
+    err => {
+      let reloaded = false;
+      try { reloaded = sessionStorage.getItem("chunkReload") === "1"; sessionStorage.setItem("chunkReload", "1"); } catch {}
+      if (!reloaded) { window.location.reload(); return new Promise(() => {}); }
+      throw err;
+    }
+  )
+);
 
 // Tiêu đề tab riêng cho từng trang (SEO + dễ phân biệt khi mở nhiều tab). Trang không có trong danh sách = 404.
 const SITE_NAME = "Anh Ngữ C.A.N";

@@ -108,6 +108,11 @@ service cloud.firestore {
     // Ghi: người tạo tài khoản (admin/giáo viên chính) hoặc chính chủ khi đổi mật khẩu. Đúng 2 field.
     match /passwordVault/{uid} {
       allow read, delete: if isAdmin();
+      // Giáo viên chính đọc mật khẩu ban đầu của học sinh CHƯA đổi mật khẩu lần đầu — để xuất lại phiếu đăng nhập PDF
+      // (2026-09-28). Em đổi mật khẩu rồi thì giáo viên không đọc được nữa.
+      allow get: if isFullStaff()
+        && get(/databases/(default)/documents/users/$(uid)).data.get('role', '') == 'student'
+        && get(/databases/(default)/documents/users/$(uid)).data.get('mustChangePassword', false) == true;
       allow create, update: if (isFullStaff() || (isSignedIn() && request.auth.uid == uid))
         && request.resource.data.keys().hasOnly(['password', 'updatedAt'])
         && request.resource.data.password is string;

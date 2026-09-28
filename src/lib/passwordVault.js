@@ -1,4 +1,4 @@
-import { doc, setDoc, getDocs, collection, serverTimestamp } from "firebase/firestore";
+import { doc, setDoc, getDoc, getDocs, collection, serverTimestamp } from "firebase/firestore";
 import { db } from "./firebase.js";
 
 // Bản sao mật khẩu dạng CHỮ THƯỜNG để admin xem lại, hỗ trợ học sinh quên mật khẩu (người dùng chủ động chọn
@@ -18,4 +18,13 @@ export async function savePasswordCopy(uid, password) {
 export async function loadPasswordVault() {
   const snap = await getDocs(collection(db, "passwordVault"));
   return Object.fromEntries(snap.docs.map(d => [d.id, d.data()]));
+}
+
+// Xuất lại phiếu đăng nhập (2026-09-28): đọc từng doc (giáo viên chính không được list cả collection — rules chỉ cho
+// đọc bản sao của học sinh CHƯA đổi mật khẩu lần đầu). { uid: password } — thiếu = chưa có bản sao / không được đọc.
+export async function getPasswordCopies(uids) {
+  const entries = await Promise.all(
+    uids.map(uid => getDoc(doc(db, "passwordVault", uid)).then(s => [uid, s.data()?.password ?? null], () => [uid, null]))
+  );
+  return Object.fromEntries(entries.filter(([, p]) => p));
 }

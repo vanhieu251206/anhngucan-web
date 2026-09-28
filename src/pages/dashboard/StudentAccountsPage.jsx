@@ -5,6 +5,7 @@ import { listClassDocs, createClass, deleteClass, renameClass, setClassSchedule,
 import { useAuth } from "../../lib/authContext.jsx";
 import { useConfirm } from "../../components/dashboard/ConfirmDialog.jsx";
 import { downloadStudentCardPdf, downloadAllStudentCardPdfs } from "../../lib/studentCardPdf.js";
+import { getPasswordCopies } from "../../lib/passwordVault.js";
 
 // Học sinh chưa gắn lớp (tài khoản cũ) gom vào 1 ô riêng.
 const NO_CLASS = "\u0000none";
@@ -145,6 +146,7 @@ export default function StudentAccountsPage() {
   const [usedPassword, setUsedPassword] = useState("");
   const [bulkError, setBulkError] = useState("");
   const [copied, setCopied] = useState(false);
+  const [cardError, setCardError] = useState("");
   const [downloading, setDownloading] = useState(null); // "all" | username đang tạo PDF
 
   function reload() {
@@ -386,6 +388,26 @@ export default function StudentAccountsPage() {
     }
   }
 
+  // Xuất lại phiếu cho học sinh CHƯA đổi mật khẩu lần đầu (2026-09-28) — mật khẩu ban đầu lấy từ bản sao passwordVault
+  // (admin + giáo viên chính). Tài khoản tạo trước 2026-09-27 chưa có bản sao thì báo tên, không in được.
+  async function handleReprintCards(list, key) {
+    setCardError("");
+    setDownloading(key);
+    try {
+      const passwords = await getPasswordCopies(list.map(s => s.uid));
+      const ready = list.filter(s => passwords[s.uid]).map(s => ({ displayName: s.displayName, username: s.username, password: passwords[s.uid] }));
+      const missing = list.filter(s => !passwords[s.uid]);
+      const info = { className: current.name, schedule: formatSchedule(current) };
+      if (ready.length === 1) await downloadStudentCardPdf(ready[0], info);
+      else if (ready.length > 1) await downloadAllStudentCardPdfs(ready, info);
+      if (missing.length) setCardError(`Chưa có mật khẩu lưu lại của: ${missing.map(s => s.displayName || s.username).join(", ")} — admin đổi mật khẩu cho em ở tab "Tất cả" rồi xuất lại.`);
+    } catch (err) {
+      setCardError(err.message || String(err));
+    } finally {
+      setDownloading(null);
+    }
+  }
+
   function copyResults() {
     const lines = bulkResults.filter(r => r.ok).map(r => `${r.displayName}\t${r.className}\t${r.username}\t${usedPassword}`);
     navigator.clipboard?.writeText(lines.join("\n"));
@@ -472,6 +494,11 @@ export default function StudentAccountsPage() {
               {!isRestricted && current.name !== NO_CLASS && (
                 <button className="opening-btn opening-btn-danger" type="button" onClick={() => handleDeleteClass(current)}>🗑 Xoá lớp</button>
               )}
+              {!isRestricted && current.students.some(s => s.mustChangePassword) && (
+                <button className="opening-btn" type="button" disabled={!!downloading} onClick={() => handleReprintCards(current.students.filter(s => s.mustChangePassword), "reprint-all")}>
+                  {downloading === "reprint-all" ? "Đang tạo PDF..." : `⬇ Phiếu chưa đổi MK (${current.students.filter(s => s.mustChangePassword).length})`}
+                </button>
+              )}
               {!isRestricted && current.name !== NO_CLASS && <button className="admin-btn-primary" type="button" onClick={openForm}>+ Thêm học sinh</button>}
             </div>
           </div>
@@ -486,6 +513,7 @@ export default function StudentAccountsPage() {
           )}
 
           {loadError && <p className="admin-error">{loadError}</p>}
+          {cardError && <p className="admin-error">{cardError}</p>}
           {current.students.length === 0 && <p className="admin-muted-text">Lớp chưa có học sinh.</p>}
           {current.students.length > 0 && (
             <div style={{ overflowX: "auto" }}>
@@ -507,6 +535,9 @@ export default function StudentAccountsPage() {
                       </td>
                       {!isRestricted && <td>
                         <div className="opening-actions">
+                          {s.mustChangePassword && (
+                            <button className="opening-btn" disabled={!!downloading} onClick={() => handleReprintCards([s], s.uid)}>{downloading === s.uid ? "..." : "⬇ Phiếu"}</button>
+                          )}
                           <button className="opening-btn" disabled={busyUid === s.uid} onClick={() => setMoving({ student: s, target: s.className || "" })}>↔ Chuyển lớp</button>
                           <button className="opening-btn" disabled={busyUid === s.uid} onClick={() => handleToggleLock(s)}>{s.disabled ? "🔓 Mở khoá" : "🔒 Khoá"}</button>
                           <button className="opening-btn opening-btn-danger" disabled={busyUid === s.uid} onClick={() => handleDelete(s)}>🗑 Xoá</button>
@@ -702,7 +733,7 @@ export default function StudentAccountsPage() {
               <>
                 <h2>Kết quả tạo tài khoản</h2>
                 <p className="admin-muted-text">
-                  Đã tạo {okCount}/{bulkResults.length} tài khoản. Tải phiếu đăng nhập (PDF) ngay bây giờ — mật khẩu ban đầu chỉ hiện ở đây một lần.
+                  Đã tạo {okCount}/{bulkResults.length} tài khoản. Tải phiếu đăng nhập (PDF) ngay hoặc xuất lại sau trong lớp (khi em chưa đổi mật khẩu).
                 </p>
                 <div style={{ overflowX: "auto", margin: "12px 0" }}>
                   <table className="admin-table">

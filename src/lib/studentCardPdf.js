@@ -1,5 +1,5 @@
 // Phiếu đăng nhập riêng từng học sinh, TẢI THẲNG file PDF (không qua hộp thoại in) — chốt 2026-09-25. Chỉ có
-// ngay sau khi tạo tài khoản (mật khẩu ban đầu không lưu ở đâu). Vẽ phiếu lên canvas bằng font của web (hiện đúng
+// ngay sau khi tạo tài khoản, hoặc xuất lại khi học sinh chưa đổi mật khẩu (mật khẩu lấy từ passwordVault). Vẽ phiếu lên canvas bằng font của web (hiện đúng
 // tiếng Việt, không phải nhúng font vào PDF) rồi đặt ảnh vào 1 trang PDF qua jsPDF (tải động, không làm nặng bundle).
 
 // Tên miền thật của web (public/CNAME) — in cho phụ huynh dù giáo viên đang chạy local.
