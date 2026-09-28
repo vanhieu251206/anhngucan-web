@@ -257,6 +257,12 @@ export default function TeacherAccountsPage() {
 
   return (
     <div>
+      <div className="results-stats">
+        <div className="results-stat"><span>{teachers ? teachers.length : "—"}</span><small>Giáo viên</small></div>
+        <div className="results-stat"><span>{teachers ? teachers.filter(t => t.restricted).length : "—"}</span><small>Giáo viên phụ</small></div>
+        <div className="results-stat"><span>{teachers ? teachers.filter(t => t.disabled).length : "—"}</span><small>Đã khoá</small></div>
+      </div>
+
       <div className="admin-card" style={{ marginBottom: 24 }}>
         <div className="opening-list-head">
           <h2>Danh sách giáo viên</h2>
