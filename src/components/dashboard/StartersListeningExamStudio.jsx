@@ -379,18 +379,18 @@ function TestEditor({ series, level, testId, uid, onBack }) {
     const has3 = part3HasContent(part3);
     const has4 = moversLike ? part3HasContent(part4) : part4HasContent(part4);
     const has5 = moversLike && part4HasContent(part5);
-    const err =
-      (has1 ? validatePart1(part1) : null) ||
-      (has2 ? validatePart2(part2) : null) ||
-      (has3 ? (moversLike ? validateMoversPart3(part3) : validatePart3(part3)) : null) ||
-      (moversLike ? (has4 ? validatePart3(part4) : null) : part4.items.some(i => i.ops?.length) ? validatePart4(part4) : null) ||
-      (has5 ? validatePart4(part5) : null) ||
-      (!has1 && !has2 && !has3 && !has4 && !has5 && ![part1, part2, part3, part4, part5].some(p => p.audioUrl) ? "Chưa có nội dung nào để xuất bản." : null);
-    if (err) {
-      alert(err);
-      return;
-    }
-    if (!(await confirm("Bài này sẽ hiển thị ngay trên website cho học sinh. Xuất bản?"))) return;
+    // Không chặn xuất bản khi còn thiếu — chỉ liệt kê các chỗ chưa nhập để giáo viên biết (người dùng chốt 2026-09-29).
+    // Phía học sinh tự bỏ qua dữ liệu dở (vd cặp Part 1 thiếu 1 khung không tính là câu).
+    const warnings = [
+      has1 ? validatePart1(part1) : null,
+      has2 ? validatePart2(part2) : null,
+      has3 ? (moversLike ? validateMoversPart3(part3) : validatePart3(part3)) : null,
+      moversLike ? (has4 ? validatePart3(part4) : null) : part4.items.some(i => i.ops?.length) ? validatePart4(part4) : null,
+      has5 ? validatePart4(part5) : null,
+      !has1 && !has2 && !has3 && !has4 && !has5 && ![part1, part2, part3, part4, part5].some(p => p.audioUrl) ? "Chưa có nội dung nào." : null,
+    ].filter(Boolean);
+    const warnText = warnings.length ? `Còn chỗ chưa nhập:\n${warnings.map(w => `• ${w}`).join("\n")}\n\n` : "";
+    if (!(await confirm(`${warnText}Bài này sẽ hiển thị ngay trên website cho học sinh. Xuất bản?`))) return;
     setSaving(true);
     setSaved(false);
     try {
