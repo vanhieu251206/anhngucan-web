@@ -287,6 +287,17 @@ function TestEditor({ series, level, testId, uid, onBack }) {
     }
   }
 
+  // Xoá trắng mọi ô ảnh của Test (chỉ admin) — chỉ gỡ URL khỏi bài, file trên Cloudinary vẫn còn; bấm Xuất bản mới lưu.
+  async function handleClearImages() {
+    const slots = buildImageSlots().filter(s => s.value);
+    if (!slots.length) {
+      alert("Test này chưa có ảnh nào.");
+      return;
+    }
+    if (!(await confirm(`Xoá toàn bộ ${slots.length} ảnh của Test này?`, { danger: true }))) return;
+    slots.forEach(s => s.set(""));
+  }
+
   async function handleBulkUpload(e) {
     const files = Array.from(e.target.files ?? []);
     e.target.value = "";
@@ -426,6 +437,11 @@ function TestEditor({ series, level, testId, uid, onBack }) {
           {isAdmin && isScreenScanSupported() && (
             <button className="admin-pill-btn" onClick={openScreenScan} disabled={bulkUploading} title="Alt+Q">
               {pendingCrops > 0 ? `Đang tải ${pendingCrops} ảnh...` : "📸 Quét màn hình"}
+            </button>
+          )}
+          {isAdmin && (
+            <button className="admin-pill-btn" onClick={handleClearImages} disabled={bulkUploading || pendingCrops > 0}>
+              🗑 Xoá tất cả ảnh
             </button>
           )}
           <button className="admin-btn-primary" onClick={handlePublish} disabled={saving}>
