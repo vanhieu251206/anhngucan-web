@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import ImageUploadField from "./ImageUploadField.jsx";
 import AudioUploadField from "./AudioUploadField.jsx";
 import { useConfirm } from "./ConfirmDialog.jsx";
@@ -11,6 +11,8 @@ import { listListeningExamTests, getListeningExamTest, saveListeningExamTest } f
 import { uploadToCloudinary } from "../../lib/cloudinaryUpload.js";
 import { useAuth } from "../../lib/authContext.jsx";
 import { optimizeImage } from "../../lib/cloudinaryImage.js";
+import { createScreenScanner, cropCanvasToFile, isScreenScanSupported } from "../../lib/screenScan.js";
+import ScreenCropOverlay from "./ScreenCropOverlay.jsx";
 
 // CMS "Luyện đề" Listening — Starters (Part 1-4) và Movers + Flyers (Part 1-5, giống hệt cơ chế của nhau,
 // chốt cùng người dùng 2026-09-22: Flyers dùng đúng Part2/3/4/5 của Movers). Part 1 (nghe & nối tên với người trong tranh).
@@ -205,35 +207,35 @@ function TestEditor({ series, level, testId, uid, onBack }) {
   const [bulkProgress, setBulkProgress] = useState(null);
 
   // Danh sách các ô ảnh của Test này theo ĐÚNG thứ tự xuất hiện trên trang sách (Part 1 ảnh cảnh → Part 2
-  // ảnh cảnh → Part 3 tranh A-H/ảnh 3 lựa chọn từng câu → ...) — dùng cho "Tải ảnh hàng loạt": giáo viên
-  // chụp ảnh sách theo đúng thứ tự này (dùng script đổi tên 1..N kèm theo), chọn hết 1 lần, hệ thống tự
-  // gán vào đúng ô; ảnh thừa (nhiều hơn số ô) tự bỏ qua, không thêm.
+  // ảnh cảnh → Part 3 ảnh người từng câu + tranh A-H/ảnh 3 lựa chọn từng câu → ...), mỗi ô { value, set } —
+  // dùng cho "Tải ảnh hàng loạt" (giáo viên chụp ảnh sách theo đúng thứ tự này, dùng script đổi tên 1..N
+  // kèm theo, chọn hết 1 lần, hệ thống tự gán vào đúng ô; ảnh thừa tự bỏ qua) và "Quét màn hình" (điền vào
+  // các ô CÒN TRỐNG tiếp theo).
   function buildImageSlots() {
     const slots = [];
-    slots.push(v => setPart1(p => ({ ...p, imageUrl: v })));
-    slots.push(v => setPart2(p => ({ ...p, imageUrl: v })));
+    const add = (label, value, set) => slots.push({ label, value, set });
+    add("Part 1 · Ảnh", part1.imageUrl, v => setPart1(p => ({ ...p, imageUrl: v })));
+    add("Part 2 · Ảnh", part2.imageUrl, v => setPart2(p => ({ ...p, imageUrl: v })));
 
     if (moversLike) {
-      const part3Pictures = [];
-      for (let i = 0; i < 8; i++) {
-        const idx = i;
-        part3Pictures.push(v => setPart3(p => ({ ...p, pictures: p.pictures.map((u, j) => (j === idx ? v : u)) })));
-      }
-      const part3Rows = [v => setPart3(p => ({ ...p, example: { ...p.example, image: v } }))];
+      // Sách Movers và Flyers đều in danh sách câu (ảnh người) trước, 8 tranh A-H ở trang sau.
+      add("Part 3 · Ví dụ", part3.example.image, v => setPart3(p => ({ ...p, example: { ...p.example, image: v } })));
       for (let i = 0; i < 5; i++) {
         const idx = i;
-        part3Rows.push(v => setPart3(p => ({ ...p, questions: p.questions.map((q, j) => (j === idx ? { ...q, image: v } : q)) })));
+        add(`Part 3 · Câu ${idx + 1}`, part3.questions[idx]?.image, v => setPart3(p => ({ ...p, questions: p.questions.map((q, j) => (j === idx ? { ...q, image: v } : q)) })));
       }
-      // Sách Movers và Flyers đều in danh sách câu (ảnh người) trước, 8 tranh A-H ở trang sau.
-      slots.push(...part3Rows, ...part3Pictures);
+      for (let i = 0; i < 8; i++) {
+        const idx = i;
+        add(`Part 3 · Tranh ${"ABCDEFGH"[idx]}`, part3.pictures[idx], v => setPart3(p => ({ ...p, pictures: p.pictures.map((u, j) => (j === idx ? v : u)) })));
+      }
       for (let s = 0; s < 3; s++) {
         const idx = s;
-        slots.push(v => setPart4(p => ({ ...p, example: { ...p.example, images: p.example.images.map((u, j) => (j === idx ? v : u)) } })));
+        add(`Part 4 · Ví dụ ảnh ${"ABC"[idx]}`, part4.example.images[idx], v => setPart4(p => ({ ...p, example: { ...p.example, images: p.example.images.map((u, j) => (j === idx ? v : u)) } })));
       }
       for (let i = 0; i < 5; i++) {
         for (let s = 0; s < 3; s++) {
           const qi = i, si = s;
-          slots.push(v =>
+          add(`Part 4 · Câu ${qi + 1} ảnh ${"ABC"[si]}`, part4.questions[qi]?.images[si], v =>
             setPart4(p => ({
               ...p,
               questions: p.questions.map((q, j) => (j === qi ? { ...q, images: q.images.map((u, k) => (k === si ? v : u)) } : q)),
@@ -241,16 +243,16 @@ function TestEditor({ series, level, testId, uid, onBack }) {
           );
         }
       }
-      slots.push(v => setPart5(p => ({ ...p, imageUrl: v })));
+      add("Part 5 · Ảnh", part5.imageUrl, v => setPart5(p => ({ ...p, imageUrl: v })));
     } else {
       for (let s = 0; s < 3; s++) {
         const idx = s;
-        slots.push(v => setPart3(p => ({ ...p, example: { ...p.example, images: p.example.images.map((u, j) => (j === idx ? v : u)) } })));
+        add(`Part 3 · Ví dụ ảnh ${"ABC"[idx]}`, part3.example.images[idx], v => setPart3(p => ({ ...p, example: { ...p.example, images: p.example.images.map((u, j) => (j === idx ? v : u)) } })));
       }
       for (let i = 0; i < 5; i++) {
         for (let s = 0; s < 3; s++) {
           const qi = i, si = s;
-          slots.push(v =>
+          add(`Part 3 · Câu ${qi + 1} ảnh ${"ABC"[si]}`, part3.questions[qi]?.images[si], v =>
             setPart3(p => ({
               ...p,
               questions: p.questions.map((q, j) => (j === qi ? { ...q, images: q.images.map((u, k) => (k === si ? v : u)) } : q)),
@@ -258,9 +260,31 @@ function TestEditor({ series, level, testId, uid, onBack }) {
           );
         }
       }
-      slots.push(v => setPart4(p => ({ ...p, imageUrl: v })));
+      add("Part 4 · Ảnh", part4.imageUrl, v => setPart4(p => ({ ...p, imageUrl: v })));
     }
     return slots;
+  }
+
+  // Tải lần lượt từng file lên Cloudinary rồi gán vào ô tương ứng.
+  async function uploadIntoSlots(files, slots) {
+    setBulkUploading(true);
+    setBulkProgress({ done: 0, total: files.length });
+    let done = 0;
+    try {
+      for (let i = 0; i < files.length; i++) {
+        const url = await uploadToCloudinary(files[i]);
+        slots[i].set(url);
+        done = i + 1;
+        setBulkProgress({ done, total: files.length });
+      }
+      return true;
+    } catch (err) {
+      alert(`Lỗi khi tải ảnh (đã tải được ${done} ảnh trước đó): ${err.message}`);
+      return false;
+    } finally {
+      setBulkUploading(false);
+      setBulkProgress(null);
+    }
   }
 
   async function handleBulkUpload(e) {
@@ -271,22 +295,68 @@ function TestEditor({ series, level, testId, uid, onBack }) {
     const slots = buildImageSlots();
     const usable = files.slice(0, slots.length);
     const skipped = files.length - usable.length;
-    setBulkUploading(true);
-    setBulkProgress({ done: 0, total: usable.length });
-    let done = 0;
+    const ok = await uploadIntoSlots(usable, slots);
+    if (ok && skipped > 0) alert(`Đã tải ${usable.length} ảnh vào đủ ${usable.length} ô. Thừa ${skipped} ảnh không có chỗ nên đã bỏ qua.`);
+  }
+
+  // "Quét màn hình" (chỉ admin): chụp cửa sổ PDF rồi tự kéo khung từng tranh (ScreenCropOverlay) — mỗi
+  // khung điền vào ô CÒN TRỐNG tiếp theo theo đúng thứ tự "Tải ảnh hàng loạt". Phím tắt Alt+Q.
+  const scannerRef = useRef(null);
+  const cropQueueRef = useRef({ slots: [], next: 0 });
+  const uploadingLabelsRef = useRef(new Set()); // ô đang tải dở (chưa có URL) — không đưa lại vào hàng chờ khi quét tiếp
+  const [cropFrame, setCropFrame] = useState(null);
+  const [nextCropLabel, setNextCropLabel] = useState(null);
+  const [pendingCrops, setPendingCrops] = useState(0);
+  useEffect(() => () => scannerRef.current?.stop(), []);
+
+  async function openScreenScan() {
+    if (cropFrame) return;
+    const empty = buildImageSlots().filter(s => !s.value && !uploadingLabelsRef.current.has(s.label));
+    if (!empty.length) {
+      alert("Tất cả ô ảnh đã có ảnh.");
+      return;
+    }
+    scannerRef.current ??= createScreenScanner();
     try {
-      for (let i = 0; i < usable.length; i++) {
-        const url = await uploadToCloudinary(usable[i]);
-        slots[i](url);
-        done = i + 1;
-        setBulkProgress({ done, total: usable.length });
-      }
-      if (skipped > 0) alert(`Đã tải ${usable.length} ảnh vào đủ ${usable.length} ô. Thừa ${skipped} ảnh không có chỗ nên đã bỏ qua.`);
+      const frame = await scannerRef.current.grab();
+      cropQueueRef.current = { slots: empty, next: 0 };
+      setNextCropLabel(empty[0].label);
+      setCropFrame(frame);
     } catch (err) {
-      alert(`Lỗi khi tải ảnh hàng loạt (đã tải được ${done} ảnh trước đó): ${err.message}`);
+      if (err?.name !== "NotAllowedError") alert(err.message || "Không chụp được màn hình.");
+    }
+  }
+
+  const openScreenScanRef = useRef(openScreenScan);
+  openScreenScanRef.current = openScreenScan;
+  useEffect(() => {
+    if (!isAdmin) return;
+    const onKey = e => {
+      if (e.altKey && e.code === "KeyQ") {
+        e.preventDefault();
+        openScreenScanRef.current();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [isAdmin]);
+
+  async function handleCrop(rect) {
+    const q = cropQueueRef.current;
+    const slot = q.slots[q.next];
+    if (!slot) return;
+    q.next += 1;
+    setNextCropLabel(q.slots[q.next]?.label ?? null);
+    setPendingCrops(n => n + 1);
+    uploadingLabelsRef.current.add(slot.label);
+    try {
+      const file = await cropCanvasToFile(cropFrame, rect, `crop-${q.next}.png`);
+      slot.set(await uploadToCloudinary(file));
+    } catch (err) {
+      alert(`Lỗi khi tải ảnh cho ô "${slot.label}": ${err.message}`);
     } finally {
-      setBulkUploading(false);
-      setBulkProgress(null);
+      uploadingLabelsRef.current.delete(slot.label);
+      setPendingCrops(n => n - 1);
     }
   }
 
@@ -341,6 +411,7 @@ function TestEditor({ series, level, testId, uid, onBack }) {
 
   return (
     <div className="studio-shell" style={{ "--accent": series.color }}>
+      {cropFrame && <ScreenCropOverlay frame={cropFrame} nextLabel={nextCropLabel} onCrop={handleCrop} onClose={() => setCropFrame(null)} />}
       <div className="studio-topbar">
         <button className="admin-pill-btn" onClick={onBack}>← Quay lại</button>
         <input className="studio-title-input" value={title} onChange={e => setTitle(e.target.value)} placeholder="Tên Test" />
@@ -351,6 +422,11 @@ function TestEditor({ series, level, testId, uid, onBack }) {
               {bulkUploading ? `Đang tải ${bulkProgress?.done ?? 0}/${bulkProgress?.total ?? 0}...` : "📤 Tải ảnh hàng loạt"}
               <input type="file" accept="image/*" multiple hidden disabled={bulkUploading} onChange={handleBulkUpload} />
             </label>
+          )}
+          {isAdmin && isScreenScanSupported() && (
+            <button className="admin-pill-btn" onClick={openScreenScan} disabled={bulkUploading} title="Alt+Q">
+              {pendingCrops > 0 ? `Đang tải ${pendingCrops} ảnh...` : "📸 Quét màn hình"}
+            </button>
           )}
           <button className="admin-btn-primary" onClick={handlePublish} disabled={saving}>
             {saving ? "Đang xuất bản..." : "Xuất bản"}
