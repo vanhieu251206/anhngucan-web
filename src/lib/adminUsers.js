@@ -128,11 +128,13 @@ const WORKER_URL = import.meta.env.VITE_WORKER_URL;
 
 const ADMIN_ERRORS = {
   "admin-not-configured": "Worker chưa có khoá quản trị Firebase (FIREBASE_SERVICE_ACCOUNT) — xem worker/README.md.",
-  forbidden: "Chỉ admin và giáo viên chính được xoá tài khoản.",
+  forbidden: "Không có quyền thực hiện thao tác này với tài khoản đó.",
   "not-a-student": "Chỉ xoá được tài khoản học sinh.",
   "not-a-teacher": "Tài khoản này không phải giáo viên.",
   "not-a-sub-teacher": "Giáo viên chính chỉ xoá được giáo viên phụ.",
   "not-a-tester": "Tài khoản này không phải tài khoản đặc biệt.",
+  "cannot-reset-admin": "Không đặt lại được mật khẩu tài khoản admin.",
+  "weak-password": "Mật khẩu cần ít nhất 6 ký tự.",
 };
 
 async function callAdminWorker(path, body) {
@@ -144,7 +146,7 @@ async function callAdminWorker(path, body) {
     body: JSON.stringify(body),
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw Object.assign(new Error(ADMIN_ERRORS[data.error] ?? `Lỗi xoá tài khoản (${data.error || res.status}).`), { code: data.error });
+  if (!res.ok) throw Object.assign(new Error(ADMIN_ERRORS[data.error] ?? `Lỗi (${data.error || res.status}).`), { code: data.error });
   return data;
 }
 
@@ -261,4 +263,11 @@ export async function bulkCreateStudents(rows, password) {
     }
   }
   return results;
+}
+
+// Đặt lại mật khẩu không cần mật khẩu hiện tại (chỉ admin, 2026-09-28) — worker/src/admin.js resetPassword.
+// Ghi luôn bản sao vào passwordVault để admin xem lại được.
+export async function resetAccountPassword(uid, password) {
+  await callAdminWorker("/admin/reset-password", { uid, password });
+  await savePasswordCopy(uid, password);
 }

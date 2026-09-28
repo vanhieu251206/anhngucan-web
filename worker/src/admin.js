@@ -240,3 +240,34 @@ export async function deleteTester(request, env) {
   await deleteAccount(projectId, token, authUser?.localId, uid);
   return { deleted: true };
 }
+
+// Đặt lại mật khẩu KHÔNG cần mật khẩu hiện tại (2026-09-28) — chỉ admin, cho mọi tài khoản trừ admin (và chính mình).
+// body: { uid, password }. Không bật lại cờ mustChangePassword (người dùng chọn: dùng luôn mật khẩu vừa đặt).
+export async function resetPassword(request, env) {
+  if (!env.FIREBASE_SERVICE_ACCOUNT) throw adminError(500, "admin-not-configured");
+  const sa = parseServiceAccount(env);
+  const projectId = sa.project_id;
+
+  const callerUid = await verifyIdToken((request.headers.get("Authorization") || "").replace(/^Bearer\s+/i, ""), projectId);
+  const token = await getAccessToken(sa);
+  const caller = await getUserDoc(projectId, callerUid, token);
+  if (caller?.role !== "admin") throw adminError(403, "forbidden");
+
+  const body = await request.json().catch(() => ({}));
+  const uid = body.uid ? String(body.uid) : "";
+  const password = typeof body.password === "string" ? body.password : "";
+  if (!uid) throw adminError(400, "missing-target");
+  if (password.length < 6) throw adminError(400, "weak-password");
+  if (uid === callerUid) throw adminError(403, "forbidden");
+
+  const profile = await getUserDoc(projectId, uid, token);
+  if (!profile || profile.role === "admin") throw adminError(403, "cannot-reset-admin");
+
+  const res = await fetch(`https://identitytoolkit.googleapis.com/v1/projects/${projectId}/accounts:update`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ localId: uid, password }),
+  });
+  if (!res.ok) throw adminError(502, "auth-update-failed");
+  return { ok: true };
+}

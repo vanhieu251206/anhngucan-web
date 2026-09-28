@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { listAllAccounts, setAccountDisabled, deleteStudent, deleteTeacher, deleteTester } from "../../lib/adminUsers.js";
+import { listAllAccounts, setAccountDisabled, deleteStudent, deleteTeacher, deleteTester, resetAccountPassword } from "../../lib/adminUsers.js";
+import PasswordInput from "../../components/PasswordInput.jsx";
 import { useAuth } from "../../lib/authContext.jsx";
 import { useConfirm } from "../../components/dashboard/ConfirmDialog.jsx";
 import { readParams, setParams } from "../../lib/urlState.js";
@@ -36,6 +37,47 @@ function fold(s) {
   return String(s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/g, "d").replace(/Đ/g, "D").toLowerCase();
 }
 
+// Đặt lại mật khẩu không cần mật khẩu hiện tại (chỉ admin, 2026-09-28) — worker/src/admin.js resetPassword.
+function ResetPasswordModal({ account, onDone, onClose }) {
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (password.length < 6) return setError("Mật khẩu cần ít nhất 6 ký tự.");
+    setError("");
+    setBusy(true);
+    try {
+      await resetAccountPassword(account.uid, password);
+      onDone();
+    } catch (err) {
+      console.error(err);
+      setError(err?.message || String(err));
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="confirm-overlay" role="presentation" onClick={() => !busy && onClose()}>
+      <div className="opening-modal class-modal" role="dialog" aria-modal="true" onClick={e => e.stopPropagation()}>
+        <h2>Đổi mật khẩu — {loginName(account)}</h2>
+        <form className="admin-form student-create-form" onSubmit={handleSubmit}>
+          <label className="admin-mini-field">
+            <span>Mật khẩu mới</span>
+            <PasswordInput className="admin-input" autoComplete="new-password" placeholder="Ít nhất 6 ký tự" value={password} onChange={e => setPassword(e.target.value)} required autoFocus />
+          </label>
+          <div className="opening-form-actions">
+            {error && <p className="admin-error">{error}</p>}
+            <button type="button" className="admin-pill-btn" onClick={onClose} disabled={busy}>Huỷ</button>
+            <button className="admin-btn-primary" type="submit" disabled={busy}>{busy ? "Đang lưu..." : "Lưu"}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 function AllAccounts() {
   const { user } = useAuth();
   const confirm = useConfirm();
@@ -49,6 +91,7 @@ function AllAccounts() {
   const [search, setSearch] = useState("");
   const [vault, setVault] = useState({}); // { uid: { password } } — bản sao mật khẩu, chỉ admin đọc
   const [shownUid, setShownUid] = useState(null);
+  const [resetting, setResetting] = useState(null); // tài khoản đang đổi mật khẩu
 
   function reload() {
     setLoadError("");
@@ -207,6 +250,7 @@ function AllAccounts() {
                   <td>
                     {canManage(a) && (
                       <div className="teacher-row-actions">
+                        <button className="admin-pill-btn" onClick={() => setResetting(a)} disabled={busyUid === a.uid}>Đổi MK</button>
                         <button className="admin-pill-btn" onClick={() => handleToggleLock(a)} disabled={busyUid === a.uid}>
                           {a.disabled ? "Mở khoá" : "Khoá"}
                         </button>
@@ -219,6 +263,13 @@ function AllAccounts() {
             </tbody>
           </table>
         </>
+      )}
+      {resetting && (
+        <ResetPasswordModal
+          account={resetting}
+          onDone={() => { setResetting(null); reload(); }}
+          onClose={() => setResetting(null)}
+        />
       )}
     </div>
   );
