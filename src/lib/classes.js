@@ -57,10 +57,12 @@ export function parseClassLine(line) {
   return { name, days: [...new Set(days)].sort((a, b) => a - b), time };
 }
 
-// ---------- Sách của lớp (chốt 2026-09-25) ----------
-// Mỗi lớp gán ĐÚNG 1 bộ đề: book = { seriesId, levels } — levels rỗng = cả bộ, có số = chỉ các cấp đó. book null =
-// chưa gán → học sinh lớp đó bị khoá hết. Học sinh chỉ vào được bộ đề/cấp của lớp MÌNH ĐANG Ở (chuyển lớp là quyền
-// đổi theo); admin/giáo viên/tester không bị giới hạn. Chỉ chặn ở giao diện — bài cụ thể vẫn phải "Mở bài".
+// ---------- Sách của lớp (chốt 2026-09-25, nhiều bộ đề 2026-09-28) ----------
+// book = { keys: ["<seriesId>-<cấp>", ...] } — lớp học được nhiều cấp ở nhiều bộ đề (key giống levelAccess của
+// giáo viên phụ, lib/teacherScope.js). Kiểu cũ { seriesId, levels } (1 bộ đề, levels rỗng = cả bộ) vẫn đọc được.
+// book null / keys rỗng = chưa gán → học sinh lớp đó bị khoá hết. Học sinh chỉ vào được cấp của lớp MÌNH ĐANG Ở
+// (chuyển lớp là quyền đổi theo); admin/giáo viên/tester không bị giới hạn. Chỉ chặn ở giao diện — bài cụ thể vẫn
+// phải "Mở bài".
 export const BOOK_OPTIONS = YLE_SERIES.map(s => {
   const grades = s.id === "kids" ? KIDS_GRADES : s.id === "ket-pet" ? KET_PET_GRADES : null;
   return {
@@ -71,26 +73,43 @@ export const BOOK_OPTIONS = YLE_SERIES.map(s => {
   };
 });
 
+const bookKey = (seriesId, level) => `${seriesId}-${level}`;
+
+// Quy đổi mọi kiểu book (cũ/mới) ra danh sách key cấp được học.
+export function bookKeys(book) {
+  if (!book) return [];
+  if (Array.isArray(book.keys)) return book.keys;
+  const opt = BOOK_OPTIONS.find(o => o.id === book.seriesId);
+  if (!opt) return [];
+  const levels = book.levels?.length ? book.levels : opt.levels;
+  return levels.map(l => bookKey(opt.id, l));
+}
+
 export function formatBook(book) {
-  const opt = BOOK_OPTIONS.find(o => o.id === book?.seriesId);
-  if (!opt) return "";
-  const levels = [...(book.levels ?? [])].sort((a, b) => a - b);
-  if (!levels.length || levels.length === opt.levels.length) return opt.levels.length > 1 ? `${opt.title} (cả bộ)` : opt.title;
-  const labels = levels.map(opt.levelLabel).join(", ");
-  // Kids/KET-PET nhãn là "Grade n" → thêm tên bộ đề cho rõ ("Kids · Grade 1, Grade 3").
-  return labels.includes(opt.title) ? labels : `${opt.title} · ${labels}`;
+  const keys = new Set(bookKeys(book));
+  const parts = [];
+  for (const opt of BOOK_OPTIONS) {
+    const levels = opt.levels.filter(l => keys.has(bookKey(opt.id, l)));
+    if (!levels.length) continue;
+    if (levels.length === opt.levels.length) { parts.push(opt.levels.length > 1 ? `${opt.title} (cả bộ)` : opt.title); continue; }
+    const labels = levels.map(opt.levelLabel).join(", ");
+    // Kids/KET-PET nhãn là "Grade n" → thêm tên bộ đề cho rõ ("Kids · Grade 1, Grade 3").
+    parts.push(labels.includes(opt.title) ? labels : `${opt.title} · ${labels}`);
+  }
+  return parts.join(" | ");
 }
 
 export function bookAllowsSeries(book, seriesId) {
-  return !!book && book.seriesId === seriesId;
+  const keys = bookKeys(book);
+  return (BOOK_OPTIONS.find(o => o.id === seriesId)?.levels ?? []).some(l => keys.includes(bookKey(seriesId, l)));
 }
 
 export function bookAllowsLevel(book, seriesId, level) {
-  return bookAllowsSeries(book, seriesId) && (!book.levels?.length || book.levels.includes(Number(level)));
+  return bookKeys(book).includes(bookKey(seriesId, level));
 }
 
 export async function setClassBook(name, book) {
-  await setDoc(doc(db, "classes", name), { book: book ?? null }, { merge: true });
+  await setDoc(doc(db, "classes", name), { book: book?.keys?.length ? { keys: book.keys } : null }, { merge: true });
 }
 
 export async function getClass(name) {
@@ -106,7 +125,7 @@ export async function createClass(name, uid, { days = [], time = "", book = null
   if (className.includes("/")) throw new Error('Tên lớp không được chứa dấu "/".');
   const ref = doc(db, "classes", className);
   if ((await getDoc(ref)).exists()) throw new Error(`Lớp "${className}" đã có.`);
-  await setDoc(ref, { days, time, book, createdAt: serverTimestamp(), createdBy: uid ?? null });
+  await setDoc(ref, { days, time, book: book?.keys?.length ? { keys: book.keys } : null, createdAt: serverTimestamp(), createdBy: uid ?? null });
   return className;
 }
 

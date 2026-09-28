@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import PasswordInput from "../../components/PasswordInput.jsx";
 import { listStudents, bulkCreateStudents, setStudentDisabled, deleteStudent, setStudentClass } from "../../lib/adminUsers.js";
-import { listClassDocs, createClass, deleteClass, renameClass, setClassSchedule, setClassBook, parseClassLine, formatSchedule, formatBook, BOOK_OPTIONS, DAY_OPTIONS, dayLabel } from "../../lib/classes.js";
+import { listClassDocs, createClass, deleteClass, renameClass, setClassSchedule, setClassBook, parseClassLine, formatSchedule, formatBook, bookKeys, BOOK_OPTIONS, DAY_OPTIONS, dayLabel } from "../../lib/classes.js";
 import { useAuth } from "../../lib/authContext.jsx";
 import { useConfirm } from "../../components/dashboard/ConfirmDialog.jsx";
 import { downloadStudentCardPdf, downloadAllStudentCardPdfs } from "../../lib/studentCardPdf.js";
@@ -33,35 +33,63 @@ function ScheduleFields({ days, time, onChange }) {
   );
 }
 
-// Chọn sách của lớp: đúng 1 bộ đề, cả bộ hoặc 1 vài cấp (levels rỗng = cả bộ). book null = chưa gán.
+function LearnSegment({ on, mixed, onChange }) {
+  return (
+    <div className="scope-segment" role="radiogroup">
+      <button type="button" role="radio" aria-checked={!mixed && !on} className={!mixed && !on ? "is-on is-none" : ""} onClick={() => onChange(false)}>Không</button>
+      <button type="button" role="radio" aria-checked={!mixed && on} className={!mixed && on ? "is-on is-view" : ""} onClick={() => onChange(true)}>Học</button>
+    </div>
+  );
+}
+
+// Chọn sách của lớp (2026-09-28): nhiều cấp ở nhiều bộ đề, giống phân quyền giáo viên phụ nhưng chỉ Không / Học
+// (học sinh chỉ xem + làm bài). Bấm bộ đề để mở danh sách cấp; nút ở hàng bộ đề đặt nhanh cả bộ.
 function BookFields({ book, onChange }) {
-  const opt = BOOK_OPTIONS.find(o => o.id === book?.seriesId);
-  const levels = book?.levels ?? [];
-  function toggle(n) {
-    const next = levels.includes(n) ? levels.filter(x => x !== n) : [...levels, n].sort((a, b) => a - b);
-    onChange({ seriesId: book.seriesId, levels: next.length === opt.levels.length ? [] : next });
+  const [openId, setOpenId] = useState(null);
+  const keys = new Set(bookKeys(book));
+  function setLevels(seriesId, levels, on) {
+    const next = new Set(keys);
+    for (const l of levels) on ? next.add(`${seriesId}-${l}`) : next.delete(`${seriesId}-${l}`);
+    onChange(next.size ? { keys: [...next] } : null);
   }
   return (
-    <>
-      <label className="admin-mini-field">
-        <span>Sách học</span>
-        <select className="admin-input" value={book?.seriesId ?? ""} onChange={e => onChange(e.target.value ? { seriesId: e.target.value, levels: [] } : null)}>
-          <option value="">— Chưa gán —</option>
-          {BOOK_OPTIONS.map(o => <option key={o.id} value={o.id}>{o.title}</option>)}
-        </select>
-      </label>
-      {opt && opt.levels.length > 1 && (
-        <div className="admin-mini-field">
-          <span>Cấp được học</span>
-          <div className="class-day-picker">
-            <button type="button" className={`class-day-chip${levels.length === 0 ? " is-on" : ""}`} onClick={() => onChange({ seriesId: book.seriesId, levels: [] })}>Cả bộ</button>
-            {opt.levels.map(n => (
-              <button key={n} type="button" className={`class-day-chip${levels.includes(n) ? " is-on" : ""}`} onClick={() => toggle(n)}>{opt.levelLabel(n)}</button>
-            ))}
-          </div>
-        </div>
-      )}
-    </>
+    <div className="admin-mini-field">
+      <span>Cấp được học</span>
+      <div className="scope-tree">
+        {BOOK_OPTIONS.map(o => {
+          const vals = o.levels.map(l => keys.has(`${o.id}-${l}`));
+          const count = vals.filter(Boolean).length;
+          const single = o.levels.length === 1;
+          const open = openId === o.id && !single;
+          return (
+            <div key={o.id} className={`scope-series${open ? " is-open" : ""}`}>
+              <div className="scope-series-head">
+                {single ? (
+                  <span className="scope-series-title">{o.title}</span>
+                ) : (
+                  <button type="button" className="scope-series-toggle" onClick={() => setOpenId(open ? null : o.id)} aria-expanded={open}>
+                    <span className="scope-caret">{open ? "▾" : "▸"}</span>
+                    <span className="scope-series-title">{o.title}</span>
+                    {count > 0 && <span className="scope-series-count">Học {count}</span>}
+                  </button>
+                )}
+                <LearnSegment on={vals[0]} mixed={count > 0 && count < vals.length} onChange={on => setLevels(o.id, o.levels, on)} />
+              </div>
+              {open && (
+                <div className="scope-levels">
+                  {o.levels.map(l => (
+                    <div key={l} className="scope-level">
+                      <span>{o.levelLabel(l)}</span>
+                      <LearnSegment on={keys.has(`${o.id}-${l}`)} onChange={on => setLevels(o.id, [l], on)} />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 

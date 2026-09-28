@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { YLE_SERIES, KET_PET_GRADES, KET_PET_UNITS_PER_GRADE, KIDS_GRADES } from "../../lib/yleData.js";
 import { loadLevelContent } from "../../lib/lessons.js";
 import { listListeningExamTests } from "../../lib/adminLessons.js";
-import { listClassNames, listClassDocs, bookAllowsLevel } from "../../lib/classes.js";
+import { listClassNames, listClassDocs, bookAllowsLevel, bookAllowsSeries, bookKeys } from "../../lib/classes.js";
 import { OPENING_KINDS, listOpenings, createOpening, updateOpening, closeOpening, isExpired } from "../../lib/openings.js";
 import { useAuth } from "../../lib/authContext.jsx";
 import { useConfirm } from "../../components/dashboard/ConfirmDialog.jsx";
@@ -60,10 +60,10 @@ export default function OpeningsPage() {
   // Chỉ cho mở bài thuộc SÁCH của lớp (2026-09-25) — mở bài ngoài sách thì học sinh thấy xám, không vào được.
   // Lớp chưa gán sách: vẫn chọn tự do nhưng hiện cảnh báo.
   const book = classBooks[className] ?? null;
-  const seriesChoices = book ? YLE_SERIES.filter(s => s.id === book.seriesId) : YLE_SERIES;
+  const seriesChoices = book ? YLE_SERIES.filter(s => bookAllowsSeries(book, s.id)) : YLE_SERIES;
   // Kids chia Grade 1-5 (KIDS_GRADES), khác 4 cấp mặc định của buildSeries.
   const baseLevels = isKetPet ? KET_PET_GRADES : seriesId === "kids" ? KIDS_GRADES : (series?.levels ?? []).map(l => l.number);
-  const levelOptions = book?.seriesId === seriesId ? baseLevels.filter(n => bookAllowsLevel(book, seriesId, n)) : baseLevels;
+  const levelOptions = book && bookAllowsSeries(book, seriesId) ? baseLevels.filter(n => bookAllowsLevel(book, seriesId, n)) : baseLevels;
   const levelKey = levelOptions.join(",");
   const kinds = kindsFor(seriesId);
 
@@ -86,11 +86,12 @@ export default function OpeningsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Đổi lớp → nhảy về đúng bộ đề của sách lớp đó.
+  // Đổi lớp → nếu bộ đề đang chọn không thuộc sách lớp đó thì nhảy về bộ đề đầu tiên của sách.
+  const bookSig = bookKeys(book).join(",");
   useEffect(() => {
-    if (book && book.seriesId !== seriesId) setSeriesId(book.seriesId);
+    if (book && !bookAllowsSeries(book, seriesId) && seriesChoices[0]) setSeriesId(seriesChoices[0].id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [className, book?.seriesId]);
+  }, [className, bookSig]);
 
   // Đổi bộ đề → đưa dạng bài về giá trị hợp lệ.
   useEffect(() => {
