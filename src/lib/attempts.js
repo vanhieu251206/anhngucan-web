@@ -8,6 +8,13 @@ function attemptDocId(uid, mode, testId) {
   return `${uid}_${mode}_${testId}`;
 }
 
+// Số lượt + điểm tóm tắt (lastCorrect/bestCorrect/total — Worker ghi từ 2026-09-30, bài nộp trước đó chưa có).
+export async function getAttemptInfo(uid, mode, testId) {
+  const snap = await getDoc(doc(db, "attempts", attemptDocId(uid, mode, testId)));
+  const d = snap.exists() ? snap.data() : {};
+  return { count: d.count ?? 0, lastCorrect: d.lastCorrect ?? null, bestCorrect: d.bestCorrect ?? null, total: d.total ?? null };
+}
+
 export async function getAttemptCount(uid, mode, testId) {
   const snap = await getDoc(doc(db, "attempts", attemptDocId(uid, mode, testId)));
   return snap.exists() ? snap.data().count ?? 0 : 0;

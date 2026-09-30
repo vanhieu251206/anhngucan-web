@@ -40,6 +40,12 @@ export function describeSubmitError(err) {
   return "Chưa nộp được bài (mạng yếu?) — con bấm Nộp lại nhé, bài làm vẫn còn nguyên.";
 }
 
+// Học sinh xem lại bài đã nộp của 1 lần mở bài — chỉ được SAU hạn chót (Worker kiểm tra theo giờ máy chủ, lỗi
+// "not-yet" nếu chưa tới). → { deadline, results: [{ correct, total, elapsedMs, submittedAt, mode, items }] }
+export function fetchReview(openingId) {
+  return callWorker("/test/review", { openingId });
+}
+
 // Hook dùng trong mọi trang làm bài. Học sinh (có openingId): tự ghi giờ bắt đầu ở máy chủ ngay khi vào bài (đổi
 // `resetKey` = làm lượt mới). `submit({ answers, client, sessionId, elapsedMs })` → { correct, total, parts? }.
 //   answers: câu trả lời thô (dạng Worker tự chấm)   client: { correct, total, items } (dạng chấm ở trình duyệt)

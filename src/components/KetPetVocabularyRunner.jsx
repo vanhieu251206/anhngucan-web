@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import SubmittedNotice from "./SubmittedNotice.jsx";
 import Header from "./Header.jsx";
 import { useAuth } from "../lib/authContext.jsx";
 import { useTestSubmission } from "../lib/testSubmit.js";
@@ -12,6 +13,7 @@ export default function KetPetVocabularyRunner({ grade, unit, onNavigate, onBack
   const { isStaff, isTester } = useAuth();
   const canReview = isStaff || isTester; // hiện đáp án + cho làm lại: admin/giáo viên/tài khoản đặc biệt
   const [doc, setDoc] = useState(undefined); // undefined = đang tải, null = chưa có nội dung
+  const [submittedOk, setSubmittedOk] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -34,6 +36,8 @@ export default function KetPetVocabularyRunner({ grade, unit, onNavigate, onBack
       pending.catch(() => {});
       return undefined;
     }
+    // Học sinh: nộp thành công → chỉ báo "Nộp bài thành công", điểm xem sau hạn chót (SubmittedNotice.jsx).
+    if (ctx?.openingId) pending.then(() => setSubmittedOk(true), () => {});
     return pending;
   }
 
@@ -54,7 +58,8 @@ export default function KetPetVocabularyRunner({ grade, unit, onNavigate, onBack
       <div className="content-grid-section content-grid-section-dark">
         {doc === undefined && <p className="vocab-empty">Đang tải...</p>}
         {doc === null && <p className="vocab-empty">Chưa có nội dung — quay lại sau nhé.</p>}
-        {doc && <KetPetVocabularyQuiz groups={doc.groups} limitMinutes={ctx?.limitMinutes} canRetry={!ctx?.studentUid || canReview} revealAnswers={canReview} onSubmitted={ctx ? handleSubmitted : undefined} />}
+        {doc && submittedOk && <SubmittedNotice openingId={ctx.openingId} onDone={onBack} />}
+        {doc && !submittedOk && <KetPetVocabularyQuiz groups={doc.groups} limitMinutes={ctx?.limitMinutes} canRetry={!ctx?.studentUid || canReview} revealAnswers={canReview} onSubmitted={ctx ? handleSubmitted : undefined} />}
       </div>
     </div>
   );

@@ -74,6 +74,30 @@ export function firestore(env) {
       return decodeFields(doc.fields);
     },
 
+    // Truy vấn 1 collection với các điều kiện bằng (AND) → [{ id, ...fields }]. Chỉ dùng điều kiện "==" để không
+    // cần tạo composite index (Firestore tự ghép index 1 field).
+    async query(collectionId, equals) {
+      const filters = Object.entries(equals).map(([fieldPath, value]) => ({
+        fieldFilter: { field: { fieldPath }, op: "EQUAL", value: encodeValue(value) },
+      }));
+      const res = await fetch(`${base}:runQuery`, {
+        method: "POST",
+        headers: await authHeaders(),
+        body: JSON.stringify({
+          structuredQuery: {
+            from: [{ collectionId }],
+            where: filters.length === 1 ? filters[0] : { compositeFilter: { op: "AND", filters } },
+          },
+        }),
+      });
+      if (!res.ok) {
+        console.error("firestore query", res.status, await res.text());
+        throw adminError(502, "firestore-read-failed");
+      }
+      const rows = await res.json();
+      return rows.filter(r => r.document).map(r => ({ id: r.document.name.split("/").pop(), ...decodeFields(r.document.fields) }));
+    },
+
     // Ghi nhiều thao tác nguyên tử (writes theo định dạng REST `Write`).
     async commit(writes) {
       const res = await fetch(`${base}:commit`, {

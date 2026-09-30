@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import SubmittedNotice from "./SubmittedNotice.jsx";
 import ExamTimer, { useExamTimer } from "./ExamTimer.jsx";
 import { useAuth } from "../lib/authContext.jsx";
 import { useTestSubmission } from "../lib/testSubmit.js";
@@ -63,6 +64,19 @@ export default function IeltsListeningRunner({ test, onBack, studentUid, student
     });
     return { correct, total: flat.length };
   }, [submitted, flat, answers, reveal, serverScore]);
+
+  // Học sinh làm bài được mở: nộp xong chỉ báo thành công, điểm + đáp án xem sau hạn chót (SubmittedNotice.jsx).
+  if (submitted && !reveal && openingId) {
+    return (
+      <div className="ielts-practice-screen">
+        <div className="ielts-practice-topbar">
+          <button className="speaking-fullscreen-back" onClick={onBack}>⬅ Quay lại</button>
+          <h1 className="ielts-practice-title">{test.title}</h1>
+        </div>
+        <SubmittedNotice openingId={openingId} onDone={onBack} />
+      </div>
+    );
+  }
 
   const section = test.sections[activeSection];
   const sectionQuestions = flat.filter(e => e.sectionIndex === activeSection);

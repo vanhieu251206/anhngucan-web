@@ -7,6 +7,7 @@ import ContactPage from "./pages/ContactPage.jsx";
 import LoginPage from "./pages/LoginPage.jsx";
 import KetPetPage from "./pages/KetPetPage.jsx";
 import KidsPage from "./pages/KidsPage.jsx";
+import MyWorkPage from "./pages/MyWorkPage.jsx";
 import { useAuth } from "./lib/authContext.jsx";
 import { readParams, setParams } from "./lib/urlState.js";
 import ForceChangePassword from "./components/ForceChangePassword.jsx";
@@ -35,6 +36,7 @@ const SITE_NAME = "Anh Ngữ C.A.N";
 const PAGE_TITLES = {
   home: `${SITE_NAME} — Học tiếng Anh vui vẻ cho bé`,
   lessons: `Bài học — ${SITE_NAME}`,
+  "my-work": `Bài của con — ${SITE_NAME}`,
   about: `Giới thiệu — ${SITE_NAME}`,
   contact: `Liên hệ — ${SITE_NAME}`,
   login: `Đăng nhập — ${SITE_NAME}`,
@@ -50,9 +52,11 @@ function initialNavFromUrl() {
   const p = readParams();
   return { page: p.get("page") || "home", lessonSeriesId: p.get("series") || null };
 }
+// Mỗi lần navigateApp() (lib/urlState.js) tăng số này để trang Bài học dựng lại từ đầu theo URL mới.
+let navSeq = 0;
 
 export default function App() {
-  const [{ page, lessonSeriesId }, setNav] = useState(initialNavFromUrl);
+  const [{ page, lessonSeriesId, key: navKey = 0 }, setNav] = useState(initialNavFromUrl);
   const { user, profile, isStaff, loading } = useAuth();
   function setPage(next) {
     setNav(n => ({ ...n, page: next }));
@@ -84,8 +88,16 @@ export default function App() {
     function onPopState() {
       setNav(initialNavFromUrl());
     }
+    function onAppNavigate() {
+      navSeq += 1;
+      setNav({ ...initialNavFromUrl(), key: navSeq });
+    }
     window.addEventListener("popstate", onPopState);
-    return () => window.removeEventListener("popstate", onPopState);
+    window.addEventListener("app:navigate", onAppNavigate);
+    return () => {
+      window.removeEventListener("popstate", onPopState);
+      window.removeEventListener("app:navigate", onAppNavigate);
+    };
   }, []);
 
   // Vào thẳng ?page=login khi đã đăng nhập rồi (F5, mở lại tab cũ...) — tự đá sang khu vực đúng
@@ -154,14 +166,30 @@ export default function App() {
     // KET/PET dùng khung điều hướng riêng (Grade/Unit, xem KetPetPage.jsx) thay vì
     // Level/Test/Part của LessonsPage.jsx — cấu trúc dữ liệu khác hẳn (chốt 2026-09-14).
     if (lessonSeriesId === "ket-pet") {
-      return <KetPetPage onNavigate={setPage} />;
+      return <KetPetPage key={navKey} onNavigate={setPage} />;
     }
     // Kids dùng khung điều hướng riêng (Sách online/Listening/Speaking, xem KidsPage.jsx) — chưa
     // theo cấu trúc Level/Test/Part của LessonsPage.jsx (chốt 2026-09-23).
     if (lessonSeriesId === "kids") {
-      return <KidsPage onNavigate={setPage} />;
+      return <KidsPage key={navKey} onNavigate={setPage} />;
     }
-    return <LessonsPage initialSeriesId={lessonSeriesId} onNavigate={setPage} />;
+    return <LessonsPage key={navKey} initialSeriesId={lessonSeriesId} onNavigate={setPage} />;
+  }
+
+  // "Bài của con" (học sinh): danh sách bài giáo viên mở cho lớp — bắt buộc đăng nhập như trang Bài học.
+  if (page === "my-work") {
+    if (loading) return null;
+    if (!user) {
+      return (
+        <>
+          <Header page="login" onNavigate={setPage} />
+          <main id="app">
+            <LoginPage onNavigate={setPage} />
+          </main>
+        </>
+      );
+    }
+    return <MyWorkPage onNavigate={setPage} />;
   }
 
   if ((page === "login" || page === "change-password") && loading) {

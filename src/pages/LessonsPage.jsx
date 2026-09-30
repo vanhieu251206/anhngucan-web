@@ -19,6 +19,12 @@ import { useClassBook } from "../lib/useClassBook.js";
 
 const WIZARD_STEPS = ["Bộ đề", "Cấp độ", "Bài học"];
 
+// ?go=<kind>~<testId> (xem navigateApp trong lib/urlState.js) → { kind, testId } hoặc null.
+function parseGoParam(value) {
+  const i = value ? value.indexOf("~") : -1;
+  return i > 0 ? { kind: value.slice(0, i), testId: value.slice(i + 1) } : null;
+}
+
 // Thanh tiến trình kiểu Duolingo — cho biết đang ở bước nào trong 4 bước chọn bài
 // (chọn bộ đề → cấp độ → dạng bài → test). `step` = chỉ số bước hiện tại (0-based).
 function WizardSteps({ step, onStepClick }) {
@@ -246,6 +252,52 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
     setExamTests(null);
     listListeningExamTests(series.id, level.number).then(setExamTests).catch(() => setExamTests([]));
   }, [listeningActive, listeningTab, series, level]);
+
+  // Vào thẳng 1 bài từ chuông thông báo (AssignmentBell.jsx): URL có ?go=<kind>~<testId> — chờ nội dung cấp tải xong
+  // rồi mở đúng màn/bài đó (vẫn qua guardStart nên hết hạn/hết lượt vẫn bị chặn như bấm tay). Chỉ thử 1 lần.
+  const pendingGoRef = useRef(parseGoParam(initialUrlRef.current.get("go")));
+  const pendingExamIdRef = useRef(null);
+  useEffect(() => {
+    if (pendingGoRef.current) setParams({ go: null }, { replace: true });
+  }, []);
+  useEffect(() => {
+    const go = pendingGoRef.current;
+    if (!go || !level || !content) return;
+    pendingGoRef.current = null;
+    const find = list => (list ?? []).find(t => t.id === go.testId);
+    const startIn = (skill, type, list) => {
+      if (isIelts) setSelectedIeltsSkill(skill);
+      else setSelectedSkill(skill);
+      const t = find(list);
+      if (t) requestStart(type, t);
+    };
+    if (go.kind === "speaking") startIn("speaking", "speaking", content.tests);
+    else if (go.kind === "reading") startIn("reading", "reading", content.readingTests);
+    else if (go.kind === "dictation") startIn("dictation", "dictation", content.dictationTests);
+    else if (go.kind === "yle-vocab") startIn("vocabulary", "yle-vocab", content.vocabTests);
+    else if (go.kind === "listening-exam") {
+      pendingExamIdRef.current = go.testId;
+      setListeningTab("test");
+      setListeningActive(true);
+    } else if (go.kind === "ielts-reading") {
+      setSelectedIeltsSkill("reading");
+      const n = Number(String(go.testId).replace(/\D/g, ""));
+      if (n) setSelectedReadingTestN(n);
+    } else if (go.kind === "ielts-listening") {
+      setSelectedIeltsSkill("listening");
+      const t = find(content.ieltsListeningTests);
+      if (t) guardStart("ielts-listening", { id: t.id, title: t.title }, () => setPickingListeningTest(t));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [level, content]);
+  useEffect(() => {
+    const id = pendingExamIdRef.current;
+    if (!id || !examTests) return;
+    pendingExamIdRef.current = null;
+    const t = examTests.find(x => x.id === id);
+    if (testHasContent(t)) guardStart("listening-exam", { id, title: t.title ?? id }, () => setActiveExamTest(t));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [examTests]);
 
   // Rời khỏi màn "1 cấp độ" (đổi cấp khác / về bộ đề khác) — quay lại màn chọn cấp.
   function backToLevelList() {

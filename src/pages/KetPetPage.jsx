@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Header from "../components/Header.jsx";
 import KetPetVocabularyRunner from "../components/KetPetVocabularyRunner.jsx";
 import KetPetPracticeTestRunner from "../components/KetPetPracticeTestRunner.jsx";
@@ -6,6 +6,7 @@ import { KET_PET_GRADES, KET_PET_UNITS_PER_GRADE } from "../lib/yleData.js";
 import { useAuth } from "../lib/authContext.jsx";
 import { useOpeningGuard } from "../lib/useOpeningGuard.jsx";
 import { useClassBook } from "../lib/useClassBook.js";
+import { readParams, setParams } from "../lib/urlState.js";
 
 // Khung điều hướng KET/PET: Grade (6-9) → Unit (1-16) → Vocabulary/Practice Test (Test 1-4).
 // KHÁC cấu trúc Level/Test/Part của YLE (Starters/Movers/Flyers) nên KHÔNG đi qua LessonsPage.jsx
@@ -20,6 +21,28 @@ export default function KetPetPage({ onNavigate }) {
   const [testNumber, setTestNumber] = useState(null);
   const { user, isStaff, isAdmin, profile } = useAuth();
   const { guardStart, checking, screen, activeOpening } = useOpeningGuard();
+
+  // Vào thẳng 1 bài từ chuông thông báo (AssignmentBell.jsx): ?level=<grade>&go=ketpet-vocab~unit5 | ketpet-test~unit5-test2.
+  useEffect(() => {
+    const p = readParams();
+    const go = p.get("go");
+    const g = Number(p.get("level"));
+    if (!go) return;
+    setParams({ go: null, level: null }, { replace: true });
+    const m = go.match(/^(ketpet-vocab|ketpet-test)~unit(\d+)(?:-test(\d+))?$/);
+    if (!m || !KET_PET_GRADES.includes(g)) return;
+    const [, kind, u, t] = m;
+    const testId = go.slice(kind.length + 1);
+    setGrade(g);
+    setUnit(Number(u));
+    if (kind === "ketpet-vocab") {
+      guardStart(kind, { id: testId, title: `Grade ${g} · Unit ${u} · Vocabulary` }, { seriesId: "ket-pet", level: g }, () => setVocabActive(true));
+    } else if (t) {
+      setPracticeTestOpen(true);
+      guardStart(kind, { id: testId, title: `Grade ${g} · Unit ${u} · Test ${t}` }, { seriesId: "ket-pet", level: g }, () => setTestNumber(Number(t)));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   // Ngữ cảnh học sinh làm bài (đếm lượt/lưu kết quả/số phút) — xem lib/openings.js.
   const ctx = {
     studentUid: !isStaff ? user?.uid : null,

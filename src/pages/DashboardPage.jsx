@@ -69,7 +69,17 @@ export default function DashboardPage({ onNavigate }) {
     }
     return s ?? items[0]?.key ?? "overview";
   });
+  // Màn hẹp: sidebar là ngăn kéo, mở bằng nút 3 gạch trên topbar.
+  const [menuOpen, setMenuOpen] = useState(false);
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onKey = e => { if (e.key === "Escape") setMenuOpen(false); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [menuOpen]);
+
   function setSection(key) {
+    setMenuOpen(false);
     setSectionState(key);
     setParams({ section: key, tab: null }, { replace: true });
   }
@@ -100,9 +110,14 @@ export default function DashboardPage({ onNavigate }) {
           onGoHome={() => onNavigate("home")}
           onChangePassword={() => onNavigate("change-password")}
           onLogout={handleLogout}
+          open={menuOpen}
+          onClose={() => setMenuOpen(false)}
         />
         <div className="admin-main">
           <div className="admin-topbar">
+            <button type="button" className="admin-topbar-burger" onClick={() => setMenuOpen(true)} aria-label="Mở menu" aria-expanded={menuOpen}>
+              <span /><span /><span />
+            </button>
             <strong>{items.find(i => i.key === section)?.label ?? ""}</strong>
           </div>
           <div className="admin-content">

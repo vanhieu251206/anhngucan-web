@@ -54,7 +54,7 @@ export default function VocabRunner({ items, onFinish, seriesId, level, testId, 
   }
 
   if (result && !canReview) {
-    return <TestScoreReport correct={result.correct} total={result.total} elapsedMs={elapsedRef.current} onDone={onFinish} />;
+    return <TestScoreReport correct={result.correct} total={result.total} elapsedMs={elapsedRef.current} onDone={onFinish} openingId={openingId} />;
   }
 
   const answeredCount = shown.filter(({ i }) => String(answers[i] ?? "").trim()).length;

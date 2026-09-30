@@ -843,6 +843,7 @@ export default function ReadingRunner({ parts, onFinish, studentUid, seriesId, l
         total={results.totalPoints}
         elapsedMs={timer.getElapsedMs()}
         onDone={onFinish}
+        openingId={openingId}
       />
     );
   }

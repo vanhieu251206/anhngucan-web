@@ -1,5 +1,6 @@
 import { BEE } from "./sceneVisuals.jsx";
 import { formatDuration } from "./SpeakingReportView.jsx";
+import SubmittedNotice from "./SubmittedNotice.jsx";
 
 // Màn kết quả DÙNG CHUNG cho học sinh sau khi nộp bài (mọi dạng bài): CHỈ số câu đúng/tổng và thời gian.
 // Không hiện đáp án, giải thích, từng câu đúng/sai, không có lời khen theo mức điểm — chi tiết dành cho
@@ -8,7 +9,15 @@ export function formatScore(n) {
   return Number(n).toFixed(2).replace(/\.?0+$/, "");
 }
 
-export default function TestScoreReport({ correct, total, elapsedMs, onDone, onRetry }) {
+// Học sinh làm bài được mở (có openingId): chỉ báo "Nộp bài thành công" — điểm xem sau hạn chót (SubmittedNotice.jsx).
+export default function TestScoreReport({ correct, total, elapsedMs, onDone, onRetry, openingId }) {
+  if (openingId) {
+    return (
+      <div className="sentence-box review-screen">
+        <SubmittedNotice openingId={openingId} onDone={onDone} />
+      </div>
+    );
+  }
   return (
     <div className="sentence-box review-screen">
       <div className="review-report">

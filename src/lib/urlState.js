@@ -21,3 +21,15 @@ export function setParams(patch, { replace = false } = {}) {
   if (replace) window.history.replaceState(null, "", url);
   else window.history.pushState(null, "", url);
 }
+
+// Nhảy thẳng tới 1 trang với bộ tham số MỚI HOÀN TOÀN (vd bấm 1 bài trong chuông thông báo, AssignmentBell.jsx)
+// — App.jsx nghe sự kiện "app:navigate" để đọc lại URL và dựng lại trang từ đầu (kể cả khi đang ở đúng trang đó).
+export function navigateApp(params) {
+  const usp = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== null && value !== undefined && value !== "") usp.set(key, String(value));
+  });
+  const query = usp.toString();
+  window.history.pushState(null, "", `${window.location.pathname}${query ? `?${query}` : ""}`);
+  window.dispatchEvent(new Event("app:navigate"));
+}

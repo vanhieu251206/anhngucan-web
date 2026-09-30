@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import SubmittedNotice from "./SubmittedNotice.jsx";
 import StartersListeningPart1Runner from "./StartersListeningPart1Runner.jsx";
 import StartersListeningPart2Runner from "./StartersListeningPart2.jsx";
 import StartersListeningPart3Runner from "./StartersListeningPart3.jsx";
@@ -103,6 +104,9 @@ export default function StartersListeningTestRunner({ test, studentUid, studentN
     setSubmitted(false);
     setAttempt(a => a + 1);
   }
+
+  // Học sinh làm bài được mở: nộp xong chỉ báo thành công, điểm + đáp án xem sau hạn chót (SubmittedNotice.jsx).
+  if (submitted && !canReview && openingId) return <SubmittedNotice openingId={openingId} />;
 
   return (
     <div className="exam-layout">

@@ -372,7 +372,7 @@ export default function DictationRunner({ sentences, onFinish, studentUid, serie
 
   if (done) {
     const correctCount = answers.filter(a => a.attemptStatus === "correct").length;
-    return <TestScoreReport correct={correctCount} total={total} elapsedMs={timer.getElapsedMs()} onDone={onFinish} />;
+    return <TestScoreReport correct={correctCount} total={total} elapsedMs={timer.getElapsedMs()} onDone={onFinish} openingId={openingId} />;
   }
 
   return (

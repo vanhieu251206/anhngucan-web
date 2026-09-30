@@ -14,7 +14,7 @@
 // đã đăng nhập + giới hạn số lượt/phút theo tài khoản (audit bảo mật 2026-09-25: trước đó ai biết URL
 // cũng đốt được hạn mức AssemblyAI, mà hết free tier là tốn tiền thật).
 import { deleteStudent, deleteTeacher, deleteTester, resetPassword, firebaseProjectId, verifyIdToken } from "./admin.js";
-import { startTest, submitTest } from "./submit.js";
+import { reviewTest, startTest, submitTest } from "./submit.js";
 
 // anhngucan.com: tên miền riêng của GitHub Pages (public/CNAME, từ 2026-09-18) — thiếu mục này làm ghi âm Speaking
 // và xoá học sinh bị trình duyệt chặn CORS trên web thật (phát hiện 2026-09-25).
@@ -131,9 +131,9 @@ export default {
 
     // Bắt đầu / nộp bài qua máy chủ (xem submit.js) — học sinh không tự ghi kết quả/số lượt vào Firestore nữa.
     const path = new URL(request.url).pathname;
-    if (request.method === "POST" && (path.endsWith("/test/start") || path.endsWith("/test/submit"))) {
+    if (request.method === "POST" && (path.endsWith("/test/start") || path.endsWith("/test/submit") || path.endsWith("/test/review"))) {
       try {
-        const handler = path.endsWith("/test/start") ? startTest : submitTest;
+        const handler = path.endsWith("/test/start") ? startTest : path.endsWith("/test/review") ? reviewTest : submitTest;
         return new Response(JSON.stringify(await handler(request, env)), {
           headers: { ...headers, "Content-Type": "application/json" },
         });

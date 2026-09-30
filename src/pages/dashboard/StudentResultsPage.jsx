@@ -6,6 +6,7 @@ import { listStudents } from "../../lib/adminUsers.js";
 import { purgeExpiredResults, isResultVisible, loadOpeningDeadlines, RESULT_MODE_LABEL } from "../../lib/testResults.js";
 import { downloadResultSheet, canDownloadSheets } from "../../lib/resultSheetPdf.js";
 import { SpeakingReportView, groupIntoReportItems } from "../../components/SpeakingReportView.jsx";
+import ResultItems from "../../components/ResultItems.jsx";
 
 const PAGE_SIZE = 500;
 
@@ -301,54 +302,7 @@ export default function StudentResultsPage() {
 
 function Detail({ row }) {
   if (row.kind === "session") return <SessionDetail session={row.raw} />;
-  const items = row.raw.items ?? [];
-  if (!items.length) return <p className="admin-muted-text">Không có chi tiết từng câu.</p>;
-
-  // Speaking (từ nay): dùng lại đúng màn tổng kết cũ, nhưng dữ liệu đã có sẵn trong kết quả.
-  if (row.mode === "speaking") {
-    return (
-      <div className="admin-report-panel">
-        <SpeakingReportView items={items} elapsedMs={row.elapsedMs} />
-      </div>
-    );
-  }
-
-  // Listening Luyện đề chỉ lưu điểm từng Part.
-  if (items[0]?.part) {
-    return (
-      <ul className="results-parts">
-        {items.map((it, i) => (
-          <li key={i}><strong>{it.part}</strong><span>{it.correct}/{it.total}</span></li>
-        ))}
-      </ul>
-    );
-  }
-
-  return (
-    <div style={{ overflowX: "auto" }}>
-      <table className="admin-table">
-        <thead>
-          <tr><th>Câu</th><th></th><th>Bé trả lời</th><th>Đáp án đúng</th></tr>
-        </thead>
-        <tbody>
-          {items.map((it, i) => {
-            const blanks = Array.isArray(it.blanks) ? it.blanks : null;
-            return (
-              <tr key={i}>
-                <td>
-                  <div>{it.group ? `${it.group}.${it.qNumber}` : it.qNumber ?? i + 1}</div>
-                  {it.prompt && <div className="opening-test-kind">{it.prompt}</div>}
-                </td>
-                <td>{it.isCorrect ? <span className="opening-chip opening-chip-on">✓</span> : <span className="opening-chip opening-chip-off">✗</span>}</td>
-                <td>{blanks ? blanks.map(b => b.studentAnswer).join(" · ") : it.studentAnswer || <em>(bỏ trống)</em>}</td>
-                <td>{blanks ? blanks.map(b => b.correctAnswer).join(" · ") : it.correctAnswer ?? "—"}</td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
-  );
+  return <ResultItems mode={row.mode} items={row.raw.items ?? []} elapsedMs={row.elapsedMs} />;
 }
 
 // Lượt Speaking cũ (trước khi có điểm): đọc từng sự kiện từ speakingSessions/{id}/events.

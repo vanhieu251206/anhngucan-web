@@ -325,7 +325,7 @@ export default function SceneRunner({
     }
     const gradedTotal = scenes.filter(sc => sc.type !== "narration").length;
     const correctCount = Object.values(results).filter(r => r.result === "correct").length;
-    return <TestScoreReport correct={correctCount} total={gradedTotal} elapsedMs={timer.getElapsedMs()} onDone={onFinish} />;
+    return <TestScoreReport correct={correctCount} total={gradedTotal} elapsedMs={timer.getElapsedMs()} onDone={onFinish} openingId={openingId} />;
   }
 
   return (

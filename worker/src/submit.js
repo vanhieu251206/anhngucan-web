@@ -3,6 +3,7 @@
 // CHỦ, tự chấm từ câu trả lời thô (đáp án đọc từ answerKeys — học sinh không đọc được), rồi ghi kết quả + cộng lượt.
 //
 //   POST /test/start  { kind, seriesId, level, testId, openingId }  → { startId }   (ghi giờ bắt đầu thật)
+//   POST /test/review { openingId }                                   → { deadline, results }  (chỉ SAU hạn chót)
 //   POST /test/submit { startId, kind, seriesId, level, testId, openingId, answers, client, sessionId, lessonLabel,
 //                       studentName, elapsedMs }                      → { correct, total, parts? }
 //
@@ -202,11 +203,20 @@ export async function submitTest(request, env) {
     writes.push({
       update: {
         name: db.name(`attempts/${caller.uid}_${body.kind}_${key}`),
-        fields: encodeFields({ uid: caller.uid, mode: body.kind, testId: key, seriesId: body.seriesId, level: body.level }),
+        // Điểm tóm tắt (lượt gần nhất + cao nhất) cho trang "Bài của con" — doc attempts KHÔNG bị xoá theo luật
+        // 48h như testResults (chốt 2026-09-30), chỉ giữ con số, không giữ chi tiết từng câu.
+        fields: encodeFields({
+          uid: caller.uid, mode: body.kind, testId: key, seriesId: body.seriesId, level: body.level,
+          lastCorrect: graded.correct, total: graded.total,
+        }),
       },
-      updateMask: { fieldPaths: ["uid", "mode", "testId", "seriesId", "level"] },
+      updateMask: { fieldPaths: ["uid", "mode", "testId", "seriesId", "level", "lastCorrect", "total"] },
       updateTransforms: [
         { fieldPath: "count", increment: { integerValue: "1" } },
+        {
+          fieldPath: "bestCorrect",
+          maximum: Number.isInteger(graded.correct) ? { integerValue: String(graded.correct) } : { doubleValue: Number(graded.correct) || 0 },
+        },
         { fieldPath: "updatedAt", setToServerValue: "REQUEST_TIME" },
       ],
     });
@@ -214,4 +224,39 @@ export async function submitTest(request, env) {
   }
   await db.commit(writes);
   return response;
+}
+
+// Học sinh xem lại bài của chính mình SAU HẠN CHÓT (chốt 2026-09-30): điểm + từng câu (câu trả lời + đáp án đúng).
+// Trước hạn chót học sinh chỉ thấy "Đã nộp" — tránh lộ đáp án cho bạn cùng lớp chưa làm. Kết quả chi tiết vẫn bị xoá
+// 48h sau hạn chót (purgeAfter) nên chỉ xem được trong khoảng đó. Lần mở bài đã bị giáo viên đóng (xoá): lấy hạn chót
+// từ purgeAfter của kết quả.
+export async function reviewTest(request, env) {
+  const db = firestore(env);
+  const caller = await loadCaller(request, env, db);
+  if (caller.role !== "student") throw adminError(403, "forbidden");
+  const body = await request.json().catch(() => null);
+  const openingId = typeof body?.openingId === "string" ? body.openingId : "";
+  if (!openingId || openingId.includes("/")) throw adminError(400, "bad-request");
+
+  const opening = await db.get(`openings/${openingId}`);
+  if (opening && opening.className !== caller.profile.className) throw adminError(403, "not-opened");
+  const rows = await db.query("testResults", { uid: caller.uid, openingId });
+  const deadline =
+    opening?.expiresAt?.getTime() ??
+    (rows[0]?.purgeAfter instanceof Date ? rows[0].purgeAfter.getTime() - RESULT_KEEP_MS : null);
+  if (deadline == null) return { deadline: null, results: [] };
+  if (Date.now() < deadline) throw adminError(403, "not-yet");
+
+  const results = rows
+    .map(r => ({
+      mode: r.mode ?? null,
+      lessonLabel: r.lessonLabel ?? null,
+      correct: r.correct ?? null,
+      total: r.total ?? null,
+      elapsedMs: r.elapsedMs ?? null,
+      submittedAt: r.submittedAt instanceof Date ? r.submittedAt.toISOString() : null,
+      items: Array.isArray(r.items) ? r.items : [],
+    }))
+    .sort((a, b) => String(a.submittedAt).localeCompare(String(b.submittedAt)));
+  return { deadline: new Date(deadline).toISOString(), results };
 }

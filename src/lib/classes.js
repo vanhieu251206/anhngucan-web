@@ -33,6 +33,19 @@ export function formatSchedule(c) {
   return [days.map(dayLabel).join(" · "), c?.time].filter(Boolean).join(" — ");
 }
 
+// Buổi học kế tiếp theo lịch lớp → Date, hoặc null nếu lớp chưa có thứ học. Lớp chưa có giờ thì tính đầu ngày.
+export function nextClassSession(c, now = new Date()) {
+  const days = c?.days ?? [];
+  if (!days.length) return null;
+  const [h, m] = (c?.time || "00:00").split(":").map(Number);
+  const jsDays = new Set(days.map(d => (d === 8 ? 0 : d - 1)));
+  for (let k = 0; k <= 7; k++) {
+    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + k, h || 0, m || 0);
+    if (jsDays.has(d.getDay()) && d > now) return d;
+  }
+  return null;
+}
+
 // Đọc 1 dòng tên lớp thô giáo viên gửi, vd "CAN-ANH2-246-16H30", "CAN-ANH6-SÁNG 3-5", "CAN- IELTS 1" →
 // { name: "ANH2", days: [2,4,6], time: "16:30" }. Bỏ tiền tố "CAN-" và số thứ tự đầu dòng.
 export function parseClassLine(line) {

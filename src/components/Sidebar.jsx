@@ -11,11 +11,17 @@ const SIDEBAR_ICONS = {
 
 // Component thuần, không có logic auth — DashboardPage.jsx tính sẵn `items`/thông tin user
 // theo role rồi truyền xuống, Sidebar chỉ lo hiển thị + báo lại khi chọn mục/bấm nút khác.
-export default function Sidebar({ items, activeKey, onSelect, userEmail, roleLabel, onGoHome, onChangePassword, onLogout }) {
+// Màn hẹp (≤900px): sidebar thành ngăn kéo trượt từ trái, mở bằng nút 3 gạch trên .admin-topbar (`open`/`onClose`).
+export default function Sidebar({ items, activeKey, onSelect, userEmail, roleLabel, onGoHome, onChangePassword, onLogout, open = false, onClose }) {
   return (
-    <aside className="admin-sidebar">
+    <>
+    <div className={`admin-sidebar-backdrop${open ? " is-open" : ""}`} onClick={onClose} aria-hidden="true" />
+    <aside className={`admin-sidebar${open ? " is-open" : ""}`}>
       <div className="admin-sidebar-brand">
-        <Logo size={32} />
+        <div className="admin-sidebar-brand-row">
+          <Logo size={32} />
+          <button type="button" className="admin-sidebar-close" onClick={onClose} aria-label="Đóng menu">✕</button>
+        </div>
         <span className="admin-sidebar-brand-sub">Khu vực quản trị</span>
       </div>
 
@@ -54,5 +60,6 @@ export default function Sidebar({ items, activeKey, onSelect, userEmail, roleLab
         </button>
       </div>
     </aside>
+    </>
   );
 }
