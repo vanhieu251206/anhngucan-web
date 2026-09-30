@@ -1,5 +1,6 @@
+import InsertRow, { insertAt } from "./InsertRow.jsx";
 import { validateComprehension } from "../../lib/lessonValidation.js";
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import IeltsPracticeRunner from "../IeltsPracticeRunner.jsx";
 import AudioUploadField from "./AudioUploadField.jsx";
 import { useConfirm } from "./ConfirmDialog.jsx";
@@ -30,8 +31,8 @@ export default function ComprehensionStudio({
   const confirm = useConfirm();
   const [previewOpen, setPreviewOpen] = useState(false);
 
-  function addSentence() {
-    onSentencesChange([...(sentences ?? []), { en: "", vi: "", vocab: [] }]);
+  function addSentence(at = (sentences ?? []).length) {
+    onSentencesChange(insertAt(sentences, at, { en: "", vi: "", vocab: [] }));
   }
   function updateSentence(i, patch) {
     onSentencesChange(sentences.map((s, idx) => (idx === i ? { ...s, ...patch } : s)));
@@ -95,7 +96,9 @@ export default function ComprehensionStudio({
 
       <ol className="admin-comprehension-sentence-list">
         {(sentences ?? []).map((s, i) => (
-          <li className="admin-comprehension-sentence-card" key={i}>
+          <Fragment key={i}>
+          {i > 0 && <InsertRow as="li" onClick={() => addSentence(i)} />}
+          <li className="admin-comprehension-sentence-card">
             <div className="admin-comprehension-sentence-head">
               <span className="admin-scene-list-index">{i + 1}</span>
               <span className="admin-comprehension-sentence-head-title">Câu {i + 1}</span>
@@ -158,10 +161,11 @@ export default function ComprehensionStudio({
               </div>
             </div>
           </li>
+          </Fragment>
         ))}
       </ol>
 
-      <button type="button" className="admin-btn-secondary" onClick={addSentence}>+ Thêm câu</button>
+      <button type="button" className="admin-btn-secondary" onClick={() => addSentence()}>+ Thêm câu</button>
       {!(sentences ?? []).length && (practiceSentences ?? []).length > 0 && (
         <button
           type="button"

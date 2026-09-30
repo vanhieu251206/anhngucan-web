@@ -1,11 +1,13 @@
+import { normalizeOption } from "../../lib/grading/ielts.js";
+import InsertRow, { insertAt, moveAt } from "./InsertRow.jsx";
 import { validateIeltsPracticePassage } from "../../lib/lessonValidation.js";
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { useConfirm } from "./ConfirmDialog.jsx";
 import OcrImportPanel from "./OcrImportPanel.jsx";
 import IeltsPracticeRunner from "../IeltsPracticeRunner.jsx";
 import { parseQuestionLines } from "../../lib/ocrParse.js";
 import ImageUploadField from "./ImageUploadField.jsx";
-import { normalizeBlankHolder, countBlanks, groupQuestionCount } from "../../lib/tableDiagramBlanks.js";
+import { normalizeBlankHolder, countBlanks, groupQuestionCount, blankIndexMap, remapByBlanks } from "../../lib/tableDiagramBlanks.js";
 import { PageHead, PageHeadSaveButton, PublishButton, WarningBadge, publishWarningText } from "./AdminPageHead.jsx";
 
 // Màn soạn 1 Passage của Test IELTS Reading (Test 1-4 → Passage 1-3, xem CreateLessonPage.jsx
@@ -328,7 +330,13 @@ function OptionsListEditor({ options, onChange, keyPlaceholder = "vd: i / A", te
       {options.map((o, oi) => (
         <div className="admin-options-list-row" key={oi}>
           <input className="admin-input admin-options-key" value={o.key} onChange={e => updateOption(oi, { key: e.target.value })} placeholder={keyPlaceholder} />
-          <input className="admin-input" value={o.text} onChange={e => updateOption(oi, { text: e.target.value })} placeholder={textPlaceholder} />
+          <input
+            className="admin-input"
+            value={o.text}
+            onChange={e => updateOption(oi, { text: e.target.value })}
+            onBlur={() => { if (!String(o.key ?? "").trim()) updateOption(oi, normalizeOption(o)); }}
+            placeholder={textPlaceholder}
+          />
           <button type="button" className="admin-link-btn admin-pill-btn-danger" onClick={() => removeOption(oi)}>Xoá</button>
         </div>
       ))}
@@ -350,11 +358,9 @@ function OptionsListEditor({ options, onChange, keyPlaceholder = "vd: i / A", te
 function BlankHolderEditor({ value, onChange, rows = 2, placeholder, numberBase = 0 }) {
   const holder = normalizeBlankHolder(value);
   const n = countBlanks(holder.text);
+  // Đáp án đi theo đúng chỗ trống của nó — chèn/xoá "___" ở giữa không làm lệch đáp án phía sau.
   function handleTextChange(text) {
-    const answers = [...holder.answers];
-    const need = countBlanks(text);
-    while (answers.length < need) answers.push("");
-    while (answers.length > need) answers.pop();
+    const answers = remapByBlanks(holder.answers, blankIndexMap(holder.text, text));
     onChange({ text, answers });
   }
   function handleAnswerChange(k, val) {
@@ -572,8 +578,8 @@ function MatchingEditor({ group, onChange }) {
   function updateItem(ii, patch) {
     commitItems(items.map((it, idx) => (idx === ii ? { ...it, ...patch } : it)));
   }
-  function addItem() {
-    commitItems([...items, blankMatchingItem()]);
+  function addItem(at = items.length) {
+    commitItems(insertAt(items, at, blankMatchingItem()));
   }
   async function removeItem(ii) {
     if (!(await confirm("Xoá mục này?", { danger: true }))) return;
@@ -605,7 +611,9 @@ function MatchingEditor({ group, onChange }) {
         <span className="admin-upload-label admin-practice-groups-label">Danh sách mục cần ghép</span>
         <BulkMatchingPaste onApply={applyBulkPaste} />
         {items.map((it, ii) => (
-          <div className="admin-practice-question-row" key={ii}>
+          <Fragment key={ii}>
+          {ii > 0 && <InsertRow label="＋ Chèn mục vào đây" onClick={() => addItem(ii)} />}
+          <div className="admin-practice-question-row">
             <span className="admin-scene-list-index">{ii + 1}</span>
             <div className="admin-dictation-row-fields">
               <input className="admin-input" value={it.label} onChange={e => updateItem(ii, { label: e.target.value })} placeholder="vd: Paragraph B / Many Europeans started farming abroad." />
@@ -620,10 +628,13 @@ function MatchingEditor({ group, onChange }) {
                 placeholder={it.isExample ? "Đáp án mẫu hiện luôn cho học sinh xem, vd: viii" : "Đáp án đúng (khớp với 1 mục trong danh sách ở trên, vd: iii)"}
               />
             </div>
+            <button type="button" className="admin-link-btn" onClick={() => commitItems(moveAt(items, ii, -1))} disabled={ii === 0} title="Dời lên">↑</button>
+            <button type="button" className="admin-link-btn" onClick={() => commitItems(moveAt(items, ii, 1))} disabled={ii === items.length - 1} title="Dời xuống">↓</button>
             <button type="button" className="admin-link-btn admin-pill-btn-danger" onClick={() => removeItem(ii)}>Xoá</button>
           </div>
+          </Fragment>
         ))}
-        <button type="button" className="admin-btn-secondary" onClick={addItem}>+ Thêm mục</button>
+        <button type="button" className="admin-btn-secondary" onClick={() => addItem()}>+ Thêm mục</button>
       </div>
     </div>
   );
@@ -659,8 +670,11 @@ export function LuyenDePage({
     onPassageChange({ ...passage, ...patch });
   }
 
-  function addGroup() {
-    update({ groups: [...(passage.groups ?? []), { instruction: "", type: "multiple-choice", questions: [blankQuestion("multiple-choice")] }] });
+  function addGroup(at = (passage.groups ?? []).length) {
+    update({ groups: insertAt(passage.groups, at, { instruction: "", type: "multiple-choice", questions: [blankQuestion("multiple-choice")] }) });
+  }
+  function moveGroup(gi, dir) {
+    update({ groups: moveAt(passage.groups, gi, dir) });
   }
   function updateGroup(gi, patch) {
     const groups = passage.groups.map((g, idx) => (idx === gi ? { ...g, ...patch } : g));
@@ -718,9 +732,12 @@ export function LuyenDePage({
     onSave(nextPassage);
   }
 
-  function addQuestion(gi) {
+  function addQuestion(gi, at = passage.groups[gi].questions.length) {
     const g = passage.groups[gi];
-    updateGroup(gi, { questions: [...g.questions, blankQuestion(g.type)] });
+    updateGroup(gi, { questions: insertAt(g.questions, at, blankQuestion(g.type)) });
+  }
+  function moveQuestion(gi, qi, dir) {
+    updateGroup(gi, { questions: moveAt(passage.groups[gi].questions, qi, dir) });
   }
   function updateQuestion(gi, qi, patch) {
     const g = passage.groups[gi];
@@ -820,11 +837,15 @@ export function LuyenDePage({
 
       <SectionBanner icon="❓">Phần câu hỏi</SectionBanner>
       {(passage.groups ?? []).map((g, gi) => (
-        <div className="admin-practice-group" key={gi}>
+        <Fragment key={gi}>
+        {gi > 0 && <InsertRow label="＋ Chèn nhóm câu hỏi vào đây" onClick={() => addGroup(gi)} />}
+        <div className="admin-practice-group">
           <div className="admin-practice-group-head">
             <select className="admin-input admin-practice-type-select" value={g.type} onChange={e => changeGroupType(gi, e.target.value)}>
               {GROUP_TYPES.map(t => <option key={t.key} value={t.key}>{t.label}</option>)}
             </select>
+            <button type="button" className="admin-link-btn" onClick={() => moveGroup(gi, -1)} disabled={gi === 0} title="Dời nhóm lên">↑</button>
+            <button type="button" className="admin-link-btn" onClick={() => moveGroup(gi, 1)} disabled={gi === passage.groups.length - 1} title="Dời nhóm xuống">↓</button>
             <button type="button" className="admin-link-btn admin-pill-btn-danger" onClick={() => removeGroup(gi)}>Xoá nhóm</button>
           </div>
           <label className="admin-dictation-text-label">
@@ -876,7 +897,9 @@ export function LuyenDePage({
             </div>
           )}
           {g.questions.map((q, qi) => (
-            <div className="admin-practice-question-row" key={qi}>
+            <Fragment key={qi}>
+            {qi > 0 && <InsertRow onClick={() => addQuestion(gi, qi)} />}
+            <div className="admin-practice-question-row">
               <span className="admin-scene-list-index">{qi + 1}</span>
               <div className="admin-dictation-row-fields">
                 {g.type === "multiple-choice" && (
@@ -934,8 +957,11 @@ export function LuyenDePage({
                   </>
                 )}
               </div>
+              <button type="button" className="admin-link-btn" onClick={() => moveQuestion(gi, qi, -1)} disabled={qi === 0} title="Dời câu lên">↑</button>
+              <button type="button" className="admin-link-btn" onClick={() => moveQuestion(gi, qi, 1)} disabled={qi === g.questions.length - 1} title="Dời câu xuống">↓</button>
               <button type="button" className="admin-link-btn admin-pill-btn-danger" onClick={() => removeQuestion(gi, qi)}>Xoá</button>
             </div>
+            </Fragment>
           ))}
           <div className="admin-practice-add-row">
             <button type="button" className="admin-btn-secondary" onClick={() => addQuestion(gi)}>+ Thêm câu hỏi</button>
@@ -947,8 +973,9 @@ export function LuyenDePage({
           </>
           )}
         </div>
+        </Fragment>
       ))}
-      <button type="button" className="admin-btn-secondary" onClick={addGroup}>+ Thêm nhóm câu hỏi</button>
+      <button type="button" className="admin-btn-secondary" onClick={() => addGroup()}>+ Thêm nhóm câu hỏi</button>
 
       {previewOpen && (
         <IeltsPracticeRunner

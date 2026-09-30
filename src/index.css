@@ -4676,3 +4676,13 @@ button.wizard-step:focus-visible { outline: 3px solid var(--color-secondary); ou
   text-align: left; font-size: 0.88rem; line-height: 1.5; color: #4b3a12;
 }
 .admin-warn-list li + li { margin-top: 4px; }
+
+/* Nút "＋ Chèn câu vào đây" giữa các câu/nhóm trong trang soạn (InsertRow.jsx) — mảnh, không chiếm chỗ. */
+.admin-insert-row { list-style: none; display: flex; align-items: center; gap: 8px; margin: 2px 0; }
+.admin-insert-row::before, .admin-insert-row::after { content: ""; flex: 1; border-top: 1px dashed #d6dbe6; }
+.admin-insert-btn {
+  border: 1px dashed #b9c3d6; background: #fff; color: #5b6b86; border-radius: 999px;
+  padding: 2px 12px; font-size: 0.8rem; font-weight: 600; cursor: pointer; font-family: inherit; opacity: 0.75;
+}
+.admin-insert-btn:hover:not(:disabled) { opacity: 1; border-style: solid; border-color: var(--accent, #3b5bdb); color: var(--accent, #3b5bdb); }
+.admin-insert-btn:disabled { cursor: not-allowed; opacity: 0.4; }

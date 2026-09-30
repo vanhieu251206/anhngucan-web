@@ -1,5 +1,6 @@
+import InsertRow, { insertAt } from "./InsertRow.jsx";
 import { validateDictation } from "../../lib/lessonValidation.js";
-import { useRef, useState } from "react";
+import { Fragment, useRef, useState } from "react";
 import AudioUploadField from "./AudioUploadField.jsx";
 import { useConfirm } from "./ConfirmDialog.jsx";
 import { uploadToCloudinary } from "../../lib/cloudinaryUpload.js";
@@ -47,8 +48,8 @@ export default function DictationStudio({
   const bulkAudioInputRef = useRef(null);
   const txtInputRef = useRef(null);
 
-  function addSentence() {
-    onSentencesChange([...(sentences ?? []), { text: "", audioUrl: null }]);
+  function addSentence(at = (sentences ?? []).length) {
+    onSentencesChange(insertAt(sentences, at, { text: "", audioUrl: null }));
   }
   function updateSentence(i, patch) {
     // Ghép vào bản mới nhất — nhiều audio tải song song xong lúc khác nhau không ghi đè nhau.
@@ -160,7 +161,9 @@ export default function DictationStudio({
 
       <ol className="admin-scene-list">
         {(sentences ?? []).map((s, i) => (
-          <li className="admin-scene-list-item admin-dictation-row" key={i}>
+          <Fragment key={i}>
+          {i > 0 && <InsertRow as="li" onClick={() => addSentence(i)} />}
+          <li className="admin-scene-list-item admin-dictation-row">
             <span className="admin-scene-list-index">{i + 1}</span>
             <div className="admin-dictation-row-fields">
               <AudioUploadField
@@ -184,10 +187,11 @@ export default function DictationStudio({
               <button type="button" className="admin-link-btn admin-pill-btn-danger" onClick={() => removeSentence(i)}>Xoá</button>
             </div>
           </li>
+          </Fragment>
         ))}
       </ol>
 
-      <button type="button" className="admin-btn-secondary" onClick={addSentence}>+ Thêm câu</button>
+      <button type="button" className="admin-btn-secondary" onClick={() => addSentence()}>+ Thêm câu</button>
 
       <label className="admin-dictation-maxattempts">
         Số lượt làm bài tối đa (để trống = không giới hạn)

@@ -1,6 +1,8 @@
+import InsertRow, { insertAt } from "./InsertRow.jsx";
 import { PublishButton, WarningBadge, publishWarningText } from "./AdminPageHead.jsx";
 import { validateReadingParts } from "../../lib/lessonValidation.js";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { blankIndexMap, remapByBlanks } from "../../lib/tableDiagramBlanks.js";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import ImageUploadField from "./ImageUploadField.jsx";
 import { useConfirm } from "./ConfirmDialog.jsx";
 import { WORD_SCRAMBLE_DEFAULT_TEXT, scrambleWord, questionPoints, gapfillBlankCount, QuestionBadge, WordBankBox, ExampleRow, ExamplesPairRow, StoryParagraph, AnswerTableRow, LetteredAnswerBox, ConversationSelectRow, optionLetter, bankLabel, bankImage } from "../ReadingRunner.jsx";
@@ -1244,12 +1246,23 @@ function PartEditor({ part, onChange, seriesId }) {
   }
   function updateQuestion(i, patch) {
     const next = [...questions];
-    next[i] = { ...next[i], ...patch };
+    const prev = next[i];
+    // Gapfill: sửa đoạn văn (chèn/xoá "___" ở giữa) thì đáp án + lựa chọn đi theo đúng chỗ trống, không lệch câu.
+    if (prev?.type === "gapfill" && patch.text !== undefined && patch.answers === undefined && prev.text !== patch.text) {
+      const map = blankIndexMap(prev.text ?? "", patch.text, /___/);
+      patch = { ...patch, answers: remapByBlanks(prev.answers ?? [], map) };
+      if (prev.gapOptions?.length) patch.gapOptions = remapByBlanks(prev.gapOptions, map, () => ({ options: ["", "", ""] }));
+    }
+    next[i] = { ...prev, ...patch };
     onChange({ questions: next });
   }
   async function deleteQuestion(i) {
     if (!(await confirm("Xoá câu hỏi này?", { danger: true }))) return;
     onChange({ questions: questions.filter((_, idx) => idx !== i) });
+  }
+  // Chèn câu trống cùng dạng vào giữa (Part khung cố định bị khoá số câu thì không hiện nút chèn).
+  function insertQuestion(at, type) {
+    onChange({ questions: insertAt(questions, at, blankQuestion(type)) });
   }
   function duplicateQuestion(i) {
     const next = [...questions];
@@ -1740,8 +1753,11 @@ function PartEditor({ part, onChange, seriesId }) {
 
           <div className="admin-reading-question-list">
             {questions.map((q, i) => (
+              <Fragment key={i}>
+              {i > 0 && !["movers-part2", "movers-part3", "movers-part4", "flyers-part1", "flyers-part3", "starters-part3"].includes(part.fixedLayout) && availableTypes.some(t => t.type === q.type) && (
+                <InsertRow onClick={() => insertQuestion(i, q.type)} />
+              )}
               <QuestionEditor
-                key={i}
                 question={q}
                 index={i}
                 onChange={patch => updateQuestion(i, patch)}
@@ -1753,6 +1769,7 @@ function PartEditor({ part, onChange, seriesId }) {
                 locked={["movers-part2", "movers-part3", "movers-part4", "flyers-part1", "flyers-part3", "starters-part3"].includes(part.fixedLayout)}
                 hideImage={(part.fixedLayout === "flyers-part3" || part.fixedLayout === "movers-part4") && q.type === "gapfill"}
               />
+              </Fragment>
             ))}
           </div>
 

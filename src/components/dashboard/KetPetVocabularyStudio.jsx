@@ -1,5 +1,6 @@
+import InsertRow, { insertAt } from "./InsertRow.jsx";
 import { validateKetPetGroups } from "../../lib/lessonValidation.js";
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { useConfirm } from "./ConfirmDialog.jsx";
 import { PageHead, PageHeadSaveButton } from "./AdminPageHead.jsx";
 import { GROUP_TYPES, blankGroup, blankGroupQuestion, toRoman } from "../../lib/ketPetVocabulary.js";
@@ -22,8 +23,8 @@ export default function KetPetVocabularyStudio({
   const confirm = useConfirm();
   const [previewOpen, setPreviewOpen] = useState(false);
 
-  function addGroup() {
-    onGroupsChange([...groups, blankGroup("multiple-choice")]);
+  function addGroup(at = groups.length) {
+    onGroupsChange(insertAt(groups, at, blankGroup("multiple-choice")));
   }
   function updateGroup(gi, patch) {
     onGroupsChange(groups.map((g, i) => (i === gi ? { ...g, ...patch } : g)));
@@ -45,9 +46,9 @@ export default function KetPetVocabularyStudio({
     onGroupsChange(next);
   }
 
-  function addQuestion(gi) {
+  function addQuestion(gi, at = groups[gi].questions.length) {
     const g = groups[gi];
-    updateGroup(gi, { questions: [...g.questions, blankGroupQuestion(g.type)] });
+    updateGroup(gi, { questions: insertAt(g.questions, at, blankGroupQuestion(g.type)) });
   }
   function updateQuestion(gi, qi, patch) {
     const g = groups[gi];
@@ -92,7 +93,9 @@ export default function KetPetVocabularyStudio({
       </PageHead>
 
       {groups.map((g, gi) => (
-        <div className="admin-practice-group" key={gi}>
+        <Fragment key={gi}>
+        {gi > 0 && <InsertRow label="＋ Chèn nhóm câu hỏi vào đây" onClick={() => addGroup(gi)} />}
+        <div className="admin-practice-group">
           <div className="admin-practice-group-head">
             <span className="admin-practice-page-label">{`Nhóm ${toRoman(gi + 1)}`}</span>
             {g.type !== "translation" && (
@@ -171,7 +174,9 @@ export default function KetPetVocabularyStudio({
 
           <ol className="admin-scene-list">
             {g.questions.map((q, qi) => (
-              <li className="admin-scene-list-item" key={qi}>
+              <Fragment key={qi}>
+              {qi > 0 && <InsertRow as="li" onClick={() => addQuestion(gi, qi)} />}
+              <li className="admin-scene-list-item">
                 <span className="admin-scene-list-index">{qi + 1}</span>
 
                 <div className="admin-dictation-row-fields">
@@ -370,14 +375,16 @@ export default function KetPetVocabularyStudio({
                   <button type="button" className="admin-link-btn admin-pill-btn-danger" onClick={() => removeQuestion(gi, qi)}>Xoá</button>
                 </div>
               </li>
+              </Fragment>
             ))}
           </ol>
 
           <button type="button" className="admin-btn-secondary" onClick={() => addQuestion(gi)}>+ Thêm câu</button>
         </div>
+        </Fragment>
       ))}
 
-      <button type="button" className="admin-btn-secondary" onClick={addGroup}>+ Thêm nhóm câu hỏi</button>
+      <button type="button" className="admin-btn-secondary" onClick={() => addGroup()}>+ Thêm nhóm câu hỏi</button>
 
       {previewOpen && (
         <div className="admin-preview-overlay">

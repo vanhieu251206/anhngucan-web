@@ -61,3 +61,36 @@ export function groupQuestionCount(group) {
   if (group.type === "diagram") return (group.diagramPoints ?? []).length;
   return (group.questions ?? []).length;
 }
+
+// Khi giáo viên sửa đoạn văn có chỗ trống (chèn/xoá "___" ở GIỮA), đáp án phải đi theo đúng chỗ trống của nó — trước
+// đây đáp án lưu theo thứ tự nên chèn 1 chỗ trống ở giữa làm mọi đáp án phía sau lệch 1 câu (2026-09-30). Trả về
+// mảng dài bằng số chỗ trống MỚI: phần tử i = vị trí chỗ trống cũ tương ứng, hoặc null nếu là chỗ trống mới chèn.
+// Cách làm: phần đầu + phần cuối giống nhau của 2 bản text là vùng không đổi; chỗ trống nằm trọn trong đó giữ đáp án.
+export function blankIndexMap(oldText, newText, re = BLANK_RE) {
+  const a = String(oldText ?? "");
+  const b = String(newText ?? "");
+  const spans = t => [...t.matchAll(new RegExp(re.source, "g"))].map(m => [m.index, m.index + m[0].length]);
+  const oldSpans = spans(a);
+  const newSpans = spans(b);
+  let p = 0;
+  while (p < a.length && p < b.length && a[p] === b[p]) p++;
+  let s = 0;
+  while (s < a.length - p && s < b.length - p && a[a.length - 1 - s] === b[b.length - 1 - s]) s++;
+  const oldBefore = oldSpans.filter(([, e]) => e <= p).length;
+  const newBefore = newSpans.filter(([, e]) => e <= p).length;
+  const oldAfter = oldSpans.filter(([st]) => st >= a.length - s).length;
+  const newAfter = newSpans.filter(([st]) => st >= b.length - s).length;
+  const oldMid = oldSpans.length - oldBefore - oldAfter;
+  const newMid = newSpans.length - newBefore - newAfter;
+  const map = [];
+  for (let i = 0; i < newBefore; i++) map.push(i);
+  // Vùng bị sửa: giữ đáp án theo thứ tự nếu còn, chỗ trống dư là mới.
+  for (let i = 0; i < newMid; i++) map.push(i < oldMid ? oldBefore + i : null);
+  for (let i = 0; i < newAfter; i++) map.push(oldSpans.length - newAfter + i);
+  return map;
+}
+
+// Sắp lại 1 mảng giá trị theo từng chỗ trống (đáp án, lựa chọn...) theo blankIndexMap. `empty()` = giá trị cho chỗ mới.
+export function remapByBlanks(values, map, empty = () => "") {
+  return map.map(oldIdx => (oldIdx == null ? empty() : values?.[oldIdx] ?? empty()));
+}

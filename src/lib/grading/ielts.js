@@ -67,3 +67,18 @@ export function gradeIelts(flat, answers) {
   });
   return { correct, total: flat.length, items };
 }
+
+// Lựa chọn của danh sách dùng chung (List of Headings, A/B/C...): { key, text }. Nếu ô ký hiệu bị bỏ trống mà ký hiệu
+// dính ở đầu nội dung (vd dán nguyên dòng "i<Tab>Seeking the transmission...") thì tách ra — ký hiệu rỗng làm mọi lựa
+// chọn trùng nhau: học sinh bấm câu nào cũng thành chọn hết, và chấm sai hết (lỗi thật 2026-09-30, IELTS 9 Test 1).
+const OPTION_KEY_RE = /^\s*\(?([ivxlcdm]{1,6}|[A-Za-z]|\d{1,2})[.)]?(?:\s+|\t+)(\S.*)$/i;
+export function normalizeOption(o) {
+  const key = String(o?.key ?? "").trim();
+  const text = String(o?.text ?? "");
+  if (key) return { key, text: text.trim() };
+  const m = text.match(OPTION_KEY_RE);
+  return m ? { key: m[1], text: m[2].trim() } : { key: "", text: text.trim() };
+}
+export function normalizeOptions(options) {
+  return (options ?? []).map(normalizeOption);
+}

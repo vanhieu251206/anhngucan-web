@@ -1,5 +1,6 @@
+import InsertRow, { insertAt } from "./InsertRow.jsx";
 import { validateVocabItems } from "../../lib/lessonValidation.js";
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import AudioUploadField from "./AudioUploadField.jsx";
 import ImageUploadField from "./ImageUploadField.jsx";
 import { useConfirm } from "./ConfirmDialog.jsx";
@@ -28,8 +29,8 @@ export default function VocabStudio({
   const list = items ?? [];
   const [previewOpen, setPreviewOpen] = useState(false);
 
-  function addItem(type) {
-    onItemsChange([...list, blankVocabItem(type)]);
+  function addItem(type, at = list.length) {
+    onItemsChange(insertAt(list, at, blankVocabItem(type)));
   }
   function updateItem(i, patch) {
     onItemsChange(prev => prev.map((it, idx) => (idx === i ? { ...it, ...patch } : it)));
@@ -61,7 +62,10 @@ export default function VocabStudio({
 
       <ol className="admin-scene-list">
         {list.map((it, i) => (
-          <li className="admin-scene-list-item admin-dictation-row" key={i}>
+          <Fragment key={i}>
+          {/* Câu chèn giữa lấy dạng của câu ngay sau, đổi dạng được ở ô "Dạng câu". */}
+          {i > 0 && <InsertRow as="li" onClick={() => addItem(it.type, i)} />}
+          <li className="admin-scene-list-item admin-dictation-row">
             <span className="admin-scene-list-index">{i + 1}</span>
             <div className="admin-dictation-row-fields">
               <label className="admin-dictation-text-label">
@@ -106,6 +110,7 @@ export default function VocabStudio({
               <button type="button" className="admin-link-btn admin-pill-btn-danger" onClick={() => removeItem(i)}>Xoá</button>
             </div>
           </li>
+          </Fragment>
         ))}
       </ol>
 

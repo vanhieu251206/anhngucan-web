@@ -1,5 +1,6 @@
+import InsertRow, { insertAt, moveAt } from "./InsertRow.jsx";
 import { validateIeltsListening } from "../../lib/lessonValidation.js";
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { useConfirm } from "./ConfirmDialog.jsx";
 import IeltsListeningRunner from "../IeltsListeningRunner.jsx";
 import AudioUploadField from "./AudioUploadField.jsx";
@@ -31,8 +32,8 @@ function SectionEditor({ section, onChange, onRemove }) {
     onChange(patch);
   }
 
-  function addGroup() {
-    update({ groups: [...(section.groups ?? []), { instruction: "", type: "short-answer", questions: [blankQuestion("short-answer")] }] });
+  function addGroup(at = (section.groups ?? []).length) {
+    update({ groups: insertAt(section.groups, at, { instruction: "", type: "short-answer", questions: [blankQuestion("short-answer")] }) });
   }
   function updateGroup(gi, patch) {
     const groups = section.groups.map((g, idx) => (idx === gi ? { ...g, ...patch } : g));
@@ -45,9 +46,9 @@ function SectionEditor({ section, onChange, onRemove }) {
     if (!(await confirm("Xoá nhóm câu hỏi này?", { danger: true }))) return;
     update({ groups: section.groups.filter((_, idx) => idx !== gi) });
   }
-  function addQuestion(gi) {
+  function addQuestion(gi, at = section.groups[gi].questions.length) {
     const g = section.groups[gi];
-    updateGroup(gi, { questions: [...g.questions, blankQuestion(g.type)] });
+    updateGroup(gi, { questions: insertAt(g.questions, at, blankQuestion(g.type)) });
   }
   function updateQuestion(gi, qi, patch) {
     const g = section.groups[gi];
@@ -82,11 +83,15 @@ function SectionEditor({ section, onChange, onRemove }) {
 
       <span className="admin-upload-label admin-practice-groups-label">Nhóm câu hỏi</span>
       {(section.groups ?? []).map((g, gi) => (
-        <div className="admin-practice-group" key={gi}>
+        <Fragment key={gi}>
+        {gi > 0 && <InsertRow label="＋ Chèn nhóm câu hỏi vào đây" onClick={() => addGroup(gi)} />}
+        <div className="admin-practice-group">
           <div className="admin-practice-group-head">
             <select className="admin-input admin-practice-type-select" value={g.type} onChange={e => changeGroupType(gi, e.target.value)}>
               {GROUP_TYPES.map(t => <option key={t.key} value={t.key}>{t.label}</option>)}
             </select>
+            <button type="button" className="admin-link-btn" onClick={() => update({ groups: moveAt(section.groups, gi, -1) })} disabled={gi === 0} title="Dời nhóm lên">↑</button>
+            <button type="button" className="admin-link-btn" onClick={() => update({ groups: moveAt(section.groups, gi, 1) })} disabled={gi === section.groups.length - 1} title="Dời nhóm xuống">↓</button>
             <button type="button" className="admin-link-btn admin-pill-btn-danger" onClick={() => removeGroup(gi)}>Xoá nhóm</button>
           </div>
           <textarea
@@ -97,7 +102,9 @@ function SectionEditor({ section, onChange, onRemove }) {
             placeholder="Hướng dẫn chung của nhóm câu hỏi"
           />
           {g.questions.map((q, qi) => (
-            <div className="admin-practice-question-row" key={qi}>
+            <Fragment key={qi}>
+            {qi > 0 && <InsertRow onClick={() => addQuestion(gi, qi)} />}
+            <div className="admin-practice-question-row">
               <span className="admin-scene-list-index">{qi + 1}</span>
               <div className="admin-dictation-row-fields">
                 {g.type === "multiple-choice" && (
@@ -141,13 +148,17 @@ function SectionEditor({ section, onChange, onRemove }) {
                   </>
                 )}
               </div>
+              <button type="button" className="admin-link-btn" onClick={() => updateGroup(gi, { questions: moveAt(g.questions, qi, -1) })} disabled={qi === 0} title="Dời câu lên">↑</button>
+              <button type="button" className="admin-link-btn" onClick={() => updateGroup(gi, { questions: moveAt(g.questions, qi, 1) })} disabled={qi === g.questions.length - 1} title="Dời câu xuống">↓</button>
               <button type="button" className="admin-link-btn admin-pill-btn-danger" onClick={() => removeQuestion(gi, qi)}>Xoá</button>
             </div>
+            </Fragment>
           ))}
           <button type="button" className="admin-btn-secondary" onClick={() => addQuestion(gi)}>+ Thêm câu hỏi</button>
         </div>
+        </Fragment>
       ))}
-      <button type="button" className="admin-btn-secondary" onClick={addGroup}>+ Thêm nhóm câu hỏi</button>
+      <button type="button" className="admin-btn-secondary" onClick={() => addGroup()}>+ Thêm nhóm câu hỏi</button>
     </div>
   );
 }

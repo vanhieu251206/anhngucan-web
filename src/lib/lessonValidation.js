@@ -4,6 +4,7 @@
 import { countBlanks, normalizeBlankHolder } from "./tableDiagramBlanks.js";
 import { splitGapfillText } from "./grading/reading.js";
 import { acceptedAnswers as vocabAnswers } from "./grading/vocab.js";
+import { normalizeOptions } from "./grading/ielts.js";
 
 const blank = v => !String(v ?? "").trim();
 const filled = v => !blank(v);
@@ -165,7 +166,16 @@ function validateIeltsGroups(groups, prefix, out) {
       return;
     }
     if (g.type === "matching") {
-      if (!(g.optionsList ?? []).length) out.push(`${gw}: chưa có danh sách lựa chọn.`);
+      const opts = normalizeOptions(g.optionsList);
+      if (!opts.length) out.push(`${gw}: chưa có danh sách lựa chọn.`);
+      const keys = opts.map(o => o.key.toLowerCase());
+      if (keys.some(k => !k)) out.push(`${gw}: có lựa chọn chưa có ký hiệu (i, ii, A, B...) — học sinh sẽ không chọn được.`);
+      if (new Set(keys.filter(Boolean)).size < keys.filter(Boolean).length) out.push(`${gw}: có ký hiệu lựa chọn bị trùng.`);
+      (g.items ?? []).forEach((it, ii) => {
+        if (it.isExample || blank(it.answerKey)) return;
+        const ok = String(it.answerKey).split("|").some(a => keys.includes(a.trim().toLowerCase()));
+        if (!ok && keys.some(Boolean)) out.push(`${gw} – Mục ${ii + 1}: đáp án "${it.answerKey}" không có trong danh sách lựa chọn.`);
+      });
       const items = (g.items ?? []).filter(it => !it.isExample);
       if (!items.length) out.push(`${gw}: chưa có câu nào.`);
       const missing = items.filter(it => blank(it.answerKey)).length;

@@ -3,7 +3,7 @@ import ExamTimer, { useExamTimer } from "./ExamTimer.jsx";
 import { useAuth } from "../lib/authContext.jsx";
 import { useTestSubmission } from "../lib/testSubmit.js";
 import SubmitStatus from "./SubmitStatus.jsx";
-import { flattenPassages as flattenQuestions, isIeltsCorrect as isCorrect } from "../lib/grading/ielts.js";
+import { flattenPassages as flattenQuestions, isIeltsCorrect as isCorrect, normalizeOptions } from "../lib/grading/ielts.js";
 import { deriveTableDiagramBlanks, normalizeBlankHolder, textBlankCount } from "../lib/tableDiagramBlanks.js";
 import { optimizeImage } from "../lib/cloudinaryImage.js";
 
@@ -146,7 +146,7 @@ export function OptionsBox({ title, options, boxed = true, columns = 1 }) {
     <div className={`ielts-options-box${boxed ? " is-boxed" : ""}`}>
       {title && <p className="ielts-options-box-title">{title}</p>}
       <div className="ielts-options-box-grid" style={columns > 1 ? { gridTemplateColumns: `repeat(${columns}, 1fr)` } : undefined}>
-        {options.map((o, i) => (
+        {normalizeOptions(options).map((o, i) => (
           <p key={i} className="ielts-options-box-row"><strong>{o.key}</strong>&nbsp;&nbsp;{o.text}</p>
         ))}
       </div>
@@ -317,12 +317,12 @@ export function MatchingGroup({ g, gi, activePassage, flat, answers, submitted, 
             <div className="ielts-practice-qbody">
               <p>{it.label}</p>
               <div className="ielts-practice-click-options">
-                {(g.optionsList ?? []).map((o, oi) => (
+                {normalizeOptions(g.optionsList).map((o, oi) => (
                   <label className="ielts-practice-option" key={oi}>
                     <input
                       type="radio"
                       name={`q-${number}`}
-                      checked={value === o.key}
+                      checked={value != null && value !== "" && value === o.key}
                       disabled={submitted}
                       onChange={() => setAnswer(number, o.key)}
                     />
