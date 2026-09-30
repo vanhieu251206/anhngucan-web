@@ -6,12 +6,14 @@ import {
   saveListening, getListening, listTests, getTest, saveTest, deleteTest,
   listReadingTests, getReadingTest, saveReadingTest, deleteReadingTest,
   listDictationTests, getDictationTest, saveDictationTest, deleteDictationTest,
+  listVocabTests, getVocabTest, saveVocabTest, deleteVocabTest,
   listPracticeTests, getPracticeTest, savePracticeTest, deletePracticeTest,
   listIeltsListeningTests, getIeltsListeningTest, saveIeltsListeningTest, deleteIeltsListeningTest,
 } from "../../lib/adminLessons.js";
 import TestStudio from "../../components/dashboard/TestStudio.jsx";
 import ReadingStudio from "../../components/dashboard/ReadingStudio.jsx";
 import DictationStudio from "../../components/dashboard/DictationStudio.jsx";
+import VocabStudio from "../../components/dashboard/VocabStudio.jsx";
 import { LuyenDePage } from "../../components/dashboard/PracticeStudio.jsx";
 import ComprehensionStudio from "../../components/dashboard/ComprehensionStudio.jsx";
 import StartersListeningExamStudio from "../../components/dashboard/StartersListeningExamStudio.jsx";
@@ -26,6 +28,7 @@ const MODE_INFO = {
   speaking: { label: "Speaking", icon: "🎤", desc: "Luyện nói theo scene" },
   reading: { label: "Reading & Writing", icon: "📖", desc: "Đọc & Viết" },
   dictation: { label: "Dictation", icon: "✍️", desc: "Nghe & gõ lại" },
+  vocabulary: { label: "Vocabulary", icon: "🔤", desc: "Hình, xếp chữ, nghe, định nghĩa → ghi từ" },
   "ielts-reading": { label: "Reading", icon: "📖", desc: "Test 1-4 → Passage 1-3, đọc + dịch + câu hỏi chấm điểm" },
   "ielts-listening": { label: "Listening", icon: "🎧", desc: "Test 1-4 → Section 1-4, audio + câu hỏi chấm điểm" },
   "ielts-writing": { label: "Writing", icon: "✏️", desc: "Chưa triển khai" },
@@ -34,8 +37,12 @@ const MODE_INFO = {
 // IELTS không chia bộ sách (chỉ 1 "level" ẩn = IELTS 8, xem yleData.js `buildIeltsSeries()`), bên
 // trong chia theo kỹ năng READING/LISTENING/WRITING/SPEAKING/DICTATION đúng cây Test→Passage/
 // Section (chốt 2026-09-11) — Dictation dùng chung DictationEditor với YLE (schema giống hệt).
+const YLE_MODES = ["listening", "speaking", "reading", "dictation", "vocabulary"];
 const MODES_BY_SERIES = {
   ielts: ["ielts-reading", "ielts-listening", "ielts-writing", "ielts-speaking", "dictation"],
+  starters: YLE_MODES,
+  movers: YLE_MODES,
+  flyers: YLE_MODES,
 };
 function modesForSeries(series) {
   return (MODES_BY_SERIES[series.id] ?? ["listening", "speaking", "reading", "dictation"]).map(key => [
@@ -136,6 +143,9 @@ export default function CreateLessonPage() {
       )}
       {series && level && mode === "dictation" && (
         <DictationEditor series={series} level={level} uid={user.uid} />
+      )}
+      {series && level && mode === "vocabulary" && (
+        <VocabEditor series={series} level={level} uid={user.uid} />
       )}
       {series && level && mode === "ielts-reading" && (
         <IeltsReadingEditor series={series} level={level} uid={user.uid} />
@@ -833,6 +843,117 @@ function DictationEditor({ series, level, uid }) {
       )}
       {tests && tests.length === 0 && (
         <p className="admin-muted-text">Cấp độ này chưa có Test nào — bấm "Tạo Test mới" để bắt đầu soạn câu Dictation.</p>
+      )}
+    </div>
+  );
+}
+
+// Vocabulary (Starters/Movers/Flyers) — danh sách bài tự do, cùng khuôn DictationEditor.
+function VocabEditor({ series, level, uid }) {
+  const confirm = useConfirm();
+  const [tests, setTests] = useState(null);
+  const [openTestId, setOpenTestId] = useState(null);
+  const [items, setItems] = useState([]);
+  const [testTitle, setTestTitle] = useState("");
+  const [maxAttempts, setMaxAttempts] = useState(null);
+  const [timeLimitMinutes, setTimeLimitMinutes] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  function reloadTests() {
+    listVocabTests(series.id, level.number).then(setTests);
+  }
+  useEffect(reloadTests, [series.id, level.number]);
+
+  async function openTest(t) {
+    const full = await getVocabTest(series.id, level.number, t.id);
+    setOpenTestId(t.id);
+    setTestTitle(full?.title ?? t.title ?? "");
+    setItems(full?.items ?? []);
+    setMaxAttempts(full?.maxAttempts ?? null);
+    setTimeLimitMinutes(full?.timeLimitMinutes ?? null);
+    setSaved(false);
+  }
+
+  function openNewTest() {
+    // Id không trùng bài cũ kể cả khi đã xoá bớt bài ở giữa.
+    const maxN = Math.max(0, ...(tests ?? []).map(t => parseInt(String(t.id).replace(/\D/g, ""), 10) || 0));
+    setOpenTestId(`vocab${maxN + 1}`);
+    setTestTitle(`Vocabulary ${(tests?.length ?? 0) + 1}`);
+    setItems([]);
+    setMaxAttempts(null);
+    setTimeLimitMinutes(null);
+    setSaved(false);
+  }
+
+  async function handleDeleteTest(id) {
+    if (!(await confirm("Xoá bài này? Không hoàn tác được.", { danger: true }))) return;
+    try {
+      await deleteVocabTest(series.id, level.number, id);
+      reloadTests();
+    } catch (err) {
+      alert(`Không xoá được bài: ${err.message}`);
+    }
+  }
+  async function handleSaveTest() {
+    setSaving(true);
+    setSaved(false);
+    try {
+      const order = tests?.find(t => t.id === openTestId)?.order ?? Math.max(0, ...(tests ?? []).map(t => t.order ?? 0)) + 1;
+      await saveVocabTest(series.id, level.number, openTestId, { title: testTitle, order, items, maxAttempts, timeLimitMinutes }, uid);
+      setSaved(true);
+      reloadTests();
+    } catch (err) {
+      alert(`Không xuất bản được: ${err.message}`);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (openTestId) {
+    return (
+      <VocabStudio
+        accent={series.color}
+        title={testTitle}
+        onTitleChange={setTestTitle}
+        items={items}
+        onItemsChange={setItems}
+        maxAttempts={maxAttempts}
+        onMaxAttemptsChange={setMaxAttempts}
+        timeLimitMinutes={timeLimitMinutes}
+        onTimeLimitChange={setTimeLimitMinutes}
+        onBack={() => setOpenTestId(null)}
+        onSave={handleSaveTest}
+        saving={saving}
+        saved={saved}
+      />
+    );
+  }
+
+  return (
+    <div className="admin-card">
+      <h2>{series.title} {level.number} — Vocabulary</h2>
+      {tests === null && <LoadingCard inline />}
+      {tests && (
+        <div className="admin-test-grid">
+          {tests.map(t => (
+            <div key={t.id} className="admin-test-card" style={{ "--accent": series.color }}>
+              <button className="admin-test-card-main" onClick={() => openTest(t)}>
+                <span className="admin-test-card-icon">🔤</span>
+                <span className="admin-test-card-title">{t.title}</span>
+                <span className="admin-scene-count-badge">{t.items?.length ?? 0} câu</span>
+              </button>
+              <div className="admin-test-card-actions">
+                <button className="admin-link-btn" onClick={() => openTest(t)}>Sửa</button>
+                <button className="admin-link-btn admin-pill-btn-danger" onClick={() => handleDeleteTest(t.id)}>Xoá</button>
+              </div>
+            </div>
+          ))}
+          <button className="admin-test-card admin-test-card-add" onClick={openNewTest}>
+            <span className="admin-test-card-add-icon">+</span>
+            <span>Tạo bài mới</span>
+          </button>
+        </div>
       )}
     </div>
   );

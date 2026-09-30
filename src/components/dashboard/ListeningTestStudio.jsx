@@ -1,4 +1,6 @@
+import { useState } from "react";
 import { useConfirm } from "./ConfirmDialog.jsx";
+import IeltsListeningRunner from "../IeltsListeningRunner.jsx";
 import AudioUploadField from "./AudioUploadField.jsx";
 import { PageHead, PageHeadSaveButton } from "./AdminPageHead.jsx";
 
@@ -162,6 +164,7 @@ export default function ListeningTestStudio({
   saved,
 }) {
   const confirm = useConfirm();
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   function addSection() {
     onSectionsChange([...(sections ?? []), { title: "", note: "", audioUrl: "", groups: [] }]);
@@ -183,6 +186,7 @@ export default function ListeningTestStudio({
           onChange={e => onTitleChange(e.target.value)}
           placeholder="Tên Test (vd: IELTS 8 - Listening Test 1)"
         />
+        <button type="button" className="admin-pill-btn admin-preview-trigger" onClick={() => setPreviewOpen(true)} disabled={!sections?.length}>👁 Preview</button>
         <PageHeadSaveButton onSave={onSave} saving={saving} saved={saved} />
       </PageHead>
 
@@ -213,6 +217,13 @@ export default function ListeningTestStudio({
             placeholder="Không giới hạn"
           />
         </label>
+      {previewOpen && (
+        <IeltsListeningRunner
+          test={{ id: "preview", title: `${title || "Listening"} (xem trước)`, timeLimitMinutes: null, sections }}
+          onBack={() => setPreviewOpen(false)}
+          preview
+        />
+      )}
     </div>
   );
 }

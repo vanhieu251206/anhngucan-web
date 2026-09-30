@@ -3,6 +3,7 @@ import AudioUploadField from "./AudioUploadField.jsx";
 import { useConfirm } from "./ConfirmDialog.jsx";
 import { uploadToCloudinary } from "../../lib/cloudinaryUpload.js";
 import { PageHead, PageHeadSaveButton } from "./AdminPageHead.jsx";
+import DictationRunner from "../DictationRunner.jsx";
 
 // Sắp xếp file theo số đứng đầu/trong tên (1, 2, ..., 10, 11 — không phải thứ tự chữ cái
 // "1, 10, 11, 2..." của sort chuỗi thường) — giáo viên chỉ cần đặt tên file 1/2/3.../N, không cần
@@ -39,6 +40,7 @@ export default function DictationStudio({
   saved,
 }) {
   const confirm = useConfirm();
+  const [previewOpen, setPreviewOpen] = useState(false);
   const [bulkUploading, setBulkUploading] = useState(false);
   const [bulkError, setBulkError] = useState("");
   const bulkAudioInputRef = useRef(null);
@@ -111,6 +113,7 @@ export default function DictationStudio({
           onChange={e => onTitleChange(e.target.value)}
           placeholder="Tên Test (vd: Test 1)"
         />
+        <button type="button" className="admin-pill-btn admin-preview-trigger" onClick={() => setPreviewOpen(true)} disabled={!sentences?.length}>👁 Preview</button>
         <PageHeadSaveButton onSave={onSave} saving={saving} saved={saved} />
       </PageHead>
 
@@ -204,6 +207,17 @@ export default function DictationStudio({
             placeholder="Không giới hạn"
           />
         </label>
+      {previewOpen && (
+        <div className="reading-fullscreen">
+          <div className="speaking-fullscreen-topbar">
+            <button className="speaking-fullscreen-back" onClick={() => setPreviewOpen(false)}>← Đóng Preview</button>
+            <span className="speaking-fullscreen-title">{title} (xem trước)</span>
+          </div>
+          <div className="speaking-fullscreen-body reading-fullscreen-body dictation-fullscreen-body">
+            <DictationRunner sentences={sentences} onFinish={() => setPreviewOpen(false)} preview />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

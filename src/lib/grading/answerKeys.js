@@ -16,6 +16,7 @@ export function answerKind(collection, lessonId) {
   if (collection === "listeningTests") return "ielts-listening";
   if (collection === "vocabularyUnits") return "ketpet-vocab";
   if (collection === "listeningExamTests") return "listening-exam";
+  if (collection === "vocabTests") return "yle-vocab";
   if (collection === "practiceTests") return String(lessonId).startsWith("ket-pet") ? "ketpet-test" : "ielts-reading";
   return null;
 }
@@ -32,6 +33,7 @@ const CONTENT_FIELD = {
   "ketpet-test": "groups",
   "ketpet-vocab": "groups",
   "listening-exam": "parts",
+  "yle-vocab": "items",
 };
 
 function makeTaker(entries) {
@@ -128,6 +130,18 @@ function splitKetPet(groups, take, entries, isVocab) {
   });
 }
 
+// Vocabulary YLE: gỡ `answer`; dạng xếp chữ giữ lại chữ cái đã xáo + độ dài để học sinh vẫn làm được.
+function splitYleVocab(items, take, entries) {
+  (items ?? []).forEach((item, i) => {
+    if (item?.type === "scramble" && item.answer) {
+      const word = String(item.answer).split("|")[0].trim();
+      item.scrambled = scrambleWord(word);
+      item.answerLength = word.length;
+    }
+    take(item, "answer", ["items", i]);
+  });
+}
+
 function splitListeningExam(parts, take, entries) {
   if (!parts || typeof parts !== "object") return;
   const p1 = parts.part1;
@@ -158,6 +172,7 @@ export function splitAnswers(kind, data) {
   else if (kind === "ketpet-test") splitKetPet(content, take, entries, false);
   else if (kind === "ketpet-vocab") splitKetPet(content, take, entries, true);
   else if (kind === "listening-exam") splitListeningExam(content, take, entries);
+  else if (kind === "yle-vocab") splitYleVocab(content, take, entries);
   return { data: { ...data, [field]: content, answersSplit: true }, entries };
 }
 

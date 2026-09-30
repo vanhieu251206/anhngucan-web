@@ -125,6 +125,39 @@ export async function deleteDictationTest(seriesId, level, testId) {
   await deleteDoc(doc(db, "lessons", lessonId(seriesId, level), "dictationTests", testId));
 }
 
+// Vocabulary Starters/Movers/Flyers (2026-09-30) — danh sách bài tự do như Dictation, subcollection "vocabTests",
+// mỗi bài `items: [{ type, imageUrl, audioUrl, definition, answer }]` (lib/grading/vocab.js). Đáp án tách sang
+// answerKeys như Reading, Worker chấm.
+export async function listVocabTests(seriesId, level) {
+  const snap = await getDocs(collection(db, "lessons", lessonId(seriesId, level), "vocabTests"));
+  const list = snap.docs
+    .map(d => ({ id: d.id, ...d.data() }))
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  return withAnswersAll(lessonId(seriesId, level), "vocabTests", list);
+}
+
+export async function getVocabTest(seriesId, level, testId) {
+  const snap = await getDoc(doc(db, "lessons", lessonId(seriesId, level), "vocabTests", testId));
+  return snap.exists() ? withAnswers(lessonId(seriesId, level), "vocabTests", { id: snap.id, ...snap.data() }) : null;
+}
+
+export async function saveVocabTest(seriesId, level, testId, { title, order, items, maxAttempts, timeLimitMinutes }, uid) {
+  await saveWithAnswers(seriesId, lessonId(seriesId, level), "vocabTests", testId, {
+    testId,
+    title,
+    order,
+    items,
+    maxAttempts: maxAttempts ?? null,
+    timeLimitMinutes: timeLimitMinutes ?? null,
+    updatedAt: serverTimestamp(),
+    updatedBy: uid,
+  });
+}
+
+export async function deleteVocabTest(seriesId, level, testId) {
+  await deleteWithAnswers(lessonId(seriesId, level), "vocabTests", testId);
+}
+
 // ĐỌC HIỂU (IELTS Reading) — cấu trúc riêng (chốt 2026-09-10, khác Reading & Writing YLE ở trên):
 // mỗi bài chia thành `sentences: [{ en, vi, vocab: [{ termDef, meaning }] }]` (câu + dịch + từ vựng/
 // đồng nghĩa xuất hiện trong câu đó, đúng bố cục file Word gốc — xem IeltsReadingPassage.jsx) thay vì

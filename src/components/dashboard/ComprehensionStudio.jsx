@@ -1,3 +1,5 @@
+import { useState } from "react";
+import IeltsPracticeRunner from "../IeltsPracticeRunner.jsx";
 import AudioUploadField from "./AudioUploadField.jsx";
 import { useConfirm } from "./ConfirmDialog.jsx";
 import { PageHead, PageHeadSaveButton } from "./AdminPageHead.jsx";
@@ -24,6 +26,7 @@ export default function ComprehensionStudio({
   saved,
 }) {
   const confirm = useConfirm();
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   function addSentence() {
     onSentencesChange([...(sentences ?? []), { en: "", vi: "", vocab: [] }]);
@@ -57,6 +60,7 @@ export default function ComprehensionStudio({
   return (
     <div className="admin-card" style={{ "--accent": accent }}>
       <PageHead label={testLabel ? `${testLabel} — Đọc hiểu` : undefined} backLabel="← Quay lại danh sách Test" onBack={onBack}>
+        <button type="button" className="admin-pill-btn admin-preview-trigger" onClick={() => setPreviewOpen(true)} disabled={!sentences?.length}>👁 Preview</button>
         <PageHeadSaveButton onSave={onSave} saving={saving} saved={saved} />
       </PageHead>
 
@@ -156,6 +160,14 @@ export default function ComprehensionStudio({
       </ol>
 
       <button type="button" className="admin-btn-secondary" onClick={addSentence}>+ Thêm câu</button>
+      {previewOpen && (
+        <IeltsPracticeRunner
+          test={{ title: titleEn || "Xem trước", timeLimitMinutes: null, passages: [{ title: titleEn, titleVi, audioUrl, sentences, groups: [] }] }}
+          mode="comprehension"
+          readOnly
+          onBack={() => setPreviewOpen(false)}
+        />
+      )}
     </div>
   );
 }

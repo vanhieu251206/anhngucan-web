@@ -6,10 +6,11 @@ import { gradeVocabularyGroups } from "../ketPetVocabulary.js";
 import { gradePracticeTestGroups, openEndedFullAnswer } from "../ketPetPracticeTest.js";
 import { serverGrader } from "./listeningExam.js";
 import { itemReady } from "./canvasParts.js";
+import { gradeVocabItems } from "./vocab.js";
 
 // Dạng bài Worker tự chấm từ câu trả lời thô. Các dạng còn lại (speaking, dictation) chấm ngay trong lúc làm ở
 // trình duyệt (phản hồi đúng/sai từng câu) nên Worker chỉ nhận điểm, kẹp hợp lệ, và kiểm soát lượt/hạn/thời gian.
-export const SERVER_GRADED = new Set(["reading", "ielts-reading", "ielts-listening", "ketpet-vocab", "ketpet-test", "listening-exam"]);
+export const SERVER_GRADED = new Set(["reading", "ielts-reading", "ielts-listening", "ketpet-vocab", "ketpet-test", "listening-exam", "yle-vocab"]);
 
 // Vị trí đề trong Firestore theo loại bài (mode lưu ở testResults/attempts).
 export function testLocation(kind, seriesId, level, testId) {
@@ -22,6 +23,7 @@ export function testLocation(kind, seriesId, level, testId) {
     "ketpet-test": "practiceTests",
     "listening-exam": "listeningExamTests",
     dictation: "dictationTests",
+    "yle-vocab": "vocabTests",
     speaking: "tests",
   }[kind];
   return collection ? { lessonId, collection, docId: String(testId) } : null;
@@ -85,5 +87,9 @@ export function gradeSubmission(kind, test, raw) {
     return { correct: g.correct, total: g.total, items, results: g.results };
   }
   if (kind === "listening-exam") return gradeListeningExam(test, raw);
+  if (kind === "yle-vocab") {
+    const g = gradeVocabItems(test.items ?? [], raw);
+    return { correct: g.correct, total: g.total, items: g.items };
+  }
   return null;
 }

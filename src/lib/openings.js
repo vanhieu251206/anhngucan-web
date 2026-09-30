@@ -9,11 +9,12 @@ import { getAttemptCount } from "./attempts.js";
 // mở cũ còn field `passwordHash`/`hasPassword` thì bị bỏ qua (học sinh vào thẳng).
 //
 // kind: "speaking" | "reading" | "dictation" | "listening-exam" | "ielts-reading" | "ielts-listening" |
-//       "ketpet-vocab" | "ketpet-test"
+//       "ketpet-vocab" | "ketpet-test" | "yle-vocab"
 export const OPENING_KINDS = {
   speaking: "Speaking",
   reading: "Reading & Writing",
   dictation: "Dictation",
+  "yle-vocab": "Vocabulary",
   "listening-exam": "Listening (Luyện đề)",
   "ielts-reading": "IELTS Reading",
   "ielts-listening": "IELTS Listening",

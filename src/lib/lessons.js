@@ -62,6 +62,18 @@ export async function loadLevelContent(series, level) {
     // Lỗi mạng/Firestore — coi như chưa có gì mới, không chặn học.
   }
 
+  // Vocabulary (YLE) — chỉ đọc từ Firestore; học sinh nhận đề không có đáp án.
+  let vocabTests = [];
+  try {
+    const vocabSnap = await getDocs(collection(db, "lessons", lessonId, "vocabTests"));
+    vocabTests = await withAnswersAll(lessonId, "vocabTests", vocabSnap.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .filter(t => t.items?.length)
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0)));
+  } catch {
+    // Lỗi mạng/Firestore — coi như chưa có gì mới, không chặn học.
+  }
+
   // READING (IELTS full test, Test 1-4 → Passage 1-3) — chỉ đọc từ Firestore, nội dung do giáo
   // viên tự soạn qua CMS (PracticeStudio.jsx), mỗi passage gộp cả bài đọc+dịch+từ vựng
   // (`sentences`) LẪN câu hỏi chấm điểm (`groups`) — chốt 2026-09-11, gộp "ĐỌC HIỂU"/"LUYỆN ĐỀ"
@@ -89,5 +101,5 @@ export async function loadLevelContent(series, level) {
     // Lỗi mạng/Firestore — coi như chưa có gì mới, không chặn học.
   }
 
-  return { listening, tests, readingTests, dictationTests, practiceTests, ieltsListeningTests };
+  return { listening, tests, readingTests, dictationTests, vocabTests, practiceTests, ieltsListeningTests };
 }

@@ -141,6 +141,11 @@ service cloud.firestore {
         allow write: if canEditLevelKey(lessonId) || canEditLesson(lessonId, get(/databases/(default)/documents/lessons/$(lessonId)).data.seriesId);
       }
 
+      match /vocabTests/{testId} {
+        allow read: if isSignedIn();
+        allow write: if canEditLevelKey(lessonId) || canEditLesson(lessonId, get(/databases/(default)/documents/lessons/$(lessonId)).data.seriesId);
+      }
+
       match /comprehensionTests/{testId} {
         allow read: if isSignedIn();
         allow write: if canEditLevelKey(lessonId) || canEditLesson(lessonId, get(/databases/(default)/documents/lessons/$(lessonId)).data.seriesId);

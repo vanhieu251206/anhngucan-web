@@ -17,6 +17,7 @@ export const RESULT_MODE_LABEL = {
   speaking: "Speaking",
   reading: "Reading & Writing",
   dictation: "Dictation",
+  "yle-vocab": "Vocabulary",
   "listening-exam": "Listening",
   "ielts-reading": "IELTS Reading",
   "ielts-listening": "IELTS Listening",

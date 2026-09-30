@@ -210,7 +210,8 @@ function SpeedDropdown({ speed, onChange }) {
   );
 }
 
-export default function DictationRunner({ sentences, onFinish, studentUid, seriesId, level, testId, limitMinutes, studentName, studentClass, lessonLabel, openingId }) {
+// preview: nút "👁 Preview" trong CMS — làm thử như giáo viên nhưng không gửi máy chủ.
+export default function DictationRunner({ sentences, onFinish, studentUid, seriesId, level, testId, limitMinutes, studentName, studentClass, lessonLabel, openingId, preview = false }) {
   const [index, setIndex] = useState(0);
   // Lưu RIÊNG trạng thái từng câu theo chỉ số (thay vì 1 biến typed/attemptStatus dùng chung) — cho
   // phép bấm mũi tên ←/→ nhảy qua lại xem/sửa câu bất kỳ (giống "← 1/70 →" của trang tham khảo) mà
@@ -219,7 +220,7 @@ export default function DictationRunner({ sentences, onFinish, studentUid, serie
   const [done, setDone] = useState(false);
   const [viewingTranscript, setViewingTranscript] = useState(false);
   const { isStaff, isTester } = useAuth();
-  const canReview = isStaff || isTester; // báo cáo chấm đầy đủ cho admin/giáo viên/tài khoản đặc biệt
+  const canReview = preview || isStaff || isTester; // báo cáo chấm đầy đủ cho admin/giáo viên/tài khoản đặc biệt
   const [speed, setSpeed] = useState(1);
   const audioRef = useRef(null);
   const inputRef = useRef(null);
@@ -295,12 +296,13 @@ export default function DictationRunner({ sentences, onFinish, studentUid, serie
         items: sentences.map((sn, i) => ({ qNumber: i + 1, correctAnswer: sn.text, studentAnswer: answers[i].attemptStatus === "skipped" ? "" : answers[i].typed, isCorrect: answers[i].attemptStatus === "correct" })),
       },
     };
+    if (preview) return;
     if (canReview) submitToServer(payloadRef.current).catch(() => {});
     else sendResult();
   }
 
   // Đồng hồ chung (ExamTimer.jsx): hết giờ tự chốt bài; dừng khi đã xong.
-  const timer = useExamTimer({ limitMinutes, running: !done, onExpire: finishRun });
+  const timer = useExamTimer({ limitMinutes: preview ? null : limitMinutes, running: !done, onExpire: finishRun });
 
   function handleNext() {
     if (isLast) {
@@ -317,7 +319,7 @@ export default function DictationRunner({ sentences, onFinish, studentUid, serie
     else handleCheck();
   }
 
-  const preview = attemptStatus === "wrong" ? maskedPreview(typed, current.text).join(" ") : null;
+  const maskedHint = attemptStatus === "wrong" ? maskedPreview(typed, current.text).join(" ") : null;
 
   if (done && canReview && viewingTranscript) {
     return <TranscriptReview sentences={sentences} onBack={() => setViewingTranscript(false)} />;
@@ -422,7 +424,7 @@ export default function DictationRunner({ sentences, onFinish, studentUid, serie
         {attemptStatus === "wrong" && (
           <div className="dictation-feedback is-wrong">
             <p className="dictation-feedback-label">⚠️ Chưa đúng — sửa lại rồi bấm Kiểm tra lần nữa nhé!</p>
-            <p className="dictation-feedback-masked">{preview}</p>
+            <p className="dictation-feedback-masked">{maskedHint}</p>
           </div>
         )}
 

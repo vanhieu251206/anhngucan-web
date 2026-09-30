@@ -11,19 +11,20 @@ import { flattenSections as flattenQuestions, isIeltsCorrect as isCorrect } from
 
 // Quy tắc chấm nằm ở lib/grading/ielts.js — dùng chung với Worker chấm bài phía máy chủ.
 
-export default function IeltsListeningRunner({ test, onBack, studentUid, studentName, studentClass, seriesId, level, openingId }) {
+// preview: nút "👁 Preview" trong CMS — làm thử như giáo viên (hiện đáp án khi nộp) nhưng không gửi máy chủ, không đếm giờ.
+export default function IeltsListeningRunner({ test, onBack, studentUid, studentName, studentClass, seriesId, level, openingId, preview = false }) {
   const flat = useMemo(() => flattenQuestions(test.sections), [test]);
   const [activeSection, setActiveSection] = useState(0);
   const [answers, setAnswers] = useState({});
   const [submitted, setSubmitted] = useState(false);
   const { isStaff, isTester } = useAuth();
-  const reveal = isStaff || isTester; // học sinh thật chỉ thấy điểm; admin/giáo viên/tài khoản đặc biệt thấy đáp án
+  const reveal = preview || isStaff || isTester; // học sinh thật chỉ thấy điểm; admin/giáo viên/tài khoản đặc biệt thấy đáp án
   // Đồng hồ chung (ExamTimer.jsx): hết giờ tự nộp bài.
   // Học sinh: máy chủ chấm (lib/testSubmit.js) → điểm trả về. submitState: { error? } khi đang nộp/lỗi.
   const [serverScore, setServerScore] = useState(null);
   const [submitState, setSubmitState] = useState(null);
   const submitToServer = useTestSubmission({ kind: "ielts-listening", seriesId, level, testId: test.id, openingId, lessonLabel: test.title, studentName });
-  const timer = useExamTimer({ limitMinutes: test.timeLimitMinutes, running: !submitted && !submitState, onExpire: submitNow });
+  const timer = useExamTimer({ limitMinutes: preview ? null : test.timeLimitMinutes, running: !submitted && !submitState, onExpire: submitNow });
 
   function setAnswer(number, value) {
     setAnswers(a => ({ ...a, [number]: value }));
@@ -32,6 +33,10 @@ export default function IeltsListeningRunner({ test, onBack, studentUid, student
   // Chốt bài: khoá + lưu chi tiết từng câu cho giáo viên/admin (học sinh chỉ thấy điểm). Không lưu ở Preview CMS.
   async function submitNow() {
     if (submitted) return;
+    if (preview) {
+      setSubmitted(true);
+      return;
+    }
     const payload = { answers, elapsedMs: timer.getElapsedMs() };
     if (reveal) {
       setSubmitted(true);

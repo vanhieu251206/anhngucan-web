@@ -9,6 +9,7 @@ import ReadingRunner from "../components/ReadingRunner.jsx";
 import IeltsPracticeRunner from "../components/IeltsPracticeRunner.jsx";
 import IeltsListeningRunner from "../components/IeltsListeningRunner.jsx";
 import DictationRunner from "../components/DictationRunner.jsx";
+import VocabRunner from "../components/VocabRunner.jsx";
 import { checkOpening } from "../lib/openings.js";
 import StartersListeningTestRunner, { testHasContent } from "../components/StartersListeningTestRunner.jsx";
 import { listListeningExamTests } from "../lib/adminLessons.js";
@@ -147,6 +148,8 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
   const [selectedTest, setSelectedTest] = useState(null);
   const [selectedReadingTest, setSelectedReadingTest] = useState(null);
   const [selectedDictationTest, setSelectedDictationTest] = useState(null);
+  // Bài Vocabulary (YLE) đang làm toàn màn hình — null = không làm.
+  const [activeVocabTest, setActiveVocabTest] = useState(null);
   // true khi đang chạy bài Speaking toàn màn hình (SceneRunner) — không còn bước "Chọn dạng bài"
   // riêng, Listening + Speaking hiện luôn cùng lúc trên màn hình chọn cấp độ (xem yêu cầu rút gọn).
   const [speakingActive, setSpeakingActive] = useState(false);
@@ -253,6 +256,7 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
     setSpeakingActive(false);
     setReadingActive(false);
     setDictationActive(false);
+    setActiveVocabTest(null);
     setListeningActive(false);
     setActiveIeltsPracticeTest(null);
     setPickingListeningTest(null);
@@ -290,6 +294,11 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
     setSelectedDictationTest(null);
   }
 
+  function exitVocab() {
+    stopCurrent();
+    setActiveVocabTest(null);
+  }
+
   // Thoát khỏi màn chi tiết Listening, quay lại màn "Bài học".
   function exitListening() {
     stopCurrent();
@@ -320,6 +329,8 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
   const dictationTests = content?.dictationTests ?? [];
   const autoDictationTest = dictationTests.length === 1 ? dictationTests[0] : null;
   const activeDictationTest = selectedDictationTest ?? autoDictationTest;
+
+  const vocabTests = content?.vocabTests ?? [];
 
   // ---------- Bước 1: chọn cấp độ ----------
   if (!level) {
@@ -529,6 +540,35 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
     );
   }
 
+  // ---------- Bài Vocabulary toàn màn hình (VocabRunner) ----------
+  if (activeVocabTest?.items?.length) {
+    return (
+      <div className="reading-fullscreen">
+        <div className="speaking-fullscreen-topbar">
+          <button className="speaking-fullscreen-back" onClick={exitVocab}>
+            ⬅ Quay lại
+          </button>
+          <span className="speaking-fullscreen-title">
+            {series.title} {level.number} · {activeVocabTest.title}
+          </span>
+        </div>
+        <div className="speaking-fullscreen-body reading-fullscreen-body">
+          <VocabRunner
+            items={activeVocabTest.items}
+            onFinish={exitVocab}
+            seriesId={series.id}
+            level={level.number}
+            testId={activeVocabTest.id}
+            limitMinutes={activeOpening?.timeLimitMinutes ?? activeVocabTest.timeLimitMinutes}
+            openingId={activeOpening?.id}
+            studentName={studentName}
+            lessonLabel={`${series.title} ${level.number} · ${activeVocabTest.title}`}
+          />
+        </div>
+      </div>
+    );
+  }
+
   // ---------- Chi tiết Listening (bấm vào thẻ Listening) ----------
   // ---------- Luyện đề Listening (Starters) toàn màn hình, cuộn xuống như Reading & Writing ----------
   if (listeningActive && activeExamTest) {
@@ -693,6 +733,8 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
     } else if (type === "dictation") {
       setSelectedDictationTest(test);
       setDictationActive(true);
+    } else if (type === "yle-vocab") {
+      setActiveVocabTest(test);
     }
   }
 
@@ -729,6 +771,18 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
       cta: !t.sentences?.length ? "Chưa có câu" : checkingAttempts ? "Đang kiểm tra..." : "Bắt đầu luyện nghe",
       disabled: !t.sentences?.length || checkingAttempts,
       onClick: () => requestStart("dictation", t),
+    });
+  }
+
+  function vocabTestCard(t) {
+    return lessonCard({
+      key: t.id,
+      banner: "Vocabulary",
+      title: t.title,
+      desc: "Nhìn hình, xếp chữ, nghe, đọc định nghĩa rồi viết từ",
+      cta: checkingAttempts ? "Đang kiểm tra..." : "Bắt đầu làm bài",
+      disabled: checkingAttempts,
+      onClick: () => requestStart("yle-vocab", t),
     });
   }
 
@@ -919,6 +973,7 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
     { key: "speaking", label: "Speaking" },
     { key: "reading", label: "Reading & Writing" },
     { key: "dictation", label: "Dictation" },
+    ...(["starters", "movers", "flyers"].includes(series.id) ? [{ key: "vocabulary", label: "Vocabulary" }] : []),
   ];
   if (!selectedSkill) {
     return (
@@ -932,7 +987,7 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
         onStepClick={goToWizardStep}
         dark
       >
-        <div className="content-grid content-grid-4 yle-skill-grid">
+        <div className={`content-grid content-grid-4 yle-skill-grid${YLE_SKILLS.length === 5 ? " yle-skill-grid-5" : ""}`}>
           {YLE_SKILLS.map(sk => (
             <button
               key={sk.key}
@@ -976,6 +1031,12 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
           <InfoCard text="Bài Reading & Writing cấp độ này chưa có dữ liệu thật." />
         ) : (
           <div className="content-grid content-grid-4">{readingTests.map(readingTestCard)}</div>
+        )
+      ) : selectedSkill === "vocabulary" ? (
+        vocabTests.length === 0 ? (
+          <InfoCard text="Bài Vocabulary cấp độ này chưa có dữ liệu thật." />
+        ) : (
+          <div className="content-grid content-grid-4">{vocabTests.map(vocabTestCard)}</div>
         )
       ) : dictationTests.length === 0 ? (
         <InfoCard text="Bài Dictation cấp độ này chưa có dữ liệu thật." />

@@ -13,7 +13,8 @@ import { downloadClassResultSheets, canDownloadSheets } from "../../lib/resultSh
 function kindsFor(seriesId) {
   if (seriesId === "ket-pet") return ["ketpet-vocab", "ketpet-test"];
   if (seriesId === "ielts") return ["ielts-reading", "ielts-listening", "dictation"];
-  return ["speaking", "reading", "dictation", "listening-exam"];
+  const base = ["speaking", "reading", "dictation", "listening-exam"];
+  return ["starters", "movers", "flyers"].includes(seriesId) ? [...base, "yle-vocab"] : base;
 }
 
 function toLocalInput(date) {
@@ -126,7 +127,7 @@ export default function OpeningsPage() {
           const levelObj = series.levels.find(l => l.number === levelNo);
           // Kids Grade 5 chưa có cấp tương ứng trong dữ liệu bài học → chưa có bài để mở.
           const content = levelObj ? await loadLevelContent(series, levelObj) : {};
-          const src = { speaking: content.tests, reading: content.readingTests, dictation: content.dictationTests, "ielts-reading": content.practiceTests, "ielts-listening": content.ieltsListeningTests }[kind] ?? [];
+          const src = { speaking: content.tests, reading: content.readingTests, dictation: content.dictationTests, "yle-vocab": content.vocabTests, "ielts-reading": content.practiceTests, "ielts-listening": content.ieltsListeningTests }[kind] ?? [];
           list = src.map(t => ({ id: t.id, title: t.title ?? t.id }));
         }
       } catch (e) {
