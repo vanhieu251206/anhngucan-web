@@ -1,3 +1,4 @@
+import { validateDictation } from "../../lib/lessonValidation.js";
 import { useRef, useState } from "react";
 import AudioUploadField from "./AudioUploadField.jsx";
 import { useConfirm } from "./ConfirmDialog.jsx";
@@ -50,7 +51,8 @@ export default function DictationStudio({
     onSentencesChange([...(sentences ?? []), { text: "", audioUrl: null }]);
   }
   function updateSentence(i, patch) {
-    onSentencesChange(sentences.map((s, idx) => (idx === i ? { ...s, ...patch } : s)));
+    // Ghép vào bản mới nhất — nhiều audio tải song song xong lúc khác nhau không ghi đè nhau.
+    onSentencesChange(prev => prev.map((s, idx) => (idx === i ? { ...s, ...patch } : s)));
   }
   async function removeSentence(i) {
     if (!(await confirm("Xoá câu này khỏi bài Dictation?", { danger: true }))) return;
@@ -72,12 +74,14 @@ export default function DictationStudio({
     setBulkUploading(true);
     try {
       const sorted = sortFilesNatural(files);
-      const next = [...(sentences ?? [])];
       for (let idx = 0; idx < sorted.length; idx++) {
         const url = await uploadToCloudinary(sorted[idx]);
-        next[idx] = { text: next[idx]?.text ?? "", audioUrl: url };
+        onSentencesChange(prev => {
+          const next = [...(prev ?? [])];
+          next[idx] = { text: next[idx]?.text ?? "", ...next[idx], audioUrl: url };
+          return next;
+        });
       }
-      onSentencesChange(next);
     } catch (err) {
       setBulkError(err.message || "Upload thất bại");
     } finally {
@@ -114,7 +118,7 @@ export default function DictationStudio({
           placeholder="Tên Test (vd: Test 1)"
         />
         <button type="button" className="admin-pill-btn admin-preview-trigger" onClick={() => setPreviewOpen(true)} disabled={!sentences?.length}>👁 Preview</button>
-        <PageHeadSaveButton onSave={onSave} saving={saving} saved={saved} />
+        <PageHeadSaveButton onSave={onSave} saving={saving} saved={saved} warnings={validateDictation(sentences)} />
       </PageHead>
 
       <p className="admin-hint">

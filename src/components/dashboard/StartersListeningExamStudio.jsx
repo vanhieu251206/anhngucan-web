@@ -1,3 +1,4 @@
+import { PublishButton, WarningBadge, publishWarningText } from "./AdminPageHead.jsx";
 import { useEffect, useRef, useState } from "react";
 import ImageUploadField from "./ImageUploadField.jsx";
 import AudioUploadField from "./AudioUploadField.jsx";
@@ -384,7 +385,7 @@ function TestEditor({ series, level, testId, uid, onBack }) {
       .finally(() => setLoading(false));
   }, [series.id, level.number, testId]);
 
-  async function handlePublish() {
+  function collectWarnings() {
     const has1 = !!part1.imageUrl || part1.pairs.some(p => p.a || p.b);
     const has2 = part2HasContent(part2);
     const has3 = part3HasContent(part3);
@@ -400,8 +401,14 @@ function TestEditor({ series, level, testId, uid, onBack }) {
       has5 ? validatePart4(part5) : null,
       !has1 && !has2 && !has3 && !has4 && !has5 && ![part1, part2, part3, part4, part5].some(p => p.audioUrl) ? "Chưa có nội dung nào." : null,
     ].filter(Boolean);
-    const warnText = warnings.length ? `Còn chỗ chưa nhập:\n${warnings.map(w => `• ${w}`).join("\n")}\n\n` : "";
-    if (!(await confirm(`${warnText}Bài này sẽ hiển thị ngay trên website cho học sinh. Xuất bản?`))) return;
+    return { warnings, has1, has2, has3, has4, has5 };
+  }
+  // Tính lại mỗi lần render — nhãn "⚠ N chỗ cần kiểm tra" cập nhật ngay trong lúc soạn.
+  const { warnings } = collectWarnings();
+
+  async function handlePublish() {
+    const { has1, has2, has3, has4, has5 } = collectWarnings();
+    if (!(await confirm(publishWarningText(warnings, "Bài này sẽ hiển thị ngay trên website cho học sinh. Vẫn xuất bản?") ?? "Bài này sẽ hiển thị ngay trên website cho học sinh. Xuất bản?"))) return;
     setSaving(true);
     setSaved(false);
     try {
@@ -444,9 +451,8 @@ function TestEditor({ series, level, testId, uid, onBack }) {
               🗑 Xoá tất cả ảnh
             </button>
           )}
-          <button className="admin-btn-primary" onClick={handlePublish} disabled={saving}>
-            {saving ? "Đang xuất bản..." : "Xuất bản"}
-          </button>
+          <WarningBadge warnings={warnings} />
+          <PublishButton onClick={handlePublish} saving={saving} />
         </div>
       </div>
 

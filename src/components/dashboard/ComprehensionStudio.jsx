@@ -1,3 +1,4 @@
+import { validateComprehension } from "../../lib/lessonValidation.js";
 import { useState } from "react";
 import IeltsPracticeRunner from "../IeltsPracticeRunner.jsx";
 import AudioUploadField from "./AudioUploadField.jsx";
@@ -20,6 +21,7 @@ export default function ComprehensionStudio({
   onAudioUrlChange,
   sentences,
   onSentencesChange,
+  practiceSentences,
   onBack,
   onSave,
   saving,
@@ -61,7 +63,7 @@ export default function ComprehensionStudio({
     <div className="admin-card" style={{ "--accent": accent }}>
       <PageHead label={testLabel ? `${testLabel} — Đọc hiểu` : undefined} backLabel="← Quay lại danh sách Test" onBack={onBack}>
         <button type="button" className="admin-pill-btn admin-preview-trigger" onClick={() => setPreviewOpen(true)} disabled={!sentences?.length}>👁 Preview</button>
-        <PageHeadSaveButton onSave={onSave} saving={saving} saved={saved} />
+        <PageHeadSaveButton onSave={onSave} saving={saving} saved={saved} warnings={validateComprehension({ title: titleEn, sentences })} />
       </PageHead>
 
       <div className="admin-comprehension-title-grid">
@@ -160,6 +162,15 @@ export default function ComprehensionStudio({
       </ol>
 
       <button type="button" className="admin-btn-secondary" onClick={addSentence}>+ Thêm câu</button>
+      {!(sentences ?? []).length && (practiceSentences ?? []).length > 0 && (
+        <button
+          type="button"
+          className="admin-btn-secondary"
+          onClick={() => onSentencesChange(practiceSentences.map(s => ({ en: s.en ?? "", vi: "", vocab: [], newParagraph: Boolean(s.newParagraph) })))}
+        >
+          📋 Lấy bài đọc từ Luyện đề
+        </button>
+      )}
       {previewOpen && (
         <IeltsPracticeRunner
           test={{ title: titleEn || "Xem trước", timeLimitMinutes: null, passages: [{ title: titleEn, titleVi, audioUrl, sentences, groups: [] }] }}

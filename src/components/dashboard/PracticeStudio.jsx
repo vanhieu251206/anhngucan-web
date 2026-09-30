@@ -1,3 +1,4 @@
+import { validateIeltsPracticePassage } from "../../lib/lessonValidation.js";
 import { useState } from "react";
 import { useConfirm } from "./ConfirmDialog.jsx";
 import OcrImportPanel from "./OcrImportPanel.jsx";
@@ -5,7 +6,7 @@ import IeltsPracticeRunner from "../IeltsPracticeRunner.jsx";
 import { parseQuestionLines } from "../../lib/ocrParse.js";
 import ImageUploadField from "./ImageUploadField.jsx";
 import { normalizeBlankHolder, countBlanks, groupQuestionCount } from "../../lib/tableDiagramBlanks.js";
-import { PageHead, PageHeadSaveButton } from "./AdminPageHead.jsx";
+import { PageHead, PageHeadSaveButton, PublishButton, WarningBadge, publishWarningText } from "./AdminPageHead.jsx";
 
 // Màn soạn 1 Passage của Test IELTS Reading (Test 1-4 → Passage 1-3, xem CreateLessonPage.jsx
 // `IeltsReadingEditor`) — TÁCH THÀNH 2 TRANG RIÊNG theo yêu cầu người dùng (chốt 2026-09-11, đảo
@@ -46,6 +47,18 @@ function blankMatchingItem() {
 function parseBulkPassageText(text) {
   const lines = text.split("\n").map(l => l.trim()).filter(Boolean);
   return lines.map((en, i) => ({ en, vi: "", vocab: [], newParagraph: i > 0 }));
+}
+
+// Bài đọc của Luyện đề lưu RIÊNG ở `practiceSentences` (2026-09-30) — tách khỏi `sentences` của Đọc hiểu (câu + dịch +
+// từ vựng): trước đây 2 trang dùng chung nên Xuất bản ở Luyện đề xoá mất bản dịch/từ vựng. Bài cũ chưa có field
+// này thì đọc tạm từ `sentences`.
+function practiceSentencesOf(passage) {
+  return passage?.practiceSentences ?? passage?.sentences ?? [];
+}
+
+function parsePracticeText(text) {
+  const lines = text.split("\n").map(l => l.trim()).filter(Boolean);
+  return lines.map((en, i) => ({ en, newParagraph: i > 0 }));
 }
 
 // Dán nhanh nhiều câu trắc nghiệm cùng lúc — mỗi khối 5 dòng (dòng 1: câu hỏi, dòng 2-5: đáp án
@@ -640,7 +653,7 @@ export function LuyenDePage({
   // Khởi tạo từ passage.sentences hiện có (nếu đã soạn/lưu trước đó) để mở lại Test là thấy ngay nội
   // dung đã có, sửa tiếp được luôn — không cần bước "Áp dụng" riêng nữa (chốt 2026-09-12 theo yêu
   // cầu người dùng: dán/sửa xong bấm Xuất bản là lưu thẳng, khỏi phải nhớ bấm nút trung gian).
-  const [bulkText, setBulkText] = useState(() => (passage.sentences ?? []).map(s => s.en).join("\n"));
+  const [bulkText, setBulkText] = useState(() => practiceSentencesOf(passage).map(s => s.en).join("\n"));
 
   function update(patch) {
     onPassageChange({ ...passage, ...patch });
@@ -697,8 +710,11 @@ export function LuyenDePage({
   // Gộp thẳng nội dung ô dán thành passage.sentences NGAY LÚC XUẤT BẢN — không cần bấm nút "Áp
   // dụng" riêng nữa. Truyền passage mới cho onSave (thay vì gọi onPassageChange rồi onSave riêng)
   // để tránh việc onSave đọc phải state `passages` cũ chưa kịp cập nhật (setState là bất đồng bộ).
-  function handleSaveClick() {
-    const nextPassage = { ...passage, sentences: parseBulkPassageText(bulkText) };
+  const warnings = validateIeltsPracticePassage(passage, bulkText);
+  async function handleSaveClick() {
+    const text = publishWarningText(warnings);
+    if (text && !(await confirm(text))) return;
+    const nextPassage = { ...passage, practiceSentences: parsePracticeText(bulkText) };
     onSave(nextPassage);
   }
 
@@ -749,9 +765,8 @@ export function LuyenDePage({
     <div className="admin-card" style={{ "--accent": accent }}>
       <PageHead label={`${testLabel} — Luyện đề`} onBack={onBack} sticky>
         <button type="button" className="admin-pill-btn admin-preview-trigger" onClick={() => setPreviewOpen(true)}>👁 Preview</button>
-        <button type="button" className="admin-btn-primary admin-page-head-save" onClick={handleSaveClick} disabled={saving}>
-          {saving ? "Đang lưu..." : "Xuất bản"}
-        </button>
+        <WarningBadge warnings={warnings} />
+        <PublishButton className="admin-btn-primary admin-page-head-save" onClick={handleSaveClick} saving={saving} savingLabel="Đang lưu..." />
         {saved && <span className="admin-success admin-page-head-saved">✓ Đã lưu</span>}
       </PageHead>
       <div className="admin-practice-meta-row">
@@ -937,7 +952,7 @@ export function LuyenDePage({
 
       {previewOpen && (
         <IeltsPracticeRunner
-          test={{ title: title || "Xem trước", timeLimitMinutes: null, passages: [passage] }}
+          test={{ title: title || "Xem trước", timeLimitMinutes: null, passages: [{ ...passage, practiceSentences: parsePracticeText(bulkText) }] }}
           mode="practice"
           readOnly
           onBack={() => setPreviewOpen(false)}

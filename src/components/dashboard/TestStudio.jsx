@@ -1,3 +1,5 @@
+import { PublishButton, WarningBadge, publishWarningText } from "./AdminPageHead.jsx";
+import { validateSpeakingScenes } from "../../lib/lessonValidation.js";
 import { useLayoutEffect, useRef, useState } from "react";
 import MicSceneForm from "./scene-forms/MicSceneForm.jsx";
 import NarrationSceneForm from "./scene-forms/NarrationSceneForm.jsx";
@@ -141,8 +143,9 @@ export default function TestStudio({ accent, title, onTitleChange, scenes, onSce
   // thấy ngay lập tức, không có bước duyệt/nháp riêng. Đổi tên nút thành "Xuất bản" + xác nhận
   // trước khi ghi, để admin/giáo viên ý thức rõ đây là hành động công khai ngay trên web.
   const confirm = useConfirm();
+  const warnings = validateSpeakingScenes(scenes);
   async function handlePublish() {
-    if (await confirm("Bài này sẽ hiển thị ngay trên website cho học sinh. Xuất bản?")) {
+    if (await confirm(publishWarningText(warnings, "Bài này sẽ hiển thị ngay trên website cho học sinh. Vẫn xuất bản?") ?? "Bài này sẽ hiển thị ngay trên website cho học sinh. Xuất bản?")) {
       onSave();
     }
   }
@@ -181,9 +184,8 @@ export default function TestStudio({ accent, title, onTitleChange, scenes, onSce
         </label>
         <div className="studio-topbar-actions">
           {saved && <span className="admin-success">✓ Đã xuất bản</span>}
-          <button className="admin-btn-primary" onClick={handlePublish} disabled={saving}>
-            {saving ? "Đang xuất bản..." : "Xuất bản"}
-          </button>
+          <WarningBadge warnings={warnings} />
+          <PublishButton onClick={handlePublish} saving={saving} />
         </div>
       </div>
 

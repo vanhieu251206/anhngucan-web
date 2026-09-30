@@ -1052,8 +1052,13 @@ function IeltsReadingEditor({ series, level, uid }) {
       // Một số nút gắn thẳng onSave vào onClick nên tham số có thể là SyntheticEvent — chỉ nhận passage thật
       if (overridePassage && Object.getPrototypeOf(overridePassage) === Object.prototype && focusTarget) {
         finalPassages = passages.map((p, i) => (i === focusTarget.passageIndex ? overridePassage : p));
-        setPassages(finalPassages);
       }
+      // Bài cũ (trước khi tách Luyện đề/Đọc hiểu, 2026-09-30) chưa có `practiceSentences` — chép bài đọc hiện tại sang
+      // để từ nay sửa Đọc hiểu không kéo theo bài đọc của Luyện đề.
+      finalPassages = finalPassages.map(p =>
+        p.practiceSentences ? p : { ...p, practiceSentences: (p.sentences ?? []).map(s => ({ en: s.en ?? "", newParagraph: Boolean(s.newParagraph) })) }
+      );
+      setPassages(finalPassages);
       await savePracticeTest(series.id, level.number, openTestId, { title, order, timeLimitMinutes, passages: finalPassages, maxAttempts }, uid);
       setSaved(true);
       reloadTests();
@@ -1072,6 +1077,14 @@ function IeltsReadingEditor({ series, level, uid }) {
       next[passageIndex] = nextPassage;
       setPassages(next);
     }
+    // Ghép PATCH vào bản mới nhất — dùng cho giá trị tới muộn (upload audio xong sau khi cô đã sửa chỗ khác).
+    function patchPassageAt(patch) {
+      setPassages(prev => {
+        const next = [...prev];
+        next[passageIndex] = { ...(prev[passageIndex] ?? passage), ...patch };
+        return next;
+      });
+    }
     const testLabel = `Test ${openTestId.replace("test", "")} — Passage ${passageIndex + 1}`;
     if (focusTarget.section === "comprehension") {
       return (
@@ -1079,13 +1092,14 @@ function IeltsReadingEditor({ series, level, uid }) {
           accent={series.color}
           testLabel={testLabel}
           titleEn={passage.title}
-          onTitleEnChange={title => updatePassageAt({ ...passage, title })}
+          onTitleEnChange={title => patchPassageAt({ title })}
           titleVi={passage.titleVi}
-          onTitleViChange={titleVi => updatePassageAt({ ...passage, titleVi })}
+          onTitleViChange={titleVi => patchPassageAt({ titleVi })}
           audioUrl={passage.audioUrl}
-          onAudioUrlChange={audioUrl => updatePassageAt({ ...passage, audioUrl })}
+          onAudioUrlChange={audioUrl => patchPassageAt({ audioUrl })}
           sentences={passage.sentences}
-          onSentencesChange={sentences => updatePassageAt({ ...passage, sentences })}
+          onSentencesChange={sentences => patchPassageAt({ sentences })}
+          practiceSentences={passage.practiceSentences}
           onBack={() => setOpenTestId(null)}
           onSave={handleSaveTest}
           saving={saving}

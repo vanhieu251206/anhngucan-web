@@ -1,3 +1,4 @@
+import { validateKetPetGroups } from "../../lib/lessonValidation.js";
 import { useState } from "react";
 import { useConfirm } from "./ConfirmDialog.jsx";
 import { PageHead, PageHeadSaveButton } from "./AdminPageHead.jsx";
@@ -77,7 +78,7 @@ export default function KetPetPracticeTestStudio({
     <div className="admin-card" style={{ "--accent": accent }}>
       <PageHead label={`${unitTitle} — Practice Test ${testNumber}`} backLabel={`← Quay lại ${gradeTitle}`} onBack={onBack}>
         <button type="button" className="admin-pill-btn admin-preview-trigger" onClick={() => setPreviewOpen(true)}>👁 Preview</button>
-        <PageHeadSaveButton onSave={onSave} saving={saving} saved={saved} />
+        <PageHeadSaveButton onSave={onSave} saving={saving} saved={saved} warnings={validateKetPetGroups(groups)} />
       </PageHead>
 
       {groups.map((g, gi) => (

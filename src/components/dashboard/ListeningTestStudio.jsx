@@ -1,3 +1,4 @@
+import { validateIeltsListening } from "../../lib/lessonValidation.js";
 import { useState } from "react";
 import { useConfirm } from "./ConfirmDialog.jsx";
 import IeltsListeningRunner from "../IeltsListeningRunner.jsx";
@@ -25,8 +26,9 @@ function blankQuestion(type) {
 function SectionEditor({ section, onChange, onRemove }) {
   const confirm = useConfirm();
 
+  // Gửi PATCH (không phải cả section) — cha ghép vào dữ liệu mới nhất, để upload audio xong muộn không ghi đè thay đổi khác.
   function update(patch) {
-    onChange({ ...section, ...patch });
+    onChange(patch);
   }
 
   function addGroup() {
@@ -169,8 +171,8 @@ export default function ListeningTestStudio({
   function addSection() {
     onSectionsChange([...(sections ?? []), { title: "", note: "", audioUrl: "", groups: [] }]);
   }
-  function updateSection(i, next) {
-    onSectionsChange(sections.map((s, idx) => (idx === i ? next : s)));
+  function updateSection(i, patch) {
+    onSectionsChange(prev => prev.map((s, idx) => (idx === i ? { ...s, ...patch } : s)));
   }
   async function removeSection(i) {
     if (!(await confirm("Xoá section này? Toàn bộ câu hỏi trong đó cũng bị xoá.", { danger: true }))) return;
@@ -187,11 +189,11 @@ export default function ListeningTestStudio({
           placeholder="Tên Test (vd: IELTS 8 - Listening Test 1)"
         />
         <button type="button" className="admin-pill-btn admin-preview-trigger" onClick={() => setPreviewOpen(true)} disabled={!sections?.length}>👁 Preview</button>
-        <PageHeadSaveButton onSave={onSave} saving={saving} saved={saved} />
+        <PageHeadSaveButton onSave={onSave} saving={saving} saved={saved} warnings={validateIeltsListening(sections)} />
       </PageHead>
 
       {(sections ?? []).map((s, i) => (
-        <SectionEditor key={i} section={s} onChange={next => updateSection(i, next)} onRemove={() => removeSection(i)} />
+        <SectionEditor key={i} section={s} onChange={patch => updateSection(i, patch)} onRemove={() => removeSection(i)} />
       ))}
       <button type="button" className="admin-btn-secondary" onClick={addSection}>+ Thêm section</button>
 

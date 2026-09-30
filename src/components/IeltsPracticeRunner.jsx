@@ -575,7 +575,7 @@ export default function IeltsPracticeRunner({ test, onBack, mode = "practice", r
             {passage.audioUrl && <audio className="ielts-full-audio" src={passage.audioUrl} controls />}
             {readMode === "plain" ? (
               <HighlightablePassage
-                sentences={passage.sentences}
+                sentences={isComprehension ? passage.sentences : passage.practiceSentences ?? passage.sentences}
                 highlightOn={highlightOn}
               />
             ) : (

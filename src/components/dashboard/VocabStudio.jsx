@@ -1,3 +1,4 @@
+import { validateVocabItems } from "../../lib/lessonValidation.js";
 import { useState } from "react";
 import AudioUploadField from "./AudioUploadField.jsx";
 import ImageUploadField from "./ImageUploadField.jsx";
@@ -31,7 +32,7 @@ export default function VocabStudio({
     onItemsChange([...list, blankVocabItem(type)]);
   }
   function updateItem(i, patch) {
-    onItemsChange(list.map((it, idx) => (idx === i ? { ...it, ...patch } : it)));
+    onItemsChange(prev => prev.map((it, idx) => (idx === i ? { ...it, ...patch } : it)));
   }
   async function removeItem(i) {
     if (!(await confirm("Xoá câu này?", { danger: true }))) return;
@@ -55,7 +56,7 @@ export default function VocabStudio({
           placeholder="Tên bài (vd: Vocabulary 1)"
         />
         <button type="button" className="admin-pill-btn admin-preview-trigger" onClick={() => setPreviewOpen(true)} disabled={!list.length}>👁 Preview</button>
-        <PageHeadSaveButton onSave={onSave} saving={saving} saved={saved} />
+        <PageHeadSaveButton onSave={onSave} saving={saving} saved={saved} warnings={validateVocabItems(list)} />
       </PageHead>
 
       <ol className="admin-scene-list">

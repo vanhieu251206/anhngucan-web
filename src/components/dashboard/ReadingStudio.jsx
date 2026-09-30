@@ -1,3 +1,5 @@
+import { PublishButton, WarningBadge, publishWarningText } from "./AdminPageHead.jsx";
+import { validateReadingParts } from "../../lib/lessonValidation.js";
 import { useEffect, useMemo, useRef, useState } from "react";
 import ImageUploadField from "./ImageUploadField.jsx";
 import { useConfirm } from "./ConfirmDialog.jsx";
@@ -2433,8 +2435,9 @@ export default function ReadingStudio({ accent, seriesId, title, onTitleChange, 
     else if (openPartIndex !== null && i < openPartIndex) setOpenPartIndex(openPartIndex - 1);
   }
 
+  const warnings = validateReadingParts(parts);
   async function handlePublish() {
-    if (await confirm("Bài này sẽ hiển thị ngay trên website cho học sinh. Xuất bản?")) {
+    if (await confirm(publishWarningText(warnings, "Bài này sẽ hiển thị ngay trên website cho học sinh. Vẫn xuất bản?") ?? "Bài này sẽ hiển thị ngay trên website cho học sinh. Xuất bản?")) {
       onSave();
     }
   }
@@ -2473,9 +2476,8 @@ export default function ReadingStudio({ accent, seriesId, title, onTitleChange, 
         </label>
         <div className="studio-topbar-actions">
           {saved && <span className="admin-success">✓ Đã xuất bản</span>}
-          <button className="admin-btn-primary" onClick={handlePublish} disabled={saving}>
-            {saving ? "Đang xuất bản..." : "Xuất bản"}
-          </button>
+          <WarningBadge warnings={warnings} />
+          <PublishButton onClick={handlePublish} saving={saving} />
         </div>
       </div>
 
