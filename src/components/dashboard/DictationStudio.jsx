@@ -34,8 +34,6 @@ export default function DictationStudio({
   onTitleChange,
   sentences,
   onSentencesChange,
-  maxAttempts,
-  onMaxAttemptsChange, timeLimitMinutes, onTimeLimitChange,
   onBack,
   onSave,
   saving,
@@ -193,28 +191,6 @@ export default function DictationStudio({
 
       <button type="button" className="admin-btn-secondary" onClick={() => addSentence()}>+ Thêm câu</button>
 
-      <label className="admin-dictation-maxattempts">
-        Số lượt làm bài tối đa (để trống = không giới hạn)
-        <input
-          className="admin-input"
-          type="number"
-          min="1"
-          value={maxAttempts ?? ""}
-          onChange={e => onMaxAttemptsChange(e.target.value ? Number(e.target.value) : null)}
-          placeholder="Không giới hạn"
-        />
-      </label>
-        <label className="studio-max-attempts" title="Hết giờ hệ thống tự nộp bài — để trống nghĩa là không giới hạn (chỉ đếm giờ đã làm).">
-          <span>Thời gian (phút)</span>
-          <input
-            type="number"
-            min={1}
-            className="admin-input"
-            value={timeLimitMinutes ?? ""}
-            onChange={e => onTimeLimitChange(e.target.value === "" ? null : Number(e.target.value))}
-            placeholder="Không giới hạn"
-          />
-        </label>
       {previewOpen && (
         <div className="reading-fullscreen">
           <div className="speaking-fullscreen-topbar">

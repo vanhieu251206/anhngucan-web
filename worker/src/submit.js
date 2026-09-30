@@ -163,7 +163,7 @@ export async function submitTest(request, env) {
   }
 
   if (isStudent) {
-    const limitMinutes = opening.timeLimitMinutes ?? test?.timeLimitMinutes ?? null;
+    const limitMinutes = opening.timeLimitMinutes ?? null;
     if (limitMinutes && startedAt != null) overtime = now - startedAt > limitMinutes * 60000 + TIME_LIMIT_GRACE_MS;
   }
 

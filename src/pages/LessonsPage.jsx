@@ -486,7 +486,7 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
               onClick: () =>
                 setActiveIeltsListeningTest({
                   ...pickingListeningTest,
-                  timeLimitMinutes: activeOpening?.timeLimitMinutes ?? pickingListeningTest.timeLimitMinutes,
+                  timeLimitMinutes: activeOpening?.timeLimitMinutes ?? null,
                   title: `${pickingListeningTest.title} · Section ${n}`,
                   sections: [s],
                 }),
@@ -522,7 +522,7 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
             level={level.number}
             testId={activeTest.id}
             lessonLabel={`${series.title} ${level.number} · ${activeTest.title}`}
-            limitMinutes={activeOpening?.timeLimitMinutes ?? activeTest.timeLimitMinutes}
+            limitMinutes={activeOpening?.timeLimitMinutes ?? null}
             openingId={activeOpening?.id}
           />
         </div>
@@ -550,7 +550,7 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
             seriesId={series.id}
             level={level.number}
             testId={activeReadingTest.id}
-            limitMinutes={activeOpening?.timeLimitMinutes ?? activeReadingTest.timeLimitMinutes}
+            limitMinutes={activeOpening?.timeLimitMinutes ?? null}
             openingId={activeOpening?.id}
             studentName={studentName}
             studentClass={studentClass}
@@ -581,7 +581,7 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
             seriesId={series.id}
             level={level.number}
             testId={activeDictationTest.id}
-            limitMinutes={activeOpening?.timeLimitMinutes ?? activeDictationTest.timeLimitMinutes}
+            limitMinutes={activeOpening?.timeLimitMinutes ?? null}
             openingId={activeOpening?.id}
             studentName={studentName}
             studentClass={studentClass}
@@ -611,7 +611,7 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
             seriesId={series.id}
             level={level.number}
             testId={activeVocabTest.id}
-            limitMinutes={activeOpening?.timeLimitMinutes ?? activeVocabTest.timeLimitMinutes}
+            limitMinutes={activeOpening?.timeLimitMinutes ?? null}
             openingId={activeOpening?.id}
             studentName={studentName}
             lessonLabel={`${series.title} ${level.number} · ${activeVocabTest.title}`}
@@ -637,7 +637,7 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
         <div className="speaking-fullscreen-body reading-fullscreen-body">
           <div className="exam-fullscreen-inner">
             <StartersListeningTestRunner
-              test={activeOpening?.timeLimitMinutes ? { ...activeExamTest, timeLimitMinutes: activeOpening.timeLimitMinutes } : activeExamTest}
+              test={{ ...activeExamTest, timeLimitMinutes: activeOpening?.timeLimitMinutes ?? null }}
               openingId={activeOpening?.id}
               studentUid={!isStaff ? user?.uid : null}
               studentName={studentName}
@@ -918,7 +918,7 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
                 setActiveIeltsPracticeMode(mode);
                 setActiveIeltsPracticeTest({
                   ...test,
-                  timeLimitMinutes: opening?.timeLimitMinutes ?? test.timeLimitMinutes,
+                  timeLimitMinutes: opening?.timeLimitMinutes ?? null,
                   title: `${test.title} · Passage ${n}`,
                   passages: [p],
                 });

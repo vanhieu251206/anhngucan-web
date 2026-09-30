@@ -3266,6 +3266,7 @@ button { font-family: inherit; }
   display: flex; flex-wrap: wrap; gap: 20px; padding: 14px 16px; margin-bottom: 14px;
   background: #f6f7fa; border: 1px dashed var(--admin-border); border-radius: 12px;
 }
+.admin-dictation-bulk-bar.is-buttons { gap: 10px; }
 .admin-dictation-bulk-item { display: flex; flex-direction: column; gap: 6px; max-width: 320px; }
 .admin-dictation-bulk-hint { font-size: 0.78rem; color: #7a7f8c; }
 .admin-dictation-row { align-items: flex-start; }
@@ -3273,7 +3274,6 @@ button { font-family: inherit; }
 .admin-dictation-text-label { display: flex; flex-direction: column; gap: 4px; font-weight: 600; font-size: 0.85rem; }
 .admin-dictation-maxattempts { display: flex; flex-direction: column; gap: 6px; max-width: 320px; margin-top: 18px; font-weight: 600; font-size: 0.85rem; }
 .admin-dictation-footer { display: flex; align-items: center; gap: 14px; margin-top: 18px; }
-
 /* ComprehensionStudio.jsx — soạn bài "ĐỌC HIỂU" IELTS (câu + dịch + từ vựng/đồng nghĩa). */
 .admin-comprehension-title-grid {
   display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;

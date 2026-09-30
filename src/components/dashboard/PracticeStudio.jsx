@@ -646,10 +646,6 @@ export function LuyenDePage({
   testLabel,
   title,
   onTitleChange,
-  timeLimitMinutes,
-  onTimeLimitChange,
-  maxAttempts,
-  onMaxAttemptsChange,
   passage,
   onPassageChange,
   onBack,
@@ -794,28 +790,6 @@ export function LuyenDePage({
             value={title}
             onChange={e => onTitleChange(e.target.value)}
             placeholder="vd: IELTS 8 - Reading Test 1"
-          />
-        </label>
-        <label className="admin-practice-timelimit">
-          Thời gian làm bài (phút, để trống = không giới hạn)
-          <input
-            className="admin-input"
-            type="number"
-            min="1"
-            value={timeLimitMinutes ?? ""}
-            onChange={e => onTimeLimitChange(e.target.value ? Number(e.target.value) : null)}
-            placeholder="vd: 60"
-          />
-        </label>
-        <label className="admin-dictation-maxattempts">
-          Số lượt làm bài tối đa (để trống = không giới hạn)
-          <input
-            className="admin-input"
-            type="number"
-            min="1"
-            value={maxAttempts ?? ""}
-            onChange={e => onMaxAttemptsChange(e.target.value ? Number(e.target.value) : null)}
-            placeholder="Không giới hạn"
           />
         </label>
       </div>
