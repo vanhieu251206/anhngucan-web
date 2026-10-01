@@ -51,10 +51,18 @@ export function scoreText(correct, total) {
 }
 
 // Bấm 1 bài → vào thẳng bài đó (LessonsPage/KetPetPage đọc ?go=<kind>~<testId>).
+function assignmentParams(o) {
+  if (o.seriesId === "kids") return { page: "lessons", series: "kids" };
+  return { page: "lessons", series: o.seriesId, level: o.level, go: `${o.kind}~${o.testId}` };
+}
+
 export function openAssignment(o) {
-  if (o.seriesId === "kids") {
-    navigateApp({ page: "lessons", series: "kids" });
-    return;
-  }
-  navigateApp({ page: "lessons", series: o.seriesId, level: o.level, go: `${o.kind}~${o.testId}` });
+  navigateApp(assignmentParams(o));
+}
+
+// Link đầy đủ tới 1 bài để giáo viên gửi cho học sinh (nút "Copy link" ở trang Mở bài) — cùng tham số với
+// openAssignment(); chưa đăng nhập thì App.jsx hiện form đăng nhập rồi vào thẳng bài.
+export function assignmentLink(o) {
+  const query = new URLSearchParams(assignmentParams(o)).toString();
+  return `${window.location.origin}${window.location.pathname}?${query}`;
 }

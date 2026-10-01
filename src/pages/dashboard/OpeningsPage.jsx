@@ -8,6 +8,7 @@ import { useAuth } from "../../lib/authContext.jsx";
 import { useConfirm } from "../../components/dashboard/ConfirmDialog.jsx";
 import { listResultsForOpening } from "../../lib/testResults.js";
 import { downloadClassResultSheets, canDownloadSheets } from "../../lib/resultSheetPdf.js";
+import { assignmentLink } from "../../lib/assignmentUtils.js";
 
 // Dạng bài mở được theo từng bộ đề.
 function kindsFor(seriesId) {
@@ -55,6 +56,7 @@ export default function OpeningsPage() {
   const [editing, setEditing] = useState(null); // { id, ...fields }
   const [showForm, setShowForm] = useState(false);
   const [downloadingId, setDownloadingId] = useState(null);
+  const [copiedId, setCopiedId] = useState(null);
 
   const isKetPet = seriesId === "ket-pet";
   const series = YLE_SERIES.find(s => s.id === seriesId);
@@ -202,6 +204,19 @@ export default function OpeningsPage() {
     }
   }
 
+  // Copy link vào thẳng bài để gửi cho học sinh (Zalo...). Trình duyệt chặn clipboard thì hiện link để copy tay.
+  async function handleCopyLink(o) {
+    const link = assignmentLink(o);
+    setError("");
+    try {
+      await navigator.clipboard.writeText(link);
+      setCopiedId(o.id);
+      setTimeout(() => setCopiedId(id => (id === o.id ? null : id)), 2000);
+    } catch {
+      setError(`Không copy được — link bài: ${link}`);
+    }
+  }
+
   async function handleClose(o) {
     if (!(await confirm(`Đóng "${o.testTitle}" của lớp ${o.className}? Học sinh sẽ không vào được nữa.`, { danger: true }))) return;
     await closeOpening(o.id);
@@ -340,6 +355,11 @@ export default function OpeningsPage() {
                         {canDownloadSheets(o.expiresAt?.toMillis?.()) && (
                           <button className="opening-btn" disabled={!!downloadingId} onClick={() => handleSheets(o)}>
                             {downloadingId === o.id ? "Đang tạo PDF..." : "⬇ Phiếu chấm"}
+                          </button>
+                        )}
+                        {!isExpired(o) && (
+                          <button className="opening-btn" onClick={() => handleCopyLink(o)}>
+                            {copiedId === o.id ? "✓ Đã copy" : "🔗 Copy link"}
                           </button>
                         )}
                         <button className="opening-btn" onClick={() => setEditing({ id: o.id, className: o.className, testTitle: o.testTitle, kind: o.kind, expiresAt: toLocalInput(o.expiresAt?.toDate?.()), maxAttempts: o.maxAttempts ?? "", minutes: o.timeLimitMinutes ?? "" })}>✏️ Sửa</button>
