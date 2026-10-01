@@ -80,8 +80,10 @@ export function gradeSubmission(kind, test, raw) {
       row.map((ok, qi) => {
         const ans = String(raw?.[`${gi}-${qi}`] ?? "");
         // Tự luận: ghép cả phần gợi ý cô cho sẵn để phiếu chấm/kết quả hiện đủ câu học sinh viết.
-        const studentAnswer = groups[gi]?.type === "open-ended" && ans.trim() ? openEndedFullAnswer(groups[gi].questions?.[qi]?.hint, ans) : ans;
-        return { group: gi + 1, qNumber: qi + 1, isCorrect: ok, studentAnswer };
+        const withHint = groups[gi]?.type === "open-ended" || groups[gi]?.type === "free-response";
+        const studentAnswer = withHint && ans.trim() ? openEndedFullAnswer(groups[gi].questions?.[qi]?.hint, ans) : ans;
+        // Câu không chấm điểm (results = null): đánh dấu để trang kết quả/phiếu chấm không hiện "Sai".
+        return { group: gi + 1, qNumber: (Number(groups[gi]?.startNumber) || 1) + qi, isCorrect: ok, studentAnswer, ...(ok == null ? { ungraded: true } : {}) };
       }),
     );
     return { correct: g.correct, total: g.total, items, results: g.results };

@@ -151,6 +151,7 @@ export default function KetPetContentPage() {
         onSave={handleSave}
         saving={saving}
         saved={saved}
+        isAdmin={role === "admin"}
       />
     );
   }

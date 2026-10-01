@@ -40,7 +40,7 @@ export default function ResultItems({ mode, items, elapsedMs, answerLabel = "Bé
                   <div>{it.group ? `${it.group}.${it.qNumber}` : it.qNumber ?? i + 1}</div>
                   {it.prompt && <div className="opening-test-kind">{it.prompt}</div>}
                 </td>
-                <td>{it.isCorrect ? <span className="opening-chip opening-chip-on">✓</span> : <span className="opening-chip opening-chip-off">✗</span>}</td>
+                <td>{it.ungraded ? "—" : it.isCorrect ? <span className="opening-chip opening-chip-on">✓</span> : <span className="opening-chip opening-chip-off">✗</span>}</td>
                 <td>{blanks ? blanks.map(b => b.studentAnswer).join(" · ") : it.studentAnswer || <em>(bỏ trống)</em>}</td>
                 <td>{blanks ? blanks.map(b => b.correctAnswer).join(" · ") : it.correctAnswer ?? "—"}</td>
               </tr>

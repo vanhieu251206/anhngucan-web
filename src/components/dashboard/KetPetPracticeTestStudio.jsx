@@ -7,6 +7,7 @@ import { GROUP_TYPES, SPLIT_QUESTION_TYPES, blankGroup, blankGroupQuestion, blan
 import KetPetPracticeTestQuiz from "../KetPetPracticeTestQuiz.jsx";
 import CommaListInput from "./CommaListInput.jsx";
 import UnderlineTextInput from "./UnderlineTextInput.jsx";
+import { parsePracticeTestText } from "../../lib/ketPetTextImport.js";
 
 export const EMPTY_PRACTICE_TEST_GROUPS = [];
 
@@ -18,10 +19,28 @@ export const EMPTY_PRACTICE_TEST_GROUPS = [];
 // nhóm, rồi bấm "+ Thêm câu" nhiều lần — mỗi câu thêm vào LUÔN theo đúng dạng của nhóm (đổi dạng
 // nhóm sẽ xoá hết câu cũ vì cấu trúc field khác nhau). Điểm mỗi câu = tổng điểm nhóm / số câu.
 export default function KetPetPracticeTestStudio({
-  accent, gradeTitle, unitTitle, testNumber, groups, onGroupsChange, onBack, onSave, saving, saved,
+  accent, gradeTitle, unitTitle, testNumber, groups, onGroupsChange, onBack, onSave, saving, saved, isAdmin = false,
 }) {
   const confirm = useConfirm();
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [importErrors, setImportErrors] = useState([]);
+
+  // Nhập cả đề từ file .txt soạn sẵn (lib/ketPetTextImport.js) — các nhóm đọc được THÊM VÀO CUỐI bài đang soạn.
+  async function handleImportFile(e) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    const parsed = parsePracticeTestText(await file.text());
+    setImportErrors(parsed.errors);
+    if (!parsed.errors.length) onGroupsChange([...groups, ...parsed.groups]);
+  }
+
+  async function clearAll() {
+    const count = groups.reduce((n, g) => n + g.questions.length, 0);
+    if (!(await confirm(`Xoá toàn bộ ${groups.length} nhóm (${count} câu) của bài này?`, { danger: true }))) return;
+    setImportErrors([]);
+    onGroupsChange([]);
+  }
 
   function addGroup(at = groups.length) {
     onGroupsChange(insertAt(groups, at, blankGroup("multiple-choice")));
@@ -31,7 +50,10 @@ export default function KetPetPracticeTestStudio({
   }
   function changeGroupType(gi, type) {
     onGroupsChange(groups.map((g, i) => (i === gi
-      ? { ...blankGroup(type), instruction: g.instruction, passage: g.passage }
+      ? {
+        ...blankGroup(type), instruction: g.instruction, passage: g.passage,
+        ...Object.fromEntries(["label", "section", "subtitle", "task", "startNumber"].filter(k => g[k] != null).map(k => [k, g[k]])),
+      }
       : g)));
   }
   async function removeGroup(gi) {
@@ -78,9 +100,24 @@ export default function KetPetPracticeTestStudio({
   return (
     <div className="admin-card" style={{ "--accent": accent }}>
       <PageHead label={`${unitTitle} — Practice Test ${testNumber}`} backLabel={`← Quay lại ${gradeTitle}`} onBack={onBack}>
+        {isAdmin && (
+          <label className="admin-pill-btn">
+            ⬆ Nhập từ file .txt
+            <input type="file" accept=".txt,text/plain" hidden onChange={handleImportFile} />
+          </label>
+        )}
+        {isAdmin && groups.length > 0 && (
+          <button type="button" className="admin-pill-btn admin-pill-btn-danger" onClick={clearAll}>🗑 Xoá hết</button>
+        )}
         <button type="button" className="admin-pill-btn admin-preview-trigger" onClick={() => setPreviewOpen(true)}>👁 Preview</button>
         <PageHeadSaveButton onSave={onSave} saving={saving} saved={saved} warnings={validateKetPetGroups(groups)} />
       </PageHead>
+
+      {importErrors.length > 0 && (
+        <ul className="admin-error">
+          {importErrors.map((err, i) => <li key={i}>{err}</li>)}
+        </ul>
+      )}
 
       {groups.map((g, gi) => (
         <Fragment key={gi}>
@@ -125,9 +162,41 @@ export default function KetPetPracticeTestStudio({
 
           <input
             className="admin-input"
+            value={g.section ?? ""}
+            onChange={e => updateGroup(gi, { section: e.target.value })}
+            placeholder="Tiêu đề lớn phía trên nhóm (tuỳ chọn) — VD: C. PRACTICE"
+          />
+
+          <div className="admin-practice-option-row">
+            <input
+              className="admin-input"
+              value={g.label ?? ""}
+              onChange={e => updateGroup(gi, { label: e.target.value })}
+              placeholder={g.label == null ? `Nhãn đầu mục — đang dùng "${toRoman(gi + 1)}." (VD: Exercise 1)` : "Nhãn đầu mục — đang để trống (VD: Exercise 1)"}
+            />
+            <input
+              className="admin-input"
+              type="number"
+              min="1"
+              style={{ maxWidth: 150 }}
+              value={g.startNumber ?? ""}
+              onChange={e => updateGroup(gi, { startNumber: e.target.value === "" ? undefined : Number(e.target.value) })}
+              placeholder="Câu bắt đầu: 1"
+            />
+          </div>
+
+          <input
+            className="admin-input"
             value={g.instruction}
             onChange={e => updateGroup(gi, { instruction: e.target.value })}
             placeholder={`Hướng dẫn làm bài của nhóm ${toRoman(gi + 1)} (VD: Choose the word whose underlined part is pronounced differently from the others.)`}
+          />
+
+          <input
+            className="admin-input"
+            value={g.subtitle ?? ""}
+            onChange={e => updateGroup(gi, { subtitle: e.target.value })}
+            placeholder="Mục con (tuỳ chọn) — VD: 1. Suggestion"
           />
 
           <textarea
@@ -138,6 +207,13 @@ export default function KetPetPracticeTestStudio({
             placeholder={g.type === "split-reading"
               ? "Đoạn văn hiện bên TRÁI màn hình chia đôi khi học sinh làm bài"
               : "Đoạn văn dùng chung cho cả nhóm (tuỳ chọn — cho dạng đọc hiểu/điền từ đoạn văn)"}
+          />
+
+          <input
+            className="admin-input"
+            value={g.task ?? ""}
+            onChange={e => updateGroup(gi, { task: e.target.value })}
+            placeholder="Hướng dẫn nằm sau đoạn văn (tuỳ chọn) — VD: Write TRUE or FALSE after each of the following sentences."
           />
 
           {g.type === "word-bank" && (
@@ -329,6 +405,48 @@ export default function KetPetPracticeTestStudio({
                         value={q.sampleAnswer}
                         onChange={e => updateQuestion(gi, qi, { sampleAnswer: e.target.value })}
                         placeholder="Đáp án — nhiều cách viết ngăn bằng | — VD: She said that she was tired."
+                      />
+                    </>
+                  )}
+
+                  {g.type === "true-false-table" && (
+                    <>
+                      <input
+                        className="admin-input"
+                        value={q.text}
+                        onChange={e => updateQuestion(gi, qi, { text: e.target.value })}
+                        placeholder="Miss Lien lives in a big house."
+                      />
+                      <div className="admin-practice-option-row">
+                        <label className="admin-practice-option-row" style={{ gap: 4 }}>
+                          <input type="radio" name={`ketpet-pt-tf-${gi}-${qi}`} checked={q.answer === true} onChange={() => updateQuestion(gi, qi, { answer: true })} /> True
+                        </label>
+                        <label className="admin-practice-option-row" style={{ gap: 4 }}>
+                          <input type="radio" name={`ketpet-pt-tf-${gi}-${qi}`} checked={q.answer === false} onChange={() => updateQuestion(gi, qi, { answer: false })} /> False
+                        </label>
+                      </div>
+                    </>
+                  )}
+
+                  {g.type === "free-response" && (
+                    <>
+                      <input
+                        className="admin-input"
+                        value={q.prompt}
+                        onChange={e => updateQuestion(gi, qi, { prompt: e.target.value })}
+                        placeholder="Câu hỏi — VD: Linda: Where do you live?"
+                      />
+                      <input
+                        className="admin-input"
+                        value={q.hint ?? ""}
+                        onChange={e => updateQuestion(gi, qi, { hint: e.target.value })}
+                        placeholder="Gợi ý cho sẵn (tuỳ chọn) — VD: You:"
+                      />
+                      <input
+                        className="admin-input"
+                        value={q.after ?? ""}
+                        onChange={e => updateQuestion(gi, qi, { after: e.target.value })}
+                        placeholder="Câu thoại hiện sau ô trả lời (tuỳ chọn) — VD: Linda: That sounds nice!"
                       />
                     </>
                   )}

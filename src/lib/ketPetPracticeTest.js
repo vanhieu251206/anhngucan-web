@@ -10,6 +10,8 @@ export const GROUP_TYPES = [
   { key: "word-bank", label: "Điền từ trong khung từ cho sẵn (word box)" },
   { key: "split-reading", label: "Đọc hiểu chia đôi màn hình (đoạn văn trái — câu hỏi phải, trộn được nhiều dạng con)" },
   { key: "open-ended", label: "Tự luận (viết câu / đặt câu hỏi — có gợi ý sẵn, chấm theo đáp án)" },
+  { key: "true-false-table", label: "Bảng đúng/sai (True/False) nhiều câu" },
+  { key: "free-response", label: "Tự luận không chấm (trả lời về bản thân — giáo viên tự đọc)" },
 ];
 
 // Dạng con CHỌN RIÊNG CHO TỪNG CÂU bên trong 1 nhóm "split-reading" (khác các nhóm khác — cả nhóm
@@ -65,6 +67,8 @@ export function blankSplitQuestion(subType = "fill-blank") {
   return { type: "fill-blank", text: "", acceptedAnswers: [] };
 }
 
+// Nhóm "free-response": câu = { prompt, hint, after? } — `after` là câu thoại hiện ngay SAU ô trả lời (VD lời đáp
+// kết thúc hội thoại "Linda: That sounds nice!").
 // 1 câu hỏi TRONG 1 nhóm — không có field `type`/`points` riêng, thừa hưởng từ nhóm cha (TRỪ nhóm
 // "split-reading", xem blankSplitQuestion ở trên). `hint` (fill-blank) là gợi ý tuỳ chọn hiện cạnh
 // chỗ trống, ví dụ chia dạng từ: "(USE)" → đáp án "USEFUL".
@@ -74,6 +78,8 @@ export function blankGroupQuestion(type) {
   if (type === "fill-blank") return { text: "", hint: "", acceptedAnswers: [] };
   if (type === "word-bank") return { text: "", answer: "" };
   if (type === "split-reading") return blankSplitQuestion("fill-blank");
+  if (type === "true-false-table") return { text: "", answer: true };
+  if (type === "free-response") return { prompt: "", hint: "" };
   return { prompt: "", hint: "", sampleAnswer: "" };
 }
 
@@ -85,7 +91,7 @@ export function blankGroup(type = "multiple-choice") {
     instruction: "",
     passage: "",
     wordBank: type === "word-bank" ? [] : undefined,
-    totalPoints: 1,
+    totalPoints: type === "free-response" ? 0 : 1,
     questions: [],
   };
 }
@@ -106,14 +112,30 @@ export function toRoman(n) {
   return out || String(n);
 }
 
+// Trình bày giống sách (tuỳ chọn, thêm 2026-10-01 — chủ yếu do nhập từ file .txt, lib/ketPetTextImport.js):
+// - `label`: nhãn đầu mục. Chưa có field (đề cũ / nhóm tạo tay) → số La Mã "I. hướng dẫn"; có (kể cả rỗng) → hiện
+//   "label: hướng dẫn" đúng như sách ("Exercise 7: Rewrite..."), rỗng cả hai thì không hiện đầu mục (nhóm nối tiếp
+//   của mục con thứ 2 trở đi trong cùng 1 Exercise).
+// - `section`: tiêu đề lớn trên nhóm ("C. PRACTICE"). `subtitle`: mục con dưới đầu mục ("1. Suggestion").
+// - `task`: dòng hướng dẫn nằm SAU đoạn văn ("Write TRUE or FALSE..."). `startNumber`: số của câu đầu (mặc định 1).
+export function groupHeading(g, gi) {
+  if (g.label == null) return `${toRoman(gi + 1)}. ${g.instruction}`;
+  return [g.label, g.instruction].map(s => String(s ?? "").trim()).filter(Boolean).join(": ");
+}
+
+export function questionNumber(g, qi) {
+  return (Number(g.startNumber) || 1) + qi;
+}
+
 // answers: { "gi-qi": string | number } — number (answerIndex) cho multiple-choice, string cho
-// fill-blank/open-ended. Nhóm tự luận cũ có totalPoints = 0 vẫn chấm Đúng/Sai nhưng không cộng điểm.
+// fill-blank/open-ended, boolean cho true-false-table. Nhóm tự luận cũ có totalPoints = 0 vẫn chấm Đúng/Sai
+// nhưng không cộng điểm. Nhóm "free-response" không chấm điểm (results = null).
 export function gradePracticeTestGroups(groups, answers) {
   let correct = 0;
   let total = 0;
   const results = groups.map((g, gi) => {
     const count = g.questions.length;
-    if (count === 0) {
+    if (g.type === "free-response" || count === 0) {
       return g.questions.map(() => null);
     }
     const perQuestion = (Number(g.totalPoints) || 0) / count;
@@ -131,6 +153,8 @@ export function gradePracticeTestGroups(groups, answers) {
         isCorrect = isFillBlankCorrect(userAnswer, [q.answer]);
       } else if (effectiveType === "open-ended") {
         isCorrect = isOpenEndedCorrect(userAnswer, q.hint, q.sampleAnswer);
+      } else if (effectiveType === "true-false-table") {
+        isCorrect = userAnswer != null && userAnswer === q.answer;
       }
       total += perQuestion;
       if (isCorrect) correct += perQuestion;

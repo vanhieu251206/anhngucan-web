@@ -3415,6 +3415,8 @@ button { font-family: inherit; }
 .vocab-group { margin-bottom: 28px; }
 .vocab-group:last-child { margin-bottom: 0; }
 .vocab-group-instruction { margin: 0 0 14px; font-family: var(--font-display); font-weight: 700; font-size: 1.05rem; color: var(--color-primary-dark); }
+.vocab-section-title { margin: 0 0 16px; text-align: center; font-family: var(--font-display); font-weight: 800; font-size: 1.2rem; color: #333; }
+.vocab-group-subtitle { margin: 0 0 12px; font-weight: 700; color: #333; }
 .vocab-word-bank { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 14px; }
 .vocab-word-bank-item {
   border: 2px solid #8B5CF6; border-radius: 10px; padding: 6px 14px; font-weight: 600;

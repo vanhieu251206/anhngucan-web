@@ -3,6 +3,8 @@
 > Đây là dự án **ứng dụng web/app học tiếng Anh**, đặt tại `D:\App Hoc Tieng Anh`, TÁCH BIỆT hoàn toàn khỏi dự án làm video/truyện tranh ở `D:\Project Tiếng Anh\` (không dùng chung cấu trúc, không dùng chung CLAUDE.md của dự án đó). Đọc file này trước khi làm việc trong thư mục này.
 >
 > **Quy trình soạn nội dung Speaking chi tiết nằm ở `docs/quy-trinh/`** (không đẩy lên GitHub, xem mục 8) — đọc `docs/quy-trinh/B0-Chia-scene.md` trở đi trước khi soạn/code 1 bài Speaking mới.
+>
+> **KET/PET (Practice Test theo Grade/Unit):** đọc `docs/quy-trinh/KetPet-CMS-Kinh-nghiem.md` trước khi soạn 1 Unit mới từ PDF hoặc thêm dạng nhóm câu hỏi mới — có định dạng file `.txt` để admin nhập cả đề 1 lần (`src/lib/ketPetTextImport.js`, nút "Nhập từ file .txt" trong trang soạn Practice Test, 2026-10-01).
 
 ## 1. Mục tiêu dự án
 Xây dựng một ứng dụng học tiếng Anh cho học sinh nhỏ tuổi, nội dung bám sát 3 bộ đề luyện thi **Cambridge YLE**: **Starters, Movers, Flyers**. Mỗi bộ có **4 cấp độ**, mỗi cấp độ gồm **2 dạng bài**:

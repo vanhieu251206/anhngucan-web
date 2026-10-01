@@ -266,6 +266,8 @@ export function validateKetPetGroups(groups) {
         if (blank(q.sampleAnswer)) out.push(`${w}: chưa có đáp án.`);
       } else if (type === "categorize" || type === "true-false-table" || type === "reorder") {
         if (blank(q.text)) out.push(`${w}: chưa có nội dung.`);
+      } else if (type === "free-response") {
+        if (blank(q.prompt)) out.push(`${w}: chưa có nội dung.`);
       }
     });
   });

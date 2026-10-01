@@ -79,10 +79,10 @@ function detailTable(r) {
         it.prompt ? `${num}. ${it.prompt}` : num,
         (blanks ? blanks.map(b => b.studentAnswer || "(trống)").join(" · ") : it.studentAnswer) || "(bỏ trống)",
         (blanks ? blanks.map(b => b.correctAnswer).join(" · ") : it.correctAnswer) ?? "—",
-        it.isCorrect ? "Đúng" : "Sai",
+        it.ungraded ? "Không chấm" : it.isCorrect ? "Đúng" : "Sai",
       ];
     }),
-    wrong: items.map(it => !it.isCorrect),
+    wrong: items.map(it => !it.ungraded && !it.isCorrect),
     widths: { 3: 20 },
   };
 }

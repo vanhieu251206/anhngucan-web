@@ -1,6 +1,6 @@
 import { useState } from "react";
 import ExamTimer, { useExamTimer } from "./ExamTimer.jsx";
-import { gradePracticeTestGroups, toRoman } from "../lib/ketPetPracticeTest.js";
+import { gradePracticeTestGroups, groupHeading, questionNumber } from "../lib/ketPetPracticeTest.js";
 import UnderlineText from "./UnderlineText.jsx";
 import SubmitStatus from "./SubmitStatus.jsx";
 
@@ -16,6 +16,18 @@ function QBadge({ n }) {
     <div className="reading-question-badge">
       <span className="reading-question-num">Question {n}</span>
     </div>
+  );
+}
+
+// Đầu mục của 1 nhóm: tiêu đề lớn (nếu có) + "Exercise N: hướng dẫn" hoặc số La Mã + mục con (nếu có).
+function GroupHead({ g, gi }) {
+  const heading = groupHeading(g, gi);
+  return (
+    <>
+      {g.section && <h3 className="vocab-section-title">{g.section}</h3>}
+      {heading && <p className="vocab-group-instruction">{heading}</p>}
+      {g.subtitle && <p className="vocab-group-subtitle">{g.subtitle}</p>}
+    </>
   );
 }
 
@@ -63,7 +75,7 @@ export default function KetPetPracticeTestQuiz({ groups, revealAnswers = false, 
     if (q.type === "multiple-choice") {
       return (
         <>
-          <QBadge n={qi + 1} /><p className="vocab-question-text">{q.text}</p>
+          <QBadge n={questionNumber(groups[gi], qi)} /><p className="vocab-question-text">{q.text}</p>
           <div className="vocab-options">
             {q.options.map((opt, oi) => {
               const picked = answers[`${gi}-${qi}`] === oi;
@@ -96,7 +108,7 @@ export default function KetPetPracticeTestQuiz({ groups, revealAnswers = false, 
     }
     return (
       <>
-        <QBadge n={qi + 1} /><p className="vocab-question-text">{q.text}</p>
+        <QBadge n={questionNumber(groups[gi], qi)} /><p className="vocab-question-text">{q.text}</p>
         <input
           className={"vocab-input" + (r === true ? " is-correct" : "") + (r === false ? " is-wrong" : "")}
           value={answers[`${gi}-${qi}`] ?? ""}
@@ -121,7 +133,8 @@ export default function KetPetPracticeTestQuiz({ groups, revealAnswers = false, 
           if (g.type === "split-reading") {
             return (
               <div className="vocab-group" key={gi}>
-                <p className="vocab-group-instruction">{`${toRoman(gi + 1)}. ${g.instruction}`}</p>
+                <GroupHead g={g} gi={gi} />
+                {g.task && <p className="vocab-group-subtitle">{g.task}</p>}
                 <div className="vocab-split-columns">
                   <div className="vocab-split-passage">
                     {g.passage && <p className="vocab-passage">{g.passage}</p>}
@@ -139,8 +152,9 @@ export default function KetPetPracticeTestQuiz({ groups, revealAnswers = false, 
           }
           return (
           <div className="vocab-group" key={gi}>
-            <p className="vocab-group-instruction">{`${toRoman(gi + 1)}. ${g.instruction}`}</p>
+            <GroupHead g={g} gi={gi} />
             {g.passage && <p className="vocab-passage">{g.passage}</p>}
+            {g.task && <p className="vocab-group-subtitle">{g.task}</p>}
             {g.type === "word-bank" && (g.wordBank ?? []).length > 0 && (
               <div className="vocab-word-bank">
                 {g.wordBank.map((w, wi) => (
@@ -155,7 +169,7 @@ export default function KetPetPracticeTestQuiz({ groups, revealAnswers = false, 
                 <div className="vocab-question" key={qi}>
                   {g.type === "multiple-choice" && (
                     <>
-                      <QBadge n={qi + 1} /><p className="vocab-question-text">{q.text}</p>
+                      <QBadge n={questionNumber(g, qi)} /><p className="vocab-question-text">{q.text}</p>
                       <div className="vocab-options">
                         {q.options.map((opt, oi) => {
                           const picked = answers[`${gi}-${qi}`] === oi;
@@ -188,7 +202,7 @@ export default function KetPetPracticeTestQuiz({ groups, revealAnswers = false, 
 
                   {g.type === "pronunciation-underline" && (
                     <>
-                    <QBadge n={qi + 1} />
+                    <QBadge n={questionNumber(g, qi)} />
                     <div className="vocab-options vocab-options-row">
                       {q.options.map((opt, oi) => {
                         const picked = answers[`${gi}-${qi}`] === oi;
@@ -221,7 +235,7 @@ export default function KetPetPracticeTestQuiz({ groups, revealAnswers = false, 
 
                   {g.type === "fill-blank" && (
                     <>
-                      <QBadge n={qi + 1} />
+                      <QBadge n={questionNumber(g, qi)} />
                       <p className="vocab-question-text">
                         {q.text}
                         {q.hint && <span className="vocab-question-hint"> ({q.hint})</span>}
@@ -241,7 +255,7 @@ export default function KetPetPracticeTestQuiz({ groups, revealAnswers = false, 
 
                   {g.type === "word-bank" && (
                     <>
-                      <QBadge n={qi + 1} /><p className="vocab-question-text">{q.text}</p>
+                      <QBadge n={questionNumber(g, qi)} /><p className="vocab-question-text">{q.text}</p>
                       <input
                         className={"vocab-input" + (r === true ? " is-correct" : "") + (r === false ? " is-wrong" : "")}
                         value={answers[`${gi}-${qi}`] ?? ""}
@@ -257,7 +271,7 @@ export default function KetPetPracticeTestQuiz({ groups, revealAnswers = false, 
 
                   {g.type === "open-ended" && (
                     <>
-                      <QBadge n={qi + 1} /><p className="vocab-question-text">{q.prompt}</p>
+                      <QBadge n={questionNumber(g, qi)} /><p className="vocab-question-text">{q.prompt}</p>
                       <div className={"open-ended-answer" + (r === true ? " is-correct" : "") + (r === false ? " is-wrong" : "")}>
                         {q.hint && <span className="open-ended-hint">{q.hint}</span>}
                         <input
@@ -271,6 +285,56 @@ export default function KetPetPracticeTestQuiz({ groups, revealAnswers = false, 
                       {view != null && r === false && (
                         <p className="vocab-answer-key">Đáp án đúng: {String(q.sampleAnswer ?? "").split("|").map(s => s.trim()).filter(Boolean).join(" / ")}</p>
                       )}
+                    </>
+                  )}
+
+                  {g.type === "true-false-table" && (
+                    <>
+                      <QBadge n={questionNumber(g, qi)} /><p className="vocab-question-text">{q.text}</p>
+                      <div className="vocab-options vocab-options-row">
+                        {[true, false].map(value => {
+                          const picked = answers[`${gi}-${qi}`] === value;
+                          const showState = view != null;
+                          const isRight = value === q.answer;
+                          return (
+                            <label
+                              key={String(value)}
+                              className={
+                                "vocab-option" +
+                                (picked ? " is-picked" : "") +
+                                (showState && isRight ? " is-correct" : "") +
+                                (showState && picked && !isRight ? " is-wrong" : "")
+                              }
+                            >
+                              <input
+                                type="radio"
+                                name={`ketpet-pt-tf-${gi}-${qi}`}
+                                checked={picked}
+                                disabled={result != null}
+                                onChange={() => setAnswer(gi, qi, value)}
+                              />
+                              <span>{value ? "TRUE" : "FALSE"}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
+
+                  {g.type === "free-response" && (
+                    <>
+                      <QBadge n={questionNumber(g, qi)} /><p className="vocab-question-text">{q.prompt}</p>
+                      <div className="open-ended-answer">
+                        {q.hint && <span className="open-ended-hint">{q.hint}</span>}
+                        <input
+                          className="open-ended-input"
+                          value={answers[`${gi}-${qi}`] ?? ""}
+                          disabled={result != null}
+                          onChange={e => setAnswer(gi, qi, e.target.value)}
+                          placeholder={q.hint ? "..." : "Type your answer"}
+                        />
+                      </div>
+                      {q.after && <p className="vocab-question-text" style={{ margin: "10px 0 0" }}>{q.after}</p>}
                     </>
                   )}
                 </div>
