@@ -61,8 +61,10 @@ export function openAssignment(o) {
 }
 
 // Link đầy đủ tới 1 bài để giáo viên gửi cho học sinh (nút "Copy link" ở trang Mở bài) — cùng tham số với
-// openAssignment(); chưa đăng nhập thì App.jsx hiện form đăng nhập rồi vào thẳng bài.
+// openAssignment(); chưa đăng nhập thì App.jsx hiện form đăng nhập rồi vào thẳng bài. Đi qua trang tĩnh
+// public/bai/index.html (ảnh + tiêu đề xem trước riêng khi dán link vào Zalo...) rồi mới chuyển vào app.
+// Dev server của Vite không phục vụ thư mục /bai/ (trả về app) nên lúc dev link vào thẳng app.
 export function assignmentLink(o) {
   const query = new URLSearchParams(assignmentParams(o)).toString();
-  return `${window.location.origin}${window.location.pathname}?${query}`;
+  return `${window.location.origin}${window.location.pathname}${import.meta.env.DEV ? "" : "bai/"}?${query}`;
 }

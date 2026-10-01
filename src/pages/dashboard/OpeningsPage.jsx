@@ -204,17 +204,28 @@ export default function OpeningsPage() {
     }
   }
 
-  // Copy link vào thẳng bài để gửi cho học sinh (Zalo...). Trình duyệt chặn clipboard thì hiện link để copy tay.
+  // Copy link vào thẳng bài để gửi cho học sinh (Zalo...). Clipboard API bị trình duyệt từ chối (quyền clipboard của
+  // trang bị chặn...) thì copy kiểu cũ qua ô textarea ẩn; vẫn không được mới hiện link để copy tay.
   async function handleCopyLink(o) {
     const link = assignmentLink(o);
     setError("");
+    let ok = false;
     try {
       await navigator.clipboard.writeText(link);
-      setCopiedId(o.id);
-      setTimeout(() => setCopiedId(id => (id === o.id ? null : id)), 2000);
+      ok = true;
     } catch {
-      setError(`Không copy được — link bài: ${link}`);
+      const ta = document.createElement("textarea");
+      ta.value = link;
+      ta.setAttribute("readonly", "");
+      ta.style.cssText = "position:fixed;top:0;left:0;opacity:0;";
+      document.body.appendChild(ta);
+      ta.select();
+      try { ok = document.execCommand("copy"); } catch {}
+      ta.remove();
     }
+    if (!ok) return setError(`Không copy được — link bài: ${link}`);
+    setCopiedId(o.id);
+    setTimeout(() => setCopiedId(id => (id === o.id ? null : id)), 2000);
   }
 
   async function handleClose(o) {
