@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import SubmittedNotice from "./SubmittedNotice.jsx";
-import Header from "./Header.jsx";
 import { useAuth } from "../lib/authContext.jsx";
 import { useTestSubmission } from "../lib/testSubmit.js";
 import KetPetPracticeTestQuiz from "./KetPetPracticeTestQuiz.jsx";
@@ -10,7 +9,7 @@ import { getKetPetPracticeTest } from "../lib/adminLessons.js";
 // KetPetVocabularyRunner.jsx: tải nội dung từ Firestore rồi giao phần tương tác cho
 // KetPetPracticeTestQuiz.jsx (dùng chung với Preview trong CMS). Cho làm lại thoải mái (không giới
 // hạn lượt, không qua attempts.js).
-export default function KetPetPracticeTestRunner({ grade, unit, testNumber, onNavigate, onBack, ctx }) {
+export default function KetPetPracticeTestRunner({ grade, unit, testNumber, onBack, ctx }) {
   const { isStaff, isTester } = useAuth();
   const canReview = isStaff || isTester; // hiện đáp án + cho làm lại: admin/giáo viên/tài khoản đặc biệt
   const [doc, setDoc] = useState(undefined); // undefined = đang tải, null = chưa có nội dung
@@ -42,25 +41,18 @@ export default function KetPetPracticeTestRunner({ grade, unit, testNumber, onNa
     return pending;
   }
 
+  // Cùng khung toàn màn hình với bài Reading (LessonsPage.jsx): thanh "Quay lại" + tên bài, thân bài cuộn bên trong.
   return (
-    <div className="home-v2 lessons-screen-v2">
-      <Header page="lessons" onNavigate={onNavigate} />
-      <div className="dark-hero-band dark-hero-band-sm">
-        <div className="dark-hero-inner dark-hero-inner-row">
-          <div className="dark-hero-text dark-hero-text-row">
-            <button className="lesson-back-link" onClick={onBack}>⬅ {`Grade ${grade} — Unit ${unit} — Practice Test`}</button>
-            <div className="dark-hero-titles">
-              <h1 className="dark-hero-title">{`Test ${testNumber}`}</h1>
-            </div>
-          </div>
-        </div>
+    <div className="reading-fullscreen">
+      <div className="speaking-fullscreen-topbar">
+        <button className="speaking-fullscreen-back" onClick={onBack}>⬅ Quay lại</button>
+        <span className="speaking-fullscreen-title">{`Grade ${grade} · Unit ${unit} · Practice Test ${testNumber}`}</span>
       </div>
-
-      <div className="content-grid-section content-grid-section-dark">
-        {doc === undefined && <p className="vocab-empty">Đang tải...</p>}
-        {doc === null && <p className="vocab-empty">Chưa có nội dung — quay lại sau nhé.</p>}
+      <div className="speaking-fullscreen-body reading-fullscreen-body">
+        {doc === undefined && <p className="ketpet-test-empty">Đang tải...</p>}
+        {doc === null && <p className="ketpet-test-empty">Chưa có nội dung — quay lại sau nhé.</p>}
         {doc && submittedOk && <SubmittedNotice openingId={ctx.openingId} onDone={onBack} />}
-        {doc && !submittedOk && <KetPetPracticeTestQuiz groups={doc.groups} limitMinutes={ctx?.limitMinutes} canRetry={!ctx?.studentUid || canReview} revealAnswers={canReview} onSubmitted={ctx ? handleSubmitted : undefined} />}
+        {doc && !submittedOk && <KetPetPracticeTestQuiz page groups={doc.groups} limitMinutes={ctx?.limitMinutes} canRetry={!ctx?.studentUid || canReview} revealAnswers={canReview} onSubmitted={ctx ? handleSubmitted : undefined} />}
       </div>
     </div>
   );

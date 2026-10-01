@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import ExamTimer, { useExamTimer } from "./ExamTimer.jsx";
-import { gradePracticeTestGroups, groupHeading, questionNumber } from "../lib/ketPetPracticeTest.js";
+import { gradePracticeTestGroups, questionNumber, toRoman } from "../lib/ketPetPracticeTest.js";
 import UnderlineText from "./UnderlineText.jsx";
 import SubmitStatus from "./SubmitStatus.jsx";
+import { SubmitConfirmDialog } from "./ReadingRunner.jsx";
 
 // Phần tương tác thuần (không Header/chrome) của 1 Test Practice Test KET/PET — TÁI DÙNG cho cả màn
 // học sinh làm thật (KetPetPracticeTestRunner.jsx, fetch từ Firestore) LẪN Preview trong CMS
@@ -19,22 +20,103 @@ function QBadge({ n }) {
   );
 }
 
-// Đầu mục của 1 nhóm: tiêu đề lớn (nếu có) + "Exercise N: hướng dẫn" hoặc số La Mã + mục con (nếu có).
+// Nhãn ngắn của nhóm ("Exercise 1" / số La Mã với đề cũ chưa có `label`) — null với nhóm nối tiếp không có đầu mục.
+function groupLabel(g, gi) {
+  if (g.label == null) return toRoman(gi + 1);
+  return String(g.label).trim() || null;
+}
+
+// Đầu mục của 1 nhóm — cùng khung với đầu Part của Reading (reading-part-head): tên mục + dòng hướng dẫn in nghiêng,
+// mục con (nếu có) ngay dưới.
 function GroupHead({ g, gi }) {
-  const heading = groupHeading(g, gi);
+  const label = groupLabel(g, gi);
+  const instruction = String(g.instruction ?? "").trim();
+  const title = g.label == null ? [label, instruction].filter(Boolean).join(". ") : label || instruction;
   return (
     <>
-      {g.section && <h3 className="vocab-section-title">{g.section}</h3>}
-      {heading && <p className="vocab-group-instruction">{heading}</p>}
+      {title && (
+        <div className="reading-part-head">
+          <h2>{title}</h2>
+          {g.label != null && label && instruction && <p className="reading-part-instruction">{instruction}</p>}
+        </div>
+      )}
       {g.subtitle && <p className="vocab-group-subtitle">{g.subtitle}</p>}
     </>
   );
 }
 
+function isAnswered(value) {
+  return value != null && String(value).trim() !== "";
+}
+
+// Cột trái "Danh sách câu hỏi" (cùng kiểu Reading) — chia theo từng nhóm vì số câu đánh lại theo sách trong mỗi nhóm.
+// Màn hẹp (điện thoại): cột này ẩn, bấm nút nổi "☰ x/y câu" ở góc dưới để trượt ra từ bên trái; chọn câu thì tự đóng.
+function QuestionListSidebar({ groups, answers }) {
+  const [open, setOpen] = useState(false);
+  function goTo(gi, qi) {
+    setOpen(false);
+    document.getElementById(`kq-${gi}-${qi}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+  const keys = groups.flatMap((g, gi) => g.questions.map((_, qi) => `${gi}-${qi}`));
+  const answeredCount = keys.filter(k => isAnswered(answers[k])).length;
+  const pct = keys.length ? Math.round((answeredCount / keys.length) * 100) : 0;
+  // Mỗi nhóm 1 lưới số riêng; nhóm không có đầu mục/mục con mà số câu NỐI TIẾP nhóm trước (cùng 1 bài bị tách làm
+  // nhiều nhóm) thì gộp chung lưới với nhóm trước.
+  const blocks = [];
+  groups.forEach((g, gi) => {
+    if (!g.questions.length) return;
+    const items = g.questions.map((_, qi) => ({ gi, qi, n: questionNumber(g, qi) }));
+    const label = groupLabel(g, gi);
+    const prev = blocks[blocks.length - 1];
+    if (prev && !label && !g.subtitle && items[0].n === prev.items[prev.items.length - 1].n + 1) prev.items.push(...items);
+    else blocks.push({ label, subtitle: g.subtitle, items });
+  });
+  return (
+    <>
+    <button type="button" className="ketpet-sidebar-toggle" aria-expanded={open} onClick={() => setOpen(true)}>
+      <span aria-hidden="true">☰</span> {answeredCount}/{keys.length} câu
+    </button>
+    {open && <div className="ketpet-sidebar-backdrop" role="presentation" onClick={() => setOpen(false)} />}
+    <div className={`reading-sidebar${open ? " is-open" : ""}`}>
+      <button type="button" className="ketpet-sidebar-close" aria-label="Đóng danh sách câu hỏi" onClick={() => setOpen(false)}>✕</button>
+      <h3 className="reading-sidebar-title">Danh sách câu hỏi</h3>
+      <div className="reading-sidebar-progress">
+        <div className="reading-sidebar-progress-bar">
+          <div className="reading-sidebar-progress-fill" style={{ width: `${pct}%` }} />
+        </div>
+        <span>{answeredCount}/{keys.length} câu</span>
+      </div>
+      {blocks.map((b, bi) => (
+        <Fragment key={bi}>
+          {b.label && <p className="reading-sidebar-group-label">{b.label}</p>}
+          {b.subtitle && <p className="reading-sidebar-group-sub">{b.subtitle}</p>}
+          <div className="reading-sidebar-grid">
+            {b.items.map(({ gi, qi, n }) => (
+              <button
+                key={`${gi}-${qi}`}
+                type="button"
+                className={`reading-sidebar-dot${isAnswered(answers[`${gi}-${qi}`]) ? " is-answered" : ""}`}
+                onClick={() => goTo(gi, qi)}
+              >
+                {n}
+              </button>
+            ))}
+          </div>
+        </Fragment>
+      ))}
+      <p className="reading-sidebar-hint">● Đã làm</p>
+    </div>
+    </>
+  );
+}
+
 // revealAnswers=true CHỈ dùng cho Preview trong CMS (giáo viên xem đáp án). Học sinh luôn chỉ thấy số câu đúng/tổng.
-export default function KetPetPracticeTestQuiz({ groups, revealAnswers = false, limitMinutes, canRetry = true, onSubmitted }) {
+// page=true: màn học sinh làm bài toàn màn hình (KetPetPracticeTestRunner.jsx) — thêm cột "Danh sách câu hỏi" ghim
+// bên trái + hỏi lại trước khi nộp, giống ReadingRunner.jsx. Preview trong CMS không có 2 phần này.
+export default function KetPetPracticeTestQuiz({ groups, revealAnswers = false, limitMinutes, canRetry = true, onSubmitted, page = false }) {
   const [answers, setAnswers] = useState({});
   const [result, setResult] = useState(null);
+  const [confirmingSubmit, setConfirmingSubmit] = useState(false);
   const view = revealAnswers ? result : null;
 
   function setAnswer(gi, qi, value) {
@@ -44,6 +126,7 @@ export default function KetPetPracticeTestQuiz({ groups, revealAnswers = false, 
   // chờ điểm đó rồi mới hiện. Preview CMS / admin / giáo viên (có đáp án) chấm tại chỗ như trước.
   const [submitState, setSubmitState] = useState(null); // { error? } khi đang nộp/lỗi
   async function handleSubmit() {
+    setConfirmingSubmit(false);
     if (result || (submitState && !submitState.error)) return;
     const graded = gradePracticeTestGroups(groups, answers);
     const pending = onSubmitted?.(graded, answers);
@@ -126,13 +209,16 @@ export default function KetPetPracticeTestQuiz({ groups, revealAnswers = false, 
   if (!groups?.length) return <p className="vocab-empty">Chưa có câu hỏi nào.</p>;
 
   return (
-    <div className="vocab-runner">
+    <div className={page ? "reading-runner reading-runner-page ketpet-test" : "vocab-runner ketpet-test"}>
       {onSubmitted && <ExamTimer timer={timer} />}
-      <section className="vocab-block">
+      {page && <QuestionListSidebar groups={groups} answers={answers} />}
+      <div className={page ? "reading-runner-main" : "ketpet-test-main"}>
         {groups.map((g, gi) => {
           if (g.type === "split-reading") {
             return (
-              <div className="vocab-group" key={gi}>
+              <Fragment key={gi}>
+              {g.section && <h3 className="ketpet-section-title">{g.section}</h3>}
+              <div className="reading-part">
                 <GroupHead g={g} gi={gi} />
                 {g.task && <p className="vocab-group-subtitle">{g.task}</p>}
                 <div className="vocab-split-columns">
@@ -141,17 +227,20 @@ export default function KetPetPracticeTestQuiz({ groups, revealAnswers = false, 
                   </div>
                   <div className="vocab-split-questions">
                     {g.questions.map((q, qi) => (
-                      <div className="vocab-question" key={qi}>
+                      <div className="reading-question" id={`kq-${gi}-${qi}`} key={qi}>
                         {renderSplitQuestionBody(q, gi, qi, view?.results?.[gi]?.[qi])}
                       </div>
                     ))}
                   </div>
                 </div>
               </div>
+              </Fragment>
             );
           }
           return (
-          <div className="vocab-group" key={gi}>
+          <Fragment key={gi}>
+          {g.section && <h3 className="ketpet-section-title">{g.section}</h3>}
+          <div className="reading-part">
             <GroupHead g={g} gi={gi} />
             {g.passage && <p className="vocab-passage">{g.passage}</p>}
             {g.task && <p className="vocab-group-subtitle">{g.task}</p>}
@@ -163,10 +252,11 @@ export default function KetPetPracticeTestQuiz({ groups, revealAnswers = false, 
               </div>
             )}
 
+            <div className="reading-question-list">
             {g.questions.map((q, qi) => {
               const r = view?.results?.[gi]?.[qi];
               return (
-                <div className="vocab-question" key={qi}>
+                <div className="reading-question" id={`kq-${gi}-${qi}`} key={qi}>
                   {g.type === "multiple-choice" && (
                     <>
                       <QBadge n={questionNumber(g, qi)} /><p className="vocab-question-text">{q.text}</p>
@@ -340,23 +430,33 @@ export default function KetPetPracticeTestQuiz({ groups, revealAnswers = false, 
                 </div>
               );
             })}
+            </div>
           </div>
+          </Fragment>
           );
         })}
-      </section>
 
-      <div className="vocab-footer">
-        {submitState ? (
-          <SubmitStatus error={submitState.error} onRetry={handleSubmit} />
-        ) : result == null ? (
-          <button type="button" className="vocab-submit-btn" onClick={handleSubmit}>Nộp bài</button>
-        ) : (
-          <>
-            <p className="vocab-score">Điểm: {result.correct.toFixed(2).replace(/\.00$/, "")}/{result.total.toFixed(2).replace(/\.00$/, "")}</p>
-            {canRetry && <button type="button" className="vocab-submit-btn" onClick={handleRetry}>Làm lại</button>}
-          </>
-        )}
+        <div className="vocab-footer">
+          {submitState ? (
+            <SubmitStatus error={submitState.error} onRetry={handleSubmit} />
+          ) : result == null ? (
+            <button type="button" className="btn btn-primary" onClick={page ? () => setConfirmingSubmit(true) : handleSubmit}>Nộp bài</button>
+          ) : (
+            <>
+              <p className="vocab-score">Điểm: {result.correct.toFixed(2).replace(/\.00$/, "")}/{result.total.toFixed(2).replace(/\.00$/, "")}</p>
+              {canRetry && <button type="button" className="btn btn-primary" onClick={handleRetry}>Làm lại</button>}
+            </>
+          )}
+        </div>
       </div>
+
+      {confirmingSubmit && (
+        <SubmitConfirmDialog
+          unansweredCount={groups.reduce((n, g, gi) => n + g.questions.filter((_, qi) => !isAnswered(answers[`${gi}-${qi}`])).length, 0)}
+          onCancel={() => setConfirmingSubmit(false)}
+          onConfirm={handleSubmit}
+        />
+      )}
     </div>
   );
 }

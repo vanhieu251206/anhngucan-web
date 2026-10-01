@@ -3500,6 +3500,49 @@ button { font-family: inherit; }
 .vocab-reorder-row.is-correct { border-color: #2fb872; background: #f0fbf4; }
 .vocab-reorder-row.is-wrong { border-color: #e0576b; background: #fdf1f2; }
 .vocab-reorder-select { width: 70px; flex-shrink: 0; }
+/* Practice Test KET/PET (KetPetPracticeTestQuiz.jsx) — dùng khung của Reading (.reading-part/.reading-question/
+   .reading-sidebar): mỗi nhóm câu hỏi 1 thẻ trắng trên nền kem, đổi các chi tiết tím của Vocabulary sang cam san hô. */
+.ketpet-test-main { display: flex; flex-direction: column; gap: 18px; }
+.ketpet-test-empty { width: 100%; margin: 0; text-align: center; padding: 40px 0; color: var(--color-muted); font-weight: 600; }
+.ketpet-section-title { margin: 6px 0 -4px; text-align: center; font-family: var(--font-display); font-weight: 800; font-size: 1.2rem; color: var(--color-ink); }
+.reading-sidebar-group-label { margin: 14px 0 6px; font-size: 0.78rem; font-weight: 800; color: var(--color-muted); }
+/* Mục con trong cùng 1 Exercise ("1. Suggestion"...) — mỗi mục 1 lưới số riêng, tách nhau bằng tên mục hoặc khoảng trống. */
+.reading-sidebar-group-sub { margin: 10px 0 6px; font-size: 0.74rem; font-weight: 700; color: var(--color-muted); opacity: 0.85; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.reading-sidebar-group-label + .reading-sidebar-group-sub { margin-top: 0; }
+.reading-sidebar-grid + .reading-sidebar-grid { margin-top: 14px; padding-top: 14px; border-top: 2px dashed #f1ebdd; }
+.ketpet-test .reading-part > p, .ketpet-test .reading-part > .vocab-word-bank { margin: 0; }
+.ketpet-test .vocab-question-text { margin: 0; }
+.ketpet-test .vocab-passage { background: #fff8ec; border-left-color: var(--color-primary); }
+.ketpet-test .vocab-word-bank-item { border-color: var(--color-primary); color: var(--color-primary-dark); background: #fff8ec; }
+.ketpet-test .vocab-question-hint { color: var(--color-primary-dark); }
+.ketpet-test .vocab-split-questions { display: flex; flex-direction: column; gap: 14px; }
+/* 4 đáp án A-D nằm trọn 1 hàng trong thẻ (cột chính hẹp hơn vì có sidebar), màn hẹp tự xuống 2x2. */
+.ketpet-test .vocab-options-row { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+.ketpet-sidebar-toggle, .ketpet-sidebar-close, .ketpet-sidebar-backdrop { display: none; }
+/* Điện thoại: "Danh sách câu hỏi" thành ngăn trượt từ mép trái, mở bằng nút nổi góc dưới (QuestionListSidebar). */
+@media (max-width: 820px) {
+  .ketpet-test .vocab-options-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ketpet-test .reading-sidebar {
+    position: fixed; z-index: 1102; top: 0; bottom: 0; left: 0; width: min(290px, 84vw); max-height: none; margin: 0;
+    border-width: 0 2px 0 0; border-radius: 0; padding: 18px; overflow-y: auto;
+    transform: translateX(-105%); transition: transform 0.22s ease; box-shadow: 8px 0 28px rgba(60, 40, 20, 0.18);
+  }
+  .ketpet-test .reading-sidebar.is-open { transform: none; }
+  .ketpet-test .reading-sidebar-grid { grid-template-columns: repeat(auto-fill, 36px); gap: 10px; }
+  .ketpet-sidebar-backdrop { display: block; position: fixed; inset: 0; z-index: 1101; background: rgba(40, 30, 20, 0.4); }
+  .ketpet-sidebar-toggle {
+    display: inline-flex; align-items: center; gap: 8px; position: fixed; z-index: 1100; left: 14px; bottom: 16px;
+    border: 2px solid #ece6da; border-radius: var(--radius-pill); background: #fff; color: var(--color-ink);
+    padding: 10px 16px; font: inherit; font-weight: 800; font-size: 0.9rem; cursor: pointer; box-shadow: var(--shadow-soft);
+  }
+  .ketpet-sidebar-close {
+    display: block; position: absolute; top: 12px; right: 12px; width: 34px; height: 34px; border-radius: 50%;
+    border: 2px solid #ece6da; background: #fff; color: var(--color-muted); font-weight: 800; cursor: pointer;
+  }
+  .ketpet-test .reading-runner-main { padding-bottom: 84px; }
+}
+.ketpet-test .vocab-footer { padding: 6px 0 12px; }
+.ketpet-test .vocab-score { color: var(--color-primary-dark); font-family: var(--font-display); }
 .vocab-footer { text-align: center; padding-bottom: 12px; }
 .vocab-score { font-weight: 800; font-size: 1.2rem; color: #fff; margin: 0 0 14px; }
 .vocab-submit-btn {

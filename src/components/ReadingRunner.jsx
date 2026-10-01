@@ -1143,7 +1143,7 @@ export default function ReadingRunner({ parts, onFinish, studentUid, seriesId, l
 // Modal xác nhận nộp bài — tự thiết kế theo đúng theme cam san hô/xanh ngọc của site (KHÔNG dùng
 // window.confirm() mặc định, cũng không dùng lại ConfirmDialog.jsx của khu vực admin vì nó gắn với
 // theme --admin-accent màu xanh dương riêng của Dashboard, không hợp màu với trang học sinh).
-function SubmitConfirmDialog({ unansweredCount, onCancel, onConfirm }) {
+export function SubmitConfirmDialog({ unansweredCount, onCancel, onConfirm }) {
   const hasUnanswered = unansweredCount > 0;
   return (
     <div className="reading-submit-overlay" role="presentation" onClick={onCancel}>
