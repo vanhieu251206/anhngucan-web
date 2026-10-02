@@ -3,7 +3,9 @@
 // xem ketPetPracticeTest.js): GV tạo 1 nhóm, CHỌN DẠNG cho cả nhóm, nhập hướng dẫn làm bài + đoạn văn
 // dùng chung (nếu có) + tổng điểm của nhóm, rồi bấm "+ Thêm câu" nhiều lần — mỗi câu thêm vào LUÔN
 // theo đúng dạng của nhóm. Điểm mỗi câu trong nhóm = tổng điểm nhóm / số câu.
-export { toRoman } from "./ketPetPracticeTest.js";
+import { isFillBlankCorrect } from "./ketPetPracticeTest.js";
+
+export { toRoman, isFillBlankCorrect } from "./ketPetPracticeTest.js";
 
 export const GROUP_TYPES = [
   { key: "multiple-choice", label: "Trắc nghiệm (Choose the correct word — 2-4 đáp án)" },
@@ -17,16 +19,6 @@ export const GROUP_TYPES = [
   { key: "translation", label: "Dịch câu (Translation — chỉ hiện đáp án mẫu, không chấm điểm)" },
   { key: "listen-and-type", label: "Nghe — viết từ (mỗi câu 1 audio riêng)" },
 ];
-
-function normalize(str) {
-  return (str ?? "").trim().toLowerCase().replace(/\s+/g, " ");
-}
-
-export function isFillBlankCorrect(userAnswer, acceptedAnswers) {
-  const normalized = normalize(userAnswer);
-  if (!normalized) return false;
-  return (acceptedAnswers ?? []).some(a => normalize(a) === normalized);
-}
 
 // 1 câu hỏi TRONG 1 nhóm — không có field `type`/`points` riêng, thừa hưởng từ nhóm cha.
 // - "categorize": `columnIndex` là vị trí cột đúng trong `group.columns`.

@@ -340,7 +340,8 @@ export default function KetPetPracticeTestStudio({
                           <CommaListInput
                             value={q.acceptedAnswers}
                             onChange={acceptedAnswers => updateQuestion(gi, qi, { acceptedAnswers })}
-                            placeholder="Đáp án đúng, cách nhau bằng dấu phẩy nếu có nhiều cách viết"
+                            separator="|"
+                            placeholder="Đáp án — nhiều cách viết ngăn bằng | — VD: favourite | favorite"
                           />
                         </>
                       )}
@@ -364,7 +365,8 @@ export default function KetPetPracticeTestStudio({
                       <CommaListInput
                         value={q.acceptedAnswers}
                         onChange={acceptedAnswers => updateQuestion(gi, qi, { acceptedAnswers })}
-                        placeholder="Đáp án đúng, cách nhau bằng dấu phẩy nếu có nhiều cách viết"
+                        separator="|"
+                        placeholder="Đáp án — nhiều cách viết ngăn bằng | — VD: is not | isn't"
                       />
                     </>
                   )}

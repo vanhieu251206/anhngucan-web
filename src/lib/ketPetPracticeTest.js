@@ -23,27 +23,28 @@ export const SPLIT_QUESTION_TYPES = [
   { key: "multiple-choice", label: "Trắc nghiệm A/B/C/D" },
 ];
 
-function normalize(str) {
-  return (str ?? "").trim().toLowerCase().replace(/\s+/g, " ");
-}
-
-export function isFillBlankCorrect(userAnswer, acceptedAnswers) {
-  const normalized = normalize(userAnswer);
-  if (!normalized) return false;
-  return (acceptedAnswers ?? []).some(a => normalize(a) === normalized);
-}
-
-// Tự luận (chấm điểm từ 2026-09-27): câu = { prompt, hint, sampleAnswer }. `hint` là vài từ cô cho sẵn, hiện ở đầu chỗ
-// học sinh viết (học sinh viết tiếp phần còn lại). `sampleAnswer` = đáp án, nhiều cách viết ngăn bằng "|". So khớp bỏ
-// qua hoa/thường, dấu câu, khoảng trắng thừa; chấp nhận cả khi học sinh chỉ viết phần sau gợi ý lẫn chép lại cả câu.
+// Chuẩn hoá DÙNG CHUNG cho mọi câu trả lời gõ chữ của KET/PET (điền từ, khung từ, xáo từ, nghe viết, tự luận — cả
+// Practice Test lẫn Vocabulary, chốt 2026-10-02): bỏ qua hoa/thường, dấu câu, khoảng trắng thừa, nháy cong/thẳng
+// (bàn phím điện thoại hay tự gõ ’). Ngoài ra máy KHÔNG tự đoán gì — cách viết khác (favourite/favorite, is not/isn't)
+// chỉ đúng khi giáo viên liệt kê, ngăn bằng "|".
 function normalizeSentence(str) {
   return String(str ?? "")
     .toLowerCase()
-    .replace(/[‘’`]/g, "'")
+    .replace(/[‘’ʼ`´]/g, "'")
     .replace(/[.,!?;:"“”()]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 }
+
+export function isFillBlankCorrect(userAnswer, acceptedAnswers) {
+  const normalized = normalizeSentence(userAnswer);
+  if (!normalized) return false;
+  return (acceptedAnswers ?? []).some(a => normalizeSentence(a) === normalized);
+}
+
+// Tự luận (chấm điểm từ 2026-09-27): câu = { prompt, hint, sampleAnswer }. `hint` là vài từ cô cho sẵn, hiện ở đầu chỗ
+// học sinh viết (học sinh viết tiếp phần còn lại). `sampleAnswer` = đáp án, nhiều cách viết ngăn bằng "|". Chấp nhận
+// cả khi học sinh chỉ viết phần sau gợi ý lẫn chép lại cả câu.
 
 export function openEndedFullAnswer(hint, userAnswer) {
   return [hint, userAnswer].map(s => String(s ?? "").trim()).filter(Boolean).join(" ");

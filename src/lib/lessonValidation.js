@@ -257,6 +257,10 @@ export function validateKetPetGroups(groups) {
         checkChoices(w, q.options, q.answerIndex, out);
       } else if (type === "fill-blank" || type === "word-scramble" || type === "listen-and-type") {
         if (!(q.acceptedAnswers ?? []).some(filled)) out.push(`${w}: chưa có đáp án.`);
+        // Ô đáp án ngăn bằng "|" (trước 2026-10-02 là dấu phẩy) — nhắc khi cô quen tay gõ phẩy. Xáo từ thành câu thì bỏ qua.
+        else if (type !== "word-scramble" && q.acceptedAnswers.length === 1 && q.acceptedAnswers[0].includes(",")) {
+          out.push(`${w}: đáp án có dấu phẩy — nhiều cách viết thì ngăn bằng |.`);
+        }
         if (type === "listen-and-type" && !q.audioUrl) out.push(`${w}: chưa có audio.`);
         if (type === "word-scramble" && !(q.words ?? []).length) out.push(`${w}: chưa có các từ xáo trộn.`);
       } else if (type === "word-bank") {

@@ -250,7 +250,8 @@ export default function KetPetVocabularyStudio({
                       <CommaListInput
                         value={q.acceptedAnswers}
                         onChange={acceptedAnswers => updateQuestion(gi, qi, { acceptedAnswers })}
-                        placeholder="Đáp án đúng, cách nhau bằng dấu phẩy nếu có nhiều cách viết"
+                        separator="|"
+                        placeholder="Đáp án — nhiều cách viết ngăn bằng | — VD: favourite | favorite"
                       />
                     </>
                   )}
@@ -331,7 +332,8 @@ export default function KetPetVocabularyStudio({
                       <CommaListInput
                         value={q.acceptedAnswers}
                         onChange={acceptedAnswers => updateQuestion(gi, qi, { acceptedAnswers })}
-                        placeholder="Câu đúng, cách nhau bằng dấu phẩy nếu có nhiều cách viết — VD: Listening to classical music is my mother's hobby."
+                        separator="|"
+                        placeholder="Câu đúng — nhiều cách viết ngăn bằng | — VD: Listening to classical music is my mother's hobby."
                       />
                     </>
                   )}
@@ -346,7 +348,8 @@ export default function KetPetVocabularyStudio({
                       <CommaListInput
                         value={q.acceptedAnswers}
                         onChange={acceptedAnswers => updateQuestion(gi, qi, { acceptedAnswers })}
-                        placeholder="Đáp án đúng, cách nhau bằng dấu phẩy nếu có nhiều cách viết — VD: colour, color"
+                        separator="|"
+                        placeholder="Đáp án — nhiều cách viết ngăn bằng | — VD: colour | color"
                       />
                     </>
                   )}
