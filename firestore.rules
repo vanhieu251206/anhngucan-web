@@ -247,6 +247,12 @@ service cloud.firestore {
       allow create, update, delete: if isFullStaff();
     }
 
+    // Học phí theo lớp + tháng (lib/tuitionStore.js, 2026-10-02): id doc = "<tên lớp>__<YYYY-MM>". Chỉ admin + giáo
+    // viên chính đọc/ghi; học sinh và giáo viên phụ không đọc được.
+    match /tuitionBills/{billId} {
+      allow read, write: if isFullStaff();
+    }
+
     // Sách online (Kids) — xem lib/adminLessons.js listKidsBooks/saveKidsBook. Không theo cấu trúc
     // Level/Test nên không có seriesId để canEditLesson() lọc — giáo viên bị giới hạn bộ đề vẫn
     // soạn được sách Kids (chốt 2026-09-23, mục này chưa nằm trong phạm vi allowedSeriesIds).

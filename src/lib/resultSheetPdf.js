@@ -1,43 +1,12 @@
 // Phiếu chấm bài (PDF) gửi phụ huynh — chốt 2026-09-25. Chỉ tải được SAU hạn chót của lần mở bài và TRƯỚC khi kết
 // quả bị xoá (48h sau hạn chót, xem lib/testResults.js). Thiết kế cho giấy in TRẮNG ĐEN: không nền màu, chữ đen,
 // câu sai tô xám nhạt + chữ "Sai" in đậm để phân biệt được khi in đen trắng. Chữ vector (nhúng font Be Vietnam Pro,
-// public/assets/fonts, giấy phép OFL) nên in sắc nét; bảng dài tự sang trang (jspdf-autotable). Thư viện + font chỉ
-// tải khi bấm nút.
+// lib/pdfDoc.js) nên in sắc nét; bảng dài tự sang trang (jspdf-autotable). Thư viện + font chỉ tải khi bấm nút.
 import { RESULT_MODE_LABEL, RESULT_KEEP_MS } from "./testResults.js";
+import { FONT, newDoc, safeName } from "./pdfDoc.js";
 
-const FONT = "BeVietnamPro";
 const PAGE_W = 210;
 const MARGIN = 14;
-
-async function loadFontBase64(file) {
-  const res = await fetch(`${import.meta.env.BASE_URL}assets/fonts/${file}`);
-  if (!res.ok) throw new Error("Không tải được font cho phiếu PDF.");
-  const bytes = new Uint8Array(await res.arrayBuffer());
-  let bin = "";
-  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-  return btoa(bin);
-}
-
-let fontsPromise = null;
-function loadFonts() {
-  fontsPromise ??= Promise.all([loadFontBase64("BeVietnamPro-Regular.ttf"), loadFontBase64("BeVietnamPro-Bold.ttf")]).catch(err => {
-    fontsPromise = null;
-    throw err;
-  });
-  return fontsPromise;
-}
-
-async function newDoc() {
-  const [{ jsPDF }, { autoTable }, [regular, bold]] = await Promise.all([import("jspdf"), import("jspdf-autotable"), loadFonts()]);
-  const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-  pdf.addFileToVFS("BeVietnamPro-Regular.ttf", regular);
-  pdf.addFont("BeVietnamPro-Regular.ttf", FONT, "normal");
-  pdf.addFileToVFS("BeVietnamPro-Bold.ttf", bold);
-  pdf.addFont("BeVietnamPro-Bold.ttf", FONT, "bold");
-  pdf.setFont(FONT, "normal");
-  pdf.setTextColor(0);
-  return { pdf, autoTable };
-}
 
 const toDate = v => (v?.toDate ? v.toDate() : v instanceof Date ? v : null);
 const pad = n => String(n).padStart(2, "0");
@@ -216,8 +185,6 @@ function addPageNumbers(pdf) {
     pdf.text(`Trang ${i}/${n}`, PAGE_W / 2, 297 - 8, { align: "center" });
   }
 }
-
-const safeName = s => (s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/gi, "d").replace(/[^a-z0-9.]+/gi, "-").replace(/^-|-$/g, "");
 
 // Nhiều lượt nộp của cùng 1 em → ghi "Lượt 1", "Lượt 2"... theo thời gian nộp.
 function labelAttempts(results) {

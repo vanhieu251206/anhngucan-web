@@ -9,6 +9,7 @@ import AccountsPage from "./dashboard/AccountsPage.jsx";
 import StudentAccountsPage from "./dashboard/StudentAccountsPage.jsx";
 import OpeningsPage from "./dashboard/OpeningsPage.jsx";
 import StudentResultsPage from "./dashboard/StudentResultsPage.jsx";
+import TuitionPage from "./dashboard/TuitionPage.jsx";
 import SpeechLogsPage from "./dashboard/SpeechLogsPage.jsx";
 import ImageSplitterPage from "./dashboard/ImageSplitterPage.jsx";
 import { ConfirmProvider } from "../components/dashboard/ConfirmDialog.jsx";
@@ -21,6 +22,7 @@ const ADMIN_ITEMS = [
   { key: "accounts", label: "Quản lý tài khoản" },
   { key: "openings", label: "Mở bài" },
   { key: "results", label: "Kết quả học sinh" },
+  { key: "tuition", label: "Học phí" },
   { key: "speech-logs", label: "Log phát âm" },
 ];
 // Admin: 3 mục cũ (Quản lý học sinh / Cấu hình tài khoản giáo viên / Tài khoản đặc biệt) gộp vào "Quản lý tài khoản"
@@ -38,6 +40,7 @@ const TEACHER_ITEMS = [
   { key: "students", label: "Quản lý học sinh" },
   { key: "openings", label: "Mở bài" },
   { key: "results", label: "Kết quả học sinh" },
+  { key: "tuition", label: "Học phí" },
   { key: "teachers", label: "Phân quyền giáo viên phụ" },
 ];
 // Giáo viên BỊ GIỚI HẠN (restricted=true, vd người dạy ngắn hạn/vài lớp) — không thấy "Tài khoản
@@ -130,6 +133,7 @@ export default function DashboardPage({ onNavigate }) {
             {section === "accounts" && isAdmin && <AccountsPage />}
             {section === "speech-logs" && isAdmin && <SpeechLogsPage />}
             {section === "results" && (isAdmin || isTeacher) && <StudentResultsPage />}
+            {section === "tuition" && (isAdmin || (isTeacher && !isRestrictedTeacher)) && <TuitionPage />}
           </div>
         </div>
       </div>
