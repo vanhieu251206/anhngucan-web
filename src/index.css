@@ -4721,6 +4721,7 @@ button.wizard-step:focus-visible { outline: 3px solid var(--color-secondary); ou
 .results-modal { width: min(900px, calc(100vw - 32px)); }
 .results-parts { list-style: none; padding: 0; margin: 12px 0 0; display: grid; gap: 8px; }
 .results-parts li { display: flex; justify-content: space-between; padding: 10px 14px; background: #f8f9fc; border-radius: 10px; }
+.results-section-row td { background: #f8f9fc; }
 @media (max-width: 600px) { .results-stats { grid-template-columns: 1fr; } }
 
 /* Danh sách trang thumbnail — KidsBookStudio.jsx (CMS, sau khi tải PDF hàng loạt) */
@@ -5025,3 +5026,43 @@ button.wizard-step:focus-visible { outline: 3px solid var(--color-secondary); ou
 }
 .admin-insert-btn:hover:not(:disabled) { opacity: 1; border-style: solid; border-color: var(--accent, #3b5bdb); color: var(--accent, #3b5bdb); }
 .admin-insert-btn:disabled { cursor: not-allowed; opacity: 0.4; }
+
+/* ---------- Tổng quan khu vực quản trị (pages/dashboard/OverviewPage.jsx) ---------- */
+.overview { display: flex; flex-direction: column; gap: 20px; }
+.overview-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px; }
+.overview-stat {
+  background: #fff; border: 1px solid var(--admin-border); border-radius: 14px; padding: 16px 20px;
+  display: flex; flex-direction: column; gap: 2px; text-align: left; cursor: pointer; font: inherit;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+.overview-stat:hover { border-color: var(--admin-accent); box-shadow: var(--admin-shadow-md); transform: translateY(-1px); }
+.overview-stat span { font-size: 1.8rem; font-weight: 800; color: var(--admin-accent); line-height: 1.1; }
+.overview-stat small { color: var(--admin-muted); font-weight: 600; font-size: 0.85rem; }
+.overview-stat.is-warn span { color: #c62828; }
+.overview-alerts { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 10px; }
+.overview-alerts li {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 12px 16px; border-radius: 12px; background: #fff8ea; border: 1px solid #f5dfae;
+}
+.overview-alerts li.is-urgent { background: #fdf0f0; border-color: #f3c9c9; }
+.overview-alerts li > div { min-width: 0; }
+.overview-alerts p { margin: 2px 0 0; font-size: 0.9rem; overflow-wrap: anywhere; }
+.overview-alerts .opening-btn { flex-shrink: 0; }
+.overview-progress-label { font-weight: 700; font-size: 0.9rem; }
+.overview-progress { width: 120px; max-width: 100%; height: 6px; border-radius: 999px; background: #e9ecf3; overflow: hidden; margin-top: 4px; }
+.overview-progress span { display: block; height: 100%; border-radius: 999px; background: #2f9e58; }
+.overview-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start; }
+.overview-schedule { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; }
+.overview-schedule li { display: flex; align-items: center; gap: 14px; padding: 10px 0; border-bottom: 1px solid var(--admin-border); }
+.overview-schedule li:last-child { border-bottom: none; }
+.overview-schedule p { margin: 2px 0 0; font-size: 0.85rem; }
+.overview-schedule-time {
+  flex-shrink: 0; min-width: 64px; text-align: center; padding: 6px 10px; border-radius: 10px;
+  background: var(--admin-sidebar-active-bg); color: var(--admin-accent); font-weight: 800;
+}
+.overview-tuition-summary { margin: 0 0 4px; }
+@media (max-width: 900px) { .overview-grid { grid-template-columns: 1fr; } }
+@media (max-width: 600px) {
+  .overview-stats { grid-template-columns: 1fr 1fr; }
+  .overview-alerts li { flex-direction: column; align-items: flex-start; }
+}

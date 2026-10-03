@@ -124,7 +124,7 @@ export default function DashboardPage({ onNavigate }) {
             <strong>{items.find(i => i.key === section)?.label ?? ""}</strong>
           </div>
           <div className="admin-content">
-            {section === "overview" && (isAdmin || (isTeacher && !isRestrictedTeacher)) && <OverviewPage />}
+            {section === "overview" && (isAdmin || (isTeacher && !isRestrictedTeacher)) && <OverviewPage onGo={setSection} />}
             {section === "create-lesson" && (isAdmin || isTeacher) && <CreateLessonPage />}
             {section === "image-splitter" && isAdmin && <ImageSplitterPage />}
             {section === "students" && (isAdmin || (isTeacher && !isRestrictedTeacher)) && <StudentAccountsPage />}
