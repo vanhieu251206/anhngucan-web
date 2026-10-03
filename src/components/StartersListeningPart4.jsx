@@ -425,8 +425,17 @@ export default function StartersListeningPart4Runner({ part, submitted, reveal =
 
   const wbox = items.find(isWriteItem)?.box;
   const labelSize = wbox ? Math.min(5, Math.max(2, wbox.h * (art.h / (art.w || 1)) * 0.8)) : 3;
-  const isRight = it =>
-    isWriteItem(it) ? labels.some(l => normText(l.text) === normText(it.answer) && inBox(l, it.box)) : !!graded[it.id];
+  const isRight = (it, g = graded) =>
+    isWriteItem(it) ? labels.some(l => normText(l.text) === normText(it.answer) && inBox(l, it.box)) : !!g[it.id];
+
+  // Chấm NGAY lúc bấm nộp: `submitted` chỉ bật sau khi máy chủ nhận bài (học sinh) nên `score` bên dưới lúc đó vẫn
+  // là 0 — trang làm bài gọi getScore() để lấy điểm thật gửi lên. Ref để luôn dùng lớp tô/chữ mới nhất.
+  const scoreNowRef = useRef(() => 0);
+  scoreNowRef.current = () => {
+    const ready = art.orig && layerRef.current && colourItems.length;
+    const g = ready ? gradeColours(layerRef.current, colourItems, Object.fromEntries(colourItems.map(it => [it.id, buildMask(it.ops, art.w, art.h, art.orig)]))) : {};
+    return items.filter(it => isRight(it, g)).length;
+  };
 
   function addLabel() {
     const text = draft.trim();
@@ -452,7 +461,7 @@ export default function StartersListeningPart4Runner({ part, submitted, reveal =
   }
   const score = submitted ? items.filter(isRight).length : 0;
   useEffect(() => {
-    onScore?.({ score, total: items.length });
+    onScore?.({ score, total: items.length, getScore: () => scoreNowRef.current() });
   }, [score, items.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const canPaint = !submitted && (!!color || tool === "erase");
