@@ -15,14 +15,15 @@ import ImageSplitterPage from "./dashboard/ImageSplitterPage.jsx";
 import { ConfirmProvider } from "../components/dashboard/ConfirmDialog.jsx";
 import { readParams, setParams } from "../lib/urlState.js";
 
+// Thứ tự sidebar theo luồng việc: soạn bài → mở bài → xem kết quả, rồi tới lớp/tài khoản, học phí, cuối là công cụ phụ.
 const ADMIN_ITEMS = [
   { key: "overview", label: "Tổng quan" },
   { key: "create-lesson", label: "Tạo bài" },
-  { key: "image-splitter", label: "Tách ảnh" },
-  { key: "accounts", label: "Quản lý tài khoản" },
   { key: "openings", label: "Mở bài" },
   { key: "results", label: "Kết quả học sinh" },
+  { key: "accounts", label: "Quản lý tài khoản" },
   { key: "tuition", label: "Học phí" },
+  { key: "image-splitter", label: "Tách ảnh" },
   { key: "speech-logs", label: "Log phát âm" },
 ];
 // Admin: 3 mục cũ (Quản lý học sinh / Cấu hình tài khoản giáo viên / Tài khoản đặc biệt) gộp vào "Quản lý tài khoản"
@@ -37,11 +38,11 @@ const LEGACY_ACCOUNT_SECTIONS = ["students", "teachers", "testers"];
 const TEACHER_ITEMS = [
   { key: "overview", label: "Tổng quan" },
   { key: "create-lesson", label: "Tạo bài" },
-  { key: "students", label: "Quản lý học sinh" },
   { key: "openings", label: "Mở bài" },
   { key: "results", label: "Kết quả học sinh" },
-  { key: "tuition", label: "Học phí" },
+  { key: "students", label: "Quản lý học sinh" },
   { key: "teachers", label: "Phân quyền giáo viên phụ" },
+  { key: "tuition", label: "Học phí" },
 ];
 // Giáo viên BỊ GIỚI HẠN (restricted=true, vd người dạy ngắn hạn/vài lớp) — không thấy "Tài khoản
 // học sinh" (không được xem/tạo học sinh) và không tự phân quyền cho ai khác.
