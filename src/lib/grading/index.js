@@ -4,8 +4,8 @@ import { gradeReading } from "./reading.js";
 import { flattenPassages, flattenSections, gradeIelts } from "./ielts.js";
 import { gradeVocabularyGroups } from "../ketPetVocabulary.js";
 import { gradePracticeTestGroups, openEndedFullAnswer } from "../ketPetPracticeTest.js";
-import { serverGrader } from "./listeningExam.js";
-import { itemReady } from "./canvasParts.js";
+import { serverGrader, gradeCanvasPart } from "./listeningExam.js";
+import { isWriteItem, itemReady } from "./canvasParts.js";
 import { gradeVocabItems } from "./vocab.js";
 
 // Dạng bài Worker tự chấm từ câu trả lời thô. Các dạng còn lại (speaking, dictation) chấm ngay trong lúc làm ở
@@ -35,6 +35,7 @@ const LISTENING_PART_KEYS = ["part1", "part2", "part3", "part4", "part5"];
 // trình duyệt gửi, kẹp trong [0, số câu của Part].
 function gradeListeningExam(test, raw) {
   const parts = {};
+  const items = [];
   let correct = 0;
   let total = 0;
   LISTENING_PART_KEYS.forEach(key => {
@@ -43,24 +44,42 @@ function gradeListeningExam(test, raw) {
     const clientPart = raw?.parts?.[key];
     if (clientPart === undefined) return; // Part không hiện cho học sinh (chưa soạn)
     const grader = serverGrader(key, part);
-    let res;
-    if (grader) {
-      res = grader(part, clientPart?.answers);
-    } else {
-      const partTotal = (part.items ?? []).filter(itemReady).length;
-      const score = Math.max(0, Math.min(Math.floor(Number(clientPart?.score) || 0), partTotal));
-      res = { score, total: partTotal };
-    }
-    parts[key] = res;
+    const res = grader ? grader(part, clientPart?.answers) : gradeCanvasPart(part, clientPart, isWriteItem, itemReady);
+    parts[key] = { score: res.score, total: res.total };
     correct += res.score;
     total += res.total;
+    // Chi tiết từng câu, gom theo Part bằng `section` (ResultItems.jsx / resultSheetPdf.js vẽ dòng tiêu đề Part).
+    items.push(...res.items.map(it => ({ section: `Part ${key.slice(4)}`, ...it })));
   });
-  return {
-    correct,
-    total,
-    parts,
-    items: Object.entries(parts).map(([part, r]) => ({ part, correct: r.score, total: r.total })),
-  };
+  return { correct, total, parts, items };
+}
+
+const stripTags = s => String(s ?? "").replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim();
+const letter = i => String.fromCharCode(65 + i);
+const optionText = (options, i) => (Number.isInteger(i) && options?.[i] != null ? `${letter(i)}. ${stripTags(options[i])}` : "");
+const joinAnswers = list => (Array.isArray(list) ? list : String(list ?? "").split("|")).map(s => String(s).trim()).filter(Boolean).join(" / ");
+const tfText = v => (v === true ? "True" : v === false ? "False" : "");
+
+// KET/PET: đề bài + câu trả lời + đáp án đúng ở dạng CHỮ đọc được (trắc nghiệm ghi "B. ..." thay vì số thứ tự).
+function ketPetDetail(g, q, qi, value) {
+  const type = g.type === "split-reading" ? q.type : g.type;
+  const prompt = stripTags(q.text ?? q.prompt ?? (Array.isArray(q.words) ? q.words.join(" / ") : "")).slice(0, 160);
+  const typed = String(value ?? "");
+  if (type === "multiple-choice" || type === "pronunciation-underline") {
+    return { prompt, studentAnswer: optionText(q.options, value), correctAnswer: optionText(q.options, q.answerIndex) };
+  }
+  if (type === "true-false-table") return { prompt, studentAnswer: tfText(value), correctAnswer: tfText(q.answer) };
+  if (type === "categorize") {
+    const col = v => (v == null || v === "" ? "" : String(g.columns?.[Number(v)] ?? ""));
+    return { prompt, studentAnswer: col(value), correctAnswer: col(q.columnIndex) };
+  }
+  if (type === "reorder") return { prompt, studentAnswer: typed, correctAnswer: String(q.correctPos ?? qi + 1) };
+  if (type === "word-bank") return { prompt, studentAnswer: typed, correctAnswer: String(q.answer ?? "") };
+  if (type === "open-ended" || type === "translation") {
+    return { prompt, studentAnswer: typed.trim() ? openEndedFullAnswer(q.hint, typed) : "", correctAnswer: joinAnswers(q.sampleAnswer) };
+  }
+  if (type === "free-response") return { prompt, studentAnswer: typed.trim() ? openEndedFullAnswer(q.hint, typed) : "" };
+  return { prompt, studentAnswer: typed, correctAnswer: joinAnswers(q.acceptedAnswers) };
 }
 
 // raw — dạng câu trả lời theo từng loại:
@@ -77,14 +96,15 @@ export function gradeSubmission(kind, test, raw) {
     const groups = test.groups ?? [];
     const g = kind === "ketpet-vocab" ? gradeVocabularyGroups(groups, raw) : gradePracticeTestGroups(groups, raw);
     const items = g.results.flatMap((row, gi) =>
-      row.map((ok, qi) => {
-        const ans = String(raw?.[`${gi}-${qi}`] ?? "");
-        // Tự luận: ghép cả phần gợi ý cô cho sẵn để phiếu chấm/kết quả hiện đủ câu học sinh viết.
-        const withHint = groups[gi]?.type === "open-ended" || groups[gi]?.type === "free-response";
-        const studentAnswer = withHint && ans.trim() ? openEndedFullAnswer(groups[gi].questions?.[qi]?.hint, ans) : ans;
-        // Câu không chấm điểm (results = null): đánh dấu để trang kết quả/phiếu chấm không hiện "Sai".
-        return { group: gi + 1, qNumber: (Number(groups[gi]?.startNumber) || 1) + qi, isCorrect: ok, studentAnswer, ...(ok == null ? { ungraded: true } : {}) };
-      }),
+      // Tự luận: ketPetDetail ghép cả phần gợi ý cô cho sẵn để phiếu chấm/kết quả hiện đủ câu học sinh viết.
+      // Câu không chấm điểm (results = null): đánh dấu để trang kết quả/phiếu chấm không hiện "Sai".
+      row.map((ok, qi) => ({
+        group: gi + 1,
+        qNumber: (Number(groups[gi]?.startNumber) || 1) + qi,
+        isCorrect: ok,
+        ...ketPetDetail(groups[gi], groups[gi].questions?.[qi] ?? {}, qi, raw?.[`${gi}-${qi}`]),
+        ...(ok == null ? { ungraded: true } : {}),
+      })),
     );
     return { correct: g.correct, total: g.total, items, results: g.results };
   }

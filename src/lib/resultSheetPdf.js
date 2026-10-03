@@ -39,21 +39,27 @@ function detailTable(r) {
       widths: { 1: 40 },
     };
   }
-  return {
-    head: [["Câu", "Con trả lời", "Đáp án đúng", "Kết quả"]],
-    body: items.map((it, i) => {
-      const blanks = Array.isArray(it.blanks) ? it.blanks : null;
-      const num = it.group ? `${it.group}.${it.qNumber}` : String(it.qNumber ?? i + 1);
-      return [
-        it.prompt ? `${num}. ${it.prompt}` : num,
-        (blanks ? blanks.map(b => b.studentAnswer || "(trống)").join(" · ") : it.studentAnswer) || "(bỏ trống)",
-        (blanks ? blanks.map(b => b.correctAnswer).join(" · ") : it.correctAnswer) ?? "—",
-        it.ungraded ? "Không chấm" : it.isCorrect ? "Đúng" : "Sai",
-      ];
-    }),
-    wrong: items.map(it => !it.ungraded && !it.isCorrect),
-    widths: { 3: 20 },
-  };
+  const body = [];
+  const wrong = [];
+  items.forEach((it, i) => {
+    // Bài chia Part (Listening luyện đề): dòng tiêu đề Part + số câu đúng trước câu đầu tiên của Part đó.
+    if (it.section && it.section !== items[i - 1]?.section) {
+      const graded = items.filter(o => o.section === it.section && !o.ungraded);
+      const score = graded.length ? ` — ${graded.filter(o => o.isCorrect).length}/${graded.length}` : "";
+      body.push([{ content: `${it.section}${score}`, colSpan: 4, styles: { fontStyle: "bold", halign: "left" } }]);
+      wrong.push(false);
+    }
+    const blanks = Array.isArray(it.blanks) ? it.blanks : null;
+    const num = it.group ? `${it.group}.${it.qNumber}` : String(it.qNumber ?? i + 1);
+    body.push([
+      it.prompt ? `${num}. ${it.prompt}` : num,
+      (blanks ? blanks.map(b => b.studentAnswer || "(trống)").join(" · ") : it.studentAnswer) || "(bỏ trống)",
+      (blanks ? blanks.map(b => b.correctAnswer).join(" · ") : it.correctAnswer) || "—",
+      it.ungraded ? "Không chấm" : it.isCorrect ? "Đúng" : "Sai",
+    ]);
+    wrong.push(!it.ungraded && !it.isCorrect);
+  });
+  return { head: [["Câu", "Con trả lời", "Đáp án đúng", "Kết quả"]], body, wrong, widths: { 3: 20 } };
 }
 
 function drawSheet(pdf, autoTable, r, { className, attemptLabel }) {

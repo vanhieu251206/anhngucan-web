@@ -295,6 +295,7 @@ function gradeColours(layer, colourItems, masks) {
   }
   const maskData = Object.fromEntries(colourItems.map(it => [it.id, masks[it.id]?.getContext("2d").getImageData(0, 0, w, h).data]));
   const result = {};
+  const painted = {}; // màu con tô nhiều nhất trong vùng đáp án (tên màu) — để giáo viên xem con đã tô màu gì
   for (const it of colourItems) {
     const md = maskData[it.id];
     const ci = PALETTE.findIndex(p => p.id === it.color);
@@ -305,12 +306,16 @@ function gradeColours(layer, colourItems, masks) {
     let area = 0;
     let good = 0;
     let bad = 0;
+    const counts = new Array(PALETTE.length).fill(0);
     for (let i = 0; i < n; i++) {
       if (md[i * 4 + 3] === 0) continue;
       area++;
+      if (label[i] >= 0) counts[label[i]]++;
       if (label[i] === ci) good++;
       else if (label[i] >= 0) bad++;
     }
+    const top = counts.indexOf(Math.max(...counts));
+    painted[it.id] = area > 0 && counts[top] / area >= 0.2 ? PALETTE[top].name : "";
     // Vùng đáp án của mọi câu cùng màu — tô vào đó không tính là lem.
     const same = colourItems.filter(o => o.color === it.color).map(o => maskData[o.id]).filter(Boolean);
     let spill = 0;
@@ -319,7 +324,7 @@ function gradeColours(layer, colourItems, masks) {
     }
     result[it.id] = area > 0 && good / area >= 0.55 && bad / area <= 0.35 && spill <= area;
   }
-  return result;
+  return { ok: result, painted };
 }
 
 const TOOLS = [
@@ -420,7 +425,7 @@ export default function StartersListeningPart4Runner({ part, submitted, reveal =
 
   const graded = useMemo(() => {
     if (!submitted || !layerRef.current || !Object.keys(masks).length) return {};
-    return gradeColours(layerRef.current, colourItems, masks);
+    return gradeColours(layerRef.current, colourItems, masks).ok;
   }, [submitted, masks, colourItems]);
 
   const wbox = items.find(isWriteItem)?.box;
@@ -429,12 +434,18 @@ export default function StartersListeningPart4Runner({ part, submitted, reveal =
     isWriteItem(it) ? labels.some(l => normText(l.text) === normText(it.answer) && inBox(l, it.box)) : !!g[it.id];
 
   // Chấm NGAY lúc bấm nộp: `submitted` chỉ bật sau khi máy chủ nhận bài (học sinh) nên `score` bên dưới lúc đó vẫn
-  // là 0 — trang làm bài gọi getScore() để lấy điểm thật gửi lên. Ref để luôn dùng lớp tô/chữ mới nhất.
-  const scoreNowRef = useRef(() => 0);
-  scoreNowRef.current = () => {
+  // là 0 — trang làm bài gọi getResult() để lấy điểm thật + chi tiết từng câu (`said` = màu con tô / chữ con viết ở
+  // vùng đó) gửi lên. Ref để luôn dùng lớp tô/chữ mới nhất.
+  const resultNowRef = useRef(() => ({ score: 0, items: [] }));
+  resultNowRef.current = () => {
     const ready = art.orig && layerRef.current && colourItems.length;
-    const g = ready ? gradeColours(layerRef.current, colourItems, Object.fromEntries(colourItems.map(it => [it.id, buildMask(it.ops, art.w, art.h, art.orig)]))) : {};
-    return items.filter(it => isRight(it, g)).length;
+    const g = ready ? gradeColours(layerRef.current, colourItems, Object.fromEntries(colourItems.map(it => [it.id, buildMask(it.ops, art.w, art.h, art.orig)]))) : { ok: {}, painted: {} };
+    const detail = items.map(it => ({
+      id: it.id,
+      ok: isRight(it, g.ok),
+      said: isWriteItem(it) ? labels.find(l => inBox(l, it.box))?.text ?? "" : g.painted[it.id] ?? "",
+    }));
+    return { score: detail.filter(d => d.ok).length, items: detail };
   };
 
   function addLabel() {
@@ -461,7 +472,7 @@ export default function StartersListeningPart4Runner({ part, submitted, reveal =
   }
   const score = submitted ? items.filter(isRight).length : 0;
   useEffect(() => {
-    onScore?.({ score, total: items.length, getScore: () => scoreNowRef.current() });
+    onScore?.({ score, total: items.length, getResult: () => resultNowRef.current() });
   }, [score, items.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const canPaint = !submitted && (!!color || tool === "erase");

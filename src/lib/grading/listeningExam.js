@@ -35,9 +35,16 @@ export function gradePart1(part, raw) {
   const questions = part1Questions(part);
   const conns = Array.isArray(raw?.conns) ? raw.conns : [];
   const size = { w: Math.max(Number(raw?.size?.w) || 1, 1), h: Math.max(Number(raw?.size?.h) || 1, 1) };
-  const solved = questions.filter(q => conns.some(c => c?.p1 && c?.p2 && matchesPair(c, q, size)));
-  return { score: solved.length, total: questions.length };
+  const right = questions.map(q => conns.some(c => c?.p1 && c?.p2 && matchesPair(c, q, size)));
+  return {
+    score: right.filter(Boolean).length,
+    total: questions.length,
+    // Chi tiết từng câu cho màn "Kết quả học sinh" — Part nối không có chữ để hiện, chỉ ghi nối đúng/chưa đúng.
+    items: questions.map((q, i) => ({ qNumber: i + 1, prompt: "Nối tên với người trong tranh", studentAnswer: right[i] ? "Nối đúng" : "Chưa nối đúng", isCorrect: right[i] })),
+  };
 }
+
+const clip = (s, n = 160) => String(s ?? "").replace(/\s+/g, " ").trim().slice(0, n);
 
 // ---------- Part 2: nghe và viết tên/số ----------
 export const normPart2 = s => String(s ?? "").toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, "").replace(/\s+/g, " ").trim();
@@ -52,7 +59,10 @@ export function part2Questions(part) {
 export function gradePart2(part, raw) {
   const questions = part2Questions(part);
   const values = Array.isArray(raw) ? raw : [];
-  return { score: questions.filter((q, i) => isPart2Right(q, values[i])).length, total: questions.length };
+  const items = questions.map((q, i) => ({
+    qNumber: i + 1, prompt: clip(q.question), studentAnswer: clip(values[i], 80), correctAnswer: String(q.answer ?? ""), isCorrect: isPart2Right(q, values[i]),
+  }));
+  return { score: items.filter(it => it.isCorrect).length, total: questions.length, items };
 }
 
 // ---------- Part 3 Starters / Movers Part 3 / Movers Part 4: chọn đáp án chữ cái ----------
@@ -61,7 +71,33 @@ export const choiceQuestions = part2Questions;
 export function gradeChoicePart(part, raw) {
   const questions = choiceQuestions(part);
   const values = Array.isArray(raw) ? raw : [];
-  return { score: questions.filter((q, i) => values[i] != null && values[i] === q.answer).length, total: questions.length };
+  const items = questions.map((q, i) => ({
+    qNumber: i + 1, prompt: clip(q.question), studentAnswer: clip(values[i], 20), correctAnswer: String(q.answer ?? ""), isCorrect: values[i] != null && values[i] === q.answer,
+  }));
+  return { score: items.filter(it => it.isCorrect).length, total: questions.length, items };
+}
+
+// Part tô màu / viết vào tranh (canvas): trình duyệt chấm rồi gửi `{ score, items: [{ id, ok, said }] }` — `said` là
+// màu con đã tô / chữ con đã viết ở vùng đó. Bản trình duyệt cũ chỉ gửi `score` → 1 dòng tóm tắt, không có từng câu.
+export function gradeCanvasPart(part, client, isWriteItem, itemReady) {
+  const ready = (part?.items ?? []).filter(itemReady);
+  const sent = Array.isArray(client?.items) ? client.items : null;
+  if (!sent) {
+    const score = Math.max(0, Math.min(Math.floor(Number(client?.score) || 0), ready.length));
+    return { score, total: ready.length, items: [{ qNumber: 1, prompt: "Tô màu (không có chi tiết từng câu)", studentAnswer: `${score}/${ready.length} câu đúng`, ungraded: true }] };
+  }
+  const items = ready.map((it, i) => {
+    const mine = sent.find(s => s?.id === it.id);
+    const write = isWriteItem(it);
+    return {
+      qNumber: i + 1,
+      prompt: write ? "Viết chữ vào tranh" : "Tô màu",
+      studentAnswer: clip(mine?.said, 40),
+      correctAnswer: write ? String(it.answer ?? "") : String(it.color ?? "").replace(/^./, c => c.toUpperCase()),
+      isCorrect: !!mine?.ok,
+    };
+  });
+  return { score: items.filter(it => it.isCorrect).length, total: ready.length, items };
 }
 
 // Part nào chấm ở máy chủ, dùng hàm nào. Trả null = Part chấm bằng canvas ở trình duyệt (tô màu/viết vào tranh).

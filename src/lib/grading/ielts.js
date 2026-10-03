@@ -58,10 +58,16 @@ export function gradeIelts(flat, answers) {
   const items = flat.map(entry => {
     const ok = isIeltsCorrect(entry, answers?.[entry.number]);
     if (ok) correct++;
+    const value = answers?.[entry.number];
+    const q = entry.q ?? {};
+    // Trắc nghiệm: ghi "B. nội dung" thay vì số thứ tự lựa chọn.
+    const option = i => (i == null || i === "" || q.options?.[Number(i)] == null ? "" : `${String.fromCharCode(65 + Number(i))}. ${q.options[Number(i)]}`);
+    const mc = entry.type === "multiple-choice";
     return {
       qNumber: entry.number,
-      studentAnswer: String(answers?.[entry.number] ?? ""),
-      correctAnswer: String(entry.q?.answer ?? entry.q?.acceptedAnswers ?? entry.q?.answerIndex ?? ""),
+      prompt: String(q.text ?? "").replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim().slice(0, 160),
+      studentAnswer: mc ? option(value) : String(value ?? ""),
+      correctAnswer: mc ? option(q.answerIndex) : String(q.answer ?? q.acceptedAnswers ?? "").split("|").map(s => s.trim()).filter(Boolean).join(" / "),
       isCorrect: ok,
     };
   });

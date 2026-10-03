@@ -78,9 +78,9 @@ export default function StartersListeningTestRunner({ test, studentUid, studentN
   async function doSubmit() {
     if (submitted || (submitState && !submitState.error)) return;
     // Part chấm được ở máy chủ gửi câu trả lời thô; Part tô màu/viết vào tranh (canvas) gửi điểm tự chấm —
-    // chấm ngay lúc này bằng getScore() vì `score` của Part đó chỉ có sau khi `submitted` bật.
+    // chấm ngay lúc này bằng getResult() ({ score, items }) vì `score` của Part đó chỉ có sau khi `submitted` bật.
     const parts = Object.fromEntries(
-      available.map(p => [p.key, serverGrader(p.key, test.parts[p.key]) ? { answers: scores[p.key]?.answers ?? null } : { score: scores[p.key]?.getScore?.() ?? scores[p.key]?.score ?? 0 }]),
+      available.map(p => [p.key, serverGrader(p.key, test.parts[p.key]) ? { answers: scores[p.key]?.answers ?? null } : scores[p.key]?.getResult?.() ?? { score: scores[p.key]?.score ?? 0 }]),
     );
     const payload = { answers: { parts }, elapsedMs: timer.getElapsedMs() };
     if (canReview) {
