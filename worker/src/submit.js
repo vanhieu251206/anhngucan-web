@@ -116,6 +116,14 @@ function clientGradedTotal(kind, test) {
   return null;
 }
 
+function cleanTabLeaves(list) {
+  if (!Array.isArray(list)) return [];
+  return list
+    .slice(0, 50)
+    .map(l => ({ at: new Date(Number(l?.at) || 0), awayMs: Math.max(0, Math.floor(Number(l?.awayMs) || 0)) }))
+    .filter(l => l.at.getTime() > 0);
+}
+
 export async function submitTest(request, env) {
   const db = firestore(env);
   const caller = await loadCaller(request, env, db);
@@ -189,6 +197,8 @@ export async function submitTest(request, env) {
     items: graded.items ?? [],
     gradedBy,
     overtime,
+    // Các lần rời tab lúc làm bài do trình duyệt ghi (src/lib/examFocus.js) — chỉ để giáo viên tham khảo.
+    tabLeaves: isStudent ? cleanTabLeaves(body.tabLeaves) : [],
   };
 
   const writes = [

@@ -4,6 +4,7 @@
 // lib/pdfDoc.js) nên in sắc nét; bảng dài tự sang trang (jspdf-autotable). Thư viện + font chỉ tải khi bấm nút.
 import { RESULT_MODE_LABEL, RESULT_KEEP_MS } from "./testResults.js";
 import { FONT, newDoc, safeName } from "./pdfDoc.js";
+import { formatAway } from "./examFocus.js";
 
 const PAGE_W = 210;
 const MARGIN = 14;
@@ -89,6 +90,9 @@ function drawSheet(pdf, autoTable, r, { className, attemptLabel }) {
     ["Ngày nộp", fmtWhen(toDate(r.submittedAt))],
     ["Thời gian làm", fmtDuration(r.elapsedMs)],
   ];
+  // Rời tab lúc làm bài (lib/examFocus.js) — chỉ in khi có.
+  const leaves = Array.isArray(r.tabLeaves) ? r.tabLeaves : [];
+  if (leaves.length) info.push(["Rời khỏi bài", `${leaves.length} lần (tổng ${formatAway(leaves.reduce((sum, l) => sum + (l.awayMs || 0), 0))})`]);
   pdf.setFontSize(10.5);
   info.forEach(([k, v], i) => {
     pdf.setFont(FONT, "normal");
@@ -172,13 +176,13 @@ function drawSummary(pdf, autoTable, rows, { title, className, deadline }) {
   pdf.text(`${title} · Hạn nộp: ${fmtWhen(deadline)}`, PAGE_W / 2, MARGIN + 13, { align: "center" });
   autoTable(pdf, {
     startY: MARGIN + 19,
-    head: [["STT", "Học sinh", "Lượt", "Ngày nộp", "Điểm", "%"]],
-    body: rows.map((r, i) => [String(i + 1), r.studentName || "—", r.attemptLabel || "", fmtWhen(toDate(r.submittedAt)), `${fmtNum(r.correct)}/${fmtNum(r.total)}`, pct(r) == null ? "—" : `${pct(r)}%`]),
+    head: [["STT", "Học sinh", "Lượt", "Ngày nộp", "Điểm", "%", "Rời tab"]],
+    body: rows.map((r, i) => [String(i + 1), r.studentName || "—", r.attemptLabel || "", fmtWhen(toDate(r.submittedAt)), `${fmtNum(r.correct)}/${fmtNum(r.total)}`, pct(r) == null ? "—" : `${pct(r)}%`, r.tabLeaves?.length ? `${r.tabLeaves.length} lần` : "—"]),
     theme: "grid",
     margin: { left: MARGIN, right: MARGIN },
     styles: { font: FONT, fontSize: 10, textColor: 0, lineColor: 0, lineWidth: 0.2, cellPadding: 2 },
     headStyles: { font: FONT, fontStyle: "bold", fillColor: [255, 255, 255], textColor: 0, lineWidth: 0.4 },
-    columnStyles: { 0: { cellWidth: 12, halign: "center" }, 2: { cellWidth: 16, halign: "center" }, 4: { cellWidth: 22, halign: "center" }, 5: { cellWidth: 16, halign: "center" } },
+    columnStyles: { 0: { cellWidth: 12, halign: "center" }, 2: { cellWidth: 16, halign: "center" }, 4: { cellWidth: 22, halign: "center" }, 5: { cellWidth: 16, halign: "center" }, 6: { cellWidth: 20, halign: "center" } },
   });
 }
 

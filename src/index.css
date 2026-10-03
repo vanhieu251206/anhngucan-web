@@ -5066,3 +5066,28 @@ button.wizard-step:focus-visible { outline: 3px solid var(--color-secondary); ou
   .overview-stats { grid-template-columns: 1fr 1fr; }
   .overview-alerts li { flex-direction: column; align-items: flex-start; }
 }
+
+/* ---------- Cảnh báo rời tab khi làm bài (components/ExamFocusOverlay.jsx, lib/examFocus.js) ---------- */
+.exam-focus-overlay {
+  position: fixed; inset: 0; z-index: 6000; display: flex; align-items: center; justify-content: center;
+  padding: 16px; background: rgba(17, 24, 39, 0.72);
+}
+.exam-focus-dialog {
+  background: #fff; border-radius: 18px; padding: 28px 24px 24px; width: min(420px, 100%); text-align: center;
+  border-top: 6px solid #dc2626; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+}
+.exam-focus-icon { font-size: 2.4rem; line-height: 1; }
+.exam-focus-dialog h2 { margin: 10px 0 8px; color: #b91c1c; font-size: 1.3rem; }
+.exam-focus-dialog p { margin: 0 0 8px; line-height: 1.5; }
+.exam-focus-dialog .btn { margin-top: 12px; }
+.exam-focus-notice {
+  position: fixed; top: 10px; left: 50%; transform: translateX(-50%); z-index: 6000;
+  width: min(560px, calc(100vw - 24px)); display: flex; align-items: flex-start; gap: 10px;
+  padding: 10px 14px; border-radius: 12px; background: #fff4e0; border: 1.5px solid #f0b95a; color: #7a4a00;
+  font-weight: 700; font-size: 0.9rem; line-height: 1.4; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+.exam-focus-notice span { flex: 1; }
+.exam-focus-notice button { background: none; border: none; cursor: pointer; color: inherit; font-size: 1rem; padding: 0 2px; }
+.results-leaves { margin: 12px 0; padding: 12px 16px; border-radius: 12px; background: #fdf0f0; border: 1px solid #f3c9c9; color: #991b1b; }
+.results-leaves ul { margin: 6px 0 0; padding-left: 20px; color: #1f2937; font-size: 0.9rem; columns: 2; }
+@media (max-width: 600px) { .results-leaves ul { columns: 1; } }

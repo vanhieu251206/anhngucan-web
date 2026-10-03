@@ -3,6 +3,7 @@
 // chấm từ câu trả lời thô (đáp án học sinh không đọc được), ghi kết quả + cộng lượt, rồi trả điểm về.
 import { useCallback, useEffect, useRef } from "react";
 import { auth } from "./firebase.js";
+import { startExamFocus, getExamLeaves } from "./examFocus.js";
 
 const WORKER_URL = import.meta.env.VITE_WORKER_URL;
 const MAX_TRIES = 3;
@@ -60,14 +61,25 @@ export function useTestSubmission({ kind, seriesId, level, testId, openingId, le
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [kind, seriesId, level, testId, openingId, resetKey]);
 
+  // Giám sát rời tab suốt lượt làm bài thật của học sinh (lib/examFocus.js) — dừng khi nộp xong hoặc thoát bài.
+  const stopFocusRef = useRef(null);
+  useEffect(() => {
+    if (!openingId) return;
+    const stop = startExamFocus({ watchBlur: kind !== "speaking" });
+    stopFocusRef.current = stop;
+    return stop;
+  }, [kind, seriesId, level, testId, openingId, resetKey]);
+
   return useCallback(
     async ({ answers, client, sessionId, elapsedMs } = {}) => {
       const { startId } = (await startRef.current) ?? {};
-      const body = { ...meta, startId, answers, client, sessionId: sessionId ?? null, elapsedMs, lessonLabel, studentName };
+      const body = { ...meta, startId, answers, client, sessionId: sessionId ?? null, elapsedMs, lessonLabel, studentName, tabLeaves: getExamLeaves() };
       let lastErr;
       for (let i = 0; i < MAX_TRIES; i++) {
         try {
-          return await callWorker("/test/submit", body);
+          const res = await callWorker("/test/submit", body);
+          stopFocusRef.current?.();
+          return res;
         } catch (err) {
           lastErr = err;
           if (!isRetryable(err)) break;

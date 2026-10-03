@@ -7,6 +7,7 @@ import { purgeExpiredResults, isResultVisible, loadOpeningDeadlines, RESULT_MODE
 import { downloadResultSheet, canDownloadSheets } from "../../lib/resultSheetPdf.js";
 import { SpeakingReportView, groupIntoReportItems } from "../../components/SpeakingReportView.jsx";
 import ResultItems from "../../components/ResultItems.jsx";
+import { formatAway } from "../../lib/examFocus.js";
 
 const PAGE_SIZE = 500;
 
@@ -48,6 +49,7 @@ function toRows(results, sessions, currentClassByUid = {}) {
     elapsedMs: r.elapsedMs,
     correct: r.correct,
     total: r.total,
+    tabLeaves: Array.isArray(r.tabLeaves) ? r.tabLeaves : [],
     raw: r,
   }));
   const legacy = sessions
@@ -158,9 +160,9 @@ export default function StudentResultsPage() {
 
   function exportCsv() {
     const esc = v => `"${String(v ?? "").replace(/"/g, '""')}"`;
-    const lines = [["Học sinh", "Lớp", "Bài", "Dạng", "Nộp lúc", "Thời gian", "Đúng", "Tổng", "%"].map(esc).join(",")];
+    const lines = [["Học sinh", "Lớp", "Bài", "Dạng", "Nộp lúc", "Thời gian", "Đúng", "Tổng", "%", "Rời tab"].map(esc).join(",")];
     for (const r of filtered) {
-      lines.push([r.studentName, r.studentClass, r.lessonLabel, MODE_LABEL[r.mode] ?? r.mode, fmtWhen(r.when), fmtDuration(r.elapsedMs), r.correct ?? "", r.total ?? "", scorePct(r) ?? ""].map(esc).join(","));
+      lines.push([r.studentName, r.studentClass, r.lessonLabel, MODE_LABEL[r.mode] ?? r.mode, fmtWhen(r.when), fmtDuration(r.elapsedMs), r.correct ?? "", r.total ?? "", scorePct(r) ?? "", r.tabLeaves?.length ?? 0].map(esc).join(","));
     }
     const blob = new Blob(["﻿" + lines.join("\n")], { type: "text/csv;charset=utf-8" });
     const a = document.createElement("a");
@@ -229,7 +231,7 @@ export default function StudentResultsPage() {
             <div style={{ overflowX: "auto" }}>
               <table className="admin-table opening-table">
                 <thead>
-                  <tr><th>Học sinh</th><th>Bài</th><th>Nộp lúc</th><th>Thời gian</th><th>Kết quả</th><th></th></tr>
+                  <tr><th>Học sinh</th><th>Bài</th><th>Nộp lúc</th><th>Thời gian</th><th>Kết quả</th><th>Rời tab</th><th></th></tr>
                 </thead>
                 <tbody>
                   {filtered.map(r => {
@@ -256,6 +258,7 @@ export default function StudentResultsPage() {
                             </span>
                           )}
                         </td>
+                        <td>{r.tabLeaves?.length ? <span className="opening-chip opening-chip-off">{r.tabLeaves.length} lần</span> : "—"}</td>
                         <td>
                           <div className="opening-actions">
                             {/* Phiếu chấm bài (PDF in trắng đen): chỉ từ lúc hết hạn nộp tới khi kết quả bị xoá (lib/resultSheetPdf.js). */}
@@ -271,7 +274,7 @@ export default function StudentResultsPage() {
                     );
                   })}
                   {filtered.length === 0 && (
-                    <tr><td colSpan={6} className="admin-muted-text">Chưa có kết quả nào khớp bộ lọc.</td></tr>
+                    <tr><td colSpan={7} className="admin-muted-text">Chưa có kết quả nào khớp bộ lọc.</td></tr>
                   )}
                 </tbody>
               </table>
@@ -292,6 +295,16 @@ export default function StudentResultsPage() {
               </div>
               <button className="opening-btn" onClick={() => setOpenRow(null)}>Đóng</button>
             </div>
+            {openRow.tabLeaves?.length > 0 && (
+              <div className="results-leaves">
+                <strong>Rời khỏi bài {openRow.tabLeaves.length} lần</strong>
+                <ul>
+                  {openRow.tabLeaves.map((l, i) => (
+                    <li key={i}>{l.at?.toDate ? l.at.toDate().toLocaleTimeString("vi-VN") : "—"} · vắng {formatAway(l.awayMs)}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
             <Detail row={openRow} />
           </div>
         </div>
