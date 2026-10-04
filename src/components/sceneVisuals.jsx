@@ -12,11 +12,17 @@ export const MIC_ICON = `${import.meta.env.BASE_URL}assets/img/icons/mic.png`;
 // có thể khác 16:9).
 export const SCENE_RATIO = 16 / 9;
 
-export function ExaminerLine({ text }) {
+// onReplay (tuỳ chọn): hiện nút 🔊 cho học sinh nghe lại câu hỏi — nơi gọi chỉ truyền khi đang chờ trả lời.
+export function ExaminerLine({ text, onReplay }) {
   return (
     <div className="examiner-line">
       <img className="examiner-bee" src={BEE} alt="Giám khảo" />
       <div className="sentence-text">{text}</div>
+      {onReplay && (
+        <button type="button" className="examiner-replay" onClick={onReplay} title="Nghe lại" aria-label="Nghe lại câu hỏi">
+          🔊
+        </button>
+      )}
     </div>
   );
 }

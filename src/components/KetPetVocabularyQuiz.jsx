@@ -37,7 +37,8 @@ export default function KetPetVocabularyQuiz({ groups, revealAnswers = false, li
       setResult({ correct: r.correct, total: r.total, results: [] });
       setSubmitState(null);
     } catch (error) {
-      setSubmitState({ error });
+      // error.retry: còn sai quá số câu cho phép → quay lại sửa câu sai (lib/retryRound.js), bài làm giữ nguyên.
+      setSubmitState(error?.retry ? null : { error });
     }
   }
 

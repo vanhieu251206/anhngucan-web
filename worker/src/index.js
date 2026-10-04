@@ -14,7 +14,7 @@
 // đã đăng nhập + giới hạn số lượt/phút theo tài khoản (audit bảo mật 2026-09-25: trước đó ai biết URL
 // cũng đốt được hạn mức AssemblyAI, mà hết free tier là tốn tiền thật).
 import { deleteStudent, deleteTeacher, deleteTester, resetPassword, firebaseProjectId, verifyIdToken } from "./admin.js";
-import { reviewTest, startTest, submitTest } from "./submit.js";
+import { regradeTest, reviewTest, startTest, submitTest } from "./submit.js";
 
 // anhngucan.com: tên miền riêng của GitHub Pages (public/CNAME, từ 2026-09-18) — thiếu mục này làm ghi âm Speaking
 // và xoá học sinh bị trình duyệt chặn CORS trên web thật (phát hiện 2026-09-25).
@@ -135,6 +135,19 @@ export default {
       try {
         const handler = path.endsWith("/test/start") ? startTest : path.endsWith("/test/review") ? reviewTest : submitTest;
         return new Response(JSON.stringify(await handler(request, env)), {
+          headers: { ...headers, "Content-Type": "application/json" },
+        });
+      } catch (err) {
+        if (err && err.error) return jsonError(headers, err.error, err.status || 500);
+        console.error(err);
+        return jsonError(headers, "worker-exception", 500);
+      }
+    }
+
+    // Chấm lại các lượt nộp của 1 bài theo đáp án hiện tại — chỉ admin, xem submit.js.
+    if (request.method === "POST" && path.endsWith("/admin/regrade")) {
+      try {
+        return new Response(JSON.stringify(await regradeTest(request, env)), {
           headers: { ...headers, "Content-Type": "application/json" },
         });
       } catch (err) {

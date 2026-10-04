@@ -9,6 +9,8 @@ import { SpeakingReportView, groupIntoReportItems } from "../../components/Speak
 import ResultItems from "../../components/ResultItems.jsx";
 import ResultAnalysisPage, { fmtScore, fmtDuration, fmtWhen } from "./ResultAnalysisPage.jsx";
 import { readParams, setParams } from "../../lib/urlState.js";
+import { regradeAllResults } from "../../lib/regradeAll.js";
+import { useConfirm } from "../../components/dashboard/ConfirmDialog.jsx";
 
 const PAGE_SIZE = 500;
 
@@ -37,6 +39,7 @@ function toRows(results, sessions, currentClassByUid = {}) {
     correct: r.correct,
     total: r.total,
     tabLeaves: Array.isArray(r.tabLeaves) ? r.tabLeaves : [],
+    mastery: r.mastery ?? null,
     raw: r,
   }));
   const legacy = sessions
@@ -66,7 +69,8 @@ function scorePct(row) {
 // Trang Kết quả học sinh: 1 bảng chung cho MỌI dạng bài. Học sinh chỉ thấy số câu đúng/tổng, chi tiết từng
 // câu (bé trả lời gì, đáp án đúng) chỉ xem ở đây. Xem lib/testResults.js.
 export default function StudentResultsPage() {
-  const { isTeacher, profile } = useAuth();
+  const { isTeacher, isAdmin, profile } = useAuth();
+  const confirm = useConfirm();
   // Giáo viên bị giới hạn (restricted, vd dạy ngắn hạn) chỉ xem kết quả của lớp trong
   // allowedClasses — chỉ lọc UI (đọc testResults vẫn isStaff() ở firestore.rules, xem đề xuất
   // 2026-09-22: phần xem báo cáo không chặn thật ở rules vì rủi ro thấp).
@@ -84,6 +88,21 @@ export default function StudentResultsPage() {
   const [openRow, setOpenRow] = useState(null);
   const [deadlines, setDeadlines] = useState(new Map()); // openingId -> hạn chót (ms)
   const [downloadingKey, setDownloadingKey] = useState(null);
+  // Chỉ admin: chấm lại mọi kết quả còn lưu theo đáp án hiện tại, sau khi giáo viên sửa đáp án (lib/regradeAll.js).
+  const [regrade, setRegrade] = useState(null); // null | { running, stats, error }
+  const [reloadKey, setReloadKey] = useState(0);
+
+  async function handleRegrade() {
+    if (!(await confirm("Chấm lại toàn bộ bài đã nộp theo đáp án hiện tại? Điểm của học sinh có thể thay đổi."))) return;
+    setRegrade({ running: true });
+    try {
+      const stats = await regradeAllResults(st => setRegrade({ running: true, stats: st }));
+      setRegrade({ running: false, stats });
+      setReloadKey(k => k + 1);
+    } catch {
+      setRegrade({ running: false, error: true });
+    }
+  }
 
   useEffect(() => {
     // Dọn kết quả đã quá 48h sau hạn chót trước khi tải (lib/testResults.js) — kết quả hết hạn không hiện nữa.
@@ -107,7 +126,7 @@ export default function StudentResultsPage() {
         setRows(toRows(results, sessions, currentClassByUid));
       })
       .catch(err => setError(err.message));
-  }, []);
+  }, [reloadKey]);
 
   const base = useMemo(
     () =>
@@ -215,8 +234,23 @@ export default function StudentResultsPage() {
       <div className="admin-card">
         <div className="opening-list-head">
           <h2>Kết quả học sinh</h2>
-          <button className="opening-btn" type="button" onClick={exportCsv} disabled={!filtered.length}>⬇ Xuất Excel (CSV)</button>
+          <div className="results-head-actions">
+            {isAdmin && (
+              <button className="opening-btn" type="button" onClick={handleRegrade} disabled={regrade?.running}>
+                {regrade?.running ? `Đang chấm lại${regrade.stats ? ` ${regrade.stats.done}/${regrade.stats.tests} bài` : ""}...` : "↻ Chấm lại"}
+              </button>
+            )}
+            <button className="opening-btn" type="button" onClick={exportCsv} disabled={!filtered.length}>⬇ Xuất Excel (CSV)</button>
+          </div>
         </div>
+        {regrade?.error && <p className="admin-error">Chưa chấm lại được (mất mạng?) — bấm lại nhé.</p>}
+        {regrade?.stats && !regrade.running && (
+          <p className="admin-muted-text">
+            Đã chấm lại {regrade.stats.checked} lượt nộp · Đổi điểm {regrade.stats.changed}
+            {regrade.stats.skipped ? ` · Giữ nguyên ${regrade.stats.skipped} (không chấm lại được)` : ""}
+            {regrade.stats.failed ? ` · Lỗi ${regrade.stats.failed} bài` : ""}
+          </p>
+        )}
         {error && <p className="admin-error">Lỗi tải dữ liệu: {error}</p>}
         {rows === null && !error && <LoadingRow />}
         {rows && (
@@ -288,6 +322,11 @@ export default function StudentResultsPage() {
                             <span className={`results-score ${pct >= 80 ? "is-high" : pct >= 50 ? "is-mid" : "is-low"}`}>
                               {fmtScore(r.correct)}/{fmtScore(r.total)} · {pct ?? 0}%
                             </span>
+                          )}
+                          {r.mastery && (
+                            <div className="opening-test-kind">
+                              Lần đầu {fmtScore(r.mastery.firstCorrect)} · {r.mastery.rounds} vòng{r.mastery.passed ? "" : " · chưa đạt"}
+                            </div>
                           )}
                         </td>
                         <td>{r.tabLeaves?.length ? <span className="opening-chip opening-chip-off">{r.tabLeaves.length} lần</span> : "—"}</td>

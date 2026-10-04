@@ -31,7 +31,7 @@ export async function listOpenings() {
 }
 
 export async function createOpening(
-  { className, seriesId, level, kind, testId, testTitle, expiresAt, maxAttempts, timeLimitMinutes },
+  { className, seriesId, level, kind, testId, testTitle, expiresAt, maxAttempts, timeLimitMinutes, maxWrong },
   uid
 ) {
   await addDoc(collection(db, COL), {
@@ -44,17 +44,20 @@ export async function createOpening(
     expiresAt: expiresAt ? Timestamp.fromDate(expiresAt) : null,
     maxAttempts: maxAttempts ?? null,
     timeLimitMinutes: timeLimitMinutes ?? null,
+    // Còn sai nhiều hơn số câu này thì học sinh phải sửa câu sai rồi nộp lại (Worker submit.js). null = bài thường.
+    maxWrong: maxWrong ?? null,
     createdAt: serverTimestamp(),
     createdBy: uid,
   });
 }
 
-// patch có thể gồm: expiresAt (Date|null), maxAttempts, timeLimitMinutes.
-export async function updateOpening(id, { expiresAt, maxAttempts, timeLimitMinutes }) {
+// patch có thể gồm: expiresAt (Date|null), maxAttempts, timeLimitMinutes, maxWrong.
+export async function updateOpening(id, { expiresAt, maxAttempts, timeLimitMinutes, maxWrong }) {
   const patch = {
     expiresAt: expiresAt ? Timestamp.fromDate(expiresAt) : null,
     maxAttempts: maxAttempts ?? null,
     timeLimitMinutes: timeLimitMinutes ?? null,
+    maxWrong: maxWrong ?? null,
     updatedAt: serverTimestamp(),
   };
   await updateDoc(doc(db, COL, id), patch);

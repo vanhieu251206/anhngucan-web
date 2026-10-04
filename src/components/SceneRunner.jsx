@@ -37,6 +37,36 @@ const WRONG_PRAISES = [
 function pickWrong() {
   return WRONG_PRAISES[Math.floor(Math.random() * WRONG_PRAISES.length)];
 }
+// Ảnh bài Speaking thu nhỏ theo khung hiển thị (ảnh gốc thường lớn hơn nhiều) — tải nhanh hơn trên mạng chậm.
+const sceneImg = url => optimizeImage(url, { maxWidth: 1280 });
+const cardImg = url => optimizeImage(url, { maxWidth: 640 });
+
+// Tải trước ảnh + audio để vào scene là có ngay, không phải chờ tải (cô báo ảnh/lời nói ra chậm 2026-10-05).
+// Chỉ làm ấm cache trình duyệt — giữ tham chiếu để phần tử không bị dọn trước khi tải xong.
+const preloaded = new Map();
+function preloadImage(url) {
+  if (!url || preloaded.has(url)) return;
+  const img = new Image();
+  img.src = url;
+  preloaded.set(url, img);
+}
+function preloadAudio(url) {
+  if (!url || preloaded.has(url)) return;
+  const audio = new Audio();
+  audio.preload = "auto";
+  audio.src = url;
+  preloaded.set(url, audio);
+}
+function preloadScene(scene) {
+  if (!scene) return;
+  preloadAudio(scene.audioUrl);
+  preloadAudio(scene.followupAudioUrl);
+  if (scene.sceneImage) preloadImage(sceneImg(scene.sceneImage));
+  if (scene.card?.image) preloadImage(cardImg(scene.card.image));
+  if (scene.demoCard?.card?.image) preloadImage(cardImg(scene.demoCard.card.image));
+  scene.options?.forEach(opt => opt.image && preloadImage(cardImg(opt.image)));
+}
+
 const NEXT_DELAY_MS = 1300;
 const NARRATION_PAUSE_MS = 3000;
 // Sai liên tục 3 lần ở scene-click/card-select/drag-drop (chốt 2026-08-24, đồng bộ với
@@ -64,7 +94,9 @@ function splitYesNoTemplate(template) {
 // Câu hoàn chỉnh dùng để CHẤM: ghép answerTemplate với từ đáp án thật (nếu có) — áp dụng cho MỌI
 // scene mic. branch ("yes"|"no"|null) chỉ có ý nghĩa khi scene.expectedYesNo === "either" (chưa
 // biết học sinh sẽ trả lời Yes hay No trước — chốt theo lần nói đầu tiên, xem chooseBranch()).
-function buildExpectedSentence(scene, branch) {
+// keywordPick: scene có NHIỀU từ khoá cùng đúng (vd "dog, cat") — từ khoá học sinh đã nói trúng (xem
+// pickKeyword()); chưa nói trúng từ nào thì hiện từ đầu tiên.
+function buildExpectedSentence(scene, branch, keywordPick) {
   if (scene.expectedYesNo && scene.expectedYesNo !== "either") {
     const [yesPart, noPart] = splitYesNoTemplate(scene.answerTemplate);
     return (scene.expectedYesNo === "yes" ? yesPart : noPart) ?? scene.answerTemplate ?? "";
@@ -74,10 +106,20 @@ function buildExpectedSentence(scene, branch) {
     return (branch === "no" ? noPart : yesPart) ?? scene.answerTemplate ?? "";
   }
   if (scene.expectedKeyword) {
-    const keyword = Array.isArray(scene.expectedKeyword) ? scene.expectedKeyword[0] : scene.expectedKeyword;
+    const keyword = keywordPick ?? (Array.isArray(scene.expectedKeyword) ? scene.expectedKeyword[0] : scene.expectedKeyword);
     return scene.answerTemplate?.includes("....") ? scene.answerTemplate.replace("....", keyword) : (scene.answerTemplate || keyword);
   }
   return scene.answerTemplate ?? "";
+}
+// Từ khoá đầu tiên trong danh sách mà học sinh nói đủ mọi từ của nó (vd "living room") — null nếu chưa trúng từ nào.
+function pickKeyword(scene, saidNorm) {
+  if (!Array.isArray(scene.expectedKeyword)) return null;
+  return (
+    scene.expectedKeyword.find(k => {
+      const words = normalize(k).split(/\s+/).filter(Boolean);
+      return words.length > 0 && words.every(w => fuzzyIncludesWord(saidNorm, w));
+    }) ?? null
+  );
 }
 // Tách câu chấm thành từng token: "blank" (chỗ trống "...." của câu hỏi mở không chấm được, tự
 // coi là đúng), "yesno" (đúng từ Yes/No của câu — chấp nhận thêm cách nói tắt phổ biến), "word"
@@ -127,7 +169,7 @@ function SceneImageWithHighlight({ scene }) {
     <SceneStage cursor="default">
       <img alt="Tranh của bài"
         className="part1-scene-img"
-        src={optimizeImage(scene.sceneImage)}
+        src={sceneImg(scene.sceneImage)}
         onError={e => (e.currentTarget.style.display = "none")}
       />
       {scene.highlight && (
@@ -144,7 +186,7 @@ function SceneImageWithHighlight({ scene }) {
       {scene.demoCard && (
         <img
           className="dropped-card"
-          src={optimizeImage(scene.demoCard.card.image)}
+          src={cardImg(scene.demoCard.card.image)}
           alt={scene.demoCard.card.label}
           style={{
             left: `${scene.demoCard.target.x + scene.demoCard.target.w / 2}%`,
@@ -218,6 +260,15 @@ export default function SceneRunner({
     sessionStorage.setItem(PROGRESS_KEY_PREFIX + progressKey, String(index));
   }, [progressKey, index]);
   const isLast = index === scenes.length - 1;
+
+  useEffect(() => {
+    [...PRAISES, ...WRONG_PRAISES].forEach(p => preloadAudio(p.audioUrl));
+  }, []);
+  // Luôn tải trước 2 scene kế tiếp trong lúc học sinh làm scene hiện tại.
+  useEffect(() => {
+    preloadScene(scenes[index + 1]);
+    preloadScene(scenes[index + 2]);
+  }, [scenes, index]);
 
   // Báo cáo quá trình làm bài (chốt 2026-08-24): chỉ tạo session khi có studentName — học sinh
   // đã nhập họ tên (xem LessonsPage.jsx), hoặc admin/teacher tự test (LessonsPage.jsx tự gắn tên
@@ -454,23 +505,60 @@ function MicScene({ scene, onNext, lessonId, sceneIndex, onAttempt, onSaveRecord
   const [lastSaid, setLastSaid] = useState(null); // debug: nguyên văn máy nghe được lượt gần nhất — CHỈ hiện cho admin
   const [attempts, setAttempts] = useState(0);
   const [branch, setBranch] = useState(null); // "yes"|"no"|null — chỉ dùng khi expectedYesNo === "either"
+  const [keywordPick, setKeywordPick] = useState(null); // từ khoá học sinh đã nói trúng — chỉ dùng khi có nhiều từ khoá
   const [praise, setPraise] = useState(null);
   const [wrongPraise, setWrongPraise] = useState(null);
   const [outcome, setOutcome] = useState(null); // null | "correct" | "revealed"
   const mediaRecorderRef = useRef(null);
   const chunksRef = useRef([]);
-  const streamRef = useRef(null);
 
   const isYesNoSentence = Boolean(scene.expectedYesNo);
-  const expectedSentence = buildExpectedSentence(scene, branch);
+  const expectedSentence = buildExpectedSentence(scene, branch, keywordPick);
   const tokens = useMemo(
     () => tokenizeForGrading(expectedSentence, isYesNoSentence),
     [expectedSentence, isYesNoSentence]
   );
   const [correct, setCorrect] = useState(() => tokens.map(t => t.kind === "blank"));
 
+  // Mở micro SẴN ngay khi giám khảo hỏi xong (thay vì đợi học sinh bấm mới mở) — mở micro mất vài trăm ms, trẻ
+  // bấm là nói ngay nên chữ đầu câu ("Yes"/"No") hay bị cắt mất, máy chấm sai dù nói đúng (cô báo 2026-10-05).
+  // Luôn TẮT micro trước khi phát audio: iPhone/iPad đang mở micro thì loa phát rất nhỏ.
+  const streamPromiseRef = useRef(null);
+  const holdingRef = useRef(false);
+  const unmountedRef = useRef(false);
+
+  function warmMic() {
+    if (unmountedRef.current || !isRecordingSupported()) return Promise.reject(new Error("mic-unavailable"));
+    if (!streamPromiseRef.current) {
+      const p = navigator.mediaDevices.getUserMedia({ audio: true });
+      streamPromiseRef.current = p;
+      p.catch(() => {
+        if (streamPromiseRef.current === p) streamPromiseRef.current = null;
+      });
+    }
+    return streamPromiseRef.current;
+  }
+  function releaseMic() {
+    const p = streamPromiseRef.current;
+    streamPromiseRef.current = null;
+    p?.then(stream => stream.getTracks().forEach(t => t.stop())).catch(() => {});
+  }
+  function warmMicQuietly() {
+    warmMic().catch(() => {});
+  }
+  function speakQuestion() {
+    releaseMic();
+    playLine(scene.examinerLine, { audioUrl: scene.audioUrl, onEnd: warmMicQuietly });
+  }
+
   useEffect(() => {
-    playLine(scene.examinerLine, { audioUrl: scene.audioUrl });
+    unmountedRef.current = false;
+    speakQuestion();
+    return () => {
+      unmountedRef.current = true;
+      releaseMic();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scene]);
 
   async function startHold(e) {
@@ -480,14 +568,24 @@ function MicScene({ scene, onNext, lessonId, sceneIndex, onAttempt, onSaveRecord
       setHeard("Trình duyệt không hỗ trợ ghi âm.");
       return;
     }
+    holdingRef.current = true;
     // Học sinh bấm mic nói ngay khi giám khảo còn đang đọc — phải ngưng ngay, không để phát
     // tiếp đè lên lúc học sinh đang nói.
     stopCurrent();
     // KHÔNG xoá kết quả của lượt trước ở đây — giữ nguyên các từ đã xanh trên màn hình, chỉ cập
     // nhật đè khi có kết quả nhận diện MỚI (xem recorder.onstop bên dưới).
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      streamRef.current = stream;
+      let stream = await warmMic();
+      if (!stream.active) {
+        // Micro mở sẵn đã bị ngắt giữa chừng (rút tai nghe, đổi thiết bị...) — mở lại.
+        releaseMic();
+        stream = await warmMic();
+      }
+      if (!holdingRef.current) {
+        // Đã thả tay trước khi micro kịp mở — không ghi âm treo, giữ micro mở sẵn cho lần bấm sau.
+        setHeard("Ghi âm quá ngắn, hãy bấm giữ mic lâu hơn rồi thử lại nhé!");
+        return;
+      }
       const mimeType = MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "";
       const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
       mediaRecorderRef.current = recorder;
@@ -496,10 +594,10 @@ function MicScene({ scene, onNext, lessonId, sceneIndex, onAttempt, onSaveRecord
         if (ev.data.size > 0) chunksRef.current.push(ev.data);
       };
       recorder.onstop = async () => {
-        streamRef.current?.getTracks().forEach(t => t.stop());
-        streamRef.current = null;
+        releaseMic();
         const blob = new Blob(chunksRef.current, { type: mimeType || "audio/webm" });
         if (blob.size < 500) {
+          warmMicQuietly();
           // Ghi âm quá ngắn (bấm-thả quá nhanh) — báo rõ cho học sinh biết để bấm giữ lại,
           // không được lặng lẽ không làm gì (trẻ nhỏ sẽ không hiểu vì sao không có phản hồi).
           setHeard("Ghi âm quá ngắn, hãy bấm giữ mic lâu hơn rồi thử lại nhé!");
@@ -517,6 +615,7 @@ function MicScene({ scene, onNext, lessonId, sceneIndex, onAttempt, onSaveRecord
         } catch (err) {
           setHeard(describePronunciationError(err));
           setPhase("ask");
+          warmMicQuietly();
           return;
         }
 
@@ -533,9 +632,20 @@ function MicScene({ scene, onNext, lessonId, sceneIndex, onAttempt, onSaveRecord
         }
         const branchJustChosen = effectiveBranch !== branch;
         if (branchJustChosen) setBranch(effectiveBranch);
-        const gradingSentence = branchJustChosen ? buildExpectedSentence(scene, effectiveBranch) : expectedSentence;
-        const gradingTokens = branchJustChosen ? tokenizeForGrading(gradingSentence, isYesNoSentence) : tokens;
-        const priorCorrect = branchJustChosen ? gradingTokens.map(t => t.kind === "blank") : correct;
+        // Scene nhiều từ khoá cùng đúng: chốt theo từ khoá học sinh nói trúng đầu tiên (giống nhánh Yes/No ở trên).
+        const effectiveKeyword = keywordPick ?? pickKeyword(scene, saidNorm);
+        const keywordJustChosen = effectiveKeyword !== keywordPick;
+        if (keywordJustChosen) setKeywordPick(effectiveKeyword);
+        const sentenceChanged = branchJustChosen || keywordJustChosen;
+        const gradingSentence = sentenceChanged ? buildExpectedSentence(scene, effectiveBranch, effectiveKeyword) : expectedSentence;
+        const gradingTokens = sentenceChanged ? tokenizeForGrading(gradingSentence, isYesNoSentence) : tokens;
+        // Đổi từ khoá chỉ thay phần đáp án, khung câu giữ nguyên → từ khung câu đã xanh vẫn giữ xanh.
+        const greenTexts = new Set(tokens.filter((_, i) => correct[i]).map(t => t.text));
+        const priorCorrect = branchJustChosen
+          ? gradingTokens.map(t => t.kind === "blank")
+          : keywordJustChosen
+            ? gradingTokens.map(t => t.kind === "blank" || greenTexts.has(t.text))
+            : correct;
 
         const nextCorrect = gradeAttempt(gradingTokens, priorCorrect, said);
         setCorrect(nextCorrect);
@@ -577,7 +687,7 @@ function MicScene({ scene, onNext, lessonId, sceneIndex, onAttempt, onSaveRecord
         onAttempt?.(sceneIndex, "mic", scene.examinerLine, nextAttempts, "wrong", said);
         const w = pickWrong();
         setWrongPraise(w);
-        playLine(w.text, { audioUrl: w.audioUrl });
+        playLine(w.text, { audioUrl: w.audioUrl, onEnd: warmMicQuietly });
         setPhase("ask");
       };
       setPhase("recording");
@@ -589,6 +699,7 @@ function MicScene({ scene, onNext, lessonId, sceneIndex, onAttempt, onSaveRecord
 
   function stopHold(e) {
     e.preventDefault();
+    holdingRef.current = false;
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
       mediaRecorderRef.current.stop();
     }
@@ -602,10 +713,10 @@ function MicScene({ scene, onNext, lessonId, sceneIndex, onAttempt, onSaveRecord
   return (
     <>
       <div className={`scene-body${hasMedia ? "" : " scene-body-center"}`}>
-        <ExaminerLine text={scene.examinerLine} />
+        <ExaminerLine text={scene.examinerLine} onReplay={phase === "ask" ? speakQuestion : undefined} />
         <SceneImageWithHighlight scene={scene} />
         {scene.card && (
-          <img className="part1-single-card" src={optimizeImage(scene.card.image)} alt={scene.card.label} />
+          <img className="part1-single-card" src={cardImg(scene.card.image)} alt={scene.card.label} />
         )}
       </div>
       <div className="scene-foot">
@@ -675,8 +786,13 @@ function SceneClickScene({ scene, onNext, sceneIndex, onAttempt }) {
   const [wrongCount, setWrongCount] = useState(0);
   const [revealed, setRevealed] = useState(false);
 
-  useEffect(() => {
+  // Nghe lại câu hỏi — chỉ hiện nút khi còn đang chờ trả lời (phát lại lúc đang khen sẽ cắt mất bước tự chuyển scene).
+  function replay() {
     playLine(scene.examinerLine, { audioUrl: scene.audioUrl });
+  }
+  useEffect(() => {
+    replay();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scene]);
 
   // Scene soạn dở trong CMS (chưa kéo chọn vùng bấm đúng qua CoordinatePicker) không có
@@ -719,12 +835,12 @@ function SceneClickScene({ scene, onNext, sceneIndex, onAttempt }) {
   return (
     <>
       <div className="scene-body">
-        <ExaminerLine text={scene.examinerLine} />
+        <ExaminerLine text={scene.examinerLine} onReplay={correct || revealed ? undefined : replay} />
         {!correct && !revealed && !wrong && <div className="scene-hint-inline">Chạm vào đáp án đúng</div>}
         <SceneStage extraClassName={wrong ? "is-shake" : ""} onClick={() => choose(false)}>
           <img alt="Tranh của bài"
             className="part1-scene-img"
-            src={optimizeImage(scene.sceneImage)}
+            src={sceneImg(scene.sceneImage)}
             onError={e => (e.currentTarget.style.display = "none")}
           />
           <button
@@ -767,8 +883,13 @@ function CardSelectScene({ scene, onNext, sceneIndex, onAttempt }) {
   const [wrongCount, setWrongCount] = useState(0);
   const [revealed, setRevealed] = useState(false);
 
-  useEffect(() => {
+  // Nghe lại câu hỏi — chỉ hiện nút khi còn đang chờ trả lời (phát lại lúc đang khen sẽ cắt mất bước tự chuyển scene).
+  function replay() {
     playLine(scene.examinerLine, { audioUrl: scene.audioUrl });
+  }
+  useEffect(() => {
+    replay();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scene]);
 
   // Vài scene chấp nhận NHIỀU đáp án đúng (vd đề thi thật giám khảo chỉ hỏi 1 trong 2 vật, xem
@@ -818,7 +939,7 @@ function CardSelectScene({ scene, onNext, sceneIndex, onAttempt }) {
   return (
     <>
       <div className="scene-body scene-body-center">
-        <ExaminerLine text={scene.examinerLine} />
+        <ExaminerLine text={scene.examinerLine} onReplay={correct || revealed ? undefined : replay} />
         {!correct && !revealed && !wrongId && <div className="scene-hint-inline">Chạm vào đáp án đúng</div>}
       </div>
       <div className="scene-foot">
@@ -832,7 +953,7 @@ function CardSelectScene({ scene, onNext, sceneIndex, onAttempt }) {
               onClick={() => choose(opt.id)}
               aria-label={opt.label}
             >
-              <img alt="Thẻ lựa chọn" src={optimizeImage(opt.image)} onError={e => (e.currentTarget.style.display = "none")} />
+              <img alt="Thẻ lựa chọn" src={cardImg(opt.image)} onError={e => (e.currentTarget.style.display = "none")} />
             </button>
           ))}
         </div>
@@ -865,8 +986,13 @@ function DragDropScene({ scene, onNext, sceneIndex, onAttempt }) {
   // (luôn thấy giá trị lúc effect chạy lần đầu). Ref luôn đọc được giá trị mới nhất.
   const wrongCountRef = useRef(0);
 
-  useEffect(() => {
+  // Nghe lại câu hỏi — chỉ hiện nút khi còn đang chờ trả lời (phát lại lúc đang khen sẽ cắt mất bước tự chuyển scene).
+  function replay() {
     playLine(scene.examinerLine, { audioUrl: scene.audioUrl });
+  }
+  useEffect(() => {
+    replay();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scene]);
 
   // Dùng listener trên window khi đang kéo, thay vì Pointer Capture — capture không nhận
@@ -963,17 +1089,17 @@ function DragDropScene({ scene, onNext, sceneIndex, onAttempt }) {
   return (
     <>
       <div className="scene-body">
-        <ExaminerLine text={scene.examinerLine} />
+        <ExaminerLine text={scene.examinerLine} onReplay={correct || revealed ? undefined : replay} />
         <SceneStage extraClassName={wrong ? "is-shake" : ""} innerRef={sceneRef}>
           <img alt="Tranh của bài"
             className="part1-scene-img"
-            src={optimizeImage(scene.sceneImage)}
+            src={sceneImg(scene.sceneImage)}
             onError={e => (e.currentTarget.style.display = "none")}
           />
           {(correct || revealed) && (
             <img alt="Thẻ đã đặt"
               className="dropped-card"
-              src={optimizeImage(scene.card.image)}
+              src={cardImg(scene.card.image)}
               style={{
                 left: `${scene.target.x + scene.target.w / 2}%`,
                 top: `${scene.target.y + scene.target.h / 2}%`,
@@ -986,7 +1112,7 @@ function DragDropScene({ scene, onNext, sceneIndex, onAttempt }) {
         {!correct && !revealed && (
           <img
             className="drag-card"
-            src={optimizeImage(scene.card.image)}
+            src={cardImg(scene.card.image)}
             alt={scene.card.label}
             draggable={false}
             onMouseDown={onDragStart}

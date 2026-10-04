@@ -4,11 +4,12 @@
 import { useCallback, useEffect, useRef } from "react";
 import { auth } from "./firebase.js";
 import { startExamFocus, getExamLeaves } from "./examFocus.js";
+import { showRetryRound, finishRetryRound, clearRetryRound } from "./retryRound.js";
 
 const WORKER_URL = import.meta.env.VITE_WORKER_URL;
 const MAX_TRIES = 3;
 
-async function callWorker(path, body) {
+export async function callWorker(path, body) {
   if (!WORKER_URL) throw new Error("worker-not-configured");
   const token = await auth.currentUser?.getIdToken();
   if (!token) throw new Error("not-signed-in");
@@ -58,6 +59,9 @@ export function useTestSubmission({ kind, seriesId, level, testId, openingId, le
     startRef.current = openingId
       ? callWorker("/test/start", meta).catch(() => ({ startId: null })) // lỗi mạng lúc vào bài: vẫn cho làm
       : Promise.resolve({ startId: null });
+    // Lượt mới / thoát bài: bỏ thông tin vòng làm lại của lượt trước (lib/retryRound.js).
+    clearRetryRound();
+    return clearRetryRound;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [kind, seriesId, level, testId, openingId, resetKey]);
 
@@ -78,6 +82,12 @@ export function useTestSubmission({ kind, seriesId, level, testId, openingId, le
       for (let i = 0; i < MAX_TRIES; i++) {
         try {
           const res = await callWorker("/test/submit", body);
+          if (res.retry) {
+            // Còn sai quá số câu cho phép: máy chủ chưa nhận bài — báo câu sai, trang làm bài quay lại cho sửa.
+            showRetryRound(res);
+            throw Object.assign(new Error("retry-round"), { retry: true, status: 409 });
+          }
+          finishRetryRound(res.mastery ? { correct: res.correct, total: res.total } : null);
           stopFocusRef.current?.();
           return res;
         } catch (err) {

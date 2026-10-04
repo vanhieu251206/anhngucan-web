@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import "./index.css";
 import App from "./App.jsx";
 import ExamFocusOverlay from "./components/ExamFocusOverlay.jsx";
+import RetryRoundOverlay from "./components/RetryRoundOverlay.jsx";
 import { AuthProvider } from "./lib/authContext.jsx";
 import { initAnalytics } from "./lib/analytics.js";
 
@@ -19,6 +20,7 @@ createRoot(document.getElementById("root")).render(
     <AuthProvider>
       <App />
       <ExamFocusOverlay />
+      <RetryRoundOverlay />
     </AuthProvider>
   </StrictMode>
 );

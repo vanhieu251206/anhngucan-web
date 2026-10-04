@@ -48,7 +48,8 @@ const clip = (s, n = 160) => String(s ?? "").replace(/\s+/g, " ").trim().slice(0
 
 // ---------- Part 2: nghe và viết tên/số ----------
 export const normPart2 = s => String(s ?? "").toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, "").replace(/\s+/g, " ").trim();
-const accepted = answer => String(answer ?? "").split("/").map(normPart2).filter(Boolean);
+// Nhiều cách viết: ngăn bằng "/" (cách cũ) hoặc "|" (như mọi dạng bài khác).
+const accepted = answer => String(answer ?? "").split(/[/|]/).map(normPart2).filter(Boolean);
 export const isPart2Right = (q, value) => accepted(q.answer).includes(normPart2(value));
 
 export function part2Questions(part) {

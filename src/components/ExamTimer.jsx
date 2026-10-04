@@ -28,6 +28,7 @@ export function useExamTimer({ limitMinutes, running = true, onExpire, resetKey 
       stoppedAtRef.current ??= Date.now();
       return;
     }
+    stoppedAtRef.current = null; // quay lại làm tiếp (vd sửa câu sai rồi nộp lại) → đồng hồ chạy tiếp
     const id = setInterval(() => {
       setTick(t => t + 1);
       if (limitMs && !expiredRef.current && Date.now() - startRef.current >= limitMs) {

@@ -68,6 +68,7 @@ export default function OpeningsPage() {
   const [expiresAt, setExpiresAt] = useState("");
   const [maxAttempts, setMaxAttempts] = useState("");
   const [minutes, setMinutes] = useState("");
+  const [maxWrong, setMaxWrong] = useState("");
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(null); // { id, ...fields }
   const [showForm, setShowForm] = useState(false);
@@ -175,6 +176,7 @@ export default function OpeningsPage() {
           expiresAt: expiresAt ? new Date(expiresAt) : null,
           maxAttempts: maxAttempts ? Number(maxAttempts) : null,
           timeLimitMinutes: minutes ? Number(minutes) : null,
+          maxWrong: maxWrong === "" ? null : Number(maxWrong),
         },
         user.uid
       );
@@ -196,6 +198,7 @@ export default function OpeningsPage() {
         expiresAt: editing.expiresAt ? new Date(editing.expiresAt) : null,
         maxAttempts: editing.maxAttempts ? Number(editing.maxAttempts) : null,
         timeLimitMinutes: editing.minutes ? Number(editing.minutes) : null,
+        maxWrong: editing.maxWrong === "" || editing.maxWrong == null ? null : Number(editing.maxWrong),
       });
       setEditing(null);
       reload();
@@ -334,18 +337,24 @@ export default function OpeningsPage() {
               {choices.map(c => <option key={c.id} value={c.id}>{c.title}</option>)}
             </select>
           </label>
-          <label className="admin-mini-field">
+          <label className="admin-mini-field opening-span-2">
             <span>Hạn chót</span>
             <input className="admin-input" type="datetime-local" required value={expiresAt} onChange={e => setExpiresAt(e.target.value)} />
           </label>
-          <label className="admin-mini-field">
-            <span>Số lượt làm tối đa (để trống = không giới hạn)</span>
-            <input className="admin-input" type="number" min="1" value={maxAttempts} onChange={e => setMaxAttempts(e.target.value)} />
-          </label>
-          <label className="admin-mini-field">
-            <span>Thời gian làm bài (phút, để trống = theo bài / không giới hạn)</span>
-            <input className="admin-input" type="number" min="1" value={minutes} onChange={e => setMinutes(e.target.value)} />
-          </label>
+          <div className="opening-row-3">
+            <label className="admin-mini-field">
+              <span>Số lượt</span>
+              <input className="admin-input" type="number" min="1" placeholder="Không giới hạn" value={maxAttempts} onChange={e => setMaxAttempts(e.target.value)} />
+            </label>
+            <label className="admin-mini-field">
+              <span>Số phút</span>
+              <input className="admin-input" type="number" min="1" placeholder="Theo bài" value={minutes} onChange={e => setMinutes(e.target.value)} />
+            </label>
+            <label className="admin-mini-field">
+              <span>Sai tối đa (câu)</span>
+              <input className="admin-input" type="number" min="0" placeholder="Không yêu cầu" value={maxWrong} onChange={e => setMaxWrong(e.target.value)} />
+            </label>
+          </div>
           <div className="opening-form-actions">
             {error && <p className="admin-error">{error}</p>}
             <button type="button" className="admin-pill-btn" onClick={() => setShowForm(false)}>Huỷ</button>
@@ -362,18 +371,24 @@ export default function OpeningsPage() {
             <h2>Sửa bài đang mở</h2>
             <p className="admin-muted-text">Lớp {editing.className} · {editing.testTitle} · {OPENING_KINDS[editing.kind] ?? editing.kind}</p>
             <form className="admin-form opening-form-grid" onSubmit={e => { e.preventDefault(); handleSaveEdit(); }}>
-              <label className="admin-mini-field">
+              <label className="admin-mini-field opening-span-2">
                 <span>Hạn chót</span>
                 <input className="admin-input" type="datetime-local" required value={editing.expiresAt} onChange={e => setEditing({ ...editing, expiresAt: e.target.value })} />
               </label>
-              <label className="admin-mini-field">
-                <span>Số lượt làm tối đa (để trống = không giới hạn)</span>
-                <input className="admin-input" type="number" min="1" value={editing.maxAttempts} onChange={e => setEditing({ ...editing, maxAttempts: e.target.value })} />
-              </label>
-              <label className="admin-mini-field">
-                <span>Thời gian làm bài (phút)</span>
-                <input className="admin-input" type="number" min="1" value={editing.minutes} onChange={e => setEditing({ ...editing, minutes: e.target.value })} />
-              </label>
+              <div className="opening-row-3">
+                <label className="admin-mini-field">
+                  <span>Số lượt</span>
+                  <input className="admin-input" type="number" min="1" placeholder="Không giới hạn" value={editing.maxAttempts} onChange={e => setEditing({ ...editing, maxAttempts: e.target.value })} />
+                </label>
+                <label className="admin-mini-field">
+                  <span>Số phút</span>
+                  <input className="admin-input" type="number" min="1" placeholder="Theo bài" value={editing.minutes} onChange={e => setEditing({ ...editing, minutes: e.target.value })} />
+                </label>
+                <label className="admin-mini-field">
+                  <span>Sai tối đa (câu)</span>
+                  <input className="admin-input" type="number" min="0" placeholder="Không yêu cầu" value={editing.maxWrong} onChange={e => setEditing({ ...editing, maxWrong: e.target.value })} />
+                </label>
+              </div>
               <div className="opening-form-actions">
                 {error && <p className="admin-error">{error}</p>}
                 <button type="button" className="admin-pill-btn" onClick={() => setEditing(null)}>Huỷ</button>
@@ -477,7 +492,7 @@ export default function OpeningsPage() {
                             {copiedId === o.id ? "✓ Đã copy" : "🔗 Copy link"}
                           </button>
                         )}
-                        <button className="opening-btn" onClick={() => setEditing({ id: o.id, className: o.className, testTitle: o.testTitle, kind: o.kind, expiresAt: toLocalInput(o.expiresAt?.toDate?.()), maxAttempts: o.maxAttempts ?? "", minutes: o.timeLimitMinutes ?? "" })}>✏️ Sửa</button>
+                        <button className="opening-btn" onClick={() => setEditing({ id: o.id, className: o.className, testTitle: o.testTitle, kind: o.kind, expiresAt: toLocalInput(o.expiresAt?.toDate?.()), maxAttempts: o.maxAttempts ?? "", minutes: o.timeLimitMinutes ?? "", maxWrong: o.maxWrong ?? "" })}>✏️ Sửa</button>
                         <button className="opening-btn opening-btn-danger" onClick={() => handleClose(o)}>🗑 Đóng bài</button>
                       </div>
                     </td>

@@ -506,7 +506,8 @@ export default function IeltsPracticeRunner({ test, onBack, mode = "practice", r
       setSubmitted(true);
       setSubmitState(null);
     } catch (error) {
-      setSubmitState({ error });
+      // error.retry: còn sai quá số câu cho phép → quay lại sửa câu sai (lib/retryRound.js), bài làm giữ nguyên.
+      setSubmitState(error?.retry ? null : { error });
     }
   }
 

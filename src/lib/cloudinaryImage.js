@@ -7,7 +7,9 @@
 // làm nhoè viền, hỏng thuật toán tô vùng. URL không phải ảnh Cloudinary (asset nội bộ, data:, blob:) trả nguyên.
 const UPLOAD_MARKER = "/image/upload/";
 
-export function optimizeImage(url) {
+// maxWidth (tuỳ chọn): thu ảnh về tối đa bề ngang này (c_limit — không phóng to ảnh nhỏ hơn) cho nơi khung hiển
+// thị nhỏ hơn hẳn ảnh gốc (vd bài Speaking), tải nhanh hơn trên mạng chậm.
+export function optimizeImage(url, { maxWidth } = {}) {
   if (typeof url !== "string" || !url.startsWith("https://res.cloudinary.com/")) return url;
   const i = url.indexOf(UPLOAD_MARKER);
   if (i === -1 || /\.svg($|\?)/i.test(url)) return url;
@@ -15,5 +17,5 @@ export function optimizeImage(url) {
   const rest = url.slice(i + UPLOAD_MARKER.length);
   // Đã có f_auto ở bước transformation đầu thì không chèn lại.
   if (/(^|,)f_auto(,|$)/.test(rest.split("/")[0])) return url;
-  return `${head}f_auto,q_auto/${rest}`;
+  return `${head}f_auto,q_auto${maxWidth ? `,c_limit,w_${maxWidth}` : ""}/${rest}`;
 }

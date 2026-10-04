@@ -14,6 +14,7 @@ import { adminError, verifyIdToken } from "./admin.js";
 import { firestore, encodeFields, randomDocId } from "./firestore.js";
 import { SERVER_GRADED, gradeSubmission, testLocation } from "../../src/lib/grading/index.js";
 import { answerKind, answerKeyDocId, mergeAnswers, parseEntries } from "../../src/lib/grading/answerKeys.js";
+import { regradeResult, gradingSignature } from "../../src/lib/grading/regrade.js";
 
 const RESULT_KEEP_MS = 48 * 60 * 60 * 1000; // kết quả giữ tới 48h sau hạn chót (lib/testResults.js)
 const NO_START_GRACE_MS = 5 * 60 * 1000; // không có mốc bắt đầu (lỗi mạng lúc vào bài): cho nộp trễ tối đa 5 phút
@@ -116,6 +117,12 @@ function clientGradedTotal(kind, test) {
   return null;
 }
 
+const MAX_RAW_ANSWERS_CHARS = 200_000;
+function rawAnswersJson(answers) {
+  const json = JSON.stringify(answers ?? null);
+  return json.length <= MAX_RAW_ANSWERS_CHARS ? json : null;
+}
+
 function cleanTabLeaves(list) {
   if (!Array.isArray(list)) return [];
   return list
@@ -133,6 +140,7 @@ export async function submitTest(request, env) {
 
   let opening = null;
   let startedAt = null;
+  let startDoc = null; // mốc bắt đầu hợp lệ của lượt này — giữ cả số vòng làm lại (maxWrong, xem dưới)
   let overtime = false;
   if (isStudent) {
     opening = await loadOpeningFor(db, caller, body);
@@ -146,6 +154,7 @@ export async function submitTest(request, env) {
         start.openingId === body.openingId
       ) {
         startedAt = start.startedAt?.getTime() ?? null;
+        startDoc = start;
       }
     }
     const deadline = opening.expiresAt?.getTime();
@@ -175,7 +184,35 @@ export async function submitTest(request, env) {
     if (limitMinutes && startedAt != null) overtime = now - startedAt > limitMinutes * 60000 + TIME_LIMIT_GRACE_MS;
   }
 
-  const response = { correct: graded.correct, total: graded.total, ...(graded.parts ? { parts: graded.parts } : {}) };
+  // "Sai tối đa N câu mới được nộp" (opening.maxWrong, 2026-10-05, yêu cầu của cô): còn sai nhiều hơn N câu thì
+  // CHƯA ghi kết quả, chỉ trả về điểm + danh sách câu sai (không kèm đáp án) để học sinh sửa rồi nộp lại — cả chuỗi
+  // làm lại tính 1 lượt. Hết giờ làm bài hoặc quá hạn chót thì nhận bài luôn dù chưa đạt. Chỉ dạng Worker tự chấm.
+  let mastery = null;
+  if (isStudent && gradedBy === "server" && Number.isInteger(opening.maxWrong) && opening.maxWrong >= 0) {
+    const wrong = (graded.items ?? []).filter(it => !it.ungraded && it.isCorrect === false);
+    const limitMinutes = opening.timeLimitMinutes ?? test?.timeLimitMinutes ?? null;
+    const spentMs = startedAt != null ? now - startedAt : Number(body.elapsedMs) || 0;
+    const closeAt = opening.expiresAt?.getTime();
+    const timeUp = (limitMinutes > 0 && spentMs >= limitMinutes * 60000 - 5000) || (closeAt != null && now > closeAt);
+    const round = (startDoc?.rounds ?? 0) + 1;
+    const firstCorrect = startDoc?.firstCorrect ?? graded.correct;
+    if (wrong.length > opening.maxWrong && !timeUp) {
+      if (startDoc) {
+        await db.commit([{
+          update: { name: db.name(`testStarts/${body.startId}`), fields: encodeFields({ rounds: round, firstCorrect }) },
+          updateMask: { fieldPaths: ["rounds", "firstCorrect"] },
+          currentDocument: { exists: true },
+        }]);
+      }
+      return {
+        retry: true, correct: graded.correct, total: graded.total, maxWrong: opening.maxWrong, round,
+        wrong: wrong.map(it => ({ section: it.section ?? null, group: it.group ?? null, qNumber: it.qNumber ?? null })),
+      };
+    }
+    mastery = { maxWrong: opening.maxWrong, rounds: round, firstCorrect, passed: wrong.length <= opening.maxWrong };
+  }
+
+  const response = { correct: graded.correct, total: graded.total, ...(graded.parts ? { parts: graded.parts } : {}), ...(mastery ? { mastery } : {}) };
   if (caller.role === "tester") return response; // tài khoản đặc biệt: không để lại dấu vết
 
   const deadline = opening?.expiresAt?.getTime() ?? 0;
@@ -195,7 +232,11 @@ export async function submitTest(request, env) {
     total: graded.total,
     elapsedMs: startedAt != null ? now - startedAt : Number(body.elapsedMs) || null,
     items: graded.items ?? [],
+    // Câu trả lời thô (chuỗi JSON) — để chấm lại đúng y như lúc nộp khi giáo viên sửa đáp án (regradeTest).
+    rawAnswers: gradedBy === "server" ? rawAnswersJson(body.answers) : null,
     gradedBy,
+    // Bài có yêu cầu "sai tối đa N câu": số vòng đã nộp, điểm vòng đầu, có đạt không (null = bài thường).
+    mastery,
     overtime,
     // Các lần rời tab lúc làm bài do trình duyệt ghi (src/lib/examFocus.js) — chỉ để giáo viên tham khảo.
     tabLeaves: isStudent ? cleanTabLeaves(body.tabLeaves) : [],
@@ -269,4 +310,72 @@ export async function reviewTest(request, env) {
     }))
     .sort((a, b) => String(a.submittedAt).localeCompare(String(b.submittedAt)));
   return { deadline: new Date(deadline).toISOString(), results };
+}
+
+// Chấm lại MỌI lượt nộp còn lưu của 1 bài theo đề + đáp án hiện tại (2026-10-05) — dùng sau khi giáo viên sửa đáp
+// án. Chỉ admin. Trang Kết quả học sinh gọi lần lượt từng bài (mỗi bài 1 request để không vượt giới hạn subrequest của
+// Worker). Chỉ dạng Worker tự chấm; lượt không chấm lại được (dữ liệu quá cũ) giữ nguyên. Cập nhật luôn điểm tóm
+// tắt ở `attempts` (trang "Bài của con").
+//   POST /admin/regrade { kind, seriesId, level, testId } → { checked, changed, skipped }
+const REGRADE_COMMIT_SIZE = 40;
+
+export async function regradeTest(request, env) {
+  const db = firestore(env);
+  const caller = await loadCaller(request, env, db);
+  if (caller.role !== "admin") throw adminError(403, "forbidden");
+  const body = await readBody(request);
+  if (!SERVER_GRADED.has(body.kind)) throw adminError(400, "bad-request");
+
+  const loaded = await loadTestWithAnswers(db, body);
+  if (!loaded) throw adminError(404, "test-not-found");
+  const test = { ...loaded, seriesId: body.seriesId };
+
+  const rows = (await db.query("testResults", { mode: body.kind, testId: String(body.testId), seriesId: body.seriesId }))
+    .filter(r => String(r.level) === String(body.level));
+
+  let skipped = 0;
+  const writes = [];
+  const current = rows.map(r => {
+    const g = regradeResult(body.kind, test, r);
+    if (!g) {
+      skipped += 1;
+      return r;
+    }
+    if (gradingSignature(g) !== gradingSignature(r)) {
+      writes.push({
+        update: { name: db.name(`testResults/${r.id}`), fields: encodeFields({ correct: g.correct, total: g.total, items: g.items }) },
+        updateMask: { fieldPaths: ["correct", "total", "items"] },
+        updateTransforms: [{ fieldPath: "regradedAt", setToServerValue: "REQUEST_TIME" }],
+        currentDocument: { exists: true },
+      });
+    }
+    return { ...r, correct: g.correct, total: g.total };
+  });
+  const changed = writes.length;
+
+  // Điểm tóm tắt của từng học sinh theo từng lần mở bài: lượt gần nhất + lượt cao nhất (tính trên các lượt còn lưu).
+  const byAttempt = new Map();
+  current.filter(r => r.uid && r.openingId).forEach(r => {
+    const id = `${r.uid}_${body.kind}_${attemptKey(body.testId, r.openingId)}`;
+    byAttempt.set(id, [...(byAttempt.get(id) ?? []), r]);
+  });
+  const openingIds = [...new Set(current.filter(r => r.uid && r.openingId).map(r => r.openingId))];
+  for (const openingId of openingIds) {
+    const docs = await db.query("attempts", { mode: body.kind, testId: attemptKey(body.testId, openingId) });
+    for (const doc of docs) {
+      const list = byAttempt.get(doc.id);
+      if (!list) continue;
+      const last = list.reduce((a, b) => ((b.submittedAt?.getTime?.() ?? 0) >= (a.submittedAt?.getTime?.() ?? 0) ? b : a));
+      const best = Math.max(...list.map(r => Number(r.correct) || 0));
+      if (doc.lastCorrect === last.correct && doc.bestCorrect === best && doc.total === last.total) continue;
+      writes.push({
+        update: { name: db.name(`attempts/${doc.id}`), fields: encodeFields({ lastCorrect: last.correct, bestCorrect: best, total: last.total }) },
+        updateMask: { fieldPaths: ["lastCorrect", "bestCorrect", "total"] },
+        currentDocument: { exists: true },
+      });
+    }
+  }
+
+  for (let i = 0; i < writes.length; i += REGRADE_COMMIT_SIZE) await db.commit(writes.slice(i, i + REGRADE_COMMIT_SIZE));
+  return { checked: rows.length, changed, skipped };
 }
