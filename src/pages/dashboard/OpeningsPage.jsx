@@ -24,6 +24,22 @@ function toLocalInput(date) {
   return d.toISOString().slice(0, 16);
 }
 
+// Các cách sắp xếp danh sách bài đang mở — `value` trả số hoặc chuỗi; nhãn nút đảo chiều theo từng kiểu dữ liệu.
+const SORT_STORAGE_KEY = "openings.sort";
+const TIME_LABELS = { ascLabel: "↑ Cũ → mới", descLabel: "↓ Mới → cũ" };
+const TEXT_LABELS = { ascLabel: "↑ A → Z", descLabel: "↓ Z → A" };
+const NUM_LABELS = { ascLabel: "↑ Ít → nhiều", descLabel: "↓ Nhiều → ít" };
+const SORT_FIELDS = {
+  created: { label: "Lúc mở bài", value: o => o.createdAt?.toMillis?.() ?? Infinity, ...TIME_LABELS },
+  deadline: { label: "Hạn chót", value: o => o.expiresAt?.toMillis?.() ?? Infinity, ascLabel: "↑ Gần → xa", descLabel: "↓ Xa → gần" },
+  class: { label: "Lớp", value: o => o.className || "", ...TEXT_LABELS },
+  title: { label: "Tên bài", value: o => o.testTitle || "", ...TEXT_LABELS },
+  kind: { label: "Dạng bài", value: o => OPENING_KINDS[o.kind] ?? o.kind ?? "", ...TEXT_LABELS },
+  attempts: { label: "Số lượt", value: o => o.maxAttempts ?? Infinity, ...NUM_LABELS },
+  minutes: { label: "Số phút", value: o => o.timeLimitMinutes ?? Infinity, ...NUM_LABELS },
+  status: { label: "Trạng thái", value: o => (isExpired(o) ? 1 : 0), ascLabel: "↑ Đang mở trước", descLabel: "↓ Hết hạn trước" },
+};
+
 function formatDate(ts) {
   return ts?.toDate ? ts.toDate().toLocaleString("vi-VN") : "Không hạn";
 }
@@ -234,11 +250,40 @@ export default function OpeningsPage() {
     reload();
   }
 
-  // Cũ nhất → mới nhất theo lúc mở bài (bài vừa mở chưa có giờ máy chủ thì nằm cuối).
+  // Lọc + sắp xếp: mặc định cũ nhất → mới nhất theo lúc mở bài (bài vừa mở chưa có giờ máy chủ thì nằm cuối).
+  // Bấm tiêu đề cột để sắp theo cột đó, bấm lần nữa để đảo chiều; lựa chọn sắp xếp được nhớ trên máy này.
+  const [classFilter, setClassFilter] = useState("");
+  const [kindFilter, setKindFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [search, setSearch] = useState("");
+  const [sort, setSortState] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(SORT_STORAGE_KEY));
+      if (SORT_FIELDS[saved?.by]) return { by: saved.by, desc: !!saved.desc };
+    } catch { /* bỏ qua */ }
+    return { by: "created", desc: false };
+  });
+  function setSort(next) {
+    setSortState(next);
+    try { localStorage.setItem(SORT_STORAGE_KEY, JSON.stringify(next)); } catch { /* bỏ qua */ }
+  }
+  const sortBy = by => setSort({ by, desc: sort.by === by ? !sort.desc : false });
+  const filtering = !!(classFilter || kindFilter || statusFilter || search);
+
+  const listClasses = useMemo(() => [...new Set((openings ?? []).map(o => o.className).filter(Boolean))].sort((a, b) => a.localeCompare(b, "vi", { numeric: true })), [openings]);
+  const listKinds = useMemo(() => [...new Set((openings ?? []).map(o => o.kind).filter(Boolean))], [openings]);
   const sorted = useMemo(() => {
-    const at = o => o.createdAt?.toMillis?.() ?? Infinity;
-    return [...(openings ?? [])].sort((a, b) => at(a) - at(b) || (a.className || "").localeCompare(b.className || ""));
-  }, [openings]);
+    const q = search.trim().toLowerCase();
+    const value = SORT_FIELDS[sort.by].value;
+    const cmp = (x, y) => (typeof x === "string" ? x.localeCompare(y, "vi", { numeric: true }) : x === y ? 0 : x < y ? -1 : 1);
+    const created = SORT_FIELDS.created.value;
+    return (openings ?? [])
+      .filter(o => !classFilter || o.className === classFilter)
+      .filter(o => !kindFilter || o.kind === kindFilter)
+      .filter(o => !statusFilter || (statusFilter === "expired") === isExpired(o))
+      .filter(o => !q || (o.testTitle ?? "").toLowerCase().includes(q))
+      .sort((a, b) => (sort.desc ? -1 : 1) * cmp(value(a), value(b)) || cmp(created(a), created(b)));
+  }, [openings, classFilter, kindFilter, statusFilter, search, sort]);
 
   return (
     <div>
@@ -346,12 +391,67 @@ export default function OpeningsPage() {
         </div>
         {error && !showForm && !editing && <p className="admin-error">{error}</p>}
         {openings === null && <p className="admin-muted-text">Đang tải...</p>}
-        {openings && sorted.length === 0 && <p className="admin-muted-text">Chưa mở bài nào.</p>}
+        {openings && openings.length === 0 && <p className="admin-muted-text">Chưa mở bài nào.</p>}
+        {openings && openings.length > 0 && (
+          <div className="admin-filter-bar">
+            <label>
+              Lớp
+              <select className="admin-input" value={classFilter} onChange={e => setClassFilter(e.target.value)}>
+                <option value="">Tất cả lớp</option>
+                {listClasses.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </label>
+            <label>
+              Dạng bài
+              <select className="admin-input" value={kindFilter} onChange={e => setKindFilter(e.target.value)}>
+                <option value="">Tất cả</option>
+                {listKinds.map(k => <option key={k} value={k}>{OPENING_KINDS[k] ?? k}</option>)}
+              </select>
+            </label>
+            <label>
+              Trạng thái
+              <select className="admin-input" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
+                <option value="">Tất cả</option>
+                <option value="open">Đang mở</option>
+                <option value="expired">Hết hạn</option>
+              </select>
+            </label>
+            <label>
+              Bài
+              <input className="admin-input" type="text" placeholder="Tìm theo tên bài" value={search} onChange={e => setSearch(e.target.value)} />
+            </label>
+            <label>
+              Sắp xếp theo
+              <select className="admin-input" value={sort.by} onChange={e => setSort({ by: e.target.value, desc: false })}>
+                {Object.entries(SORT_FIELDS).map(([k, f]) => <option key={k} value={k}>{f.label}</option>)}
+              </select>
+            </label>
+            <button className="opening-btn" type="button" onClick={() => setSort({ ...sort, desc: !sort.desc })}>
+              {sort.desc ? SORT_FIELDS[sort.by].descLabel : SORT_FIELDS[sort.by].ascLabel}
+            </button>
+            {filtering && (
+              <button className="opening-btn" type="button" onClick={() => { setClassFilter(""); setKindFilter(""); setStatusFilter(""); setSearch(""); }}>
+                Xoá lọc
+              </button>
+            )}
+            <span className="opening-count">{sorted.length}/{openings.length} bài</span>
+          </div>
+        )}
+        {openings && openings.length > 0 && sorted.length === 0 && <p className="admin-muted-text">Không có bài nào khớp bộ lọc.</p>}
         {openings && sorted.length > 0 && (
           <div style={{ overflowX: "auto" }}>
             <table className="admin-table opening-table">
               <thead>
-                <tr><th>Lớp</th><th>Bài</th><th>Hạn chót</th><th>Lượt</th><th>Phút</th><th>Trạng thái</th><th></th></tr>
+                <tr>
+                  {[["class", "Lớp"], ["title", "Bài"], ["deadline", "Hạn chót"], ["attempts", "Lượt"], ["minutes", "Phút"], ["status", "Trạng thái"]].map(([by, label]) => (
+                    <th key={by} aria-sort={sort.by === by ? (sort.desc ? "descending" : "ascending") : "none"}>
+                      <button type="button" className={`opening-sort-th${sort.by === by ? " is-active" : ""}`} onClick={() => sortBy(by)}>
+                        {label}<span>{sort.by === by ? (sort.desc ? "▼" : "▲") : "↕"}</span>
+                      </button>
+                    </th>
+                  ))}
+                  <th></th>
+                </tr>
               </thead>
               <tbody>
                 {sorted.map(o => (

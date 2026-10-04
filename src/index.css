@@ -4683,6 +4683,15 @@ button.wizard-step:focus-visible { outline: 3px solid var(--color-secondary); ou
 .opening-chip-on { background: #e6f6ec; color: #1c7c3f; }
 .opening-chip-off { background: #fdecec; color: #c62828; }
 .opening-actions { display: flex; gap: 8px; justify-content: flex-end; }
+/* Lọc + sắp xếp danh sách bài đang mở */
+.opening-count { margin-left: auto; align-self: center; font-size: 0.85rem; font-weight: 700; color: var(--admin-muted); white-space: nowrap; }
+.opening-sort-th {
+  display: inline-flex; align-items: center; gap: 6px; padding: 0; border: 0; background: none; cursor: pointer;
+  font: inherit; color: inherit; text-transform: inherit; letter-spacing: inherit; white-space: nowrap;
+}
+.opening-sort-th span { font-size: 0.7rem; opacity: 0.45; }
+.opening-sort-th:hover, .opening-sort-th.is-active { color: var(--admin-accent); }
+.opening-sort-th.is-active span { opacity: 1; }
 .opening-btn {
   border: 1.5px solid #e4e7ee; background: #fff; color: #1f2937; font-weight: 700; font-size: 0.85rem;
   padding: 6px 14px; border-radius: 999px; cursor: pointer; white-space: nowrap; transition: background 0.15s, border-color 0.15s;
