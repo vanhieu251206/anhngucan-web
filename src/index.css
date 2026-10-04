@@ -4722,6 +4722,14 @@ button.wizard-step:focus-visible { outline: 3px solid var(--color-secondary); ou
 .results-stat { background: #fff; border: 1px solid #e4e7ee; border-radius: 14px; padding: 16px 20px; display: flex; flex-direction: column; gap: 2px; }
 .results-stat span { font-size: 1.8rem; font-weight: 800; color: #3b5bdb; line-height: 1.1; }
 .results-stat small { color: #6b7280; font-weight: 600; }
+/* Bộ lọc nằm gọn 1 hàng trên màn rộng (6 ô chia đều, tự co theo bề ngang); màn hẹp mới xuống hàng. */
+.results-filter-bar { display: grid; grid-template-columns: 1fr 1.1fr 1.1fr 1.4fr 1fr 1fr; gap: 10px 12px; }
+.results-filter-bar label { min-width: 0; }
+.results-filter-bar .admin-input,
+.results-filter-bar select.admin-input,
+.results-filter-bar input[type="date"] { width: 100%; min-width: 0; max-width: none; box-sizing: border-box; }
+@media (max-width: 1000px) { .results-filter-bar { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 600px) { .results-filter-bar { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .results-toggle { display: inline-flex; align-items: center; gap: 8px; margin: 4px 0 14px; font-size: 0.9rem; color: #4b5563; }
 .results-score { display: inline-block; padding: 3px 12px; border-radius: 999px; font-weight: 800; font-size: 0.85rem; white-space: nowrap; }
 .results-score.is-high { background: #e6f6ec; color: #1c7c3f; }

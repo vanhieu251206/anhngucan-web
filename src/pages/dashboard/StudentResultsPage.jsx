@@ -221,7 +221,7 @@ export default function StudentResultsPage() {
         {rows === null && !error && <LoadingRow />}
         {rows && (
           <>
-            <div className="admin-filter-bar">
+            <div className="admin-filter-bar results-filter-bar">
               <label>
                 Lớp
                 <select className="admin-input" value={classFilter} onChange={e => setClassFilter(e.target.value)}>
