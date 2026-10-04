@@ -7,25 +7,12 @@ import { purgeExpiredResults, isResultVisible, loadOpeningDeadlines, RESULT_MODE
 import { downloadResultSheet, canDownloadSheets } from "../../lib/resultSheetPdf.js";
 import { SpeakingReportView, groupIntoReportItems } from "../../components/SpeakingReportView.jsx";
 import ResultItems from "../../components/ResultItems.jsx";
-import { formatAway } from "../../lib/examFocus.js";
+import ResultAnalysisPage, { fmtScore, fmtDuration, fmtWhen } from "./ResultAnalysisPage.jsx";
+import { readParams, setParams } from "../../lib/urlState.js";
 
 const PAGE_SIZE = 500;
 
 const MODE_LABEL = RESULT_MODE_LABEL;
-
-function fmtScore(n) {
-  return Number(n).toFixed(2).replace(/\.?0+$/, "");
-}
-
-function fmtDuration(ms) {
-  if (ms == null) return "—";
-  const sec = Math.max(0, Math.round(ms / 1000));
-  return `${Math.floor(sec / 60)}p ${String(sec % 60).padStart(2, "0")}s`;
-}
-
-function fmtWhen(d) {
-  return d ? d.toLocaleString("vi-VN", { dateStyle: "short", timeStyle: "short" }) : "—";
-}
 
 // Bài thử của admin/giáo viên (SceneRunner/LessonsPage gắn nhãn "[Test - ...]") — mặc định ẩn khỏi báo cáo.
 const isStaffTest = name => (name ?? "").startsWith("[Test");
@@ -130,6 +117,30 @@ export default function StudentResultsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [rows, showStaff, isRestricted, profile]
   );
+  // Màn phân tích 1 lượt nộp (ResultAnalysisPage.jsx) mở theo ?result=<key> — F5 / nút Back của trình duyệt vẫn đúng.
+  useEffect(() => {
+    if (!rows) return;
+    const sync = () => {
+      const key = readParams().get("result");
+      const row = key ? rows.find(r => r.key === key) : null;
+      const allowed = row && (!isRestricted || allowedClassSet.has(row.studentClass) || allowedClassSet.has(row.classAtSubmit));
+      setOpenRow(allowed ? row : null);
+    };
+    sync();
+    window.addEventListener("popstate", sync);
+    return () => window.removeEventListener("popstate", sync);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows, isRestricted, profile]);
+
+  function openDetail(r) {
+    setOpenRow(r);
+    setParams({ result: r.key });
+  }
+  function closeDetail() {
+    setOpenRow(null);
+    setParams({ result: null }, { replace: true });
+  }
+
   const classes = useMemo(() => [...new Set(base.map(r => r.studentClass).filter(Boolean))].sort(), [base]);
   const lessons = useMemo(() => [...new Set(base.map(r => r.lessonLabel).filter(Boolean))].sort(), [base]);
 
@@ -170,6 +181,27 @@ export default function StudentResultsPage() {
     a.download = "ket-qua-hoc-sinh.csv";
     a.click();
     URL.revokeObjectURL(a.href);
+  }
+
+  if (openRow) {
+    return (
+      <>
+        {error && <p className="admin-error">{error}</p>}
+        <ResultAnalysisPage
+          row={openRow}
+          onBack={closeDetail}
+          actions={
+            openRow.kind === "result" && canDownloadSheets(deadlines.get(openRow.raw.openingId)) && (
+              <button className="opening-btn" disabled={!!downloadingKey} onClick={() => handleSheet(openRow)}>
+                {downloadingKey === openRow.key ? "..." : "⬇ Phiếu chấm"}
+              </button>
+            )
+          }
+        >
+          <Detail row={openRow} />
+        </ResultAnalysisPage>
+      </>
+    );
   }
 
   return (
@@ -267,7 +299,7 @@ export default function StudentResultsPage() {
                                 {downloadingKey === r.key ? "..." : "⬇ Phiếu"}
                               </button>
                             )}
-                            <button className="opening-btn" onClick={() => setOpenRow(r)}>Chi tiết</button>
+                            <button className="opening-btn" onClick={() => openDetail(r)}>Chi tiết</button>
                           </div>
                         </td>
                       </tr>
@@ -282,33 +314,6 @@ export default function StudentResultsPage() {
           </>
         )}
       </div>
-
-      {openRow && (
-        <div className="confirm-overlay" role="presentation" onClick={() => setOpenRow(null)}>
-          <div className="opening-modal results-modal" role="dialog" aria-modal="true" onClick={e => e.stopPropagation()}>
-            <div className="opening-list-head">
-              <div>
-                <h2 style={{ margin: 0 }}>{openRow.studentName} {openRow.studentClass && `· ${openRow.studentClass}`}</h2>
-                <p className="admin-muted-text" style={{ margin: "4px 0 0" }}>
-                  {openRow.lessonLabel} · {MODE_LABEL[openRow.mode] ?? openRow.mode} · {fmtWhen(openRow.when)} · {fmtDuration(openRow.elapsedMs)}
-                </p>
-              </div>
-              <button className="opening-btn" onClick={() => setOpenRow(null)}>Đóng</button>
-            </div>
-            {openRow.tabLeaves?.length > 0 && (
-              <div className="results-leaves">
-                <strong>Rời khỏi bài {openRow.tabLeaves.length} lần</strong>
-                <ul>
-                  {openRow.tabLeaves.map((l, i) => (
-                    <li key={i}>{l.at?.toDate ? l.at.toDate().toLocaleTimeString("vi-VN") : "—"} · vắng {formatAway(l.awayMs)}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-            <Detail row={openRow} />
-          </div>
-        </div>
-      )}
     </div>
   );
 }

@@ -85,7 +85,7 @@ export default function DashboardPage({ onNavigate }) {
   function setSection(key) {
     setMenuOpen(false);
     setSectionState(key);
-    setParams({ section: key, tab: null }, { replace: true });
+    setParams({ section: key, tab: null, result: null }, { replace: true });
   }
 
   // Phòng hờ: nếu section hiện tại không hợp lệ với role (vd role đổi giữa chừng), rơi về
