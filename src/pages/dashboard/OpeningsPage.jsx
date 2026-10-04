@@ -234,7 +234,11 @@ export default function OpeningsPage() {
     reload();
   }
 
-  const sorted = useMemo(() => [...(openings ?? [])].sort((a, b) => (a.className || "").localeCompare(b.className || "")), [openings]);
+  // Cũ nhất → mới nhất theo lúc mở bài (bài vừa mở chưa có giờ máy chủ thì nằm cuối).
+  const sorted = useMemo(() => {
+    const at = o => o.createdAt?.toMillis?.() ?? Infinity;
+    return [...(openings ?? [])].sort((a, b) => at(a) - at(b) || (a.className || "").localeCompare(b.className || ""));
+  }, [openings]);
 
   return (
     <div>
