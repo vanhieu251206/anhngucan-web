@@ -11,6 +11,9 @@ import ResultAnalysisPage, { fmtScore, fmtDuration, fmtWhen } from "./ResultAnal
 import { readParams, setParams } from "../../lib/urlState.js";
 import { regradeAllResults } from "../../lib/regradeAll.js";
 import { useConfirm } from "../../components/dashboard/ConfirmDialog.jsx";
+import { listOpenings, isExpired, attemptKey } from "../../lib/openings.js";
+import { listSubmittedUids } from "../../lib/attempts.js";
+import { deadlineInfo, kindLabel } from "../../lib/assignmentUtils.js";
 
 const PAGE_SIZE = 500;
 
@@ -91,6 +94,11 @@ export default function StudentResultsPage() {
   // Chỉ admin: chấm lại mọi kết quả còn lưu theo đáp án hiện tại, sau khi giáo viên sửa đáp án (lib/regradeAll.js).
   const [regrade, setRegrade] = useState(null); // null | { running, stats, error }
   const [reloadKey, setReloadKey] = useState(0);
+  const [showMissing, setShowMissing] = useState(false);
+  const missingScope = useMemo(
+    () => (isRestricted ? new Set(profile?.allowedClasses ?? []) : null),
+    [isRestricted, profile]
+  );
 
   async function handleRegrade() {
     if (!(await confirm("Chấm lại toàn bộ bài đã nộp theo đáp án hiện tại? Điểm của học sinh có thể thay đổi."))) return;
@@ -233,27 +241,31 @@ export default function StudentResultsPage() {
 
       <div className="admin-card">
         <div className="opening-list-head">
-          <h2>Kết quả học sinh</h2>
+          <h2>{showMissing ? "Học sinh chưa nộp" : "Kết quả học sinh"}</h2>
           <div className="results-head-actions">
-            {isAdmin && (
+            <button className="opening-btn" type="button" onClick={() => setShowMissing(v => !v)}>
+              {showMissing ? "← Kết quả" : "Xem chưa nộp"}
+            </button>
+            {!showMissing && isAdmin && (
               <button className="opening-btn" type="button" onClick={handleRegrade} disabled={regrade?.running}>
                 {regrade?.running ? `Đang chấm lại${regrade.stats ? ` ${regrade.stats.done}/${regrade.stats.tests} bài` : ""}...` : "↻ Chấm lại"}
               </button>
             )}
-            <button className="opening-btn" type="button" onClick={exportCsv} disabled={!filtered.length}>⬇ Xuất Excel (CSV)</button>
+            {!showMissing && <button className="opening-btn" type="button" onClick={exportCsv} disabled={!filtered.length}>⬇ Xuất Excel (CSV)</button>}
           </div>
         </div>
-        {regrade?.error && <p className="admin-error">Chưa chấm lại được (mất mạng?) — bấm lại nhé.</p>}
-        {regrade?.stats && !regrade.running && (
+        {showMissing && <MissingPanel allowedClasses={missingScope} />}
+        {!showMissing && regrade?.error && <p className="admin-error">Chưa chấm lại được (mất mạng?) — bấm lại nhé.</p>}
+        {!showMissing && regrade?.stats && !regrade.running && (
           <p className="admin-muted-text">
             Đã chấm lại {regrade.stats.checked} lượt nộp · Đổi điểm {regrade.stats.changed}
             {regrade.stats.skipped ? ` · Giữ nguyên ${regrade.stats.skipped} (không chấm lại được)` : ""}
             {regrade.stats.failed ? ` · Lỗi ${regrade.stats.failed} bài` : ""}
           </p>
         )}
-        {error && <p className="admin-error">Lỗi tải dữ liệu: {error}</p>}
-        {rows === null && !error && <LoadingRow />}
-        {rows && (
+        {!showMissing && error && <p className="admin-error">Lỗi tải dữ liệu: {error}</p>}
+        {!showMissing && rows === null && !error && <LoadingRow />}
+        {!showMissing && rows && (
           <>
             <div className="admin-filter-bar results-filter-bar">
               <label>
@@ -383,6 +395,99 @@ function SessionDetail({ session }) {
     <div className="admin-report-panel">
       <SpeakingReportView items={groupIntoReportItems(events)} elapsedMs={elapsedMs} />
     </div>
+  );
+}
+
+// Danh sách em CHƯA NỘP của từng lần mở bài chưa đóng (còn hạn lẫn đã hết hạn) — đối chiếu sĩ số lớp với
+// `attempts` (không bị xoá theo luật 48h). Bài hết hạn lên đầu. Giáo viên phụ chỉ thấy lớp được giao.
+function MissingPanel({ allowedClasses }) {
+  const [data, setData] = useState(null);
+  const [error, setError] = useState(null);
+  const [classFilter, setClassFilter] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const [students, openings] = await Promise.all([listStudents(), listOpenings()]);
+        const submitted = await listSubmittedUids(openings.map(o => attemptKey(o.testId, o.id)));
+        if (!cancelled) setData({ students, openings, submitted, now: Date.now() });
+      } catch (e) {
+        if (!cancelled) setError(e.message || String(e));
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const list = useMemo(() => {
+    if (!data) return [];
+    const { students, openings, submitted, now } = data;
+    const deadline = o => o.expiresAt?.toMillis?.() ?? Infinity;
+    return openings
+      .filter(o => !allowedClasses || allowedClasses.has(o.className))
+      .map(o => {
+        // Em bị khoá tài khoản không vào làm được nên không tính vào sĩ số cần nộp.
+        const roster = students.filter(s => s.className === o.className && !s.disabled);
+        const done = submitted.get(attemptKey(o.testId, o.id)) ?? new Set();
+        const missing = roster
+          .filter(s => !done.has(s.uid))
+          .map(s => s.displayName || s.username || "—")
+          .sort((a, b) => a.localeCompare(b, "vi"));
+        return { o, total: roster.length, missing, expired: isExpired(o), info: deadlineInfo(o, now) };
+      })
+      .filter(r => r.missing.length > 0)
+      .sort((a, b) => (a.expired !== b.expired ? (a.expired ? -1 : 1) : a.expired ? deadline(b.o) - deadline(a.o) : deadline(a.o) - deadline(b.o)));
+  }, [data, allowedClasses]);
+
+  if (error) return <p className="admin-error">Lỗi tải dữ liệu: {error}</p>;
+  if (!data) return <LoadingRow />;
+
+  const classes = [...new Set(list.map(r => r.o.className))].sort();
+  const shown = list.filter(r => !classFilter || r.o.className === classFilter);
+
+  return (
+    <>
+      <div className="admin-filter-bar">
+        <label>
+          Lớp
+          <select className="admin-input" value={classFilter} onChange={e => setClassFilter(e.target.value)}>
+            <option value="">Tất cả lớp</option>
+            {classes.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </label>
+      </div>
+      <div style={{ overflowX: "auto" }}>
+        <table className="admin-table opening-table">
+          <thead>
+            <tr><th>Lớp</th><th>Bài</th><th>Hạn chót</th><th>Chưa nộp</th></tr>
+          </thead>
+          <tbody>
+            {shown.map(({ o, total, missing, expired, info }) => (
+              <tr key={o.id}>
+                <td><span className="opening-chip opening-chip-class">{o.className}</span></td>
+                <td>
+                  <div className="opening-test-title">{o.testTitle}</div>
+                  <div className="opening-test-kind">{kindLabel(o)}</div>
+                </td>
+                <td>
+                  <div>{info.text}</div>
+                  {expired
+                    ? <span className="opening-chip opening-chip-off">Hết hạn</span>
+                    : info.left && <span className={`opening-chip ${info.urgent ? "opening-chip-wait" : "opening-chip-on"}`}>{info.left}</span>}
+                </td>
+                <td>
+                  <div className="opening-test-title">{missing.length}/{total} em</div>
+                  <div className="opening-test-kind">{missing.join(", ")}</div>
+                </td>
+              </tr>
+            ))}
+            {shown.length === 0 && (
+              <tr><td colSpan={4} className="admin-muted-text">Không có em nào chưa nộp.</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </>
   );
 }
 
