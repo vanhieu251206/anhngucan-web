@@ -140,6 +140,24 @@ function buildQuestionBody(type, raw, where, errors) {
   return { prompt: raw.body, hint: raw.hint, sampleAnswer: answerList(raw.answer).join(" | ") };
 }
 
+// Nhập ĐÈ (thay cả bài bằng file mới): ảnh đã gắn ở bài cũ được giữ lại theo ĐÚNG VỊ TRÍ (nhóm thứ mấy, câu thứ
+// mấy) cho những nhóm/câu mà file mới không ghi dòng "Ảnh:" — để sửa đáp án trong file rồi nhập lại không phải
+// upload lại ảnh. Chỉ đúng khi file mới giữ nguyên thứ tự nhóm và câu như bài cũ.
+export function carryImages(nextGroups, prevGroups) {
+  return nextGroups.map((g, gi) => {
+    const prev = prevGroups?.[gi];
+    if (!prev) return g;
+    return {
+      ...g,
+      ...(!g.image && prev.image ? { image: prev.image } : {}),
+      questions: g.questions.map((q, qi) => {
+        const image = prev.questions?.[qi]?.image;
+        return !q.image && image ? { ...q, image } : q;
+      }),
+    };
+  });
+}
+
 // Trả về { groups, errors } — errors là danh sách dòng mô tả lỗi (rỗng = đọc được hết).
 export function parsePracticeTestText(source) {
   const lines = String(source ?? "").replace(/^\uFEFF/, "").split(/\r?\n/);

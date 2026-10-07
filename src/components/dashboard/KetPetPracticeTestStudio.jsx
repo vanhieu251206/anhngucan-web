@@ -7,7 +7,7 @@ import { GROUP_TYPES, SPLIT_QUESTION_TYPES, blankGroup, blankGroupQuestion, blan
 import KetPetPracticeTestQuiz from "../KetPetPracticeTestQuiz.jsx";
 import CommaListInput from "./CommaListInput.jsx";
 import UnderlineTextInput from "./UnderlineTextInput.jsx";
-import { parsePracticeTestText } from "../../lib/ketPetTextImport.js";
+import { carryImages, parsePracticeTestText } from "../../lib/ketPetTextImport.js";
 
 import ImageUploadField from "./ImageUploadField.jsx";
 
@@ -78,13 +78,21 @@ export default function KetPetPracticeTestStudio({
   const toggleImage = key => setImageOpen(o => ({ ...o, [key]: !o[key] }));
 
   // Nhập cả đề từ file .txt soạn sẵn (lib/ketPetTextImport.js) — các nhóm đọc được THÊM VÀO CUỐI bài đang soạn.
-  async function handleImportFile(e) {
+  // replace = "Nhập đè": thay cả bài bằng file mới, ảnh đã gắn giữ lại theo vị trí nhóm/câu (carryImages).
+  async function handleImportFile(e, replace = false) {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
     const parsed = parsePracticeTestText(await file.text());
     setImportErrors(parsed.errors);
-    if (!parsed.errors.length) onGroupsChange([...groups, ...parsed.groups]);
+    if (parsed.errors.length) return;
+    if (!replace) {
+      onGroupsChange([...groups, ...parsed.groups]);
+      return;
+    }
+    const count = list => list.reduce((n, g) => n + g.questions.length, 0);
+    const message = `Thay toàn bộ bài (${groups.length} nhóm, ${count(groups)} câu) bằng file mới (${parsed.groups.length} nhóm, ${count(parsed.groups)} câu)? Ảnh đã gắn được giữ lại theo đúng vị trí nhóm và câu.`;
+    if (await confirm(message, { danger: true })) onGroupsChange(carryImages(parsed.groups, groups));
   }
 
   async function clearAll() {
@@ -156,6 +164,12 @@ export default function KetPetPracticeTestStudio({
           <label className="admin-pill-btn">
             ⬆ Nhập từ file .txt
             <input type="file" accept=".txt,text/plain" hidden onChange={handleImportFile} />
+          </label>
+        )}
+        {isAdmin && groups.length > 0 && (
+          <label className="admin-pill-btn">
+            ⬆ Nhập đè (giữ ảnh)
+            <input type="file" accept=".txt,text/plain" hidden onChange={e => handleImportFile(e, true)} />
           </label>
         )}
         {isAdmin && groups.length > 0 && (
