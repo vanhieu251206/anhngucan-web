@@ -42,6 +42,19 @@ export function isFillBlankCorrect(userAnswer, acceptedAnswers) {
   return (acceptedAnswers ?? []).some(a => normalizeSentence(a) === normalized);
 }
 
+// Câu điền từ có NHIỀU Ô TRỐNG (tuỳ chọn, 2026-10-08): `q.blanks` = danh sách đáp án từng ô theo thứ tự trong câu
+// (mỗi ô 1 chuỗi, nhiều cách viết ngăn bằng "|"). Có `blanks` → học sinh thấy mỗi chỗ trống 1 ô riêng, câu trả lời
+// là MẢNG chuỗi, đúng hết các ô mới tính đúng câu. Không có `blanks` → 1 ô như cũ (`acceptedAnswers`).
+// Đề học sinh tải về không có `blanks` (đã tách sang answerKeys), chỉ còn `blankCount`.
+export function blankCount(q) {
+  return Array.isArray(q?.blanks) ? q.blanks.length : Number(q?.blankCount) || 0;
+}
+
+export function isBlanksCorrect(userAnswer, blanks) {
+  const typed = Array.isArray(userAnswer) ? userAnswer : [userAnswer];
+  return blanks.length > 0 && blanks.every((b, i) => isFillBlankCorrect(typed[i], String(b ?? "").split("|")));
+}
+
 // Tự luận (chấm điểm từ 2026-09-27): câu = { prompt, hint, sampleAnswer }. `hint` là vài từ cô cho sẵn, hiện ở đầu chỗ
 // học sinh viết (học sinh viết tiếp phần còn lại). `sampleAnswer` = đáp án, nhiều cách viết ngăn bằng "|". Chấp nhận
 // cả khi học sinh chỉ viết phần sau gợi ý lẫn chép lại cả câu.
@@ -119,6 +132,8 @@ export function toRoman(n) {
 //   của mục con thứ 2 trở đi trong cùng 1 Exercise).
 // - `section`: tiêu đề lớn trên nhóm ("C. PRACTICE"). `subtitle`: mục con dưới đầu mục ("1. Suggestion").
 // - `task`: dòng hướng dẫn nằm SAU đoạn văn ("Write TRUE or FALSE..."). `startNumber`: số của câu đầu (mặc định 1).
+// - `image` (2026-10-08): ảnh của NHÓM hiện dưới đoạn văn (khung từ điển, bảng biểu...); mỗi CÂU cũng có `image`
+//   riêng (biển báo, tranh) hiện ngay trên nội dung câu. Đều là URL, tuỳ chọn, dùng được với mọi dạng nhóm.
 export function groupHeading(g, gi) {
   if (g.label == null) return `${toRoman(gi + 1)}. ${g.instruction}`;
   return [g.label, g.instruction].map(s => String(s ?? "").trim()).filter(Boolean).join(": ");
@@ -149,7 +164,7 @@ export function gradePracticeTestGroups(groups, answers) {
       if (effectiveType === "multiple-choice" || effectiveType === "pronunciation-underline") {
         isCorrect = userAnswer != null && userAnswer === q.answerIndex;
       } else if (effectiveType === "fill-blank") {
-        isCorrect = isFillBlankCorrect(userAnswer, q.acceptedAnswers);
+        isCorrect = Array.isArray(q.blanks) ? isBlanksCorrect(userAnswer, q.blanks) : isFillBlankCorrect(userAnswer, q.acceptedAnswers);
       } else if (effectiveType === "word-bank") {
         isCorrect = isFillBlankCorrect(userAnswer, [q.answer]);
       } else if (effectiveType === "open-ended") {

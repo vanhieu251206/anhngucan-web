@@ -14,6 +14,10 @@
 //   → b _ _ _ _ _ _                    ← dòng "→" (hoặc "->") = gợi ý / từ cho sẵn đầu câu
 //   Đáp án: between | beside           ← nhiều cách viết ngăn bằng |
 //   Sau câu: Linda: Thanks!            ← câu thoại hiện ngay sau ô trả lời (chỉ dạng "không chấm")
+//   3. ____ your brother ____ his homework?
+//   Đáp án: Does                       ← câu điền từ ghi NHIỀU dòng "Đáp án:" = mỗi dòng 1 ô trống riêng
+//   Đáp án: do
+//   Ảnh: https://...                   ← sau 1 câu = ảnh của câu; trước câu đầu tiên = ảnh của cả nhóm
 //
 //   Tiêu đề: PRACTICE TEST FOR UNIT 2  ← tiêu đề lớn hiện trên nhóm kế tiếp
 //   Nhóm: Mark the letter A, B, C or D ← mở nhóm KHÔNG có nhãn "Exercise N" (sách chỉ in câu hướng dẫn)
@@ -101,17 +105,28 @@ function buildChoice(raw, underline, where, errors) {
   return { text: parsed.text, options: parsed.options, answerIndex };
 }
 
+// Câu điền từ: 1 dòng "Đáp án:" = 1 ô như thường; ghi NHIỀU dòng "Đáp án:" = mỗi dòng 1 ô trống, theo thứ tự trong câu.
+function fillAnswers(raw) {
+  if (raw.answers.length > 1) return { acceptedAnswers: [], blanks: raw.answers.map(a => answerList(a).join(" | ")) };
+  return { acceptedAnswers: answerList(raw.answer) };
+}
+
 function buildQuestion(type, raw, where, errors) {
+  const q = buildQuestionBody(type, raw, where, errors);
+  return q && raw.image ? { ...q, image: raw.image } : q;
+}
+
+function buildQuestionBody(type, raw, where, errors) {
   if (type === "multiple-choice") return buildChoice(raw, false, where, errors);
   if (type === "pronunciation-underline") return buildChoice(raw, true, where, errors);
-  if (type === "fill-blank") return { text: raw.body, hint: raw.hint, acceptedAnswers: answerList(raw.answer) };
+  if (type === "fill-blank") return { text: raw.body, hint: raw.hint, ...fillAnswers(raw) };
   if (type === "word-bank") return { text: raw.body, answer: raw.answer.trim() };
   if (type === "split-reading") {
     if (splitOptions(raw.body)) {
       const q = buildChoice(raw, false, where, errors);
       return q && { type: "multiple-choice", ...q };
     }
-    return { type: "fill-blank", text: raw.body, acceptedAnswers: answerList(raw.answer) };
+    return { type: "fill-blank", text: raw.body, ...fillAnswers(raw) };
   }
   if (type === "true-false-table") {
     const answer = parseTrueFalse(raw.answer);
@@ -169,12 +184,19 @@ export function parsePracticeTestText(source) {
 
     const qm = line.match(QUESTION_LINE);
     if (qm) {
-      question = { lineNo, number: qm[1], body: qm[2].trim(), hint: "", answer: "" };
+      question = { lineNo, number: qm[1], body: qm[2].trim(), hint: "", answer: "", answers: [], image: "" };
       draft.raws.push(question);
       inPassage = false;
       return;
     }
     if (!question && key === "yeu cau") { draft.task = value; inPassage = false; return; }
+    // "Ảnh: <URL>" — sau 1 câu = ảnh của câu đó; trước câu đầu tiên = ảnh của cả nhóm (hiện dưới đoạn văn). Chỉ nhận
+    // khi theo sau là đường link, để không nhầm với câu thoại của nhân vật tên Anh ("Anh: Hello!").
+    if (key === "anh" && /^https?:\/\//i.test(value)) {
+      if (question) question.image = value;
+      else { draft.image = value; inPassage = false; }
+      return;
+    }
     if (inPassage) {
       draft.passage.push(rawLine.trimEnd());
       return;
@@ -182,7 +204,7 @@ export function parsePracticeTestText(source) {
     if (!line) return;
 
     if (key === "dap an") {
-      if (question) question.answer = value;
+      if (question) { question.answer = value; question.answers.push(value); }
       else errors.push(`Dòng ${lineNo}: "Đáp án:" không thuộc câu nào.`);
       return;
     }
@@ -198,7 +220,8 @@ export function parsePracticeTestText(source) {
 
     const hint = line.match(HINT_LINE);
     if (hint && question) { question.hint = hint[1].trim(); return; }
-    if (question) question.body = `${question.body} ${line}`.trim();
+    // Dòng nối tiếp của câu hỏi giữ nguyên chỗ xuống dòng (câu hội thoại 2 người nói, mỗi người 1 dòng như sách).
+    if (question) question.body = `${question.body}\n${line}`.trim();
     else draft.instruction = `${draft.instruction} ${line}`.trim();
   });
 
@@ -224,6 +247,7 @@ export function parsePracticeTestText(source) {
       ...(d.section ? { section: d.section } : {}),
       ...(d.subtitle ? { subtitle: d.subtitle } : {}),
       ...(d.task ? { task: d.task } : {}),
+      ...(d.image ? { image: d.image } : {}),
       ...(startNumber !== 1 ? { startNumber } : {}),
       ...(type === "word-bank" ? { wordBank: d.wordBank } : {}),
       totalPoints: type === "free-response" ? 0 : d.points ?? questions.length,

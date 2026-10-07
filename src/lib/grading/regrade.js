@@ -68,6 +68,7 @@ function ketPetAnswers(test, items) {
     const s = typed(it.studentAnswer);
     let value = s;
     if (type === "multiple-choice" || type === "pronunciation-underline") value = letterIndex(s);
+    else if (Array.isArray(q.blanks)) value = s == null ? undefined : s.split(" ; ").map(c => (c === "…" ? "" : c));
     else if (type === "true-false-table") value = s === "True" ? true : s === "False" ? false : undefined;
     else if (type === "categorize") {
       const col = (g.columns ?? []).findIndex(c => String(c) === s);

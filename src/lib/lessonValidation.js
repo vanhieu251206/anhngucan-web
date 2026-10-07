@@ -256,7 +256,9 @@ export function validateKetPetGroups(groups) {
       } else if (type === "pronunciation-underline") {
         checkChoices(w, q.options, q.answerIndex, out);
       } else if (type === "fill-blank" || type === "word-scramble" || type === "listen-and-type") {
-        if (!(q.acceptedAnswers ?? []).some(filled)) out.push(`${w}: chưa có đáp án.`);
+        if (Array.isArray(q.blanks)) {
+          if (q.blanks.some(blank)) out.push(`${w}: còn ô trống chưa có đáp án.`);
+        } else if (!(q.acceptedAnswers ?? []).some(filled)) out.push(`${w}: chưa có đáp án.`);
         // Ô đáp án ngăn bằng "|" (trước 2026-10-02 là dấu phẩy) — nhắc khi cô quen tay gõ phẩy. Xáo từ thành câu thì bỏ qua.
         else if (type !== "word-scramble" && q.acceptedAnswers.length === 1 && q.acceptedAnswers[0].includes(",")) {
           out.push(`${w}: đáp án có dấu phẩy — nhiều cách viết thì ngăn bằng |.`);

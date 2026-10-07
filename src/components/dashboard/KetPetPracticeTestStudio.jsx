@@ -9,7 +9,56 @@ import CommaListInput from "./CommaListInput.jsx";
 import UnderlineTextInput from "./UnderlineTextInput.jsx";
 import { parsePracticeTestText } from "../../lib/ketPetTextImport.js";
 
+import ImageUploadField from "./ImageUploadField.jsx";
+
 export const EMPTY_PRACTICE_TEST_GROUPS = [];
+
+const splitAnswerText = text => String(text ?? "").split("|").map(s => s.trim()).filter(Boolean);
+
+// Đáp án câu điền từ: 1 ô (nhiều cách viết ngăn bằng |), hoặc bấm "+ Ô trống" để tách thành nhiều ô — mỗi chỗ trống
+// trong câu 1 dòng đáp án riêng (q.blanks, xem lib/ketPetPracticeTest.js). Bớt còn 1 ô thì trở về dạng 1 ô như cũ.
+function FillAnswerInputs({ q, onChange, placeholder }) {
+  if (!Array.isArray(q.blanks)) {
+    return (
+      <div className="admin-practice-option-row">
+        <CommaListInput
+          value={q.acceptedAnswers}
+          onChange={acceptedAnswers => onChange({ acceptedAnswers })}
+          separator="|"
+          placeholder={placeholder}
+        />
+        <button
+          type="button"
+          className="admin-link-btn"
+          style={{ whiteSpace: "nowrap" }}
+          onClick={() => onChange({ blanks: [(q.acceptedAnswers ?? []).join(" | "), ""], acceptedAnswers: [] })}
+        >
+          + Ô trống
+        </button>
+      </div>
+    );
+  }
+  function setBlanks(blanks) {
+    if (blanks.length > 1) onChange({ blanks });
+    else onChange({ blanks: undefined, blankCount: undefined, acceptedAnswers: splitAnswerText(blanks[0]) });
+  }
+  return (
+    <div className="admin-blank-list">
+      {q.blanks.map((b, bi) => (
+        <div className="admin-practice-option-row" key={bi}>
+          <input
+            className="admin-input"
+            value={b}
+            onChange={e => setBlanks(q.blanks.map((v, i) => (i === bi ? e.target.value : v)))}
+            placeholder={`Đáp án ô trống ${bi + 1} — nhiều cách viết ngăn bằng |`}
+          />
+          <button type="button" className="admin-link-btn admin-pill-btn-danger" onClick={() => setBlanks(q.blanks.filter((_, i) => i !== bi))}>Bớt</button>
+        </div>
+      ))}
+      <button type="button" className="admin-link-btn" style={{ alignSelf: "flex-start" }} onClick={() => setBlanks([...q.blanks, ""])}>+ Ô trống</button>
+    </div>
+  );
+}
 
 // Soạn Practice Test (Test 1-4) cho 1 Unit KET/PET — soạn theo NHÓM câu hỏi thứ tự I, II, III...
 // (chốt người dùng 2026-09-16, cùng khung "admin-practice-group" đã dùng cho LuyenDePage IELTS
@@ -24,6 +73,9 @@ export default function KetPetPracticeTestStudio({
   const confirm = useConfirm();
   const [previewOpen, setPreviewOpen] = useState(false);
   const [importErrors, setImportErrors] = useState([]);
+  // Ô ảnh của nhóm / của câu chỉ mở ra khi bấm nút "🖼 Ảnh" (hoặc khi đã có ảnh) — khoá "g-<gi>" / "q-<gi>-<qi>".
+  const [imageOpen, setImageOpen] = useState({});
+  const toggleImage = key => setImageOpen(o => ({ ...o, [key]: !o[key] }));
 
   // Nhập cả đề từ file .txt soạn sẵn (lib/ketPetTextImport.js) — các nhóm đọc được THÊM VÀO CUỐI bài đang soạn.
   async function handleImportFile(e) {
@@ -52,7 +104,7 @@ export default function KetPetPracticeTestStudio({
     onGroupsChange(groups.map((g, i) => (i === gi
       ? {
         ...blankGroup(type), instruction: g.instruction, passage: g.passage,
-        ...Object.fromEntries(["label", "section", "subtitle", "task", "startNumber"].filter(k => g[k] != null).map(k => [k, g[k]])),
+        ...Object.fromEntries(["label", "section", "subtitle", "task", "startNumber", "image"].filter(k => g[k] != null).map(k => [k, g[k]])),
       }
       : g)));
   }
@@ -86,7 +138,7 @@ export default function KetPetPracticeTestStudio({
   function changeQuestionSubType(gi, qi, subType) {
     const g = groups[gi];
     const q = g.questions[qi];
-    updateQuestion(gi, qi, { ...blankSplitQuestion(subType), text: q.text ?? "" });
+    updateQuestion(gi, qi, { ...blankSplitQuestion(subType), text: q.text ?? "", blanks: undefined, blankCount: undefined });
   }
   function moveQuestion(gi, qi, dir) {
     const g = groups[gi];
@@ -208,6 +260,12 @@ export default function KetPetPracticeTestStudio({
               ? "Đoạn văn hiện bên TRÁI màn hình chia đôi khi học sinh làm bài"
               : "Đoạn văn dùng chung cho cả nhóm (tuỳ chọn — cho dạng đọc hiểu/điền từ đoạn văn)"}
           />
+
+          {g.image || imageOpen[`g-${gi}`] ? (
+            <ImageUploadField label="Ảnh của nhóm (hiện dưới đoạn văn)" value={g.image} onChange={image => updateGroup(gi, { image: image || undefined })} />
+          ) : (
+            <button type="button" className="admin-link-btn" style={{ alignSelf: "flex-start" }} onClick={() => toggleImage(`g-${gi}`)}>🖼 Thêm ảnh cho nhóm</button>
+          )}
 
           <input
             className="admin-input"
@@ -337,10 +395,9 @@ export default function KetPetPracticeTestStudio({
                             onChange={e => updateQuestion(gi, qi, { text: e.target.value })}
                             placeholder="1. What does the writer think about breakfast?"
                           />
-                          <CommaListInput
-                            value={q.acceptedAnswers}
-                            onChange={acceptedAnswers => updateQuestion(gi, qi, { acceptedAnswers })}
-                            separator="|"
+                          <FillAnswerInputs
+                            q={q}
+                            onChange={patch => updateQuestion(gi, qi, patch)}
                             placeholder="Đáp án — nhiều cách viết ngăn bằng | — VD: favourite | favorite"
                           />
                         </>
@@ -362,10 +419,9 @@ export default function KetPetPracticeTestStudio({
                         onChange={e => updateQuestion(gi, qi, { hint: e.target.value })}
                         placeholder="Gợi ý hiện cạnh chỗ trống, tuỳ chọn (VD chia dạng từ: USE)"
                       />
-                      <CommaListInput
-                        value={q.acceptedAnswers}
-                        onChange={acceptedAnswers => updateQuestion(gi, qi, { acceptedAnswers })}
-                        separator="|"
+                      <FillAnswerInputs
+                        q={q}
+                        onChange={patch => updateQuestion(gi, qi, patch)}
                         placeholder="Đáp án — nhiều cách viết ngăn bằng | — VD: is not | isn't"
                       />
                     </>
@@ -452,9 +508,14 @@ export default function KetPetPracticeTestStudio({
                       />
                     </>
                   )}
+
+                  {(q.image || imageOpen[`q-${gi}-${qi}`]) && (
+                    <ImageUploadField label="Ảnh của câu" value={q.image} onChange={image => updateQuestion(gi, qi, { image: image || undefined })} />
+                  )}
                 </div>
 
                 <div className="admin-scene-list-actions">
+                  {!q.image && <button type="button" className="admin-link-btn" onClick={() => toggleImage(`q-${gi}-${qi}`)}>🖼 Ảnh</button>}
                   <button type="button" className="admin-link-btn" onClick={() => moveQuestion(gi, qi, -1)} disabled={qi === 0}>↑</button>
                   <button type="button" className="admin-link-btn" onClick={() => moveQuestion(gi, qi, 1)} disabled={qi === g.questions.length - 1}>↓</button>
                   <button type="button" className="admin-link-btn admin-pill-btn-danger" onClick={() => removeQuestion(gi, qi)}>Xoá</button>

@@ -125,7 +125,10 @@ function splitKetPet(groups, take, entries, isVocab) {
     }
     (g.questions ?? []).forEach((q, qi) => {
       const base = [...gBase, "questions", qi];
-      ["answer", "answerIndex", "acceptedAnswers", "columnIndex", "sampleAnswer"].forEach(k => take(q, k, base));
+      // Câu điền nhiều ô trống: giữ lại số ô để học sinh vẫn thấy đủ ô.
+      if (Array.isArray(q.blanks)) q.blankCount = q.blanks.length;
+      else delete q.blankCount;
+      ["answer", "answerIndex", "acceptedAnswers", "blanks", "columnIndex", "sampleAnswer"].forEach(k => take(q, k, base));
     });
   });
 }

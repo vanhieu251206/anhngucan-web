@@ -79,6 +79,16 @@ function ketPetDetail(g, q, qi, value) {
     return { prompt, studentAnswer: typed.trim() ? openEndedFullAnswer(q.hint, typed) : "", correctAnswer: joinAnswers(q.sampleAnswer) };
   }
   if (type === "free-response") return { prompt, studentAnswer: typed.trim() ? openEndedFullAnswer(q.hint, typed) : "" };
+  if (Array.isArray(q.blanks)) {
+    // Nhiều ô trống: ghi lần lượt từng ô, ngăn bằng " ; " (ô bỏ trống ghi "…").
+    const cells = Array.isArray(value) ? value : [value];
+    const any = cells.some(c => String(c ?? "").trim());
+    return {
+      prompt,
+      studentAnswer: any ? q.blanks.map((_, i) => String(cells[i] ?? "").trim() || "…").join(" ; ") : "",
+      correctAnswer: q.blanks.map(joinAnswers).join(" ; "),
+    };
+  }
   return { prompt, studentAnswer: typed, correctAnswer: joinAnswers(q.acceptedAnswers) };
 }
 
