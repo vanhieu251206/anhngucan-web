@@ -11,7 +11,8 @@ import ResultAnalysisPage, { fmtScore, fmtDuration, fmtWhen } from "./ResultAnal
 import { readParams, setParams } from "../../lib/urlState.js";
 import { regradeAllResults } from "../../lib/regradeAll.js";
 import { useConfirm } from "../../components/dashboard/ConfirmDialog.jsx";
-import { listOpenings, isExpired, attemptKey } from "../../lib/openings.js";
+import { listOpenings, isExpired, attemptKey, activeExtensions } from "../../lib/openings.js";
+import ReopenDialog from "../../components/dashboard/ReopenDialog.jsx";
 import { listSubmittedUids } from "../../lib/attempts.js";
 import { deadlineInfo, kindLabel } from "../../lib/assignmentUtils.js";
 
@@ -325,7 +326,13 @@ export default function StudentResultsPage() {
                           <div className="opening-test-title">{r.lessonLabel || "—"}</div>
                           <div className="opening-test-kind">{MODE_LABEL[r.mode] ?? r.mode}</div>
                         </td>
-                        <td>{fmtWhen(r.when)}</td>
+                        <td>
+                          {fmtWhen(r.when)}
+                          {/* Nộp SAU hạn của lớp = em được giáo viên mở lại riêng (lib/openings.js → extensions). */}
+                          {r.kind === "result" && r.when && deadlines.get(r.raw.openingId) != null && r.when.getTime() > deadlines.get(r.raw.openingId) && (
+                            <div><span className="opening-chip opening-chip-wait">Làm lại</span></div>
+                          )}
+                        </td>
                         <td>{fmtDuration(r.elapsedMs)}</td>
                         <td>
                           {r.correct == null ? (
@@ -404,6 +411,8 @@ function MissingPanel({ allowedClasses }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [classFilter, setClassFilter] = useState("");
+  const [reopen, setReopen] = useState(null); // { o, uids } — mở lại bài hết hạn cho các em chưa nộp (ReopenDialog.jsx)
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -417,7 +426,7 @@ function MissingPanel({ allowedClasses }) {
       }
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [reloadKey]);
 
   const list = useMemo(() => {
     if (!data) return [];
@@ -429,11 +438,12 @@ function MissingPanel({ allowedClasses }) {
         // Em bị khoá tài khoản không vào làm được nên không tính vào sĩ số cần nộp.
         const roster = students.filter(s => s.className === o.className && !s.disabled);
         const done = submitted.get(attemptKey(o.testId, o.id)) ?? new Set();
-        const missing = roster
-          .filter(s => !done.has(s.uid))
+        const missingStudents = roster.filter(s => !done.has(s.uid));
+        const missing = missingStudents
           .map(s => s.displayName || s.username || "—")
           .sort((a, b) => a.localeCompare(b, "vi"));
-        return { o, total: roster.length, missing, expired: isExpired(o), info: deadlineInfo(o, now) };
+        const reopened = activeExtensions(o, now).filter(e => !done.has(e.uid)).length;
+        return { o, total: roster.length, missing, missingUids: missingStudents.map(s => s.uid), reopened, expired: isExpired(o), info: deadlineInfo(o, now) };
       })
       .filter(r => r.missing.length > 0)
       .sort((a, b) => (a.expired !== b.expired ? (a.expired ? -1 : 1) : a.expired ? deadline(b.o) - deadline(a.o) : deadline(a.o) - deadline(b.o)));
@@ -447,6 +457,7 @@ function MissingPanel({ allowedClasses }) {
 
   return (
     <>
+      {reopen && <ReopenDialog opening={reopen.o} preselect={reopen.uids} onClose={() => setReopen(null)} onSaved={() => setReloadKey(k => k + 1)} />}
       <div className="admin-filter-bar">
         <label>
           Lớp
@@ -459,10 +470,10 @@ function MissingPanel({ allowedClasses }) {
       <div style={{ overflowX: "auto" }}>
         <table className="admin-table opening-table">
           <thead>
-            <tr><th>Lớp</th><th>Bài</th><th>Hạn chót</th><th>Chưa nộp</th></tr>
+            <tr><th>Lớp</th><th>Bài</th><th>Hạn chót</th><th>Chưa nộp</th><th></th></tr>
           </thead>
           <tbody>
-            {shown.map(({ o, total, missing, expired, info }) => (
+            {shown.map(({ o, total, missing, missingUids, reopened, expired, info }) => (
               <tr key={o.id}>
                 <td><span className="opening-chip opening-chip-class">{o.className}</span></td>
                 <td>
@@ -478,11 +489,15 @@ function MissingPanel({ allowedClasses }) {
                 <td>
                   <div className="opening-test-title">{missing.length}/{total} em</div>
                   <div className="opening-test-kind">{missing.join(", ")}</div>
+                  {reopened > 0 && <span className="opening-chip opening-chip-wait">Đang mở lại · {reopened} em</span>}
+                </td>
+                <td>
+                  {expired && <button className="opening-btn" type="button" onClick={() => setReopen({ o, uids: missingUids })}>↻ Mở lại</button>}
                 </td>
               </tr>
             ))}
             {shown.length === 0 && (
-              <tr><td colSpan={4} className="admin-muted-text">Không có em nào chưa nộp.</td></tr>
+              <tr><td colSpan={5} className="admin-muted-text">Không có em nào chưa nộp.</td></tr>
             )}
           </tbody>
         </table>

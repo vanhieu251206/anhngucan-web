@@ -12,7 +12,7 @@ function attemptDocId(uid, mode, testId) {
 export async function getAttemptInfo(uid, mode, testId) {
   const snap = await getDoc(doc(db, "attempts", attemptDocId(uid, mode, testId)));
   const d = snap.exists() ? snap.data() : {};
-  return { count: d.count ?? 0, lastCorrect: d.lastCorrect ?? null, bestCorrect: d.bestCorrect ?? null, total: d.total ?? null };
+  return { count: d.count ?? 0, lastCorrect: d.lastCorrect ?? null, bestCorrect: d.bestCorrect ?? null, total: d.total ?? null, updatedAt: d.updatedAt ?? null };
 }
 
 export async function getAttemptCount(uid, mode, testId) {

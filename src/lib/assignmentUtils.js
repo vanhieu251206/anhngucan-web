@@ -45,6 +45,15 @@ export function reminderStage(o, now = Date.now()) {
   return null;
 }
 
+// Bài CẦN LÀM của học sinh: chưa nộp lượt nào, hoặc được giáo viên mở lại riêng (lib/openings.js) mà chưa nộp lượt
+// nào kể từ lúc mở lại. row = info[o.id] của useAssignments().
+export function needsWork(o, row) {
+  if (!row) return false;
+  if (row.count === 0) return true;
+  const reopenedAt = o.reopenedAt?.toMillis?.();
+  return reopenedAt != null && (row.updatedAt?.toMillis?.() ?? 0) < reopenedAt && (!o.maxAttempts || row.count < o.maxAttempts);
+}
+
 // "18/20" hoặc null khi bài nộp trước lúc Worker bắt đầu lưu điểm tóm tắt.
 export function scoreText(correct, total) {
   return correct != null && total != null ? `${correct}/${total}` : null;

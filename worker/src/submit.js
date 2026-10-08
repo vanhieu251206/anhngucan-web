@@ -41,7 +41,21 @@ async function loadCaller(request, env, db) {
   return { uid, profile, role: profile.role };
 }
 
-// Học sinh: lần mở bài phải đúng lớp + đúng bài. Trả về opening.
+// Giáo viên MỞ LẠI bài riêng cho từng em (2026-10-09, src/lib/openings.js → openingForStudent): em có trong
+// opening.extensions thì hạn chót = hạn riêng (nếu muộn hơn hạn lớp), số lượt = lượt của lớp + lượt cấp thêm.
+function openingForStudent(opening, uid) {
+  const ext = opening?.extensions?.[uid];
+  const own = ext?.expiresAt instanceof Date ? ext.expiresAt.getTime() : null;
+  const classMs = opening?.expiresAt instanceof Date ? opening.expiresAt.getTime() : null;
+  if (own == null || classMs == null || own <= classMs) return opening;
+  return {
+    ...opening,
+    expiresAt: ext.expiresAt,
+    maxAttempts: opening.maxAttempts ? opening.maxAttempts + (Number(ext.extraAttempts) || 0) : opening.maxAttempts,
+  };
+}
+
+// Học sinh: lần mở bài phải đúng lớp + đúng bài. Trả về opening (đã tính hạn/lượt riêng của em nếu được mở lại).
 async function loadOpeningFor(db, caller, body) {
   if (!body.openingId) throw adminError(403, "not-opened");
   const opening = await db.get(`openings/${body.openingId}`);
@@ -55,7 +69,7 @@ async function loadOpeningFor(db, caller, body) {
   ) {
     throw adminError(403, "not-opened");
   }
-  return opening;
+  return openingForStudent(opening, caller.uid);
 }
 
 async function attemptCount(db, uid, body) {
@@ -289,8 +303,10 @@ export async function reviewTest(request, env) {
   const openingId = typeof body?.openingId === "string" ? body.openingId : "";
   if (!openingId || openingId.includes("/")) throw adminError(400, "bad-request");
 
-  const opening = await db.get(`openings/${openingId}`);
-  if (opening && opening.className !== caller.profile.className) throw adminError(403, "not-opened");
+  const stored = await db.get(`openings/${openingId}`);
+  if (stored && stored.className !== caller.profile.className) throw adminError(403, "not-opened");
+  // Em được mở lại riêng: chỉ xem đáp án sau hạn RIÊNG của em (không xem đáp án rồi vào làm lại).
+  const opening = stored ? openingForStudent(stored, caller.uid) : stored;
   const rows = await db.query("testResults", { uid: caller.uid, openingId });
   const deadline =
     opening?.expiresAt?.getTime() ??

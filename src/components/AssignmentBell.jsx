@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useAssignments } from "../lib/useAssignments.js";
-import { deadlineInfo, kindLabel, levelLabel, openAssignment, reminderStage } from "../lib/assignmentUtils.js";
+import { deadlineInfo, kindLabel, levelLabel, needsWork, openAssignment, reminderStage } from "../lib/assignmentUtils.js";
 import { navigateApp } from "../lib/urlState.js";
 
 // Chuông thông báo bài cần làm (học sinh, 2026-09-30): giáo viên mở bài cho lớp → chuông lắc + có số + thông báo nổi
@@ -25,6 +25,7 @@ function statusOf(o, row) {
   if (!row) return null;
   if (o.maxAttempts && row.count >= o.maxAttempts) return { label: "Hết lượt", tone: "done", locked: true };
   if (row.count === 0) return { label: "Chưa làm", tone: "todo" };
+  if (needsWork(o, row)) return { label: "Cô mở lại", tone: "todo" };
   return { label: o.maxAttempts ? `Đã làm ${row.count}/${o.maxAttempts}` : `Đã làm ${row.count} lần`, tone: "ok" };
 }
 
@@ -54,7 +55,7 @@ export default function AssignmentBell() {
   const unseen = active.filter(o => !seen.includes(o.id));
   // Chỉ nhắc bài đã biết chắc là chưa làm (đã đọc xong số lượt).
   const reminders = active
-    .filter(o => info[o.id] && info[o.id].count === 0)
+    .filter(o => needsWork(o, info[o.id]))
     .map(o => ({ o, stage: reminderStage(o, now) }))
     .filter(({ o, stage }) => stage && reminded[o.id] !== stage && reminded[o.id] !== "1h");
   const alertKey = [...unseen.map(o => o.id), ...reminders.map(r => `${r.o.id}:${r.stage}`)].join(",");
@@ -103,7 +104,7 @@ export default function AssignmentBell() {
 
   if (!enabled) return null;
 
-  const todoCount = active.filter(o => (info[o.id]?.count ?? 0) === 0).length;
+  const todoCount = active.filter(o => needsWork(o, info[o.id] ?? { count: 0 })).length;
   const ringing = !open && (unseen.length > 0 || reminders.some(r => r.stage === "1h"));
   const showToast = !toastHidden && !open && (unseen.length > 0 || reminders.length > 0);
 

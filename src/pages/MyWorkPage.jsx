@@ -3,7 +3,7 @@ import Header from "../components/Header.jsx";
 import { useAuth } from "../lib/authContext.jsx";
 import { useAssignments } from "../lib/useAssignments.js";
 import { useNextClass } from "../lib/useNextClass.js";
-import { deadlineInfo, kindLabel, levelLabel, openAssignment, scoreText } from "../lib/assignmentUtils.js";
+import { deadlineInfo, kindLabel, levelLabel, needsWork, openAssignment, scoreText } from "../lib/assignmentUtils.js";
 import ResultReviewModal from "../components/ResultReviewModal.jsx";
 
 // Trang "Bài của con" (học sinh, 2026-09-30): toàn bộ bài giáo viên mở cho lớp, chia 3 tab.
@@ -41,7 +41,8 @@ function WorkRow({ o, row, now, tab, onReview }) {
       <div className="work-row-side">
         {tab === "todo" && (
           <>
-            {o.maxAttempts && <span className="work-row-note">{o.maxAttempts} lượt</span>}
+            {o.reopened && <span className="work-row-note">Cô mở lại</span>}
+            {o.maxAttempts && <span className="work-row-note">{count > 0 ? `còn ${o.maxAttempts - count} lượt` : `${o.maxAttempts} lượt`}</span>}
             <button type="button" className="btn btn-primary work-row-btn" onClick={() => openAssignment(o)}>Làm bài</button>
           </>
         )}
@@ -87,8 +88,8 @@ export default function MyWorkPage({ onNavigate }) {
   const [reviewing, setReviewing] = useState(null);
 
   const lists = {
-    todo: active.filter(o => (info[o.id]?.count ?? 0) === 0),
-    done: active.filter(o => (info[o.id]?.count ?? 0) > 0),
+    todo: active.filter(o => needsWork(o, info[o.id] ?? { count: 0 })),
+    done: active.filter(o => !needsWork(o, info[o.id] ?? { count: 0 })),
     expired,
   };
   const list = lists[tab];

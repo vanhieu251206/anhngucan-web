@@ -3,7 +3,8 @@ import { YLE_SERIES, KET_PET_GRADES, KET_PET_UNITS_PER_GRADE, KIDS_GRADES } from
 import { loadLevelContent } from "../../lib/lessons.js";
 import { listListeningExamTests } from "../../lib/adminLessons.js";
 import { listClassNames, listClassDocs, bookAllowsLevel, bookAllowsSeries, bookKeys } from "../../lib/classes.js";
-import { OPENING_KINDS, listOpenings, createOpening, updateOpening, closeOpening, isExpired } from "../../lib/openings.js";
+import { OPENING_KINDS, listOpenings, createOpening, updateOpening, closeOpening, isExpired, activeExtensions, latestDeadlineMs } from "../../lib/openings.js";
+import ReopenDialog from "../../components/dashboard/ReopenDialog.jsx";
 import { useAuth } from "../../lib/authContext.jsx";
 import { useConfirm } from "../../components/dashboard/ConfirmDialog.jsx";
 import { listResultsForOpening } from "../../lib/testResults.js";
@@ -74,6 +75,7 @@ export default function OpeningsPage() {
   const [showForm, setShowForm] = useState(false);
   const [downloadingId, setDownloadingId] = useState(null);
   const [copiedId, setCopiedId] = useState(null);
+  const [reopening, setReopening] = useState(null); // lần mở bài đang mở hộp "Mở lại" cho từng em
 
   const isKetPet = seriesId === "ket-pet";
   const series = YLE_SERIES.find(s => s.id === seriesId);
@@ -399,6 +401,8 @@ export default function OpeningsPage() {
         </div>
       )}
 
+      {reopening && <ReopenDialog opening={reopening} onClose={() => setReopening(null)} onSaved={reload} />}
+
       <div className="admin-card">
         <div className="opening-list-head">
           <h2>Các bài đang mở</h2>
@@ -479,10 +483,15 @@ export default function OpeningsPage() {
                     <td>{o.expiresAt?.toDate ? o.expiresAt.toDate().toLocaleString("vi-VN", { dateStyle: "short", timeStyle: "short" }) : "Không hạn"}</td>
                     <td>{o.maxAttempts ?? "∞"}</td>
                     <td>{o.timeLimitMinutes ?? "—"}</td>
-                    <td>{isExpired(o) ? <span className="opening-chip opening-chip-off">Hết hạn</span> : <span className="opening-chip opening-chip-on">Đang mở</span>}</td>
+                    <td>
+                      {isExpired(o) ? <span className="opening-chip opening-chip-off">Hết hạn</span> : <span className="opening-chip opening-chip-on">Đang mở</span>}
+                      {activeExtensions(o).length > 0 && <div><span className="opening-chip opening-chip-wait">Mở lại · {activeExtensions(o).length} em</span></div>}
+                    </td>
                     <td>
                       <div className="opening-actions">
-                        {canDownloadSheets(o.expiresAt?.toMillis?.()) && (
+                        {isExpired(o) && <button className="opening-btn" onClick={() => { setError(""); setReopening(o); }}>↻ Mở lại</button>}
+                        {/* Có em được mở lại thì kết quả của em đó giữ tới 48h sau hạn riêng → phiếu chấm tải được tới lúc đó. */}
+                        {isExpired(o) && canDownloadSheets(latestDeadlineMs(o), Math.max(Date.now(), latestDeadlineMs(o) ?? 0)) && (
                           <button className="opening-btn" disabled={!!downloadingId} onClick={() => handleSheets(o)}>
                             {downloadingId === o.id ? "Đang tạo PDF..." : "⬇ Phiếu chấm"}
                           </button>

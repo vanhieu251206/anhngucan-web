@@ -1,6 +1,7 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { doc, getDoc } from "firebase/firestore";
-import { db } from "../lib/firebase.js";
+import { auth, db } from "../lib/firebase.js";
+import { openingForStudent } from "../lib/openings.js";
 import { BEE } from "./sceneVisuals.jsx";
 import { formatDateTime } from "../lib/assignmentUtils.js";
 import { navigateApp } from "../lib/urlState.js";
@@ -18,7 +19,8 @@ export default function SubmittedNotice({ openingId, onDone, compact = false }) 
     let cancelled = false;
     getDoc(doc(db, "openings", openingId))
       .then(snap => {
-        if (!cancelled) setDeadline(snap.data()?.expiresAt?.toDate?.() ?? null);
+        // Em được mở lại riêng thì hẹn theo hạn riêng của em (lib/openings.js).
+        if (!cancelled) setDeadline(openingForStudent(snap.data() ?? {}, auth.currentUser?.uid).expiresAt?.toDate?.() ?? null);
       })
       .catch(() => {});
     return () => {

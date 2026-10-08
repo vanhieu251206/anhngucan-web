@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { collection, onSnapshot, query, where } from "firebase/firestore";
 import { db } from "./firebase.js";
 import { useAuth } from "./authContext.jsx";
-import { attemptKey } from "./openings.js";
+import { attemptKey, openingForStudent } from "./openings.js";
 import { getAttemptInfo } from "./attempts.js";
 
 // Bài giáo viên mở cho lớp của học sinh (chuông AssignmentBell.jsx + trang "Bài của con" MyWorkPage.jsx) — theo dõi
@@ -24,10 +24,11 @@ export function useAssignments() {
     if (!className) return;
     return onSnapshot(
       query(collection(db, "openings"), where("className", "==", className)),
-      snap => setOpenings(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
+      // Em được giáo viên mở lại riêng: hạn chót + số lượt hiện theo hạn riêng của em (openingForStudent).
+      snap => setOpenings(snap.docs.map(d => openingForStudent({ id: d.id, ...d.data() }, uid))),
       () => setOpenings([])
     );
-  }, [className]);
+  }, [className, uid]);
 
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 60_000);
