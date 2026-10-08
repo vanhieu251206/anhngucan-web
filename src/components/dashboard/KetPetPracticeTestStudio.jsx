@@ -15,6 +15,33 @@ export const EMPTY_PRACTICE_TEST_GROUPS = [];
 
 const splitAnswerText = text => String(text ?? "").split("|").map(s => s.trim()).filter(Boolean);
 
+// Trắc nghiệm có hơn 1 đáp án đúng (q.altAnswerIndexes): nút tròn vẫn chọn đáp án chính; bấm "+ Đáp án cũng đúng"
+// để tick thêm các đáp án khác cũng được tính điểm. Bỏ tick hết thì trở về 1 đáp án như cũ.
+function AltAnswers({ q, onChange }) {
+  const alt = (q.altAnswerIndexes ?? []).filter(i => i !== q.answerIndex);
+  if (q.altAnswerIndexes == null) {
+    return (
+      <button type="button" className="admin-link-btn" style={{ alignSelf: "flex-start" }} onClick={() => onChange({ altAnswerIndexes: [] })}>
+        + Đáp án cũng đúng
+      </button>
+    );
+  }
+  function toggle(i) {
+    const next = alt.includes(i) ? alt.filter(v => v !== i) : [...alt, i].sort();
+    onChange({ altAnswerIndexes: next.length ? next : undefined });
+  }
+  return (
+    <div className="admin-practice-option-row" style={{ flexWrap: "wrap" }}>
+      <span style={{ fontSize: "0.85rem" }}>Cũng tính đúng:</span>
+      {(q.options ?? []).map((_, i) => i !== q.answerIndex && (
+        <label key={i} className="admin-practice-option-row" style={{ gap: 4 }}>
+          <input type="checkbox" checked={alt.includes(i)} onChange={() => toggle(i)} /> {String.fromCharCode(65 + i)}
+        </label>
+      ))}
+    </div>
+  );
+}
+
 // Đáp án câu điền từ: 1 ô (nhiều cách viết ngăn bằng |), hoặc bấm "+ Ô trống" để tách thành nhiều ô — mỗi chỗ trống
 // trong câu 1 dòng đáp án riêng (q.blanks, xem lib/ketPetPracticeTest.js). Bớt còn 1 ô thì trở về dạng 1 ô như cũ.
 function FillAnswerInputs({ q, onChange, placeholder }) {
@@ -332,6 +359,7 @@ export default function KetPetPracticeTestStudio({
                           />
                         </div>
                       ))}
+                      <AltAnswers q={q} onChange={patch => updateQuestion(gi, qi, patch)} />
                     </>
                   )}
 
@@ -356,6 +384,7 @@ export default function KetPetPracticeTestStudio({
                           />
                         </div>
                       ))}
+                      <AltAnswers q={q} onChange={patch => updateQuestion(gi, qi, patch)} />
                     </>
                   )}
 
@@ -400,6 +429,7 @@ export default function KetPetPracticeTestStudio({
                               />
                             </div>
                           ))}
+                          <AltAnswers q={q} onChange={patch => updateQuestion(gi, qi, patch)} />
                         </>
                       ) : (
                         <>

@@ -1,6 +1,6 @@
 import { Fragment, useState } from "react";
 import ExamTimer, { useExamTimer } from "./ExamTimer.jsx";
-import { blankCount, gradePracticeTestGroups, questionNumber, toRoman } from "../lib/ketPetPracticeTest.js";
+import { blankCount, gradePracticeTestGroups, isChoiceAnswer, questionNumber, toRoman } from "../lib/ketPetPracticeTest.js";
 import { optimizeImage } from "../lib/cloudinaryImage.js";
 import UnderlineText from "./UnderlineText.jsx";
 import SubmitStatus from "./SubmitStatus.jsx";
@@ -209,7 +209,7 @@ export default function KetPetPracticeTestQuiz({ groups, revealAnswers = false, 
             {q.options.map((opt, oi) => {
               const picked = answers[`${gi}-${qi}`] === oi;
               const showState = view != null;
-              const isRight = oi === q.answerIndex;
+              const isRight = isChoiceAnswer(q, oi);
               return (
                 <label
                   key={oi}
@@ -333,7 +333,7 @@ export default function KetPetPracticeTestQuiz({ groups, revealAnswers = false, 
                         {q.options.map((opt, oi) => {
                           const picked = answers[`${gi}-${qi}`] === oi;
                           const showState = view != null;
-                          const isRight = oi === q.answerIndex;
+                          const isRight = isChoiceAnswer(q, oi);
                           return (
                             <label
                               key={oi}
@@ -366,7 +366,7 @@ export default function KetPetPracticeTestQuiz({ groups, revealAnswers = false, 
                       {q.options.map((opt, oi) => {
                         const picked = answers[`${gi}-${qi}`] === oi;
                         const showState = view != null;
-                        const isRight = oi === q.answerIndex;
+                        const isRight = isChoiceAnswer(q, oi);
                         return (
                           <label
                             key={oi}

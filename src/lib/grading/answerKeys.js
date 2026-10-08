@@ -128,7 +128,7 @@ function splitKetPet(groups, take, entries, isVocab) {
       // Câu điền nhiều ô trống: giữ lại số ô để học sinh vẫn thấy đủ ô.
       if (Array.isArray(q.blanks)) q.blankCount = q.blanks.length;
       else delete q.blankCount;
-      ["answer", "answerIndex", "acceptedAnswers", "blanks", "columnIndex", "sampleAnswer"].forEach(k => take(q, k, base));
+      ["answer", "answerIndex", "altAnswerIndexes", "acceptedAnswers", "blanks", "columnIndex", "sampleAnswer"].forEach(k => take(q, k, base));
     });
   });
 }

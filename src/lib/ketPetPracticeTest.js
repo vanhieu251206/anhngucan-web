@@ -42,6 +42,12 @@ export function isFillBlankCorrect(userAnswer, acceptedAnswers) {
   return (acceptedAnswers ?? []).some(a => normalizeSentence(a) === normalized);
 }
 
+// Trắc nghiệm có HƠN 1 đáp án đúng (tuỳ chọn, 2026-10-09 — cô chốt "B và D đều đúng"): `answerIndex` là đáp án
+// chính, `altAnswerIndexes` là các đáp án khác cũng tính đúng. Học sinh vẫn chỉ chọn 1.
+export function isChoiceAnswer(q, index) {
+  return index != null && (index === q?.answerIndex || (q?.altAnswerIndexes ?? []).includes(index));
+}
+
 // Câu điền từ có NHIỀU Ô TRỐNG (tuỳ chọn, 2026-10-08): `q.blanks` = danh sách đáp án từng ô theo thứ tự trong câu
 // (mỗi ô 1 chuỗi, nhiều cách viết ngăn bằng "|"). Có `blanks` → học sinh thấy mỗi chỗ trống 1 ô riêng, câu trả lời
 // là MẢNG chuỗi, đúng hết các ô mới tính đúng câu. Không có `blanks` → 1 ô như cũ (`acceptedAnswers`).
@@ -162,7 +168,7 @@ export function gradePracticeTestGroups(groups, answers) {
       const effectiveType = g.type === "split-reading" ? q.type : g.type;
       let isCorrect = false;
       if (effectiveType === "multiple-choice" || effectiveType === "pronunciation-underline") {
-        isCorrect = userAnswer != null && userAnswer === q.answerIndex;
+        isCorrect = isChoiceAnswer(q, userAnswer);
       } else if (effectiveType === "fill-blank") {
         isCorrect = Array.isArray(q.blanks) ? isBlanksCorrect(userAnswer, q.blanks) : isFillBlankCorrect(userAnswer, q.acceptedAnswers);
       } else if (effectiveType === "word-bank") {

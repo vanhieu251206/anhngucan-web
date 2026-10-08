@@ -66,7 +66,8 @@ function ketPetDetail(g, q, qi, value) {
   const prompt = stripTags(q.text ?? q.prompt ?? (Array.isArray(q.words) ? q.words.join(" / ") : "")).slice(0, 160);
   const typed = String(value ?? "");
   if (type === "multiple-choice" || type === "pronunciation-underline") {
-    return { prompt, studentAnswer: optionText(q.options, value), correctAnswer: optionText(q.options, q.answerIndex) };
+    const right = [q.answerIndex, ...(q.altAnswerIndexes ?? [])].map(i => optionText(q.options, i)).filter(Boolean);
+    return { prompt, studentAnswer: optionText(q.options, value), correctAnswer: right.join(" / ") };
   }
   if (type === "true-false-table") return { prompt, studentAnswer: tfText(value), correctAnswer: tfText(q.answer) };
   if (type === "categorize") {

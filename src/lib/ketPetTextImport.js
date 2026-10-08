@@ -96,13 +96,17 @@ function buildChoice(raw, underline, where, errors) {
     errors.push(`${where}: không tìm thấy các đáp án A. B. C. D.`);
     return null;
   }
-  const answerIndex = "ABCD".indexOf(raw.answer.trim().toUpperCase().charAt(0));
-  if (!raw.answer.trim() || answerIndex < 0 || answerIndex >= parsed.options.length) {
+  // "Đáp án: B | D" = B là đáp án chính, D cũng tính đúng.
+  const indexes = answerList(raw.answer).map(a => "ABCD".indexOf(a.toUpperCase().charAt(0)));
+  const answerIndex = indexes[0] ?? -1;
+  if (!indexes.length || indexes.some(i => i < 0 || i >= parsed.options.length)) {
     errors.push(`${where}: thiếu "Đáp án:" (A, B, C hoặc D).`);
     return null;
   }
-  if (underline) return { options: parsed.options.map(o => o.replace(/\[([^\]]+)\]/g, "<u>$1</u>")), answerIndex };
-  return { text: parsed.text, options: parsed.options, answerIndex };
+  const alt = [...new Set(indexes.slice(1))].filter(i => i !== answerIndex);
+  const extra = alt.length ? { altAnswerIndexes: alt } : {};
+  if (underline) return { options: parsed.options.map(o => o.replace(/\[([^\]]+)\]/g, "<u>$1</u>")), answerIndex, ...extra };
+  return { text: parsed.text, options: parsed.options, answerIndex, ...extra };
 }
 
 // Câu điền từ: 1 dòng "Đáp án:" = 1 ô như thường; ghi NHIỀU dòng "Đáp án:" = mỗi dòng 1 ô trống, theo thứ tự trong câu.
