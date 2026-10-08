@@ -17,7 +17,7 @@ export default function ReopenDialog({ opening, preselect, onClose, onSaved }) {
   const { user } = useAuth();
   const [students, setStudents] = useState(null);
   const [attempts, setAttempts] = useState(new Map());
-  const [picked, setPicked] = useState(() => new Set(preselect ?? []));
+  const [manual, setManual] = useState(() => Object.fromEntries((preselect ?? []).map(uid => [uid, true]))); // uid → tick tay (true/false)
   const [expiresAt, setExpiresAt] = useState("");
   const [extra, setExtra] = useState("1");
   const [lowPct, setLowPct] = useState("50");
@@ -54,33 +54,37 @@ export default function ReopenDialog({ opening, preselect, onClose, onSaved }) {
     };
   }), [students, attempts, opening, classDeadline, now]);
 
-  // Nút chọn nhanh đang bật — đổi ngưỡng % khi đang bật "Điểm dưới" thì danh sách tick cập nhật theo ngay. Tick tay
-  // 1 em là thôi theo nút chọn nhanh.
-  const [mode, setMode] = useState(null);
+  // Chọn nhanh BẬT ĐƯỢC NHIỀU NÚT cùng lúc (gộp lại: em chưa làm + em điểm thấp...). Em được tick = thuộc 1 trong
+  // các nút đang bật, rồi áp thêm các lần tick/bỏ tick tay (`manual`). Đổi ngưỡng % là danh sách đổi theo ngay.
+  const [modes, setModes] = useState(() => new Set());
   const QUICK = {
     todo: r => r.count === 0,
     late: r => r.joinedLate,
     low: r => r.pct != null && r.pct < (Number(lowPct) || 0),
     all: () => true,
   };
-  function quick(key) {
-    setMode(key);
-    setPicked(new Set(key ? rows.filter(QUICK[key]).map(r => r.uid) : []));
-  }
-  useEffect(() => {
-    if (mode === "low") setPicked(new Set(rows.filter(QUICK.low).map(r => r.uid)));
+  const picked = useMemo(() => {
+    const set = new Set(rows.filter(r => [...modes].some(k => QUICK[k](r))).map(r => r.uid));
+    Object.entries(manual).forEach(([uid, on]) => (on ? set.add(uid) : set.delete(uid)));
+    return set;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lowPct, rows]);
-  const quickClass = key => `opening-btn${mode === key ? " is-active" : ""}`;
-  const toggle = uid => {
-    setMode(null);
-    setPicked(prev => {
+  }, [rows, modes, manual, lowPct]);
+  function quick(key, on) {
+    setModes(prev => {
       const next = new Set(prev);
-      if (next.has(uid)) next.delete(uid);
-      else next.add(uid);
+      if (on ?? !next.has(key)) next.add(key);
+      else next.delete(key);
       return next;
     });
-  };
+    // Bấm 1 nút chọn nhanh thì bỏ các lần BỎ TICK tay (để nút có tác dụng với mọi em), giữ các em tick tay thêm.
+    setManual(prev => Object.fromEntries(Object.entries(prev).filter(([, v]) => v)));
+  }
+  function clearAll() {
+    setModes(new Set());
+    setManual({});
+  }
+  const quickClass = key => `opening-btn${modes.has(key) ? " is-active" : ""}`;
+  const toggle = uid => setManual(prev => ({ ...prev, [uid]: !picked.has(uid) }));
   const chosen = rows.filter(r => picked.has(r.uid));
   const revocable = chosen.filter(r => r.reopenedUntil);
 
@@ -122,10 +126,10 @@ export default function ReopenDialog({ opening, preselect, onClose, onSaved }) {
               <button type="button" className={quickClass("late")} onClick={() => quick("late")}>Vào lớp sau hạn</button>
               <span className="reopen-low">
                 <button type="button" className={quickClass("low")} onClick={() => quick("low")}>Điểm dưới</button>
-                <input className="admin-input" type="number" min="0" max="100" value={lowPct} onFocus={() => quick("low")} onChange={e => setLowPct(e.target.value)} aria-label="Ngưỡng điểm (%)" />%
+                <input className="admin-input" type="number" min="0" max="100" value={lowPct} onFocus={() => quick("low", true)} onChange={e => setLowPct(e.target.value)} aria-label="Ngưỡng điểm (%)" />%
               </span>
               <button type="button" className={quickClass("all")} onClick={() => quick("all")}>Cả lớp</button>
-              <button type="button" className="opening-btn" onClick={() => quick(null)}>Bỏ chọn</button>
+              <button type="button" className="opening-btn" onClick={clearAll}>Bỏ chọn</button>
               <span className="reopen-picked">Đã chọn {chosen.length}/{rows.length} em</span>
             </div>
 
