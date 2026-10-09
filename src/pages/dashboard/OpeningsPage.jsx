@@ -2,14 +2,16 @@ import { useEffect, useMemo, useState } from "react";
 import { YLE_SERIES, KET_PET_GRADES, KET_PET_UNITS_PER_GRADE, KIDS_GRADES } from "../../lib/yleData.js";
 import { loadLevelContent } from "../../lib/lessons.js";
 import { listListeningExamTests } from "../../lib/adminLessons.js";
-import { listClassNames, listClassDocs, bookAllowsLevel, bookAllowsSeries, bookKeys } from "../../lib/classes.js";
-import { OPENING_KINDS, listOpenings, createOpening, updateOpening, closeOpening, isExpired, activeExtensions, latestDeadlineMs } from "../../lib/openings.js";
+import { listClassDocs, bookAllowsLevel, bookAllowsSeries, bookKeys, formatBook, formatSchedule } from "../../lib/classes.js";
+import { listStudents } from "../../lib/adminUsers.js";
+import { listSubmittedUids } from "../../lib/attempts.js";
+import { OPENING_KINDS, listOpenings, createOpening, updateOpening, closeOpening, isExpired, activeExtensions, latestDeadlineMs, attemptKey } from "../../lib/openings.js";
 import ReopenDialog from "../../components/dashboard/ReopenDialog.jsx";
 import { useAuth } from "../../lib/authContext.jsx";
 import { useConfirm } from "../../components/dashboard/ConfirmDialog.jsx";
 import { listResultsForOpening } from "../../lib/testResults.js";
 import { downloadClassResultSheets, canDownloadSheets } from "../../lib/resultSheetPdf.js";
-import { assignmentLink } from "../../lib/assignmentUtils.js";
+import { assignmentLink, deadlineInfo } from "../../lib/assignmentUtils.js";
 
 // Dạng bài mở được theo từng bộ đề.
 function kindsFor(seriesId) {
@@ -27,6 +29,12 @@ function toLocalInput(date) {
 
 // Các cách sắp xếp danh sách bài đang mở — `value` trả số hoặc chuỗi; nhãn nút đảo chiều theo từng kiểu dữ liệu.
 const SORT_STORAGE_KEY = "openings.sort";
+const VIEW_STORAGE_KEY = "openings.view";
+// Số em đã nộp chỉ nạp cho bài đang mở + bài hết hạn chưa quá 7 ngày (mỗi bài = 1 lượt đọc cho mỗi em đã nộp —
+// bài hết hạn lâu không đóng thì cột "Đã nộp" hiện "—" để không tốn hạn mức đọc Firestore).
+const PROGRESS_KEEP_MS = 7 * 24 * 3600 * 1000;
+const byName = (a, b) => a.localeCompare(b, "vi", { numeric: true });
+const COLUMNS = [["class", "Lớp"], ["title", "Bài"], ["deadline", "Hạn chót"], [null, "Đã nộp"], ["attempts", "Lượt"], ["minutes", "Phút"], ["status", "Trạng thái"]];
 const TIME_LABELS = { ascLabel: "↑ Cũ → mới", descLabel: "↓ Mới → cũ" };
 const TEXT_LABELS = { ascLabel: "↑ A → Z", descLabel: "↓ Z → A" };
 const NUM_LABELS = { ascLabel: "↑ Ít → nhiều", descLabel: "↓ Nhiều → ít" };
@@ -55,7 +63,9 @@ export default function OpeningsPage() {
   const allowedClassSet = isRestricted ? new Set(profile?.allowedClasses ?? []) : null;
   const confirm = useConfirm();
   const [classes, setClasses] = useState([]);
-  const [classBooks, setClassBooks] = useState({}); // tên lớp -> sách được gán (lib/classes.js)
+  const [classDocs, setClassDocs] = useState({}); // tên lớp -> doc lớp (sách được gán, lịch học — lib/classes.js)
+  const [students, setStudents] = useState([]);
+  const [submitted, setSubmitted] = useState(() => new Map()); // khoá lượt "testId@openingId" -> Set<uid> đã nộp
   const [openings, setOpenings] = useState(null);
   const [error, setError] = useState("");
 
@@ -81,7 +91,7 @@ export default function OpeningsPage() {
   const series = YLE_SERIES.find(s => s.id === seriesId);
   // Chỉ cho mở bài thuộc SÁCH của lớp (2026-09-25) — mở bài ngoài sách thì học sinh thấy xám, không vào được.
   // Lớp chưa gán sách: vẫn chọn tự do nhưng hiện cảnh báo.
-  const book = classBooks[className] ?? null;
+  const book = classDocs[className]?.book ?? null;
   const seriesChoices = book ? YLE_SERIES.filter(s => bookAllowsSeries(book, s.id)) : YLE_SERIES;
   // Kids chia Grade 1-5 (KIDS_GRADES), khác 4 cấp mặc định của buildSeries.
   const baseLevels = isKetPet ? KET_PET_GRADES : seriesId === "kids" ? KIDS_GRADES : (series?.levels ?? []).map(l => l.number);
@@ -89,22 +99,30 @@ export default function OpeningsPage() {
   const levelKey = levelOptions.join(",");
   const kinds = kindsFor(seriesId);
 
-  function reload() {
-    listOpenings()
-      .then(list => setOpenings(allowedClassSet ? list.filter(o => allowedClassSet.has(o.className)) : list))
-      .catch(e => setError(e.message));
+  async function reload() {
+    try {
+      const all = await listOpenings();
+      const list = allowedClassSet ? all.filter(o => allowedClassSet.has(o.className)) : all;
+      setOpenings(list);
+      const recent = list.filter(o => (latestDeadlineMs(o) ?? Infinity) > Date.now() - PROGRESS_KEEP_MS);
+      setSubmitted(await listSubmittedUids(recent.map(o => attemptKey(o.testId, o.id))).catch(() => new Map()));
+    } catch (e) {
+      setError(e.message);
+    }
   }
   useEffect(() => {
     reload();
-    listClassDocs()
-      .then(docs => setClassBooks(Object.fromEntries(docs.map(c => [c.name, c.book ?? null]))))
-      .catch(() => {});
-    listClassNames().then(list => {
-      let cls = list;
-      if (allowedClassSet) cls = cls.filter(c => allowedClassSet.has(c));
-      setClasses(cls);
-      setClassName(c => c || cls[0] || "");
-    });
+    // Lớp = hợp của lớp đã tạo + lớp đang có học sinh (như listClassNames()), nạp 1 lần dùng cho cả sĩ số.
+    Promise.all([listClassDocs().catch(() => []), listStudents()])
+      .then(([docs, studs]) => {
+        setClassDocs(Object.fromEntries(docs.map(c => [c.name, c])));
+        setStudents(studs);
+        let cls = [...new Set([...docs.map(c => c.name), ...studs.map(s => s.className).filter(Boolean)])].sort(byName);
+        if (allowedClassSet) cls = cls.filter(c => allowedClassSet.has(c));
+        setClasses(cls);
+        setClassName(c => c || cls[0] || "");
+      })
+      .catch(e => setError(e.message));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -275,7 +293,16 @@ export default function OpeningsPage() {
   const sortBy = by => setSort({ by, desc: sort.by === by ? !sort.desc : false });
   const filtering = !!(classFilter || kindFilter || statusFilter || search);
 
-  const listClasses = useMemo(() => [...new Set((openings ?? []).map(o => o.className).filter(Boolean))].sort((a, b) => a.localeCompare(b, "vi", { numeric: true })), [openings]);
+  // Xem "Theo lớp": gom bài theo từng lớp (kể cả lớp chưa mở bài nào) — lựa chọn được nhớ trên máy này.
+  const [view, setViewState] = useState(() => {
+    try { return localStorage.getItem(VIEW_STORAGE_KEY) === "class" ? "class" : "list"; } catch { return "list"; }
+  });
+  function setView(next) {
+    setViewState(next);
+    try { localStorage.setItem(VIEW_STORAGE_KEY, next); } catch { /* bỏ qua */ }
+  }
+
+  const listClasses = useMemo(() => [...new Set((openings ?? []).map(o => o.className).filter(Boolean))].sort(byName), [openings]);
   const listKinds = useMemo(() => [...new Set((openings ?? []).map(o => o.kind).filter(Boolean))], [openings]);
   const sorted = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -285,10 +312,144 @@ export default function OpeningsPage() {
     return (openings ?? [])
       .filter(o => !classFilter || o.className === classFilter)
       .filter(o => !kindFilter || o.kind === kindFilter)
-      .filter(o => !statusFilter || (statusFilter === "expired") === isExpired(o))
+      .filter(o => !statusFilter || (statusFilter === "soon" ? deadlineInfo(o).urgent : (statusFilter === "expired") === isExpired(o)))
       .filter(o => !q || (o.testTitle ?? "").toLowerCase().includes(q))
       .sort((a, b) => (sort.desc ? -1 : 1) * cmp(value(a), value(b)) || cmp(created(a), created(b)));
   }, [openings, classFilter, kindFilter, statusFilter, search, sort]);
+
+  // Sĩ số tính các em không bị khoá tài khoản (em bị khoá không vào làm được) — giống trang Tổng quan.
+  const rosters = useMemo(() => {
+    const map = {};
+    students.forEach(s => { if (s.className && !s.disabled) (map[s.className] ??= []).push(s); });
+    return map;
+  }, [students]);
+  // { done, total } của 1 lần mở bài; null = chưa nạp (bài hết hạn đã lâu).
+  function progressOf(o) {
+    const done = submitted.get(attemptKey(o.testId, o.id));
+    if (!done) return null;
+    const list = rosters[o.className] ?? [];
+    return { done: list.filter(s => done.has(s.uid)).length, total: list.length };
+  }
+
+  // Số liệu tổng quan — theo lớp đang lọc (không lọc = mọi lớp).
+  const stats = useMemo(() => {
+    const all = openings ?? [];
+    const scoped = all.filter(o => !classFilter || o.className === classFilter);
+    const live = scoped.filter(o => !isExpired(o));
+    let done = 0;
+    let total = 0;
+    live.forEach(o => {
+      const p = progressOf(o);
+      if (p) { done += p.done; total += p.total; }
+    });
+    const liveClasses = new Set(all.filter(o => !isExpired(o)).map(o => o.className));
+    return {
+      live: live.length,
+      soon: live.filter(o => deadlineInfo(o).urgent).length,
+      expired: scoped.length - live.length,
+      idle: classes.filter(c => !liveClasses.has(c)),
+      submitted: total ? `${Math.round((done / total) * 100)}%` : "—",
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openings, classFilter, classes, submitted, rosters]);
+
+  // Các nhóm của chế độ "Theo lớp": đang lọc/tìm thì chỉ hiện lớp có bài khớp, không thì hiện mọi lớp.
+  const groups = useMemo(() => {
+    const narrowing = !!(kindFilter || statusFilter || search);
+    const names = classFilter ? [classFilter] : [...new Set([...classes, ...listClasses])].sort(byName);
+    return names
+      .map(name => {
+        const all = (openings ?? []).filter(o => o.className === name);
+        const live = all.filter(o => !isExpired(o));
+        return {
+          name,
+          rows: sorted.filter(o => o.className === name),
+          live: live.length,
+          soon: live.filter(o => deadlineInfo(o).urgent).length,
+          expired: all.length - live.length,
+        };
+      })
+      .filter(g => !narrowing || g.rows.length > 0);
+  }, [openings, sorted, classes, listClasses, classFilter, kindFilter, statusFilter, search]);
+
+  function openForm(cls) {
+    setError("");
+    if (cls && classes.includes(cls)) setClassName(cls);
+    setShowForm(true);
+  }
+  const toggleStatus = value => setStatusFilter(statusFilter === value ? "" : value);
+
+  function renderTable(rows, showClass) {
+    return (
+      <div style={{ overflowX: "auto" }}>
+        <table className="admin-table opening-table">
+          <thead>
+            <tr>
+              {COLUMNS.filter(([by]) => showClass || by !== "class").map(([by, label]) => by ? (
+                <th key={by} aria-sort={sort.by === by ? (sort.desc ? "descending" : "ascending") : "none"}>
+                  <button type="button" className={`opening-sort-th${sort.by === by ? " is-active" : ""}`} onClick={() => sortBy(by)}>
+                    {label}<span>{sort.by === by ? (sort.desc ? "▼" : "▲") : "↕"}</span>
+                  </button>
+                </th>
+              ) : <th key={label}>{label}</th>)}
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(o => {
+              const progress = progressOf(o);
+              const info = deadlineInfo(o);
+              return (
+                <tr key={o.id}>
+                  {showClass && <td><span className="opening-chip opening-chip-class">{o.className}</span></td>}
+                  <td>
+                    <div className="opening-test-title">{o.testTitle}</div>
+                    <div className="opening-test-kind">{OPENING_KINDS[o.kind] ?? o.kind}</div>
+                  </td>
+                  <td>
+                    <div>{o.expiresAt?.toDate ? o.expiresAt.toDate().toLocaleString("vi-VN", { dateStyle: "short", timeStyle: "short" }) : "Không hạn"}</div>
+                    {info.urgent && <span className="opening-chip opening-chip-wait">{info.left}</span>}
+                  </td>
+                  <td>
+                    {progress ? (
+                      <>
+                        <div className="overview-progress-label">{progress.done}/{progress.total}</div>
+                        <div className="overview-progress"><span style={{ width: `${progress.total ? (progress.done / progress.total) * 100 : 0}%` }} /></div>
+                      </>
+                    ) : "—"}
+                  </td>
+                  <td>{o.maxAttempts ?? "∞"}</td>
+                  <td>{o.timeLimitMinutes ?? "—"}</td>
+                  <td>
+                    {isExpired(o) ? <span className="opening-chip opening-chip-off">Hết hạn</span> : <span className="opening-chip opening-chip-on">Đang mở</span>}
+                    {activeExtensions(o).length > 0 && <div><span className="opening-chip opening-chip-wait">Mở lại · {activeExtensions(o).length} em</span></div>}
+                  </td>
+                  <td>
+                    <div className="opening-actions">
+                      {isExpired(o) && <button className="opening-btn" onClick={() => { setError(""); setReopening(o); }}>↻ Mở lại</button>}
+                      {/* Có em được mở lại thì kết quả của em đó giữ tới 48h sau hạn riêng → phiếu chấm tải được tới lúc đó. */}
+                      {isExpired(o) && canDownloadSheets(latestDeadlineMs(o), Math.max(Date.now(), latestDeadlineMs(o) ?? 0)) && (
+                        <button className="opening-btn" disabled={!!downloadingId} onClick={() => handleSheets(o)}>
+                          {downloadingId === o.id ? "Đang tạo PDF..." : "⬇ Phiếu chấm"}
+                        </button>
+                      )}
+                      {!isExpired(o) && (
+                        <button className="opening-btn" onClick={() => handleCopyLink(o)}>
+                          {copiedId === o.id ? "✓ Đã copy" : "🔗 Copy link"}
+                        </button>
+                      )}
+                      <button className="opening-btn" onClick={() => setEditing({ id: o.id, className: o.className, testTitle: o.testTitle, kind: o.kind, expiresAt: toLocalInput(o.expiresAt?.toDate?.()), maxAttempts: o.maxAttempts ?? "", minutes: o.timeLimitMinutes ?? "", maxWrong: o.maxWrong ?? "" })}>✏️ Sửa</button>
+                      <button className="opening-btn opening-btn-danger" onClick={() => handleClose(o)}>🗑 Đóng bài</button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -403,10 +564,24 @@ export default function OpeningsPage() {
 
       {reopening && <ReopenDialog opening={reopening} onClose={() => setReopening(null)} onSaved={reload} />}
 
+      {openings && openings.length > 0 && (
+        <div className="overview-stats opening-stats">
+          <button type="button" className={`overview-stat${statusFilter === "open" ? " is-active" : ""}`} onClick={() => toggleStatus("open")}><span>{stats.live}</span><small>Bài đang mở</small></button>
+          <button type="button" className={`overview-stat${stats.soon ? " is-warn" : ""}${statusFilter === "soon" ? " is-active" : ""}`} onClick={() => toggleStatus("soon")}><span>{stats.soon}</span><small>Sắp hết hạn (24 giờ)</small></button>
+          <button type="button" className={`overview-stat${statusFilter === "expired" ? " is-active" : ""}`} onClick={() => toggleStatus("expired")}><span>{stats.expired}</span><small>Bài hết hạn</small></button>
+          <button type="button" className="overview-stat" onClick={() => setStatusFilter("open")}><span>{stats.submitted}</span><small>Đã nộp (bài đang mở)</small></button>
+          <button type="button" className="overview-stat" title={stats.idle.join(", ")} onClick={() => { setStatusFilter(""); setKindFilter(""); setSearch(""); setClassFilter(""); setView("class"); }}><span>{stats.idle.length}/{classes.length}</span><small>Lớp chưa có bài đang mở</small></button>
+        </div>
+      )}
+
       <div className="admin-card">
         <div className="opening-list-head">
           <h2>Các bài đang mở</h2>
-          <button className="admin-btn-primary" type="button" onClick={() => { setError(""); setShowForm(true); }}>+ Mở bài</button>
+          <div className="opening-head-actions">
+            <button type="button" className={`opening-btn opening-view-btn${view === "list" ? " is-active" : ""}`} onClick={() => setView("list")}>Danh sách</button>
+            <button type="button" className={`opening-btn opening-view-btn${view === "class" ? " is-active" : ""}`} onClick={() => setView("class")}>Theo lớp</button>
+            <button className="admin-btn-primary" type="button" onClick={() => openForm()}>+ Mở bài</button>
+          </div>
         </div>
         {error && !showForm && !editing && <p className="admin-error">{error}</p>}
         {openings === null && <p className="admin-muted-text">Đang tải...</p>}
@@ -432,6 +607,7 @@ export default function OpeningsPage() {
               <select className="admin-input" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
                 <option value="">Tất cả</option>
                 <option value="open">Đang mở</option>
+                <option value="soon">Sắp hết hạn</option>
                 <option value="expired">Hết hạn</option>
               </select>
             </label>
@@ -456,59 +632,29 @@ export default function OpeningsPage() {
             <span className="opening-count">{sorted.length}/{openings.length} bài</span>
           </div>
         )}
-        {openings && openings.length > 0 && sorted.length === 0 && <p className="admin-muted-text">Không có bài nào khớp bộ lọc.</p>}
-        {openings && sorted.length > 0 && (
-          <div style={{ overflowX: "auto" }}>
-            <table className="admin-table opening-table">
-              <thead>
-                <tr>
-                  {[["class", "Lớp"], ["title", "Bài"], ["deadline", "Hạn chót"], ["attempts", "Lượt"], ["minutes", "Phút"], ["status", "Trạng thái"]].map(([by, label]) => (
-                    <th key={by} aria-sort={sort.by === by ? (sort.desc ? "descending" : "ascending") : "none"}>
-                      <button type="button" className={`opening-sort-th${sort.by === by ? " is-active" : ""}`} onClick={() => sortBy(by)}>
-                        {label}<span>{sort.by === by ? (sort.desc ? "▼" : "▲") : "↕"}</span>
-                      </button>
-                    </th>
-                  ))}
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {sorted.map(o => (
-                  <tr key={o.id}>
-                    <td><span className="opening-chip opening-chip-class">{o.className}</span></td>
-                    <td>
-                      <div className="opening-test-title">{o.testTitle}</div>
-                      <div className="opening-test-kind">{OPENING_KINDS[o.kind] ?? o.kind}</div>
-                    </td>
-                    <td>{o.expiresAt?.toDate ? o.expiresAt.toDate().toLocaleString("vi-VN", { dateStyle: "short", timeStyle: "short" }) : "Không hạn"}</td>
-                    <td>{o.maxAttempts ?? "∞"}</td>
-                    <td>{o.timeLimitMinutes ?? "—"}</td>
-                    <td>
-                      {isExpired(o) ? <span className="opening-chip opening-chip-off">Hết hạn</span> : <span className="opening-chip opening-chip-on">Đang mở</span>}
-                      {activeExtensions(o).length > 0 && <div><span className="opening-chip opening-chip-wait">Mở lại · {activeExtensions(o).length} em</span></div>}
-                    </td>
-                    <td>
-                      <div className="opening-actions">
-                        {isExpired(o) && <button className="opening-btn" onClick={() => { setError(""); setReopening(o); }}>↻ Mở lại</button>}
-                        {/* Có em được mở lại thì kết quả của em đó giữ tới 48h sau hạn riêng → phiếu chấm tải được tới lúc đó. */}
-                        {isExpired(o) && canDownloadSheets(latestDeadlineMs(o), Math.max(Date.now(), latestDeadlineMs(o) ?? 0)) && (
-                          <button className="opening-btn" disabled={!!downloadingId} onClick={() => handleSheets(o)}>
-                            {downloadingId === o.id ? "Đang tạo PDF..." : "⬇ Phiếu chấm"}
-                          </button>
-                        )}
-                        {!isExpired(o) && (
-                          <button className="opening-btn" onClick={() => handleCopyLink(o)}>
-                            {copiedId === o.id ? "✓ Đã copy" : "🔗 Copy link"}
-                          </button>
-                        )}
-                        <button className="opening-btn" onClick={() => setEditing({ id: o.id, className: o.className, testTitle: o.testTitle, kind: o.kind, expiresAt: toLocalInput(o.expiresAt?.toDate?.()), maxAttempts: o.maxAttempts ?? "", minutes: o.timeLimitMinutes ?? "", maxWrong: o.maxWrong ?? "" })}>✏️ Sửa</button>
-                        <button className="opening-btn opening-btn-danger" onClick={() => handleClose(o)}>🗑 Đóng bài</button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        {openings && openings.length > 0 && (view === "list" ? sorted : groups).length === 0 && <p className="admin-muted-text">Không có bài nào khớp bộ lọc.</p>}
+        {openings && view === "list" && sorted.length > 0 && renderTable(sorted, true)}
+        {openings && openings.length > 0 && view === "class" && groups.length > 0 && (
+          <div className="opening-groups">
+            {groups.map(g => {
+              const cls = classDocs[g.name];
+              const meta = [`${(rosters[g.name] ?? []).length} em`, formatBook(cls?.book) || "Chưa gán sách", formatSchedule(cls)].filter(Boolean).join(" · ");
+              return (
+                <section key={g.name} className="opening-group">
+                  <header className="opening-group-head">
+                    <span className="opening-chip opening-chip-class">{g.name}</span>
+                    <span className="opening-group-meta">{meta}</span>
+                    {g.live > 0 && <span className="opening-chip opening-chip-on">{g.live} đang mở</span>}
+                    {g.soon > 0 && <span className="opening-chip opening-chip-wait">{g.soon} sắp hết hạn</span>}
+                    {g.expired > 0 && <span className="opening-chip opening-chip-off">{g.expired} hết hạn</span>}
+                    {classes.includes(g.name) && <button type="button" className="opening-btn" onClick={() => openForm(g.name)}>+ Mở bài</button>}
+                  </header>
+                  {g.rows.length > 0
+                    ? renderTable(g.rows, false)
+                    : <p className="admin-muted-text">{g.live + g.expired > 0 ? "Không có bài nào khớp bộ lọc." : "Chưa mở bài nào."}</p>}
+                </section>
+              );
+            })}
           </div>
         )}
       </div>
