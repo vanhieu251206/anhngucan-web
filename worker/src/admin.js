@@ -111,7 +111,14 @@ async function getUserDoc(projectId, uid, token) {
   return {
     role: fields.role?.stringValue ?? null,
     restricted: fields.restricted?.booleanValue === true,
+    disabled: fields.disabled?.booleanValue === true,
   };
+}
+
+// Hồ sơ của NGƯỜI GỌI — tài khoản bị khoá coi như không có quyền (khớp role() trong firestore.rules).
+async function getCaller(projectId, uid, token) {
+  const caller = await getUserDoc(projectId, uid, token);
+  return caller && !caller.disabled ? caller : null;
 }
 
 async function lookupAuthUser(projectId, token, query) {
@@ -145,7 +152,7 @@ export async function deleteStudent(request, env) {
 
   const callerUid = await verifyIdToken((request.headers.get("Authorization") || "").replace(/^Bearer\s+/i, ""), projectId);
   const token = await getAccessToken(sa);
-  const caller = await getUserDoc(projectId, callerUid, token);
+  const caller = await getCaller(projectId, callerUid, token);
   const allowed = caller && (caller.role === "admin" || (caller.role === "teacher" && !caller.restricted));
   if (!allowed) throw adminError(403, "forbidden");
 
@@ -200,7 +207,7 @@ export async function deleteTeacher(request, env) {
 
   const callerUid = await verifyIdToken((request.headers.get("Authorization") || "").replace(/^Bearer\s+/i, ""), projectId);
   const token = await getAccessToken(sa);
-  const caller = await getUserDoc(projectId, callerUid, token);
+  const caller = await getCaller(projectId, callerUid, token);
   const isAdmin = caller?.role === "admin";
   if (!caller || !(isAdmin || (caller.role === "teacher" && !caller.restricted))) throw adminError(403, "forbidden");
 
@@ -226,7 +233,7 @@ export async function deleteTester(request, env) {
 
   const callerUid = await verifyIdToken((request.headers.get("Authorization") || "").replace(/^Bearer\s+/i, ""), projectId);
   const token = await getAccessToken(sa);
-  const caller = await getUserDoc(projectId, callerUid, token);
+  const caller = await getCaller(projectId, callerUid, token);
   if (caller?.role !== "admin") throw adminError(403, "forbidden");
 
   const body = await request.json().catch(() => ({}));
@@ -250,7 +257,7 @@ export async function resetPassword(request, env) {
 
   const callerUid = await verifyIdToken((request.headers.get("Authorization") || "").replace(/^Bearer\s+/i, ""), projectId);
   const token = await getAccessToken(sa);
-  const caller = await getUserDoc(projectId, callerUid, token);
+  const caller = await getCaller(projectId, callerUid, token);
   if (caller?.role !== "admin") throw adminError(403, "forbidden");
 
   const body = await request.json().catch(() => ({}));

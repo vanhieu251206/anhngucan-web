@@ -25,7 +25,7 @@ function TesterModal({ onDone, onClose }) {
     } catch (err) {
       console.error(err);
       setError(
-        err?.code === "auth/email-already-in-use" ? "Tên đăng nhập đã có người dùng."
+        err?.code === "email-already-in-use" ? "Tên đăng nhập đã có người dùng."
         : err?.code === "permission-denied" ? "Không có quyền (firestore.rules chưa đúng bản mới)."
         : `Tạo tài khoản thất bại (${err?.code || err?.message || err}).`
       );

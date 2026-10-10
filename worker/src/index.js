@@ -15,6 +15,8 @@
 // cũng đốt được hạn mức AssemblyAI, mà hết free tier là tốn tiền thật).
 import { deleteStudent, deleteTeacher, deleteTester, resetPassword, firebaseProjectId, verifyIdToken } from "./admin.js";
 import { regradeTest, reviewTest, startTest, submitTest } from "./submit.js";
+import { createAccount } from "./accounts.js";
+import { firestore } from "./firestore.js";
 
 // anhngucan.com: tên miền riêng của GitHub Pages (public/CNAME, từ 2026-09-18) — thiếu mục này làm ghi âm Speaking
 // và xoá học sinh bị trình duyệt chặn CORS trên web thật (phát hiện 2026-09-25).
@@ -48,6 +50,20 @@ const ASSEMBLYAI_TRANSCRIPT_URL = "https://api.assemblyai.com/v2/transcript";
 const POLL_INTERVAL_MS = 700;
 const MAX_POLL_ATTEMPTS = 45; // ~31.5 giây
 const MAX_AUDIO_BYTES = 10 * 1024 * 1024; // 10MB — dư sức cho vài giây audio ghi âm trẻ nhỏ
+
+// /transcribe chỉ dành cho tài khoản CÓ hồ sơ và chưa bị khoá (2026-10-08) — token hợp lệ thôi chưa đủ: tài khoản tự
+// đăng ký từ bên ngoài không có hồ sơ users/{uid}. Nhớ tạm kết quả 5 phút để không đọc Firestore mỗi lần ghi âm.
+const PROFILE_CACHE_MS = 5 * 60 * 1000;
+const activeProfiles = new Map(); // uid → mốc hết hạn nhớ tạm
+
+async function hasActiveProfile(env, uid) {
+  if ((activeProfiles.get(uid) ?? 0) > Date.now()) return true;
+  const profile = await firestore(env).get(`users/${uid}`);
+  if (!profile || profile.disabled) return false;
+  if (activeProfiles.size > 5000) activeProfiles.clear();
+  activeProfiles.set(uid, Date.now() + PROFILE_CACHE_MS);
+  return true;
+}
 
 function corsHeaders(origin) {
   return {
@@ -157,6 +173,19 @@ export default {
       }
     }
 
+    // Tạo tài khoản học sinh/giáo viên/tài khoản đặc biệt (xem accounts.js) — thay cho việc trình duyệt tự đăng ký.
+    if (request.method === "POST" && path.endsWith("/admin/create-account")) {
+      try {
+        return new Response(JSON.stringify(await createAccount(request, env)), {
+          headers: { ...headers, "Content-Type": "application/json" },
+        });
+      } catch (err) {
+        if (err && err.error) return jsonError(headers, err.error, err.status || 500);
+        console.error(err);
+        return jsonError(headers, "worker-exception", 500);
+      }
+    }
+
     // Xoá hẳn tài khoản học sinh (xem admin.js) — cần Firebase ID token của admin/giáo viên chính.
     if (request.method === "POST" && new URL(request.url).pathname.endsWith("/admin/delete-student")) {
       try {
@@ -220,6 +249,7 @@ export default {
     try {
       const idToken = (request.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
       const uid = await verifyIdToken(idToken, firebaseProjectId(env));
+      if (!(await hasActiveProfile(env, uid))) return jsonError(headers, "forbidden", 403);
       // Binding TRANSCRIBE_LIMITER khai báo trong wrangler.toml — thiếu binding thì bỏ qua giới hạn thay vì chặn hẳn.
       if (env.TRANSCRIBE_LIMITER) {
         const { success } = await env.TRANSCRIBE_LIMITER.limit({ key: uid });

@@ -1,6 +1,4 @@
-import { initializeApp, deleteApp } from "firebase/app";
-import { getAuth, createUserWithEmailAndPassword, signOut } from "firebase/auth";
-import { doc, setDoc, getDoc, updateDoc, collection, query, where, getDocs, serverTimestamp } from "firebase/firestore";
+import { doc, updateDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { db, auth } from "./firebase.js";
 import { savePasswordCopy } from "./passwordVault.js";
 
@@ -20,22 +18,9 @@ function slugifyName(name) {
     .replace(/[^a-z0-9]/g, "");
 }
 
-// Cấu hình giống hệt firebase.js — cần import lại nguyên trạng để khởi tạo 1 app Firebase
-// PHỤ (secondary), KHÔNG dùng chung app chính (import từ "./firebase.js" sẽ đụng instance
-// auth đang đăng nhập là admin).
-const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
-};
-
-// Firebase Auth: gọi createUserWithEmailAndPassword trên app CHÍNH sẽ tự động đăng nhập
-// luôn thành user mới tạo, đá admin ra khỏi phiên hiện tại — đây là hành vi mặc định đã biết
-// của SDK, không phải bug. Cách né: tạo 1 Firebase App phụ (secondary) chỉ dùng để tạo tài
-// khoản, không đụng gì tới app/auth chính đang giữ phiên đăng nhập admin.
+// Tạo tài khoản qua Cloudflare Worker (worker/src/accounts.js, 2026-10-08) — trình duyệt KHÔNG còn tự gọi
+// createUserWithEmailAndPassword, nhờ vậy tắt được "cho phép đăng ký" trong Firebase Console (người ngoài không tự
+// tạo được tài khoản). Worker tạo tài khoản Auth + hồ sơ users + bản sao mật khẩu (passwordVault) trong 1 lần.
 export { STUDENT_EMAIL_DOMAIN };
 
 // scope: { restricted, levelAccess, allowedClasses } — levelAccess theo từng cấp (lib/teacherScope.js, 2026-09-27;
@@ -48,10 +33,10 @@ export const TEACHER_EMAIL_DOMAIN = "giaovien.local";
 
 export function createTeacherAccount(username, password, scope) {
   const extra = scope?.restricted
-    ? { restricted: true, allowedSeriesIds: [], levelAccess: scope.levelAccess ?? {}, allowedClasses: scope.allowedClasses ?? [] }
+    ? { restricted: true, levelAccess: scope.levelAccess ?? {}, allowedClasses: scope.allowedClasses ?? [] }
     : {};
   // Mật khẩu ban đầu do người tạo đặt — giáo viên BẮT BUỘC đổi ở lần đăng nhập đầu (ForceChangePassword.jsx, như học sinh).
-  return createStaffLikeAccount("teacher", `${username}@${TEACHER_EMAIL_DOMAIN}`, password, { username, mustChangePassword: true, ...extra });
+  return callAdminWorker("/admin/create-account", { role: "teacher", username, password, scope: extra });
 }
 
 // Sửa phạm vi 1 tài khoản giáo viên đã có — admin HOẶC giáo viên khác đều gọi được (xem
@@ -72,32 +57,7 @@ export async function updateTeacherScope(uid, { restricted, levelAccess, allowed
 export const TESTER_EMAIL_DOMAIN = "tester.local";
 
 export function createTesterAccount(username, password) {
-  return createStaffLikeAccount("tester", `${username}@${TESTER_EMAIL_DOMAIN}`, password, { username });
-}
-
-async function createStaffLikeAccount(role, email, password, extra = {}) {
-  const secondaryApp = initializeApp(firebaseConfig, `secondary-${Date.now()}`);
-  const secondaryAuth = getAuth(secondaryApp);
-  try {
-    const cred = await createUserWithEmailAndPassword(secondaryAuth, email, password);
-    // Ghi Firestore bằng `db` CHÍNH (vẫn đang đăng nhập là admin, không phải secondary) —
-    // đúng field role Firestore Rules yêu cầu để chấp nhận write.
-    await setDoc(doc(db, "users", cred.user.uid), {
-      role,
-      email,
-      ...extra,
-      createdAt: serverTimestamp(),
-    });
-    await savePasswordCopy(cred.user.uid, password);
-    return { uid: cred.user.uid, email };
-  } finally {
-    // Luôn dọn app phụ dù thành công hay lỗi — tránh rò rỉ instance qua nhiều lần gọi.
-    // Lưu ý: nếu setDoc phía trên lỗi (vd Firestore Rules chưa publish kịp), tài khoản Auth
-    // vẫn đã được tạo (mồ côi, không có doc role) — chấp nhận rủi ro này ở scope hiện tại,
-    // không tự động rollback/xoá user, chỉ báo lỗi rõ cho admin qua UI gọi hàm này.
-    await signOut(secondaryAuth);
-    await deleteApp(secondaryApp);
-  }
+  return callAdminWorker("/admin/create-account", { role: "tester", username, password });
 }
 
 export async function listTeachers() {
@@ -135,6 +95,7 @@ const ADMIN_ERRORS = {
   "not-a-tester": "Tài khoản này không phải tài khoản đặc biệt.",
   "cannot-reset-admin": "Không đặt lại được mật khẩu tài khoản admin.",
   "weak-password": "Mật khẩu cần ít nhất 6 ký tự.",
+  "email-already-in-use": "Tên đăng nhập đã có người dùng.",
 };
 
 async function callAdminWorker(path, body) {
@@ -195,35 +156,27 @@ export async function listStudents({ className } = {}) {
   return className ? all.filter(s => s.className === className) : all;
 }
 
-// Tạo 1 tài khoản học sinh — dùng chung khuôn secondary-app với createTeacherAccount() ở trên.
+// Tạo 1 tài khoản học sinh. Mật khẩu ban đầu — học sinh BẮT BUỘC đổi ở lần đăng nhập đầu (ForceChangePassword.jsx).
 export async function createStudentAccount({ displayName, className, username, password }) {
-  const email = `${username}@${STUDENT_EMAIL_DOMAIN}`;
-  const secondaryApp = initializeApp(firebaseConfig, `secondary-${Date.now()}-${Math.random().toString(36).slice(2)}`);
-  const secondaryAuth = getAuth(secondaryApp);
-  try {
-    const cred = await createUserWithEmailAndPassword(secondaryAuth, email, password);
-    await setDoc(doc(db, "users", cred.user.uid), {
-      role: "student",
-      username,
-      displayName,
-      className,
-      // Mật khẩu ban đầu do giáo viên đặt chung — học sinh BẮT BUỘC đổi ở lần đăng nhập đầu (ForceChangePassword.jsx).
-      mustChangePassword: true,
-      createdAt: serverTimestamp(),
-    });
-    await savePasswordCopy(cred.user.uid, password);
-    return { uid: cred.user.uid, username, displayName, className };
-  } finally {
-    await signOut(secondaryAuth);
-    await deleteApp(secondaryApp);
-  }
+  const { uid } = await callAdminWorker("/admin/create-account", { role: "student", username, password, displayName, className });
+  return { uid, username, displayName, className };
+}
+
+// Mật khẩu ban đầu ngẫu nhiên cho từng em (2026-10-08) — mật khẩu chung cả lớp + tên đăng nhập đoán được thì bạn cùng
+// lớp vào được tài khoản em chưa đăng nhập lần đầu. Bỏ các ký tự dễ nhầm khi đọc phiếu (0/o, 1/l/i).
+const PASSWORD_CHARS = "abcdefghjkmnpqrstuvwxyz23456789";
+
+function randomPassword(length = 6) {
+  const bytes = crypto.getRandomValues(new Uint32Array(length));
+  return Array.from(bytes, b => PASSWORD_CHARS[b % PASSWORD_CHARS.length]).join("");
 }
 
 // Tạo hàng loạt từ danh sách {displayName, className} — tự sinh username duy nhất (tên bỏ dấu
 // viết liền + số thứ tự nếu trùng, so trùng với cả username đã có sẵn trong Firestore lẫn trong
 // CHÍNH đợt đang tạo). Trả về kết quả từng dòng (thành công kèm username, hoặc lỗi) để CMS hiện
-// bảng cho giáo viên — KHÔNG dừng cả đợt khi 1 dòng lỗi.
-export async function bulkCreateStudents(rows, password) {
+// bảng cho giáo viên — KHÔNG dừng cả đợt khi 1 dòng lỗi. Không truyền `commonPassword` = mỗi em 1 mật khẩu ngẫu
+// nhiên; kết quả từng dòng kèm `password` để in phiếu đăng nhập.
+export async function bulkCreateStudents(rows, commonPassword) {
   const existing = await listStudents();
   const takenUsernames = new Set(existing.map(s => s.username).filter(Boolean));
   const results = [];
@@ -239,17 +192,18 @@ export async function bulkCreateStudents(rows, password) {
     // Tên đăng nhập đã có trong Firebase Auth nhưng không có hồ sơ Firestore (tài khoản mồ côi, vd xoá kiểu cũ) →
     // nhờ Worker dọn tài khoản đó để dùng lại đúng tên; không dọn được thì thử số kế tiếp.
     let purged = false;
+    const password = commonPassword || randomPassword();
     for (let attempt = 0; attempt < 5; attempt++) {
       try {
         await createStudentAccount({ displayName: row.displayName, className: row.className, username, password });
-        results.push({ ...row, username, ok: true });
+        results.push({ ...row, username, password, ok: true });
         break;
       } catch (err) {
-        if (err.code === "auth/email-already-in-use" && !purged) {
+        if (err.code === "email-already-in-use" && !purged) {
           purged = true;
           if (await purgeOrphanUsername(username)) continue;
         }
-        if (err.code === "auth/email-already-in-use" && attempt < 4) {
+        if (err.code === "email-already-in-use" && attempt < 4) {
           do {
             n += 1;
             username = `${base}${n}`;

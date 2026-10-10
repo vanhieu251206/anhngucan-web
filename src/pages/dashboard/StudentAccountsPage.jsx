@@ -143,7 +143,6 @@ export default function StudentAccountsPage() {
   const [initialPassword, setInitialPassword] = useState("");
   const [creating, setCreating] = useState(false);
   const [bulkResults, setBulkResults] = useState(null);
-  const [usedPassword, setUsedPassword] = useState("");
   const [bulkError, setBulkError] = useState("");
   const [copied, setCopied] = useState(false);
   const [cardError, setCardError] = useState("");
@@ -320,7 +319,7 @@ export default function StudentAccountsPage() {
   async function handleBulkCreate(e) {
     e.preventDefault();
     setBulkError("");
-    if (initialPassword.length < 6) {
+    if (initialPassword && initialPassword.length < 6) {
       setBulkError("Mật khẩu ban đầu cần ít nhất 6 ký tự.");
       return;
     }
@@ -336,7 +335,6 @@ export default function StudentAccountsPage() {
     setCreating(true);
     try {
       setBulkResults(await bulkCreateStudents(rows, initialPassword));
-      setUsedPassword(initialPassword);
       setBulkText("");
       reload();
     } catch (err) {
@@ -377,7 +375,7 @@ export default function StudentAccountsPage() {
   async function handleDownloadCards(list, key = "all") {
     setBulkError("");
     setDownloading(key);
-    const info = { className: current.name, schedule: formatSchedule(current), password: usedPassword };
+    const info = { className: current.name, schedule: formatSchedule(current) };
     try {
       if (list.length === 1) await downloadStudentCardPdf(list[0], info);
       else await downloadAllStudentCardPdfs(list, info);
@@ -409,7 +407,7 @@ export default function StudentAccountsPage() {
   }
 
   function copyResults() {
-    const lines = bulkResults.filter(r => r.ok).map(r => `${r.displayName}\t${r.className}\t${r.username}\t${usedPassword}`);
+    const lines = bulkResults.filter(r => r.ok).map(r => `${r.displayName}\t${r.className}\t${r.username}\t${r.password}`);
     navigator.clipboard?.writeText(lines.join("\n"));
     setCopied(true);
   }
@@ -719,8 +717,8 @@ export default function StudentAccountsPage() {
                     />
                   </label>
                   <label className="admin-mini-field">
-                    <span>Mật khẩu ban đầu (chung cho các em vừa tạo)</span>
-                    <PasswordInput className="admin-input" placeholder="Ít nhất 6 ký tự" value={initialPassword} onChange={e => setInitialPassword(e.target.value)} />
+                    <span>Mật khẩu ban đầu</span>
+                    <PasswordInput className="admin-input" placeholder="Để trống = mỗi em 1 mật khẩu riêng" value={initialPassword} onChange={e => setInitialPassword(e.target.value)} />
                   </label>
                   <div className="opening-form-actions">
                     {bulkError && <p className="admin-error">{bulkError}</p>}
@@ -738,13 +736,14 @@ export default function StudentAccountsPage() {
                 <div style={{ overflowX: "auto", margin: "12px 0" }}>
                   <table className="admin-table">
                     <thead>
-                      <tr><th>Tên</th><th>Tên đăng nhập</th><th>Kết quả</th><th></th></tr>
+                      <tr><th>Tên</th><th>Tên đăng nhập</th><th>Mật khẩu</th><th>Kết quả</th><th></th></tr>
                     </thead>
                     <tbody>
                       {bulkResults.map((r, i) => (
                         <tr key={i}>
                           <td>{r.displayName}</td>
                           <td><code className="student-username">{r.username}</code></td>
+                          <td>{r.ok && <code className="student-username">{r.password}</code>}</td>
                           <td>{r.ok ? <span className="opening-chip opening-chip-on">Đã tạo</span> : <span className="admin-error">{r.error}</span>}</td>
                           <td>
                             {r.ok && (
