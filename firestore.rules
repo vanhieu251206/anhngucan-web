@@ -280,7 +280,7 @@ service cloud.firestore {
     // Level/Test nên không có seriesId để canEditLesson() lọc — giáo viên bị giới hạn bộ đề vẫn
     // soạn được sách Kids (chốt 2026-09-23, mục này chưa nằm trong phạm vi allowedSeriesIds).
     match /kidsBooks/{bookId} {
-      allow read: if true;
+      allow read: if hasProfile();
       allow write: if isStaff();
     }
 

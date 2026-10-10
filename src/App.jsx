@@ -108,17 +108,24 @@ export default function App() {
     }
   }, [page, loading, user, isStaff]);
 
-  // F5 vào thẳng trang quản trị: Firebase Auth cần chút thời gian xác thực lại (loading=true lúc
-  // đầu, isStaff tạm thời false) — chặn render ở đây thay vì để rớt xuống nhánh trang công khai
-  // bên dưới rồi lại nhảy sang Dashboard ngay khi auth xong (gây "chớp" qua giao diện Trang chủ,
-  // phản hồi người dùng 2026-08-23).
-  if ((page === "dashboard" || page === "settings") && loading) {
-    return null;
+  // Đăng nhập BẮT BUỘC cho TOÀN BỘ web (chốt 2026-10-10): người lạ chỉ thấy form đăng nhập, kể cả Trang chủ.
+  // Chờ `loading` xong mới quyết định — Firebase Auth cần chút thời gian khôi phục phiên, tránh chớp qua
+  // form đăng nhập lúc F5.
+  if (loading) return null;
+  if (!user) {
+    return (
+      <>
+        <Header page="login" onNavigate={setPage} />
+        <main id="app">
+          <LoginPage onNavigate={setPage} />
+        </main>
+      </>
+    );
   }
 
   // Tài khoản mới (học sinh/giáo viên): bắt buộc đặt mật khẩu mới trước khi dùng bất kỳ trang nào — đặt TRƯỚC
   // nhánh Dashboard để giáo viên không đi vòng qua khu vực quản trị (lỗi 2026-09-27).
-  if (!loading && user && profile?.mustChangePassword) {
+  if (profile?.mustChangePassword) {
     return <ForceChangePassword />;
   }
 
@@ -150,19 +157,6 @@ export default function App() {
   }
 
   if (page === "lessons") {
-    // Đăng nhập BẮT BUỘC để vào bài học (chốt 2026-09-20, thay mật khẩu theo bộ đề): học sinh dùng tài khoản
-    // giáo viên cấp. Chờ `loading` xong mới quyết định, tránh chớp qua màn đăng nhập lúc Auth khôi phục phiên.
-    if (loading) return null;
-    if (!user) {
-      return (
-        <>
-          <Header page="login" onNavigate={setPage} />
-          <main id="app">
-            <LoginPage onNavigate={setPage} />
-          </main>
-        </>
-      );
-    }
     // KET/PET dùng khung điều hướng riêng (Grade/Unit, xem KetPetPage.jsx) thay vì
     // Level/Test/Part của LessonsPage.jsx — cấu trúc dữ liệu khác hẳn (chốt 2026-09-14).
     if (lessonSeriesId === "ket-pet") {
@@ -176,24 +170,9 @@ export default function App() {
     return <LessonsPage key={navKey} initialSeriesId={lessonSeriesId} onNavigate={setPage} />;
   }
 
-  // "Bài của con" (học sinh): danh sách bài giáo viên mở cho lớp — bắt buộc đăng nhập như trang Bài học.
+  // "Bài của con" (học sinh): danh sách bài giáo viên mở cho lớp.
   if (page === "my-work") {
-    if (loading) return null;
-    if (!user) {
-      return (
-        <>
-          <Header page="login" onNavigate={setPage} />
-          <main id="app">
-            <LoginPage onNavigate={setPage} />
-          </main>
-        </>
-      );
-    }
     return <MyWorkPage onNavigate={setPage} />;
-  }
-
-  if ((page === "login" || page === "change-password") && loading) {
-    return null;
   }
 
   return (
@@ -203,12 +182,10 @@ export default function App() {
       <main id="app">
         {page === "about" && <AboutPage onNavigate={setPage} />}
         {page === "contact" && <ContactPage onNavigate={setPage} />}
-        {page === "login" && <LoginPage onNavigate={setPage} />}
         {page === "privacy" && <PrivacyPage />}
-        {page === "change-password" && (user ? <ChangePasswordPage onNavigate={setPage} /> : <LoginPage onNavigate={setPage} />)}
-        {/* dashboard/settings khi chưa đăng nhập bằng tài khoản quản trị → về form đăng nhập thay vì trang trắng. */}
-        {(page === "dashboard" || page === "settings") &&
-          (user ? <NotFoundPage onNavigate={setPage} /> : <LoginPage onNavigate={setPage} />)}
+        {page === "change-password" && <ChangePasswordPage onNavigate={setPage} />}
+        {/* dashboard/settings bằng tài khoản không phải quản trị → 404. */}
+        {(page === "dashboard" || page === "settings") && <NotFoundPage onNavigate={setPage} />}
         {!PAGE_TITLES[page] && <NotFoundPage onNavigate={setPage} />}
       </main>
     </>
