@@ -360,3 +360,25 @@ export async function saveKidsBook(grade, kind, { pages, sounds, tabs }, uid) {
     updatedBy: uid,
   });
 }
+
+// SÁCH ONLINE (IELTS) — chốt 2026-10-10: mỗi bộ IELTS 8-21 có ĐÚNG 1 quyển, cùng cấu trúc doc với sách Kids ở trên
+// (pages/sounds/tabs, đọc bằng BookReader.jsx). Collection riêng "ieltsBooks", docId = id doc lessons của bộ đó
+// ("ielts-<n>") để firestore.rules dùng lại canReadLesson(): học sinh chỉ đọc được sách thuộc bộ IELTS của lớp mình.
+// Chỉ admin ghi.
+export async function getIeltsBook(level) {
+  const snap = await getDoc(doc(db, "ieltsBooks", `ielts-${level}`));
+  if (!snap.exists()) return null;
+  const data = snap.data();
+  return { id: snap.id, ...data, sounds: (data.sounds ?? []).map(entry => entry?.marks ?? []) };
+}
+
+export async function saveIeltsBook(level, { pages, sounds, tabs }, uid) {
+  await setDoc(doc(db, "ieltsBooks", `ielts-${level}`), {
+    level,
+    tabs: tabs ?? [],
+    sounds: (sounds ?? []).map(marks => ({ marks: marks ?? [] })),
+    pages: pages ?? [],
+    updatedAt: serverTimestamp(),
+    updatedBy: uid,
+  });
+}

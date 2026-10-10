@@ -9,7 +9,9 @@ import {
   listVocabTests, getVocabTest, saveVocabTest, deleteVocabTest,
   listPracticeTests, getPracticeTest, savePracticeTest, deletePracticeTest,
   listIeltsListeningTests, getIeltsListeningTest, saveIeltsListeningTest, deleteIeltsListeningTest,
+  getIeltsBook, saveIeltsBook,
 } from "../../lib/adminLessons.js";
+import KidsBookStudio from "../../components/dashboard/KidsBookStudio.jsx";
 import TestStudio from "../../components/dashboard/TestStudio.jsx";
 import ReadingStudio from "../../components/dashboard/ReadingStudio.jsx";
 import DictationStudio from "../../components/dashboard/DictationStudio.jsx";
@@ -33,22 +35,24 @@ const MODE_INFO = {
   "ielts-listening": { label: "Listening", icon: "🎧", desc: "Test 1-4 → Section 1-4, audio + câu hỏi chấm điểm" },
   "ielts-writing": { label: "Writing", icon: "✏️", desc: "Chưa triển khai" },
   "ielts-speaking": { label: "Speaking", icon: "🎤", desc: "Chưa triển khai" },
+  "ielts-book": { label: "Sách", icon: "📕", desc: "Sách online lật trang (PDF → ảnh từng trang)" },
 };
+// Mục chỉ admin thấy — soạn sách online (giống sách Kids, xem KidsContentPage.jsx; chặn thật ở firestore.rules).
+const ADMIN_ONLY_MODES = ["ielts-book"];
 // IELTS không chia bộ sách (chỉ 1 "level" ẩn = IELTS 8, xem yleData.js `buildIeltsSeries()`), bên
 // trong chia theo kỹ năng READING/LISTENING/WRITING/SPEAKING/DICTATION đúng cây Test→Passage/
 // Section (chốt 2026-09-11) — Dictation dùng chung DictationEditor với YLE (schema giống hệt).
 const YLE_MODES = ["listening", "speaking", "reading", "dictation", "vocabulary"];
 const MODES_BY_SERIES = {
-  ielts: ["ielts-reading", "ielts-listening", "ielts-writing", "ielts-speaking", "dictation"],
+  ielts: ["ielts-reading", "ielts-listening", "ielts-writing", "ielts-speaking", "dictation", "ielts-book"],
   starters: YLE_MODES,
   movers: YLE_MODES,
   flyers: YLE_MODES,
 };
-function modesForSeries(series) {
-  return (MODES_BY_SERIES[series.id] ?? ["listening", "speaking", "reading", "dictation"]).map(key => [
-    key,
-    MODE_INFO[key],
-  ]);
+function modesForSeries(series, isAdmin) {
+  return (MODES_BY_SERIES[series.id] ?? ["listening", "speaking", "reading", "dictation"])
+    .filter(key => isAdmin || !ADMIN_ONLY_MODES.includes(key))
+    .map(key => [key, MODE_INFO[key]]);
 }
 
 // Đọc bước đang soạn (bộ đề/cấp/loại bài) từ URL (?cSeries=...&cLevel=...&cMode=...) — để F5
@@ -69,7 +73,7 @@ function initialStepFromUrl() {
 }
 
 export default function CreateLessonPage() {
-  const { user, role, profile } = useAuth();
+  const { user, role, profile, isAdmin } = useAuth();
   // Giáo viên phụ chỉ soạn được cấp có quyền "Sửa" (lib/teacherScope.js, 2026-09-27) — chặn thật ở firestore.rules
   // `canEditLesson()`, đây chỉ là lọc UI cho gọn.
   const canEditLevel = (seriesId, level) => levelAccessOf(profile, role, seriesId, level) === "edit";
@@ -130,7 +134,10 @@ export default function CreateLessonPage() {
         <LevelPicker series={series} onPick={setLevel} canEdit={l => canEditLevel(series.id, l.number)} />
       )}
       {series && series.id !== "kids" && level && !mode && (
-        <ModePicker series={series} level={level} onPick={setMode} />
+        <ModePicker series={series} level={level} onPick={setMode} isAdmin={isAdmin} />
+      )}
+      {series && level && mode === "ielts-book" && isAdmin && (
+        <IeltsBookEditor series={series} level={level} uid={user.uid} onBack={() => setMode(null)} />
       )}
       {series && level && mode === "listening" && (
         <ListeningEditor series={series} level={level} uid={user.uid} />
@@ -235,12 +242,12 @@ function LevelPicker({ series, onPick, canEdit }) {
   );
 }
 
-function ModePicker({ series, level, onPick }) {
+function ModePicker({ series, level, onPick, isAdmin }) {
   return (
     <div className="admin-card">
       <h2>{series.title} {level.number}</h2>
       <div className="admin-picker-grid admin-picker-grid-modes">
-        {modesForSeries(series).map(([key, info]) => (
+        {modesForSeries(series, isAdmin).map(([key, info]) => (
           <button
             key={key}
             className="admin-picker-tile admin-picker-tile-mode"
@@ -1242,6 +1249,50 @@ function IeltsListeningEditor({ series, level, uid }) {
         </div>
       )}
     </div>
+  );
+}
+
+// Sách online của 1 bộ IELTS (đúng 1 quyển/bộ, chốt 2026-10-10) — dùng lại nguyên màn soạn sách Kids
+// (tải PDF → tách trang → gắn audio → tab đánh dấu), chỉ khác nơi lưu (lib/adminLessons.js getIeltsBook).
+function IeltsBookEditor({ series, level, uid, onBack }) {
+  const [book, setBook] = useState(null); // { pages, sounds, tabs } — null = đang tải
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setBook(null);
+    setSaved(false);
+    getIeltsBook(level.number).then(b => {
+      if (!cancelled) setBook({ pages: b?.pages ?? [], sounds: b?.sounds ?? [], tabs: b?.tabs ?? [] });
+    });
+    return () => { cancelled = true; };
+  }, [level.number]);
+
+  async function handleSave() {
+    setSaving(true);
+    await saveIeltsBook(level.number, book, uid);
+    setSaving(false);
+    setSaved(true);
+  }
+
+  if (!book) return <LoadingCard />;
+
+  return (
+    <KidsBookStudio
+      title={`${series.title} ${level.number} — Sách`}
+      pages={book.pages}
+      sounds={book.sounds}
+      tabs={book.tabs}
+      onTabsChange={tabs => { setBook(b => ({ ...b, tabs })); setSaved(false); }}
+      onChange={(pages, sounds) => { setBook(b => ({ ...b, pages, sounds })); setSaved(false); }}
+      onBack={onBack}
+      backLabel="← Quay lại"
+      accent={series.color}
+      onSave={handleSave}
+      saving={saving}
+      saved={saved}
+    />
   );
 }
 

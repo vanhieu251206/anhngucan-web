@@ -16,17 +16,21 @@ function originOf(url) {
 // Thêm dịch vụ bên ngoài mới (script/iframe/API) thì phải thêm domain vào đây, nếu không trình duyệt sẽ chặn.
 function cspPlugin(env) {
   const authDomain = env.VITE_FIREBASE_AUTH_DOMAIN ? `https://${env.VITE_FIREBASE_AUTH_DOMAIN}` : ''
+  // Chỉ cho gọi đúng Worker của mình (2026-10-08) — trước đó mở cả *.workers.dev, tức nếu lọt script lạ thì nó gửi
+  // dữ liệu sang Worker của người khác được. Chưa cấu hình VITE_WORKER_URL lúc build thì mới giữ kiểu mở rộng.
+  const workerOrigin = originOf(env.VITE_WORKER_URL) || 'https://*.workers.dev'
   const csp = [
     "default-src 'self'",
     // apis.google.com + iframe authDomain: Firebase Auth nạp sẵn khung xác thực của Google.
     // googletagmanager: Google Analytics (lib/analytics.js). google.com/gstatic: reCAPTCHA của App Check (lib/firebase.js).
-    "script-src 'self' https://apis.google.com https://www.googletagmanager.com https://www.google.com https://www.gstatic.com",
+    // 'wasm-unsafe-eval': bộ giải mã ảnh PDF của pdf.js (public/pdfjs-wasm, lib/pdfToImages.js) chạy bằng WebAssembly.
+    "script-src 'self' 'wasm-unsafe-eval' https://apis.google.com https://www.googletagmanager.com https://www.google.com https://www.gstatic.com",
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' data: https://fonts.gstatic.com",
     // Ảnh/audio bài học: Cloudinary + URL dán tay trong CMS (nguồn bất kỳ, chỉ https).
     "img-src 'self' data: blob: https:",
     "media-src 'self' data: blob: https:",
-    `connect-src 'self' https://*.googleapis.com https://api.cloudinary.com https://res.cloudinary.com https://*.workers.dev https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com https://www.google.com ${originOf(env.VITE_WORKER_URL)}`,
+    `connect-src 'self' https://*.googleapis.com https://api.cloudinary.com https://res.cloudinary.com https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com https://www.google.com ${workerOrigin}`,
     `frame-src 'self' https://*.firebaseapp.com https://www.google.com ${authDomain}`,
     "worker-src 'self' blob:",
     "object-src 'none'",

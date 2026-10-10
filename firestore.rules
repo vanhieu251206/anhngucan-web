@@ -12,6 +12,30 @@ function role() {
     : null;
 }
 
+// Có hồ sơ users/{uid} và chưa bị khoá (2026-10-08). KHÔNG dùng isSignedIn() để cấp quyền: tài khoản Firebase Auth
+// có thể được tạo từ bên ngoài bằng API key công khai — đăng nhập được nhưng không có hồ sơ, không được đọc/ghi gì.
+function hasProfile() {
+  return role() != null;
+}
+
+// Đọc đề: admin/giáo viên/tài khoản đặc biệt đọc mọi cấp; học sinh chỉ đọc cấp thuộc SÁCH của lớp mình
+// (classes/{lớp}.book — lib/classes.js bookKeys(): kiểu mới { keys: ["<seriesId>-<cấp>"] }, kiểu cũ { seriesId, levels }
+// với levels rỗng = cả bộ). Lớp chưa gán sách / chưa xếp lớp = không đọc được đề nào. Trước đó giới hạn theo sách chỉ
+// nằm ở giao diện (lib/useClassBook.js).
+function canReadLesson(lessonId) {
+  return role() in ['admin', 'teacher', 'tester'] || (role() == 'student' && classBookHas(lessonId));
+}
+
+function classBookHas(lessonId) {
+  let book = get(/databases/(default)/documents/classes/$(myProfile().get('className', ''))).data.get('book', null);
+  return book != null && (
+    lessonId in book.get('keys', [])
+    || (!('keys' in book) && book.get('seriesId', '') != '' && lessonId.matches(book.seriesId + '-[0-9]+')
+      && (book.get('levels', []).size() == 0
+        || int(lessonId.split('-')[lessonId.split('-').size() - 1]) in book.levels))
+  );
+}
+
 function isAdmin() {
   return role() == "admin";
 }
@@ -102,8 +126,6 @@ service cloud.firestore {
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['disabled']);
     }
 
-    // Nội dung bài (có cả đáp án) chỉ tài khoản đã đăng nhập đọc được (audit bảo mật 2026-09-25 — trước đó ai biết
-    // API key công khai cũng đọc thẳng được đáp án qua Firestore REST). Mọi trang bài học đều đã bắt đăng nhập.
     // Bản sao mật khẩu chữ thường (lib/passwordVault.js, người dùng chủ động chọn 2026-09-27) — CHỈ admin đọc.
     // Ghi: người tạo tài khoản (admin/giáo viên chính) hoặc chính chủ khi đổi mật khẩu. Đúng 2 field.
     match /passwordVault/{uid} {
@@ -113,13 +135,14 @@ service cloud.firestore {
       allow get: if isFullStaff()
         && get(/databases/(default)/documents/users/$(uid)).data.get('role', '') == 'student'
         && get(/databases/(default)/documents/users/$(uid)).data.get('mustChangePassword', false) == true;
-      allow create, update: if (isFullStaff() || (isSignedIn() && request.auth.uid == uid))
+      allow create, update: if (isFullStaff() || (hasProfile() && request.auth.uid == uid))
         && request.resource.data.keys().hasOnly(['password', 'updatedAt'])
         && request.resource.data.password is string;
     }
 
+    // Nội dung bài chỉ tài khoản có hồ sơ đọc được, học sinh chỉ đọc cấp thuộc sách của lớp (canReadLesson, 2026-10-08).
     match /lessons/{lessonId} {
-      allow read: if isSignedIn();
+      allow read: if canReadLesson(lessonId);
       // Doc lesson gốc luôn có field seriesId (xem lib/adminLessons.js) — dùng thẳng để biết bộ đề.
       allow create, update: if canEditLesson(lessonId, request.resource.data.seriesId);
       allow delete: if canEditLesson(lessonId, resource.data.seriesId);
@@ -127,47 +150,47 @@ service cloud.firestore {
       // Các subcollection bên dưới KHÔNG tự lưu seriesId (chỉ lưu ở doc lesson cha) — lấy seriesId
       // của doc cha qua get() để biết giáo viên có được thao tác bộ đề này không.
       match /tests/{testId} {
-        allow read: if isSignedIn();
+        allow read: if canReadLesson(lessonId);
         allow write: if canEditLevelKey(lessonId) || canEditLesson(lessonId, get(/databases/(default)/documents/lessons/$(lessonId)).data.seriesId);
       }
 
       match /readingTests/{testId} {
-        allow read: if isSignedIn();
+        allow read: if canReadLesson(lessonId);
         allow write: if canEditLevelKey(lessonId) || canEditLesson(lessonId, get(/databases/(default)/documents/lessons/$(lessonId)).data.seriesId);
       }
 
       match /dictationTests/{testId} {
-        allow read: if isSignedIn();
+        allow read: if canReadLesson(lessonId);
         allow write: if canEditLevelKey(lessonId) || canEditLesson(lessonId, get(/databases/(default)/documents/lessons/$(lessonId)).data.seriesId);
       }
 
       match /vocabTests/{testId} {
-        allow read: if isSignedIn();
+        allow read: if canReadLesson(lessonId);
         allow write: if canEditLevelKey(lessonId) || canEditLesson(lessonId, get(/databases/(default)/documents/lessons/$(lessonId)).data.seriesId);
       }
 
       match /comprehensionTests/{testId} {
-        allow read: if isSignedIn();
+        allow read: if canReadLesson(lessonId);
         allow write: if canEditLevelKey(lessonId) || canEditLesson(lessonId, get(/databases/(default)/documents/lessons/$(lessonId)).data.seriesId);
       }
 
       match /practiceTests/{testId} {
-        allow read: if isSignedIn();
+        allow read: if canReadLesson(lessonId);
         allow write: if canEditLevelKey(lessonId) || canEditLesson(lessonId, get(/databases/(default)/documents/lessons/$(lessonId)).data.seriesId);
       }
 
       match /listeningExamTests/{testId} {
-        allow read: if isSignedIn();
+        allow read: if canReadLesson(lessonId);
         allow write: if canEditLevelKey(lessonId) || canEditLesson(lessonId, get(/databases/(default)/documents/lessons/$(lessonId)).data.seriesId);
       }
 
       match /listeningTests/{testId} {
-        allow read: if isSignedIn();
+        allow read: if canReadLesson(lessonId);
         allow write: if canEditLevelKey(lessonId) || canEditLesson(lessonId, get(/databases/(default)/documents/lessons/$(lessonId)).data.seriesId);
       }
 
       match /vocabularyUnits/{unitId} {
-        allow read: if isSignedIn();
+        allow read: if canReadLesson(lessonId);
         allow write: if canEditLevelKey(lessonId) || canEditLesson(lessonId, get(/databases/(default)/documents/lessons/$(lessonId)).data.seriesId);
       }
     }
@@ -176,22 +199,22 @@ service cloud.firestore {
     // ai cũng ghi được kể cả chưa đăng nhập, và mọi tài khoản đọc được log/phiên của học sinh khác).
     match /speechLogs/{logId} {
       allow read: if isStaff();
-      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow create: if hasProfile() && request.resource.data.uid == request.auth.uid;
       allow update, delete: if false;
     }
 
     // Admin/giáo viên xoá được (tự dọn kết quả quá 48h sau hạn chót — lib/testResults.js purgeExpiredResults).
     match /speakingSessions/{sessionId} {
       allow read: if isStaff();
-      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow create: if hasProfile() && request.resource.data.uid == request.auth.uid;
       // Học sinh chỉ cập nhật mốc thời gian trên phiên của chính mình (lib/speakingSessions.js).
-      allow update: if isSignedIn() && resource.data.uid == request.auth.uid
+      allow update: if hasProfile() && resource.data.uid == request.auth.uid
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['updatedAt', 'finishedAt']);
       allow delete: if isStaff();
 
       match /events/{eventId} {
         allow read: if isStaff();
-        allow create: if isSignedIn()
+        allow create: if hasProfile()
           && get(/databases/(default)/documents/speakingSessions/$(sessionId)).data.uid == request.auth.uid;
         allow update: if false;
         allow delete: if isStaff();
@@ -235,7 +258,7 @@ service cloud.firestore {
     // "Mở bài" cho lớp (lib/openings.js): học sinh đăng nhập đọc để biết bài nào đang mở cho lớp mình, chỉ
     // admin/teacher tạo/sửa/đóng. Không còn mật khẩu vào bài (bỏ 2026-09-25).
     match /openings/{openingId} {
-      allow read: if isSignedIn();
+      allow read: if hasProfile();
       allow create, update: if canManageClass(request.resource.data.className);
       allow delete: if canManageClass(resource.data.className);
     }
@@ -243,7 +266,7 @@ service cloud.firestore {
     // Lớp học (lib/classes.js, chốt 2026-09-25): id doc = tên lớp. Tạo lớp trước rồi mới thêm học sinh vào lớp.
     // Chỉ admin + giáo viên chính tạo/xoá lớp.
     match /classes/{classId} {
-      allow read: if isSignedIn();
+      allow read: if hasProfile();
       allow create, update, delete: if isFullStaff();
     }
 
@@ -259,6 +282,13 @@ service cloud.firestore {
     match /kidsBooks/{bookId} {
       allow read: if true;
       allow write: if isStaff();
+    }
+
+    // Sách online (IELTS, 2026-10-10) — lib/adminLessons.js getIeltsBook/saveIeltsBook. Id doc = "ielts-<n>" (trùng id
+    // doc lessons của bộ đó) nên học sinh chỉ đọc được sách thuộc bộ IELTS của lớp mình. Chỉ admin tải/sửa sách.
+    match /ieltsBooks/{bookId} {
+      allow read: if canReadLesson(bookId);
+      allow write: if isAdmin();
     }
 
     match /{document=**} {

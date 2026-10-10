@@ -12,7 +12,8 @@ import DictationRunner from "../components/DictationRunner.jsx";
 import VocabRunner from "../components/VocabRunner.jsx";
 import { checkOpening } from "../lib/openings.js";
 import StartersListeningTestRunner, { testHasContent } from "../components/StartersListeningTestRunner.jsx";
-import { listListeningExamTests } from "../lib/adminLessons.js";
+import { listListeningExamTests, getIeltsBook } from "../lib/adminLessons.js";
+import BookReader from "../components/BookReader.jsx";
 import { useAuth } from "../lib/authContext.jsx";
 import { readParams, setParams } from "../lib/urlState.js";
 import { useClassBook } from "../lib/useClassBook.js";
@@ -189,6 +190,27 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
   // Kỹ năng IELTS đang chọn (reading/listening/writing/speaking/dictation) — null = đang ở màn
   // chọn kỹ năng (các thẻ Reading/Listening/.../ hiện ngay khi vào 1 bộ đề, chốt 2026-09-11).
   const [selectedIeltsSkill, setSelectedIeltsSkill] = useState(null);
+  // Sách online của bộ IELTS đang mở (mục "Sách", đọc bằng BookReader như sách Kids) — null = đang tải.
+  const [ieltsBook, setIeltsBook] = useState(null);
+  useEffect(() => {
+    if (selectedIeltsSkill !== "book" || !level) return;
+    let cancelled = false;
+    setIeltsBook(null);
+    getIeltsBook(level.number)
+      .catch(() => null)
+      .then(data => {
+        if (cancelled) return;
+        setIeltsBook({
+          id: `ielts-${level.number}`,
+          title: `${series.title} ${level.number}`,
+          pages: data?.pages ?? [],
+          sounds: data?.sounds ?? [],
+          tabs: data?.tabs ?? [],
+        });
+      });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedIeltsSkill, level]);
   // Kỹ năng YLE đang chọn (listening/speaking/reading/dictation) — null = màn chọn kỹ năng.
   const [selectedSkill, setSelectedSkill] = useState(null);
   const { user, isStaff, isTester, isAdmin, profile } = useAuth();
@@ -847,7 +869,25 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
     { key: "writing", label: "Writing" },
     { key: "speaking", label: "Speaking" },
     { key: "dictation", label: "Dictation" },
+    { key: "book", label: "Sách" },
   ];
+  // ---------- IELTS Sách online: lật trang như sách Kids ----------
+  if (isIelts && selectedIeltsSkill === "book") {
+    if (ieltsBook) return <BookReader book={ieltsBook} onBack={() => setSelectedIeltsSkill(null)} />;
+    return (
+      <LessonShell
+        step={2}
+        title={`${series.title} ${level.number} · Sách`}
+        backLabel="Quay lại"
+        onBack={() => setSelectedIeltsSkill(null)}
+        onNavigate={onNavigate}
+        onStepClick={goToWizardStep}
+        dark
+      >
+        <InfoCard text="Đang mở sách..." />
+      </LessonShell>
+    );
+  }
   if (isIelts && !selectedIeltsSkill) {
     return (
       <LessonShell

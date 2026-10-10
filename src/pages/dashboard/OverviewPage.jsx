@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../../lib/authContext.jsx";
 import { migrateAnswerKeys } from "../../lib/answerMigration.js";
+import { exportAudio, importAudio, canRecompressAudio } from "../../lib/audioRecompress.js";
 import { listClassDocs, bookKeys, formatBook } from "../../lib/classes.js";
 import { listStudents } from "../../lib/adminUsers.js";
 import { listOpenings, isExpired, attemptKey } from "../../lib/openings.js";
@@ -10,6 +11,51 @@ import { downloadClassResultSheets, canDownloadSheets } from "../../lib/resultSh
 import { listBillsForMonth } from "../../lib/tuitionStore.js";
 import { hasBill, totalFor, fmtMoney, currentMonth, monthLabel } from "../../lib/tuition.js";
 import { deadlineInfo, kindLabel, timeLeft } from "../../lib/assignmentUtils.js";
+
+// Chỉ admin: tải mọi audio đã lên Cloudinary về máy theo số 0001..N, nén ngoài web, rồi tải bản nén lên + thay link
+// trong bài (lib/audioRecompress.js).
+function AudioRecompressCard() {
+  const [state, setState] = useState(null); // null | { running, stage, message, error }
+
+  async function run(fn, describe) {
+    setState({ running: true, stage: "Chọn thư mục..." });
+    try {
+      const stats = await fn(p => setState({ running: true, stage: p.stage }));
+      setState({ running: false, message: describe(stats) });
+    } catch (error) {
+      // Bấm Huỷ ở hộp chọn thư mục thì không báo lỗi.
+      setState(error?.name === "AbortError" ? null : { running: false, error: error.message });
+    }
+  }
+
+  if (!canRecompressAudio()) return null;
+  return (
+    <div className="admin-card">
+      <h2>Nén lại audio cũ</h2>
+      <div className="kids-book-actions">
+        <button
+          type="button"
+          className="admin-btn-primary"
+          disabled={state?.running}
+          onClick={() => run(exportAudio, s => `Có ${s.total} audio · Vừa tải về ${s.downloaded}${s.failed ? ` · Lỗi ${s.failed}` : ""}`)}
+        >
+          1. Tải tất cả về máy
+        </button>
+        <button
+          type="button"
+          className="admin-btn-primary"
+          disabled={state?.running}
+          onClick={() => run(importAudio, s => `Đã thay ${s.replaced} audio trong ${s.docs} bài · Bỏ qua ${s.skipped}${s.failed ? ` · Lỗi ${s.failed}` : ""}`)}
+        >
+          2. Tải bản nén lên
+        </button>
+      </div>
+      {state?.running && <p className="admin-muted-text">{state.stage}</p>}
+      {state?.message && <p className="admin-muted-text">{state.message}</p>}
+      {state?.error && <p className="admin-error">{state.error}</p>}
+    </div>
+  );
+}
 
 // Chỉ admin: chuyển 1 lần các đề soạn trước 2026-09-25 sang dạng tách đáp án (lib/answerMigration.js).
 function AnswerMigrationCard() {
@@ -147,6 +193,7 @@ export default function OverviewPage({ onGo }) {
           {error ? <p className="admin-error">{error}</p> : <div className="admin-loading-row"><span className="admin-spinner" />Đang tải...</div>}
         </div>
         {isAdmin && <AnswerMigrationCard />}
+        {isAdmin && <AudioRecompressCard />}
       </>
     );
   }
@@ -293,6 +340,7 @@ export default function OverviewPage({ onGo }) {
       </div>
 
       {isAdmin && <AnswerMigrationCard />}
+      {isAdmin && <AudioRecompressCard />}
     </div>
   );
 }
