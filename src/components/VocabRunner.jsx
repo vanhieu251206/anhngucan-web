@@ -11,7 +11,7 @@ import { acceptedAnswers, gradeVocabItems, vocabItemReady, vocabTypeInfo } from 
 // Học sinh làm 1 bài Vocabulary (Starters/Movers/Flyers) — mọi câu trên 1 trang, nộp 1 lần, máy chủ chấm
 // (lib/grading/vocab.js). Học sinh chỉ thấy số câu đúng/tổng; admin/giáo viên/tester (đề có đáp án) thấy đúng/sai.
 // preview: nút "👁 Preview" trong CMS — chấm tại chỗ, không gửi máy chủ.
-export default function VocabRunner({ items, onFinish, seriesId, level, testId, limitMinutes, studentName, lessonLabel, openingId, preview = false }) {
+export default function VocabRunner({ items, totalPoints, onFinish, seriesId, level, testId, limitMinutes, studentName, lessonLabel, openingId, preview = false }) {
   const { isStaff, isTester } = useAuth();
   const canReview = preview || isStaff || isTester;
   const [answers, setAnswers] = useState({});
@@ -28,13 +28,13 @@ export default function VocabRunner({ items, onFinish, seriesId, level, testId, 
     if (result || (submitState && !submitState.error)) return;
     elapsedRef.current = timer.getElapsedMs();
     if (preview) {
-      setResult(gradeVocabItems(items, answers));
+      setResult(gradeVocabItems(items, answers, totalPoints));
       return;
     }
     const pending = submitToServer({ answers, elapsedMs: elapsedRef.current });
     if (canReview) {
       pending.catch(() => {});
-      setResult(gradeVocabItems(items, answers));
+      setResult(gradeVocabItems(items, answers, totalPoints));
       return;
     }
     setSubmitState({});

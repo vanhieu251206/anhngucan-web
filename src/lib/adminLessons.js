@@ -135,12 +135,14 @@ export async function getVocabTest(seriesId, level, testId) {
   return snap.exists() ? withAnswers(lessonId(seriesId, level), "vocabTests", { id: snap.id, ...snap.data() }) : null;
 }
 
-export async function saveVocabTest(seriesId, level, testId, { title, order, items }, uid) {
+// totalPoints: tổng điểm cả bài, chia đều cho các câu; null = mỗi câu 1 điểm.
+export async function saveVocabTest(seriesId, level, testId, { title, order, items, totalPoints }, uid) {
   await saveWithAnswers(seriesId, lessonId(seriesId, level), "vocabTests", testId, {
     testId,
     title,
     order,
     items,
+    totalPoints: Number(totalPoints) > 0 ? Number(totalPoints) : null,
     updatedAt: serverTimestamp(),
     updatedBy: uid,
   });
@@ -353,28 +355,6 @@ export async function saveKidsBook(grade, kind, { pages, sounds, tabs }, uid) {
   await setDoc(doc(db, "kidsBooks", kidsBookId(grade, kind)), {
     grade,
     kind,
-    tabs: tabs ?? [],
-    sounds: (sounds ?? []).map(marks => ({ marks: marks ?? [] })),
-    pages: pages ?? [],
-    updatedAt: serverTimestamp(),
-    updatedBy: uid,
-  });
-}
-
-// SÁCH ONLINE (IELTS) — chốt 2026-10-10: mỗi bộ IELTS 8-21 có ĐÚNG 1 quyển, cùng cấu trúc doc với sách Kids ở trên
-// (pages/sounds/tabs, đọc bằng BookReader.jsx). Collection riêng "ieltsBooks", docId = id doc lessons của bộ đó
-// ("ielts-<n>") để firestore.rules dùng lại canReadLesson(): học sinh chỉ đọc được sách thuộc bộ IELTS của lớp mình.
-// Chỉ admin ghi.
-export async function getIeltsBook(level) {
-  const snap = await getDoc(doc(db, "ieltsBooks", `ielts-${level}`));
-  if (!snap.exists()) return null;
-  const data = snap.data();
-  return { id: snap.id, ...data, sounds: (data.sounds ?? []).map(entry => entry?.marks ?? []) };
-}
-
-export async function saveIeltsBook(level, { pages, sounds, tabs }, uid) {
-  await setDoc(doc(db, "ieltsBooks", `ielts-${level}`), {
-    level,
     tabs: tabs ?? [],
     sounds: (sounds ?? []).map(marks => ({ marks: marks ?? [] })),
     pages: pages ?? [],

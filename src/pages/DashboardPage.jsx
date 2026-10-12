@@ -12,6 +12,7 @@ import StudentResultsPage from "./dashboard/StudentResultsPage.jsx";
 import TuitionPage from "./dashboard/TuitionPage.jsx";
 import SpeechLogsPage from "./dashboard/SpeechLogsPage.jsx";
 import ImageSplitterPage from "./dashboard/ImageSplitterPage.jsx";
+import UsageAnalyticsPage from "./dashboard/UsageAnalyticsPage.jsx";
 import { ConfirmProvider } from "../components/dashboard/ConfirmDialog.jsx";
 import { readParams, setParams } from "../lib/urlState.js";
 
@@ -25,6 +26,7 @@ const ADMIN_ITEMS = [
   { key: "tuition", label: "Học phí" },
   { key: "image-splitter", label: "Tách ảnh" },
   { key: "speech-logs", label: "Log phát âm" },
+  { key: "usage", label: "Dung lượng & băng thông" },
 ];
 // Admin: 3 mục cũ (Quản lý học sinh / Cấu hình tài khoản giáo viên / Tài khoản đặc biệt) gộp vào "Quản lý tài khoản"
 // (AccountsPage.jsx, 2026-09-27). Link cũ ?section=students|teachers|testers tự chuyển sang tab con tương ứng.
@@ -133,6 +135,7 @@ export default function DashboardPage({ onNavigate }) {
             {section === "teachers" && (isAdmin || (isTeacher && !isRestrictedTeacher)) && <TeacherAccountsPage />}
             {section === "accounts" && isAdmin && <AccountsPage />}
             {section === "speech-logs" && isAdmin && <SpeechLogsPage />}
+            {section === "usage" && isAdmin && <UsageAnalyticsPage />}
             {section === "results" && (isAdmin || isTeacher) && <StudentResultsPage />}
             {section === "tuition" && (isAdmin || (isTeacher && !isRestrictedTeacher)) && <TuitionPage />}
           </div>

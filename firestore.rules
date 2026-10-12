@@ -284,13 +284,6 @@ service cloud.firestore {
       allow write: if isStaff();
     }
 
-    // Sách online (IELTS, 2026-10-10) — lib/adminLessons.js getIeltsBook/saveIeltsBook. Id doc = "ielts-<n>" (trùng id
-    // doc lessons của bộ đó) nên học sinh chỉ đọc được sách thuộc bộ IELTS của lớp mình. Chỉ admin tải/sửa sách.
-    match /ieltsBooks/{bookId} {
-      allow read: if canReadLesson(bookId);
-      allow write: if isAdmin();
-    }
-
     match /{document=**} {
       allow read, write: if false;
     }

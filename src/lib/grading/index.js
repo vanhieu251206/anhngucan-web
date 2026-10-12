@@ -121,7 +121,7 @@ export function gradeSubmission(kind, test, raw) {
   }
   if (kind === "listening-exam") return gradeListeningExam(test, raw);
   if (kind === "yle-vocab") {
-    const g = gradeVocabItems(test.items ?? [], raw);
+    const g = gradeVocabItems(test.items ?? [], raw, test.totalPoints);
     return { correct: g.correct, total: g.total, items: g.items };
   }
   return null;

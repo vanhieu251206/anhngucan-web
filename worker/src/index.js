@@ -17,6 +17,7 @@ import { deleteStudent, deleteTeacher, deleteTester, resetPassword, firebaseProj
 import { regradeTest, reviewTest, startTest, submitTest } from "./submit.js";
 import { createAccount } from "./accounts.js";
 import { firestore } from "./firestore.js";
+import { cloudinaryReport } from "./cloudinary.js";
 
 // anhngucan.com: tên miền riêng của GitHub Pages (public/CNAME, từ 2026-09-18) — thiếu mục này làm ghi âm Speaking
 // và xoá học sinh bị trình duyệt chặn CORS trên web thật (phát hiện 2026-09-25).
@@ -164,6 +165,19 @@ export default {
     if (request.method === "POST" && path.endsWith("/admin/regrade")) {
       try {
         return new Response(JSON.stringify(await regradeTest(request, env)), {
+          headers: { ...headers, "Content-Type": "application/json" },
+        });
+      } catch (err) {
+        if (err && err.error) return jsonError(headers, err.error, err.status || 500);
+        console.error(err);
+        return jsonError(headers, "worker-exception", 500);
+      }
+    }
+
+    // Số liệu Cloudinary cho trang admin "Dung lượng & băng thông" — chỉ admin, chỉ đọc, xem cloudinary.js.
+    if (request.method === "POST" && path.endsWith("/admin/cloudinary")) {
+      try {
+        return new Response(JSON.stringify(await cloudinaryReport(request, env)), {
           headers: { ...headers, "Content-Type": "application/json" },
         });
       } catch (err) {

@@ -25,7 +25,7 @@ export const canRecompressAudio = () => typeof window !== "undefined" && "showDi
 
 // Áp fn lên mọi chuỗi trong dữ liệu doc (kể cả link nằm lẫn trong chuỗi dài). Chỉ đi vào mảng + object thường — giữ
 // nguyên Timestamp và các kiểu riêng của Firestore.
-function mapStrings(value, fn) {
+export function mapStrings(value, fn) {
   if (typeof value === "string") return fn(value);
   if (Array.isArray(value)) return value.map(v => mapStrings(v, fn));
   if (value && typeof value === "object" && Object.getPrototypeOf(value) === Object.prototype) {
@@ -46,8 +46,8 @@ function audioUrlsIn(data) {
 }
 
 // Mọi doc có thể chứa audio: doc lesson cha + các subcollection (duyệt cả id cố định vì doc cha có thể không tồn tại —
-// xem answerMigration.js), sách Kids, sách IELTS.
-async function collectDocs() {
+// xem answerMigration.js), sách Kids.
+export async function collectDocs() {
   const docs = [];
   const add = snap => snap.docs.forEach(d => docs.push({ ref: d.ref, data: d.data() }));
   const lessonIds = new Set();
@@ -62,7 +62,6 @@ async function collectDocs() {
     snaps.forEach(add);
   }
   add(await getDocs(collection(db, "kidsBooks")));
-  add(await getDocs(collection(db, "ieltsBooks")));
   return docs;
 }
 

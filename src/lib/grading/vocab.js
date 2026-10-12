@@ -48,17 +48,29 @@ export function vocabItemReady(item) {
   return false;
 }
 
+// Điểm mỗi câu — bài có `totalPoints` (ô "Tổng điểm cả bài" trong CMS) thì chia đều cho các câu; để trống (bài cũ)
+// thì mỗi câu 1 điểm.
+export function vocabPointsPerItem(items, totalPoints) {
+  const count = (items ?? []).filter(vocabItemReady).length;
+  const n = Number(totalPoints);
+  return n > 0 && count > 0 ? n / count : 1;
+}
+
 // raw: { [chỉ số câu]: chuỗi học sinh gõ }. Chỉ số theo mảng `items` gốc (kể cả câu nháp bị ẩn).
-export function gradeVocabItems(items, raw) {
-  let correct = 0;
-  let total = 0;
+export function gradeVocabItems(items, raw, totalPoints) {
+  const perItem = vocabPointsPerItem(items, totalPoints);
+  let rightCount = 0;
+  let count = 0;
   const results = (items ?? []).map((item, i) => {
     if (!vocabItemReady(item)) return null;
-    total += 1;
+    count += 1;
     const ok = isVocabCorrect(raw?.[i], item.answer);
-    if (ok) correct += 1;
+    if (ok) rightCount += 1;
     return ok;
   });
+  const round2 = n => Math.round(n * 100) / 100;
+  const correct = round2(rightCount * perItem);
+  const total = round2(count * perItem);
   let qNumber = 0;
   const detail = [];
   (items ?? []).forEach((item, i) => {

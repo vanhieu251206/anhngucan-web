@@ -86,3 +86,20 @@ Học sinh không còn tự ghi kết quả/số lượt vào Firestore: web g�
 `/test/submit` khi nộp. Worker kiểm tra lớp, lần mở bài, hạn chót, số lượt, thời gian làm bài, tự chấm bằng code
 dùng chung `../src/lib/grading/*` (wrangler tự đóng gói), rồi ghi `testResults` + cộng `attempts`. Dùng cùng secret
 `FIREBASE_SERVICE_ACCOUNT` như mục trên. Code ở `src/submit.js` + `src/firestore.js` (Firestore REST).
+
+## Số liệu Cloudinary cho trang "Dung lượng & băng thông" (`/admin/cloudinary`, thêm 2026-10-10)
+
+Trang admin "Dung lượng & băng thông" lấy số thật (lưu trữ, băng thông, biến đổi ảnh theo ngày + dung lượng từng
+file) qua Worker vì Admin API của Cloudinary cần API Secret. Chỉ admin gọi được, Worker CHỈ ĐỌC, không xoá/sửa file.
+Code ở `src/cloudinary.js`. Cần thêm 3 secret (làm 1 lần):
+
+1. Cloudinary Console → ⚙ **Settings** → **API Keys**: lấy **Cloud name**, **API Key**, **API Secret**.
+2. Trong thư mục `worker/`, chạy lần lượt rồi dán giá trị khi được hỏi:
+   ```
+   npx wrangler secret put CLOUDINARY_CLOUD_NAME
+   npx wrangler secret put CLOUDINARY_API_KEY
+   npx wrangler secret put CLOUDINARY_API_SECRET
+   ```
+3. `npm run deploy`
+
+Chưa có 3 secret này thì trang vẫn mở được nhưng chỉ đếm số file trong từng bài, không có dung lượng.

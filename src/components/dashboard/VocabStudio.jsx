@@ -6,7 +6,7 @@ import ImageUploadField from "./ImageUploadField.jsx";
 import { useConfirm } from "./ConfirmDialog.jsx";
 import { PageHead, PageHeadSaveButton } from "./AdminPageHead.jsx";
 import VocabRunner from "../VocabRunner.jsx";
-import { VOCAB_TYPES, blankVocabItem, vocabTypeInfo } from "../../lib/grading/vocab.js";
+import { VOCAB_TYPES, blankVocabItem, vocabItemReady, vocabPointsPerItem, vocabTypeInfo } from "../../lib/grading/vocab.js";
 
 // Màn soạn 1 bài Vocabulary (Starters/Movers/Flyers) — danh sách câu phẳng, mỗi câu tự chọn 1 trong 4 dạng
 // (lib/grading/vocab.js). Cùng khung admin-card/admin-scene-list với DictationStudio.
@@ -14,6 +14,8 @@ export default function VocabStudio({
   accent,
   title,
   onTitleChange,
+  totalPoints,
+  onTotalPointsChange,
   items,
   onItemsChange,
   onBack,
@@ -24,6 +26,7 @@ export default function VocabStudio({
   const confirm = useConfirm();
   const list = items ?? [];
   const [previewOpen, setPreviewOpen] = useState(false);
+  const readyCount = list.filter(vocabItemReady).length;
 
   function addItem(type, at = list.length) {
     onItemsChange(insertAt(list, at, blankVocabItem(type)));
@@ -55,6 +58,26 @@ export default function VocabStudio({
         <button type="button" className="admin-pill-btn admin-preview-trigger" onClick={() => setPreviewOpen(true)} disabled={!list.length}>👁 Preview</button>
         <PageHeadSaveButton onSave={onSave} saving={saving} saved={saved} warnings={validateVocabItems(list)} />
       </PageHead>
+
+      <div className="admin-practice-option-row admin-practice-group-points">
+        <label htmlFor="yle-vocab-total-points" style={{ whiteSpace: "nowrap" }}>Tổng điểm cả bài:</label>
+        <input
+          id="yle-vocab-total-points"
+          className="admin-input"
+          type="number"
+          min="0"
+          step="0.5"
+          style={{ maxWidth: 100 }}
+          value={totalPoints ?? ""}
+          onChange={e => onTotalPointsChange(e.target.value === "" ? "" : Number(e.target.value))}
+          placeholder={String(readyCount || "")}
+        />
+        <span style={{ fontSize: "0.85rem", color: "#777" }}>
+          {readyCount > 0
+            ? `= ${vocabPointsPerItem(list, totalPoints).toFixed(2).replace(/\.?0+$/, "")} điểm/câu`
+            : "(chưa có câu nào)"}
+        </span>
+      </div>
 
       <ol className="admin-scene-list">
         {list.map((it, i) => (
@@ -125,7 +148,7 @@ export default function VocabStudio({
             <span className="speaking-fullscreen-title">{title} (xem trước)</span>
           </div>
           <div className="speaking-fullscreen-body reading-fullscreen-body">
-            <VocabRunner items={list} onFinish={() => setPreviewOpen(false)} preview />
+            <VocabRunner items={list} totalPoints={totalPoints} onFinish={() => setPreviewOpen(false)} preview />
           </div>
         </div>
       )}

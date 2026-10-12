@@ -3993,6 +3993,13 @@ button.wizard-step:focus-visible { outline: 3px solid var(--color-secondary); ou
   font-family: var(--font-display); font-size: 1.7rem; font-weight: 700;
   color: var(--admin-text); font-variant-numeric: tabular-nums;
 }
+/* ---------- Dung lượng & băng thông (UsageAnalyticsPage.jsx) ---------- */
+.admin-usage-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+.admin-usage-card { margin-bottom: 22px; }
+.admin-usage-sub { font-size: 0.8rem; color: var(--admin-muted); margin-top: 4px; }
+.admin-usage-bar-cell { width: 28%; min-width: 90px; }
+.admin-usage-bar { display: block; height: 8px; border-radius: 999px; background: var(--admin-border); overflow: hidden; }
+.admin-usage-bar > span { display: block; height: 100%; border-radius: 999px; background: var(--admin-accent); }
 .admin-empty-state-title { font-weight: 700; color: var(--admin-text); font-size: 1rem; margin: 0; }
 
 /* ---------- IELTS Reading · mục "ĐỌC HIỂU" (IeltsReadingPassage.jsx) — bám sát bảng 2 cột

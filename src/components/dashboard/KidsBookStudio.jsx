@@ -7,7 +7,7 @@ import KidsBookSoundEditor from "./KidsBookSoundEditor.jsx";
 import KidsBookTabsEditor from "./KidsBookTabsEditor.jsx";
 import { optimizeImage } from "../../lib/cloudinaryImage.js";
 
-// Sách dày (IELTS ~165 trang) tải lên lần lượt hàng trăm ảnh — chỉ cần 1 lần rớt mạng thoáng qua ("Failed to fetch")
+// Sách dày (hàng trăm trang) tải lên lần lượt hàng trăm ảnh — chỉ cần 1 lần rớt mạng thoáng qua ("Failed to fetch")
 // là hỏng cả lượt, nên mỗi trang thử lại vài lần (chờ lâu dần) trước khi báo lỗi kèm số trang.
 async function uploadWithRetry(file, pageNo, tries = 4) {
   for (let attempt = 1; ; attempt++) {
@@ -26,11 +26,7 @@ async function uploadWithRetry(file, pageNo, tries = 4) {
 // lật từng trang thật để đặt Track 1, Track 2... rồi tải hàng loạt file khớp theo thứ tự, chốt
 // người dùng 2026-09-23). Trang chủ yếu vào bằng "Tải sách (PDF)" (tự tách+upload hàng loạt) nên
 // danh sách bên dưới chỉ hiện thumbnail xem lại + sắp xếp/xoá trang.
-// Dùng chung cho sách IELTS (CreateLessonPage.jsx IeltsBookEditor) — truyền backLabel/accent riêng.
-export default function KidsBookStudio({
-  title, pages, sounds, tabs, onTabsChange, onChange, onBack, onSave, saving, saved, firstUnit,
-  backLabel = "← Quay lại chọn sách", accent = "#F2A93B",
-}) {
+export default function KidsBookStudio({ title, pages, sounds, tabs, onTabsChange, onChange, onBack, onSave, saving, saved, firstUnit }) {
   const confirm = useConfirm();
   const [pdfBusy, setPdfBusy] = useState(false);
   const [pdfStage, setPdfStage] = useState(""); // "Đang tách trang..." / "Đang tải lên 3/20..."
@@ -113,8 +109,8 @@ export default function KidsBookStudio({
   }
 
   return (
-    <div className="admin-card" style={{ "--accent": accent }}>
-      <PageHead backLabel={backLabel} onBack={onBack}>
+    <div className="admin-card" style={{ "--accent": "#F2A93B" }}>
+      <PageHead backLabel="← Quay lại chọn sách" onBack={onBack}>
         <span className="admin-practice-page-label">{title}</span>
         <PageHeadSaveButton onSave={onSave} saving={saving} saved={saved} />
       </PageHead>
