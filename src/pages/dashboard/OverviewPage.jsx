@@ -166,7 +166,7 @@ export default function OverviewPage({ onGo }) {
       noBook: classNames.filter(name => !bookKeys(docs[name]?.book).length),
       late: liveRows.filter(r => r.info.urgent && r.missing.length > 0),
       sheets: openings
-        .filter(o => canDownloadSheets(o.expiresAt?.toMillis?.(), now))
+        .filter(o => o.expiresAt && now >= o.expiresAt.toMillis() && canDownloadSheets(o.expiresAt.toMillis(), now))
         .sort((a, b) => a.expiresAt.toMillis() - b.expiresAt.toMillis()),
       schedule: nextTeachingDay(classDocs, new Date(now)),
       tuitionRows,

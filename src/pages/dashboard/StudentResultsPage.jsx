@@ -4,7 +4,7 @@ import { db } from "../../lib/firebase.js";
 import { useAuth } from "../../lib/authContext.jsx";
 import { listStudents } from "../../lib/adminUsers.js";
 import { purgeExpiredResults, isResultVisible, loadOpeningDeadlines, RESULT_MODE_LABEL } from "../../lib/testResults.js";
-import { downloadResultSheet, canDownloadSheets } from "../../lib/resultSheetPdf.js";
+import { downloadResultSheet } from "../../lib/resultSheetPdf.js";
 import { SpeakingReportView, groupIntoReportItems } from "../../components/SpeakingReportView.jsx";
 import ResultItems from "../../components/ResultItems.jsx";
 import ResultAnalysisPage, { fmtScore, fmtDuration, fmtWhen } from "./ResultAnalysisPage.jsx";
@@ -219,7 +219,7 @@ export default function StudentResultsPage() {
           row={openRow}
           onBack={closeDetail}
           actions={
-            openRow.kind === "result" && canDownloadSheets(deadlines.get(openRow.raw.openingId)) && (
+            openRow.kind === "result" && (
               <button className="opening-btn" disabled={!!downloadingKey} onClick={() => handleSheet(openRow)}>
                 {downloadingKey === openRow.key ? "..." : "⬇ Phiếu chấm"}
               </button>
@@ -351,8 +351,8 @@ export default function StudentResultsPage() {
                         <td>{r.tabLeaves?.length ? <span className="opening-chip opening-chip-off">{r.tabLeaves.length} lần</span> : "—"}</td>
                         <td>
                           <div className="opening-actions">
-                            {/* Phiếu chấm bài (PDF in trắng đen): chỉ từ lúc hết hạn nộp tới khi kết quả bị xoá (lib/resultSheetPdf.js). */}
-                            {r.kind === "result" && canDownloadSheets(deadlines.get(r.raw.openingId)) && (
+                            {/* Phiếu chấm bài (PDF in trắng đen): tải được ngay khi có kết quả, tới khi kết quả bị xoá (lib/resultSheetPdf.js). */}
+                            {r.kind === "result" && (
                               <button className="opening-btn" disabled={!!downloadingKey} onClick={() => handleSheet(r)}>
                                 {downloadingKey === r.key ? "..." : "⬇ Phiếu"}
                               </button>

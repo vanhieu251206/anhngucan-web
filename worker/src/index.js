@@ -174,7 +174,7 @@ export default {
       }
     }
 
-    // Số liệu Cloudinary cho trang admin "Dung lượng & băng thông" — chỉ admin, chỉ đọc, xem cloudinary.js.
+    // Số liệu Cloudinary cho trang admin "Dung lượng & băng thông" — chỉ admin; chỉ đọc trừ action "delete", xem cloudinary.js.
     if (request.method === "POST" && path.endsWith("/admin/cloudinary")) {
       try {
         return new Response(JSON.stringify(await cloudinaryReport(request, env)), {

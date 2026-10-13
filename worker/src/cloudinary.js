@@ -1,6 +1,6 @@
 // Số liệu thật của Cloudinary cho trang admin "Dung lượng & băng thông" (2026-10-10, src/lib/usageReport.js). Admin API
-// của Cloudinary cần API Secret nên trình duyệt không gọi thẳng được — Worker giữ khoá, chỉ admin gọi được, CHỈ ĐỌC
-// (không xoá/sửa file nào). Secret: CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET (worker/README.md).
+// của Cloudinary cần API Secret nên trình duyệt không gọi thẳng được — Worker giữ khoá, chỉ admin gọi được. Chỉ đọc,
+// trừ action "delete" (xoá file không còn bài nào dùng). Secret: CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET (worker/README.md).
 import { adminError, firebaseProjectId, verifyIdToken } from "./admin.js";
 import { firestore } from "./firestore.js";
 
@@ -71,7 +71,34 @@ async function resourceList(env) {
   return { files, truncated };
 }
 
-// body: { action: "usage", days? } | { action: "resources" }. Chỉ admin.
+const MAX_DELETE = 100; // giới hạn của Cloudinary cho 1 lượt xoá theo public_ids
+
+// Xoá HẲN file (2026-10-12, nút "Xoá hết" ở mục File không còn bài nào dùng — người dùng chủ động yêu cầu). Trang
+// admin tự lọc file không bài nào dùng rồi gửi từng lô ≤100 file cùng loại; Worker không tự kiểm tra lại.
+async function deleteResources(env, type, ids) {
+  if (!RESOURCE_TYPES.includes(type) || !Array.isArray(ids) || ids.length === 0 || ids.length > MAX_DELETE) {
+    throw adminError(400, "bad-request");
+  }
+  const body = new URLSearchParams();
+  ids.forEach(id => body.append("public_ids[]", String(id)));
+  body.append("invalidate", "true");
+  const res = await fetch(`https://api.cloudinary.com/v1_1/${env.CLOUDINARY_CLOUD_NAME}/resources/${type}/upload`, {
+    method: "DELETE",
+    headers: {
+      authorization: `Basic ${btoa(`${env.CLOUDINARY_API_KEY}:${env.CLOUDINARY_API_SECRET}`)}`,
+      "content-type": "application/x-www-form-urlencoded",
+    },
+    body,
+  });
+  if (res.status === 401 || res.status === 403) throw adminError(502, "cloudinary-bad-credentials");
+  if (res.status === 420 || res.status === 429) throw adminError(429, "cloudinary-rate-limited");
+  if (!res.ok) throw adminError(502, "cloudinary-error");
+  const data = await res.json();
+  const deleted = Object.values(data.deleted ?? {}).filter(v => v === "deleted").length;
+  return { deleted, requested: ids.length };
+}
+
+// body: { action: "usage", days? } | { action: "resources" } | { action: "delete", type, ids }. Chỉ admin.
 export async function cloudinaryReport(request, env) {
   const db = firestore(env);
   const idToken = (request.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
@@ -84,5 +111,6 @@ export async function cloudinaryReport(request, env) {
   const body = await request.json().catch(() => null);
   if (body?.action === "usage") return usageReport(env, body.days);
   if (body?.action === "resources") return resourceList(env);
+  if (body?.action === "delete") return deleteResources(env, body.type, body.ids);
   throw adminError(400, "bad-request");
 }

@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  buildReport, formatBytes, loadActivity, loadCloudinaryResources, loadCloudinaryUsage, localDay, scanLessonAssets,
+  buildReport, deletableOrphans, deleteCloudinaryFiles, formatBytes, loadActivity, loadCloudinaryResources,
+  loadCloudinaryUsage, localDay, scanLessonAssets,
 } from "../../lib/usageReport.js";
+import { useConfirm } from "../../components/dashboard/ConfirmDialog.jsx";
 
 const WORKER_ERRORS = {
   "cloudinary-not-configured": "Worker chưa có khoá Cloudinary (xem worker/README.md).",
@@ -20,17 +22,18 @@ async function loadAll() {
     loadCloudinaryUsage().catch(err => ({ error: describe(err) })),
     loadCloudinaryResources().catch(err => ({ error: describe(err) })),
     scanLessonAssets(),
-    loadActivity().catch(() => ({ submitsByDay: {}, activeOpenings: [] })),
+    loadActivity().catch(() => ({ submitsByDay: {}, activeOpenings: [], doneByPath: new Map() })),
   ]);
   return { usage, resources, scan, activity, at: new Date() };
 }
 
 // Dung lượng & băng thông (chỉ admin, 2026-10-10): số thật của Cloudinary theo ngày + bài nào/file nào nặng nhất + file
-// không còn bài nào dùng. Chỉ xem, không xoá gì.
+// không còn bài nào dùng (có nút xoá hẳn các file đó, 2026-10-12).
 export default function UsageAnalyticsPage() {
   const [data, setData] = useState(cached);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [tab, setTab] = useState("lessons");
 
   function reload() {
     setLoading(true);
@@ -43,7 +46,7 @@ export default function UsageAnalyticsPage() {
   useEffect(() => { if (!cached) reload(); }, []);
 
   const report = useMemo(
-    () => data && buildReport(data.scan, data.resources.files ?? [], data.activity.activeOpenings),
+    () => data && buildReport(data.scan, data.resources.files ?? [], data.activity.activeOpenings, data.activity.doneByPath),
     [data]
   );
 
@@ -61,22 +64,40 @@ export default function UsageAnalyticsPage() {
   return (
     <div>
       <div className="admin-usage-head">
-        <span className="admin-muted-text">Cập nhật lúc {data.at.toLocaleTimeString("vi-VN")}</span>
-        <button type="button" className="admin-btn-secondary" onClick={reload} disabled={loading}>
-          {loading ? "Đang tải..." : "↻ Tải lại"}
-        </button>
+        <div className="admin-usage-tabs">
+          {TABS.map(([key, label]) => (
+            <button key={key} type="button" className={`admin-usage-tab${tab === key ? " is-active" : ""}`} onClick={() => setTab(key)}>
+              {label}
+            </button>
+          ))}
+        </div>
+        <div className="admin-usage-head-right">
+          <span className="admin-muted-text">Cập nhật {data.at.toLocaleTimeString("vi-VN")}</span>
+          <button type="button" className="admin-btn-secondary" onClick={reload} disabled={loading}>
+            {loading ? "Đang tải..." : "↻ Tải lại"}
+          </button>
+        </div>
       </div>
       {cloudError && <p className="admin-error">{cloudError}</p>}
       {data.resources.truncated && <p className="admin-error">Cloudinary có nhiều file hơn mức quét được, danh sách file chưa đủ.</p>}
 
-      {!data.usage.error && <UsageCards now={data.usage.now} report={report} hasSizes={hasSizes} />}
-      {!data.usage.error && <DailyTable days={data.usage.days} now={data.usage.now} submitsByDay={data.activity.submitsByDay} />}
-      <LessonTable lessons={report.lessons} hasSizes={hasSizes} />
-      {hasSizes && <BiggestFiles files={report.biggest} />}
-      {hasSizes && <Orphans files={report.orphans} bytes={report.orphanBytes} />}
+      {tab === "overview" && !data.usage.error && <UsageCards now={data.usage.now} report={report} hasSizes={hasSizes} />}
+      {tab === "overview" && !data.usage.error && <DailyTable days={data.usage.days} now={data.usage.now} submitsByDay={data.activity.submitsByDay} />}
+      {tab === "lessons" && <LessonTable lessons={report.lessons} hasSizes={hasSizes} />}
+      {tab === "files" && hasSizes && <BiggestFiles files={report.biggest} />}
+      {tab === "files" && hasSizes && (
+        <Orphans
+          files={report.orphans}
+          bytes={report.orphanBytes}
+          canDelete={!data.resources.truncated && data.scan.keysScanned}
+          onDeleted={reload}
+        />
+      )}
     </div>
   );
 }
+
+const TABS = [["lessons", "Theo bài"], ["overview", "Tổng quan"], ["files", "File"]];
 
 function StatCard({ label, value, sub }) {
   return (
@@ -148,43 +169,117 @@ function DailyTable({ days, now, submitsByDay }) {
   );
 }
 
+const LESSON_COLUMNS = [
+  ["title", "Bài", l => `${l.group} ${l.title}`],
+  ["skill", "Kỹ năng", l => l.skill],
+  ["images", "Ảnh", l => l.imageBytes],
+  ["audios", "Audio", l => l.audioBytes],
+  ["bytes", "Mỗi lượt mở", l => l.bytes],
+  ["students", "HS đã làm", l => l.students],
+  ["usedBytes", "Ước tính đã tốn", l => l.usedBytes],
+  ["openClasses", "Lớp đang mở", l => l.openClasses],
+];
+const PAGE_SIZE = 20;
+const uniqueSorted = list => [...new Set(list)].sort((a, b) => a.localeCompare(b, "vi", { numeric: true }));
+
+// Dung lượng từng bài: mỗi lượt mở tải bao nhiêu (số thật của Cloudinary) × số học sinh đã làm = ước tính đã tốn.
 function LessonTable({ lessons, hasSizes }) {
-  const [all, setAll] = useState(false);
+  const [search, setSearch] = useState("");
+  const [group, setGroup] = useState("");
+  const [skill, setSkill] = useState("");
   const [onlyOpen, setOnlyOpen] = useState(false);
-  const filtered = onlyOpen ? lessons.filter(l => l.openClasses > 0) : lessons;
-  const shown = all ? filtered : filtered.slice(0, 20);
-  const max = Math.max(0, ...lessons.map(l => l.bytes));
+  const [sort, setSort] = useState({ by: "usedBytes", desc: true });
+  const [all, setAll] = useState(false);
+
+  const groups = useMemo(() => uniqueSorted(lessons.map(l => l.group)), [lessons]);
+  const skills = useMemo(() => uniqueSorted(lessons.map(l => l.skill)), [lessons]);
+  const rows = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const value = LESSON_COLUMNS.find(c => c[0] === sort.by)[2];
+    const list = lessons.filter(l =>
+      (!q || l.label.toLowerCase().includes(q)) && (!group || l.group === group) && (!skill || l.skill === skill) && (!onlyOpen || l.openClasses > 0)
+    );
+    return list.sort((a, b) => {
+      const x = value(a), y = value(b);
+      const d = typeof x === "string" ? x.localeCompare(y, "vi", { numeric: true }) : x - y;
+      return (sort.desc ? -d : d) || b.bytes - a.bytes;
+    });
+  }, [lessons, search, group, skill, onlyOpen, sort]);
+
+  const sum = key => rows.reduce((s, l) => s + l[key], 0);
+  const max = Math.max(0, ...rows.map(l => l.usedBytes));
+  const shown = all ? rows : rows.slice(0, PAGE_SIZE);
+  const filtering = search || group || skill || onlyOpen;
+  const size = n => (hasSizes ? formatBytes(n) : "—");
+
+  function sortBy(key) {
+    setSort(s => (s.by === key ? { by: key, desc: !s.desc } : { by: key, desc: key !== "title" && key !== "skill" }));
+  }
+
   return (
     <div className="admin-card admin-usage-card">
-      <h2>Bài nặng nhất</h2>
       <div className="admin-filter-bar">
+        <input className="admin-input" type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Tìm bài..." />
+        <select className="admin-input" value={group} onChange={e => setGroup(e.target.value)}>
+          <option value="">Mọi bộ đề</option>
+          {groups.map(g => <option key={g} value={g}>{g}</option>)}
+        </select>
+        <select className="admin-input" value={skill} onChange={e => setSkill(e.target.value)}>
+          <option value="">Mọi kỹ năng</option>
+          {skills.map(s => <option key={s} value={s}>{s}</option>)}
+        </select>
         <label className="admin-filter-checkbox">
           <input type="checkbox" checked={onlyOpen} onChange={e => setOnlyOpen(e.target.checked)} />
-          Chỉ bài đang mở cho lớp
+          Đang mở cho lớp
         </label>
+        {filtering && (
+          <button type="button" className="admin-link-btn" onClick={() => { setSearch(""); setGroup(""); setSkill(""); setOnlyOpen(false); }}>
+            Bỏ lọc
+          </button>
+        )}
       </div>
+      <p className="admin-usage-summary">
+        <strong>{rows.length.toLocaleString("vi-VN")}</strong> bài · lưu trữ <strong>{size(sum("bytes"))}</strong> · ước tính đã tốn <strong>{size(sum("usedBytes"))}</strong>
+      </p>
       <div style={{ overflowX: "auto" }}>
-        <table className="admin-table">
+        <table className="admin-table admin-usage-table">
           <thead>
-            <tr><th>Bài</th><th>Ảnh</th><th>Audio</th><th>Tổng</th><th /><th>Lớp đang mở</th></tr>
+            <tr>
+              {LESSON_COLUMNS.map(([key, label]) => (
+                <th key={key} className={key === "title" || key === "skill" ? "" : "is-num"}>
+                  <button type="button" className="admin-usage-sort" onClick={() => sortBy(key)}>
+                    {label}{sort.by === key ? (sort.desc ? " ↓" : " ↑") : ""}
+                  </button>
+                </th>
+              ))}
+            </tr>
           </thead>
           <tbody>
             {shown.map(l => (
               <tr key={l.path}>
-                <td>{l.label}</td>
-                <td>{l.images}{hasSizes && l.images > 0 ? ` · ${formatBytes(l.imageBytes)}` : ""}</td>
-                <td>{l.audios}{hasSizes && l.audios > 0 ? ` · ${formatBytes(l.audioBytes)}` : ""}</td>
-                <td>{hasSizes ? formatBytes(l.bytes) : "—"}</td>
-                <td className="admin-usage-bar-cell">{hasSizes && <Bar value={l.bytes} max={max} />}</td>
-                <td>{l.openClasses || "—"}</td>
+                <td>
+                  <div className="admin-usage-lesson-title">{l.title}</div>
+                  <div className="admin-usage-sub">{l.group}</div>
+                </td>
+                <td>{l.skill}</td>
+                <td className="is-num">{l.images ? `${l.images}${hasSizes ? ` · ${formatBytes(l.imageBytes)}` : ""}` : "—"}</td>
+                <td className="is-num">{l.audios ? `${l.audios}${hasSizes ? ` · ${formatBytes(l.audioBytes)}` : ""}` : "—"}</td>
+                <td className="is-num"><strong>{size(l.bytes)}</strong></td>
+                <td className="is-num">{l.students || "—"}</td>
+                <td className="is-num">
+                  {l.students ? size(l.usedBytes) : "—"}
+                  {hasSizes && <Bar value={l.usedBytes} max={max} />}
+                </td>
+                <td className="is-num">{l.openClasses || "—"}</td>
               </tr>
             ))}
+            {rows.length === 0 && <tr><td colSpan={LESSON_COLUMNS.length} className="admin-muted-text">Không có bài nào khớp.</td></tr>}
           </tbody>
         </table>
       </div>
-      {filtered.length > 20 && (
+      {rows.length > PAGE_SIZE && (
         <button type="button" className="admin-btn-secondary" onClick={() => setAll(v => !v)}>
-          {all ? "Thu gọn" : `Xem tất cả ${filtered.length} bài`}
+          {all ? "Thu gọn" : `Xem tất cả ${rows.length} bài`}
         </button>
       )}
     </div>
@@ -219,7 +314,32 @@ function BiggestFiles({ files }) {
   );
 }
 
-function Orphans({ files, bytes }) {
+function Orphans({ files, bytes, canDelete, onDeleted }) {
+  const confirm = useConfirm();
+  const [progress, setProgress] = useState(null); // "12/340" khi đang xoá
+  const [message, setMessage] = useState(null);
+  const deletable = useMemo(() => deletableOrphans(files), [files]);
+
+  async function deleteAll() {
+    const size = formatBytes(deletable.reduce((s, f) => s + f.bytes, 0));
+    const ok = await confirm(
+      `Xoá hẳn ${deletable.length.toLocaleString("vi-VN")} file (${size}) trên Cloudinary? Không khôi phục được.`,
+      { danger: true }
+    );
+    if (!ok) return;
+    setMessage(null);
+    setProgress(`0/${deletable.length}`);
+    try {
+      const n = await deleteCloudinaryFiles(deletable, (done, total) => setProgress(`${done}/${total}`));
+      setMessage(`Đã xoá ${n.toLocaleString("vi-VN")} file.`);
+    } catch (err) {
+      setMessage(`Xoá bị dừng giữa chừng: ${describe(err)}`);
+    } finally {
+      setProgress(null);
+      onDeleted();
+    }
+  }
+
   function download() {
     const lines = ["url,loai,dung_luong_byte,ngay_tai_len", ...files.map(f => [f.url, f.type, f.bytes, f.createdAt ?? ""].join(","))];
     const a = document.createElement("a");
@@ -234,9 +354,17 @@ function Orphans({ files, bytes }) {
       <p>
         <strong>{files.length.toLocaleString("vi-VN")}</strong> file · <strong>{formatBytes(bytes)}</strong>
       </p>
+      {message && <p className="admin-muted-text">{message}</p>}
       {files.length > 0 && (
         <>
-          <button type="button" className="admin-btn-secondary" onClick={download}>⬇ Tải danh sách (CSV)</button>
+          <div className="admin-filter-bar">
+            <button type="button" className="admin-btn-secondary" onClick={download}>⬇ Tải danh sách (CSV)</button>
+            {canDelete && deletable.length > 0 && (
+              <button type="button" className="admin-btn-secondary admin-pill-btn-danger" onClick={deleteAll} disabled={progress != null}>
+                {progress ? `Đang xoá ${progress}...` : `🗑 Xoá hết ${deletable.length.toLocaleString("vi-VN")} file`}
+              </button>
+            )}
+          </div>
           <div style={{ overflowX: "auto" }}>
             <table className="admin-table">
               <thead>

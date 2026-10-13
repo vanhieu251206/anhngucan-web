@@ -3996,6 +3996,16 @@ button.wizard-step:focus-visible { outline: 3px solid var(--color-secondary); ou
 /* ---------- Dung lượng & băng thông (UsageAnalyticsPage.jsx) ---------- */
 .admin-usage-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
 .admin-usage-card { margin-bottom: 22px; }
+.admin-usage-head-right { display: flex; align-items: center; gap: 12px; }
+.admin-usage-tabs { display: inline-flex; gap: 4px; padding: 4px; border-radius: 12px; background: var(--admin-border); }
+.admin-usage-tab { border: 0; background: transparent; padding: 7px 16px; border-radius: 9px; font: inherit; font-weight: 700; font-size: 0.9rem; color: var(--admin-muted); cursor: pointer; }
+.admin-usage-tab.is-active { background: #fff; color: var(--admin-accent); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08); }
+.admin-usage-summary { margin: 12px 0 0; font-size: 0.9rem; color: var(--admin-muted); }
+.admin-usage-table th.is-num, .admin-usage-table td.is-num { text-align: right; white-space: nowrap; }
+.admin-usage-table td.is-num .admin-usage-bar { margin-top: 6px; min-width: 110px; }
+.admin-usage-sort { border: 0; background: none; padding: 0; font: inherit; color: inherit; text-transform: inherit; letter-spacing: inherit; cursor: pointer; white-space: nowrap; }
+.admin-usage-sort:hover { color: var(--admin-accent); }
+.admin-usage-lesson-title { font-weight: 700; }
 .admin-usage-sub { font-size: 0.8rem; color: var(--admin-muted); margin-top: 4px; }
 .admin-usage-bar-cell { width: 28%; min-width: 90px; }
 .admin-usage-bar { display: block; height: 8px; border-radius: 999px; background: var(--admin-border); overflow: hidden; }

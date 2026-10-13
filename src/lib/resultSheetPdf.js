@@ -1,5 +1,5 @@
-// Phiếu chấm bài (PDF) gửi phụ huynh — chốt 2026-09-25. Chỉ tải được SAU hạn chót của lần mở bài và TRƯỚC khi kết
-// quả bị xoá (48h sau hạn chót, xem lib/testResults.js). Thiết kế cho giấy in TRẮNG ĐEN: không nền màu, chữ đen,
+// Phiếu chấm bài (PDF) gửi phụ huynh — chốt 2026-09-25. Tải được ngay khi học sinh nộp bài (từ 2026-10-13, trước đó
+// phải chờ hết hạn chót) cho tới khi kết quả bị xoá (48h sau hạn chót, xem lib/testResults.js). Thiết kế cho giấy in TRẮNG ĐEN: không nền màu, chữ đen,
 // câu sai tô xám nhạt + chữ "Sai" in đậm để phân biệt được khi in đen trắng. Chữ vector (nhúng font Be Vietnam Pro,
 // lib/pdfDoc.js) nên in sắc nét; bảng dài tự sang trang (jspdf-autotable). Thư viện + font chỉ tải khi bấm nút.
 import { RESULT_MODE_LABEL, RESULT_KEEP_MS } from "./testResults.js";
@@ -233,7 +233,7 @@ export async function downloadResultSheet(result, { className } = {}) {
   pdf.save(`Phieu-cham-${safeName(result.studentName)}-${safeName(result.lessonLabel)}.pdf`);
 }
 
-// Cửa sổ tải phiếu: từ lúc HẾT HẠN NỘP tới khi kết quả bị xoá (hạn chót + 48h).
+// Tải phiếu được ngay khi học sinh nộp (2026-10-13), tới khi kết quả bị xoá (hạn chót + 48h).
 export function canDownloadSheets(deadlineMs, now = Date.now()) {
-  return deadlineMs != null && now >= deadlineMs && now < deadlineMs + RESULT_KEEP_MS;
+  return deadlineMs == null || now < deadlineMs + RESULT_KEEP_MS;
 }

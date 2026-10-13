@@ -229,7 +229,7 @@ export default function OpeningsPage() {
     }
   }
 
-  // Phiếu chấm bài cả lớp (1 PDF: bảng điểm + mỗi lượt nộp 1 phiếu) — chỉ sau hạn chót, trong 48h trước khi kết quả bị xoá.
+  // Phiếu chấm bài cả lớp (1 PDF: bảng điểm + mỗi lượt nộp 1 phiếu) — từ lúc có em nộp tới khi kết quả bị xoá (hạn chót + 48h).
   async function handleSheets(o) {
     setError("");
     setDownloadingId(o.id);
@@ -427,8 +427,8 @@ export default function OpeningsPage() {
                   <td>
                     <div className="opening-actions">
                       {isExpired(o) && <button className="opening-btn" onClick={() => { setError(""); setReopening(o); }}>↻ Mở lại</button>}
-                      {/* Có em được mở lại thì kết quả của em đó giữ tới 48h sau hạn riêng → phiếu chấm tải được tới lúc đó. */}
-                      {isExpired(o) && canDownloadSheets(latestDeadlineMs(o), Math.max(Date.now(), latestDeadlineMs(o) ?? 0)) && (
+                      {/* Có em nộp là tải được ngay. Có em được mở lại thì kết quả giữ tới 48h sau hạn riêng → tải được tới lúc đó. */}
+                      {submitted.get(attemptKey(o.testId, o.id))?.size > 0 && canDownloadSheets(latestDeadlineMs(o)) && (
                         <button className="opening-btn" disabled={!!downloadingId} onClick={() => handleSheets(o)}>
                           {downloadingId === o.id ? "Đang tạo PDF..." : "⬇ Phiếu chấm"}
                         </button>

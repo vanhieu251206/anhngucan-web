@@ -6,6 +6,7 @@ import { db } from "./firebase.js";
 import { callWorker } from "./testSubmit.js";
 import { collectDocs, mapStrings } from "./audioRecompress.js";
 import { YLE_SERIES } from "./yleData.js";
+import { testLocation } from "./grading/index.js";
 
 const CLOUDINARY_URL = /https:\/\/res\.cloudinary\.com\/[^\s"'<>\\)]+/g;
 const SUBCOLLECTION_LABEL = {
@@ -65,7 +66,12 @@ export async function scanLessonAssets() {
       return s;
     });
     const p = ref.path.split("/");
-    return { path: ref.path, lessonId: p[0] === "lessons" ? p[1] : null, docId: p[p.length - 1], label: docLabel(ref.path, data), keys };
+    return {
+      path: ref.path, lessonId: p[0] === "lessons" ? p[1] : null, docId: p[p.length - 1], label: docLabel(ref.path, data), keys,
+      group: p[0] === "kidsBooks" ? "Sách Kids" : lessonLabel(p[1]),
+      skill: p[0] === "kidsBooks" ? "Sách" : p.length === 2 ? "Listening (video)" : SUBCOLLECTION_LABEL[p[2]] ?? p[2],
+      title: p[0] === "lessons" && p.length === 2 ? "Listening (video)" : data.title ?? data.name ?? p[p.length - 1],
+    };
   });
   const extraKeys = new Set();
   keySnap?.docs.forEach(d => mapStrings(d.data(), s => {
@@ -75,15 +81,56 @@ export async function scanLessonAssets() {
     }
     return s;
   }));
-  return { docs: out.filter(d => d.keys.size > 0), extraKeys };
+  return { docs: out.filter(d => d.keys.size > 0), extraKeys, keysScanned: keySnap != null };
 }
 
 export const loadCloudinaryUsage = () => callWorker("/admin/cloudinary", { action: "usage" });
 export const loadCloudinaryResources = () => callWorker("/admin/cloudinary", { action: "resources" });
 
+// File mới tải lên trong 24h không xoá: có thể thuộc bài đang soạn dở chưa bấm Xuất bản.
+const DELETE_MIN_AGE_MS = 24 * 60 * 60 * 1000;
+// Web này tải file lên thẳng thư mục gốc; file nằm trong thư mục khác (trừ file mẫu "samples/" của Cloudinary) là của
+// ứng dụng khác dùng chung tài khoản (vd "chung_vi/avatars/...") nên không bao giờ xoá.
+const ownFile = f => !f.id.includes("/") || f.id.startsWith("samples/");
+export const deletableOrphans = files =>
+  files.filter(f => ownFile(f) && f.createdAt && Date.now() - new Date(f.createdAt).getTime() > DELETE_MIN_AGE_MS);
+
+// Xoá HẲN file trên Cloudinary, từng lô 100 file cùng loại. → số file đã xoá.
+export async function deleteCloudinaryFiles(files, onProgress) {
+  let deleted = 0;
+  let done = 0;
+  for (const type of ["image", "video", "raw"]) {
+    const ids = files.filter(f => f.type === type).map(f => f.id);
+    for (let i = 0; i < ids.length; i += 100) {
+      const batch = ids.slice(i, i + 100);
+      const res = await callWorker("/admin/cloudinary", { action: "delete", type, ids: batch });
+      deleted += res.deleted ?? 0;
+      done += batch.length;
+      onProgress?.(done, files.length);
+    }
+  }
+  return deleted;
+}
+
 // Lượt nộp bài theo ngày (giờ máy) + các lần mở bài còn hạn. testResults chỉ giữ tới 48h sau hạn chót nên ngày cũ có thể thiếu.
 export async function loadActivity() {
-  const [results, openings] = await Promise.all([getDocs(collection(db, "testResults")), getDocs(collection(db, "openings"))]);
+  const [results, openings, attempts] = await Promise.all([
+    getDocs(collection(db, "testResults")),
+    getDocs(collection(db, "openings")),
+    getDocs(collection(db, "attempts")).catch(() => null),
+  ]);
+  // Học sinh đã nộp từng bài (attempts giữ lâu dài, không bị xoá theo luật 48h): đường dẫn bài → { uids, submits }.
+  const doneByPath = new Map();
+  attempts?.docs.forEach(d => {
+    const a = d.data();
+    const loc = a.seriesId != null && a.level != null ? testLocation(a.mode, a.seriesId, a.level, String(a.testId ?? "").split("@")[0]) : null;
+    if (!loc || !a.uid) return;
+    const path = `lessons/${loc.lessonId}/${loc.collection}/${loc.docId}`;
+    const entry = doneByPath.get(path) ?? { uids: new Set(), submits: 0 };
+    entry.uids.add(a.uid);
+    entry.submits += a.count ?? 0;
+    doneByPath.set(path, entry);
+  });
   const submitsByDay = {};
   results.docs.forEach(d => {
     const at = d.data().submittedAt?.toDate?.();
@@ -93,7 +140,7 @@ export async function loadActivity() {
   });
   const now = Date.now();
   const active = openings.docs.map(d => d.data()).filter(o => !o.expiresAt?.toMillis || o.expiresAt.toMillis() > now);
-  return { submitsByDay, activeOpenings: active };
+  return { submitsByDay, activeOpenings: active, doneByPath };
 }
 
 export function localDay(d) {
@@ -102,7 +149,7 @@ export function localDay(d) {
 }
 
 // Ghép file Cloudinary (có dung lượng thật) với bài dùng nó. files có thể rỗng (Worker chưa cấu hình) — khi đó chỉ còn số file.
-export function buildReport({ docs, extraKeys }, files, activeOpenings = []) {
+export function buildReport({ docs, extraKeys }, files, activeOpenings = [], doneByPath = new Map()) {
   const byKey = new Map(files.map(f => [`${f.type}/${f.id}`, f]));
   const usedBy = new Map(); // key → [label bài]
   const openCount = new Map(); // "<lessonId>|<docId>" → số lớp đang mở
@@ -119,9 +166,15 @@ export function buildReport({ docs, extraKeys }, files, activeOpenings = []) {
       if (k.startsWith("image/")) { images += 1; imageBytes += bytes; }
       else { audios += 1; audioBytes += bytes; }
     });
+    const done = doneByPath.get(d.path);
+    const bytes = imageBytes + audioBytes;
+    const students = done?.uids.size ?? 0;
     return {
-      path: d.path, label: d.label, images, audios, imageBytes, audioBytes, bytes: imageBytes + audioBytes,
+      path: d.path, label: d.label, group: d.group, skill: d.skill, title: d.title,
+      images, audios, imageBytes, audioBytes, bytes,
       openClasses: openCount.get(`${d.lessonId}|${d.docId}`) ?? 0,
+      // Ước tính băng thông đã tốn: mỗi học sinh tải bài 1 lần (làm lại thường lấy từ bộ nhớ đệm của trình duyệt).
+      students, submits: done?.submits ?? 0, usedBytes: bytes * students,
     };
   }).sort((a, b) => b.bytes - a.bytes || b.images + b.audios - (a.images + a.audios));
 
