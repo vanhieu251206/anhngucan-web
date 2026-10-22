@@ -66,3 +66,16 @@ export async function uploadToCloudinary(file) {
     setPending(-1);
   }
 }
+
+// Sách dày (hàng trăm trang) tải lên lần lượt hàng trăm ảnh — chỉ cần 1 lần rớt mạng thoáng qua ("Failed to fetch")
+// là hỏng cả lượt, nên mỗi trang thử lại vài lần (chờ lâu dần) trước khi báo lỗi kèm số trang.
+export async function uploadWithRetry(file, pageNo, tries = 4) {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await uploadToCloudinary(file);
+    } catch (err) {
+      if (attempt >= tries) throw new Error(`Tải lên trang ${pageNo} thất bại: ${err.message}`);
+      await new Promise(resolve => setTimeout(resolve, 1500 * attempt));
+    }
+  }
+}

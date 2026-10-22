@@ -3,7 +3,7 @@
 import { gradeReading } from "./reading.js";
 import { flattenPassages, flattenSections, gradeIelts } from "./ielts.js";
 import { gradeVocabularyGroups } from "../ketPetVocabulary.js";
-import { gradePracticeTestGroups, openEndedFullAnswer } from "../ketPetPracticeTest.js";
+import { gradePracticeTestGroups, openEndedFullAnswer, questionType } from "../ketPetPracticeTest.js";
 import { serverGrader, gradeCanvasPart } from "./listeningExam.js";
 import { isWriteItem, itemReady } from "./canvasParts.js";
 import { gradeVocabItems } from "./vocab.js";
@@ -62,7 +62,7 @@ const tfText = v => (v === true ? "True" : v === false ? "False" : "");
 
 // KET/PET: đề bài + câu trả lời + đáp án đúng ở dạng CHỮ đọc được (trắc nghiệm ghi "B. ..." thay vì số thứ tự).
 function ketPetDetail(g, q, qi, value) {
-  const type = g.type === "split-reading" ? q.type : g.type;
+  const type = questionType(g, q);
   const prompt = stripTags(q.text ?? q.prompt ?? (Array.isArray(q.words) ? q.words.join(" / ") : "")).slice(0, 160);
   const typed = String(value ?? "");
   if (type === "multiple-choice" || type === "pronunciation-underline") {

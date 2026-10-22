@@ -8,6 +8,7 @@ import { SERVER_GRADED, gradeSubmission } from "./index.js";
 import { flattenPassages, flattenSections } from "./ielts.js";
 import { serverGrader } from "./listeningExam.js";
 import { vocabItemReady } from "./vocab.js";
+import { questionType } from "../ketPetPracticeTest.js";
 
 const EMPTY_MARKS = new Set(["", "(để trống)", "(chưa trả lời)", "(chưa viết)"]);
 const typed = s => (s == null || EMPTY_MARKS.has(String(s)) ? undefined : String(s));
@@ -64,7 +65,7 @@ function ketPetAnswers(test, items) {
     const qi = Number(it.qNumber) - (Number(g.startNumber) || 1);
     const q = g.questions?.[qi];
     if (!q) continue;
-    const type = g.type === "split-reading" ? q.type : g.type;
+    const type = questionType(g, q);
     const s = typed(it.studentAnswer);
     let value = s;
     if (type === "multiple-choice" || type === "pronunciation-underline") value = letterIndex(s);

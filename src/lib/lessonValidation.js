@@ -5,6 +5,7 @@ import { countBlanks, normalizeBlankHolder } from "./tableDiagramBlanks.js";
 import { splitGapfillText } from "./grading/reading.js";
 import { acceptedAnswers as vocabAnswers } from "./grading/vocab.js";
 import { normalizeOptions } from "./grading/ielts.js";
+import { questionType } from "./ketPetPracticeTest.js";
 
 const blank = v => !String(v ?? "").trim();
 const filled = v => !blank(v);
@@ -250,7 +251,7 @@ export function validateKetPetGroups(groups) {
     const bank = (g.wordBank ?? []).map(w => String(w).trim().toLowerCase());
     qs.forEach((q, qi) => {
       const w = `${gw} – Câu ${qi + 1}`;
-      const type = g.type === "split-reading" ? q.type : g.type;
+      const type = questionType(g, q);
       if (type === "multiple-choice") {
         checkChoices(w, q.options, q.answerIndex, out);
       } else if (type === "pronunciation-underline") {
@@ -276,6 +277,19 @@ export function validateKetPetGroups(groups) {
         if (blank(q.prompt)) out.push(`${w}: chưa có nội dung.`);
       }
     });
+  });
+  return out;
+}
+
+// ---------- KET/PET Practice Test — đề tải lên (PDF/Word) ----------
+export function validatePaperTest(paper, groups) {
+  const out = [];
+  if (!paper?.pages?.length && !paper?.html) out.push("Chưa tải đề lên.");
+  const qs = groups?.[0]?.questions ?? [];
+  if (!qs.length) out.push("Chưa có câu nào trong phiếu trả lời.");
+  qs.forEach((q, i) => {
+    const missing = q.type === "multiple-choice" ? q.answerIndex == null : !(q.acceptedAnswers ?? []).some(filled);
+    if (missing) out.push(`Câu ${i + 1}: chưa có đáp án.`);
   });
   return out;
 }

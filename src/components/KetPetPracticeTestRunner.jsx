@@ -52,7 +52,7 @@ export default function KetPetPracticeTestRunner({ grade, unit, testNumber, onBa
         {doc === undefined && <p className="ketpet-test-empty">Đang tải...</p>}
         {doc === null && <p className="ketpet-test-empty">Chưa có nội dung — quay lại sau nhé.</p>}
         {doc && submittedOk && <SubmittedNotice openingId={ctx.openingId} onDone={onBack} />}
-        {doc && !submittedOk && <KetPetPracticeTestQuiz page groups={doc.groups} limitMinutes={ctx?.limitMinutes} canRetry={!ctx?.studentUid || canReview} revealAnswers={canReview} onSubmitted={ctx ? handleSubmitted : undefined} />}
+        {doc && !submittedOk && <KetPetPracticeTestQuiz page groups={doc.groups} paper={doc.paper} limitMinutes={ctx?.limitMinutes} canRetry={!ctx?.studentUid || canReview} revealAnswers={canReview} onSubmitted={ctx ? handleSubmitted : undefined} />}
       </div>
     </div>
   );

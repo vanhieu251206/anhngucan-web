@@ -291,9 +291,11 @@ export async function getKetPetPracticeTest(grade, unit, testNumber) {
   return snap.exists() ? withAnswers(lessonId("ket-pet", grade), "practiceTests", { id: snap.id, ...snap.data() }) : null;
 }
 
-export async function saveKetPetPracticeTest(grade, unit, testNumber, groups, uid) {
+// `paper` (tuỳ chọn): đề tải lên PDF/Word — có thì học sinh thấy đề + phiếu trả lời (KetPetPaperTestStudio.jsx).
+export async function saveKetPetPracticeTest(grade, unit, testNumber, groups, uid, paper = null) {
   await saveWithAnswers("ket-pet", lessonId("ket-pet", grade), "practiceTests", `unit${unit}-test${testNumber}`, {
     groups,
+    paper,
     updatedAt: serverTimestamp(),
     updatedBy: uid,
   });

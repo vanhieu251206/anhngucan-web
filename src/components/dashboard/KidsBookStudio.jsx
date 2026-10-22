@@ -1,24 +1,11 @@
 import { useState } from "react";
 import { useConfirm } from "./ConfirmDialog.jsx";
 import { PageHead, PageHeadSaveButton } from "./AdminPageHead.jsx";
-import { uploadToCloudinary } from "../../lib/cloudinaryUpload.js";
+import { uploadWithRetry } from "../../lib/cloudinaryUpload.js";
 import { pdfToPageImages } from "../../lib/pdfToImages.js";
 import KidsBookSoundEditor from "./KidsBookSoundEditor.jsx";
 import KidsBookTabsEditor from "./KidsBookTabsEditor.jsx";
 import { optimizeImage } from "../../lib/cloudinaryImage.js";
-
-// Sách dày (hàng trăm trang) tải lên lần lượt hàng trăm ảnh — chỉ cần 1 lần rớt mạng thoáng qua ("Failed to fetch")
-// là hỏng cả lượt, nên mỗi trang thử lại vài lần (chờ lâu dần) trước khi báo lỗi kèm số trang.
-async function uploadWithRetry(file, pageNo, tries = 4) {
-  for (let attempt = 1; ; attempt++) {
-    try {
-      return await uploadToCloudinary(file);
-    } catch (err) {
-      if (attempt >= tries) throw new Error(`Tải lên trang ${pageNo} thất bại: ${err.message}`);
-      await new Promise(resolve => setTimeout(resolve, 1500 * attempt));
-    }
-  }
-}
 
 // Soạn 1 quyển sách cố định của Kids (Student Book/Workbook theo Grade — xem KidsContentPage.jsx)
 // — danh sách ảnh từng trang (lật kiểu flipbook, xem BookReader.jsx) + các track audio đặt ngay

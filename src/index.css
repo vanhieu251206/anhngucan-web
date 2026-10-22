@@ -5309,3 +5309,48 @@ button.wizard-step:focus-visible { outline: 3px solid var(--color-secondary); ou
 .results-leaves { margin: 12px 0; padding: 12px 16px; border-radius: 12px; background: #fdf0f0; border: 1px solid #f3c9c9; color: #991b1b; }
 .results-leaves ul { margin: 6px 0 0; padding-left: 20px; color: #1f2937; font-size: 0.9rem; columns: 2; }
 @media (max-width: 600px) { .results-leaves ul { columns: 1; } }
+
+/* ===== KET/PET Practice Test — đề tải lên PDF/Word (KetPetPaperTestStudio.jsx, KetPetPracticeTestQuiz paper) ===== */
+.admin-segmented.paper-authoring-switch {
+  display: inline-flex; gap: 4px; padding: 4px; margin-bottom: 12px; border-radius: var(--radius-pill);
+  background: #fff; border: 1px solid var(--admin-border); max-width: 100%; flex-wrap: wrap;
+}
+.paper-authoring-switch button {
+  border: 0; background: transparent; padding: 8px 16px; border-radius: var(--radius-pill);
+  font: inherit; font-weight: 700; color: var(--color-muted); cursor: pointer;
+}
+.paper-authoring-switch button.is-active { background: #8B5CF6; color: #fff; }
+.paper-studio-stage { font-weight: 700; color: #8B5CF6; }
+.paper-layout { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(280px, 1fr); gap: 20px; align-items: start; }
+.paper-doc, .paper-sheet { max-height: calc(100vh - 160px); overflow-y: auto; min-width: 0; }
+.paper-doc { background: #f4f1ea; border-radius: 12px; padding: 10px; display: flex; flex-direction: column; gap: 10px; }
+.paper-doc-empty { color: var(--color-muted); text-align: center; padding: 40px 10px; }
+.paper-page { width: 100%; height: auto; display: block; background: #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12); }
+.paper-html { background: #fff; padding: 20px 24px; line-height: 1.6; overflow-wrap: anywhere; }
+.paper-html img { max-width: 100%; height: auto; }
+.paper-html table { border-collapse: collapse; max-width: 100%; }
+.paper-html td, .paper-html th { border: 1px solid #ccc; padding: 4px 8px; }
+.paper-sheet { display: flex; flex-direction: column; gap: 10px; }
+.paper-paste { display: flex; flex-direction: column; gap: 8px; }
+.paper-key-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.paper-key-row { display: flex; align-items: flex-start; gap: 8px; padding: 6px 8px; border: 1px solid #ece6da; border-radius: 10px; background: #fff; }
+.paper-key-num { min-width: 30px; height: 36px; display: inline-flex; align-items: center; justify-content: center; font-weight: 800; color: var(--color-ink); }
+.paper-key-type { max-width: 120px; flex: none; }
+.paper-key-row .admin-input:not(.paper-key-type), .paper-text-cell { flex: 1; min-width: 0; }
+.paper-text-cell .vocab-input { width: 100%; }
+.paper-choice-row { display: flex; gap: 6px; flex-wrap: wrap; }
+.paper-choice {
+  width: 40px; height: 36px; border-radius: 10px; border: 2px solid #ece6da; background: #fff;
+  font: inherit; font-weight: 800; cursor: pointer; color: var(--color-ink);
+}
+.paper-choice.is-picked { border-color: #8B5CF6; background: #8B5CF6; color: #fff; }
+.paper-choice.is-correct { border-color: var(--color-green); }
+.paper-choice.is-correct:not(.is-picked) { background: color-mix(in srgb, var(--color-green) 15%, #fff); }
+.paper-choice.is-wrong { border-color: var(--color-red); background: var(--color-red); color: #fff; }
+.paper-choice:disabled { cursor: default; }
+@media (max-width: 860px) {
+  .paper-layout { grid-template-columns: 1fr; }
+  .paper-doc, .paper-sheet { max-height: none; overflow-y: visible; }
+  .paper-doc { padding: 6px; }
+  .paper-html { padding: 14px; }
+}

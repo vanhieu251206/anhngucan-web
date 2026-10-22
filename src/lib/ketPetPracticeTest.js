@@ -80,6 +80,25 @@ export function isOpenEndedCorrect(userAnswer, hint, sampleAnswer) {
     .some(a => candidates.has(a));
 }
 
+// Dạng của 1 câu: nhóm "split-reading" và "answer-sheet" để dạng riêng từng câu (`q.type`), các nhóm khác dùng dạng nhóm.
+export function questionType(g, q) {
+  return g?.type === "split-reading" || g?.type === "answer-sheet" ? q?.type : g?.type;
+}
+
+// ĐỀ TẢI LÊN (2026-10-23, cách soạn thứ 2 của Practice Test, cô chỉ gõ đáp án): doc có `paper` = { pages: [url ảnh
+// từng trang] } (PDF) hoặc { html } (Word, lib/paperUpload.js), `groups` = đúng 1 nhóm "answer-sheet" — phiếu trả lời
+// đánh số 1..N, mỗi câu 1 điểm. Câu chọn = trắc nghiệm có `options` là chính các chữ A/B/C...; câu gõ = điền từ.
+export const CHOICE_LETTERS = ["A", "B", "C", "D", "E"];
+
+export function blankSheetQuestion(type = "multiple-choice", optionCount = 4) {
+  if (type === "multiple-choice") return { type, options: CHOICE_LETTERS.slice(0, optionCount), answerIndex: null };
+  return { type: "fill-blank", acceptedAnswers: [] };
+}
+
+export function answerSheetGroup(questions = []) {
+  return { type: "answer-sheet", totalPoints: questions.length, questions };
+}
+
 // 1 câu hỏi trong nhóm "split-reading" — có field `type` RIÊNG (khác các nhóm khác) vì mỗi câu tự
 // chọn dạng con (điền chỗ trống / trắc nghiệm), xem SPLIT_QUESTION_TYPES.
 export function blankSplitQuestion(subType = "fill-blank") {
@@ -165,7 +184,7 @@ export function gradePracticeTestGroups(groups, answers) {
       const userAnswer = answers?.[`${gi}-${qi}`];
       // "split-reading": mỗi câu tự chọn dạng con qua `q.type` (xem SPLIT_QUESTION_TYPES), khác các
       // nhóm khác dùng chung `g.type` cho cả nhóm.
-      const effectiveType = g.type === "split-reading" ? q.type : g.type;
+      const effectiveType = questionType(g, q);
       let isCorrect = false;
       if (effectiveType === "multiple-choice" || effectiveType === "pronunciation-underline") {
         isCorrect = isChoiceAnswer(q, userAnswer);

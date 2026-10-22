@@ -155,10 +155,68 @@ function QuestionListSidebar({ groups, answers }) {
   );
 }
 
+// Đề tải lên (paper.pages = ảnh từng trang của PDF, paper.html = file Word đã đổi sang HTML — lib/paperUpload.js).
+export function PaperView({ paper }) {
+  if (paper?.pages?.length) {
+    return paper.pages.map((url, i) => <img key={i} className="paper-page" src={optimizeImage(url)} alt={`Trang ${i + 1}`} loading={i > 1 ? "lazy" : undefined} />);
+  }
+  // HTML đã lọc thẻ lúc tải lên (sanitizePaperHtml) — chỉ còn thẻ định dạng + ảnh.
+  if (paper?.html) return <div className="paper-html" dangerouslySetInnerHTML={{ __html: paper.html }} />;
+  return null;
+}
+
+// Phiếu trả lời của đề tải lên: mỗi câu 1 hàng — số câu + nút A/B/C/D hoặc ô gõ.
+function AnswerSheet({ group, answers, view, locked, onAnswer }) {
+  return (
+    <ol className="paper-key-list paper-answer-list">
+      {group.questions.map((q, qi) => {
+        const value = answers[`0-${qi}`];
+        const r = view?.results?.[0]?.[qi];
+        return (
+          <li key={qi} id={`kq-0-${qi}`} className="paper-key-row">
+            <span className="paper-key-num">{qi + 1}</span>
+            {q.type === "multiple-choice" ? (
+              <div className="paper-choice-row">
+                {q.options.map((letter, oi) => {
+                  const picked = value === oi;
+                  const isRight = view != null && isChoiceAnswer(q, oi);
+                  return (
+                    <button
+                      key={oi}
+                      type="button"
+                      disabled={locked}
+                      aria-pressed={picked}
+                      className={"paper-choice" + (picked ? " is-picked" : "") + (isRight ? " is-correct" : "") + (view != null && picked && !isRight ? " is-wrong" : "")}
+                      onClick={() => onAnswer(qi, picked ? undefined : oi)}
+                    >
+                      {letter}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="paper-text-cell">
+                <input
+                  className={"vocab-input" + (r === true ? " is-correct" : "") + (r === false ? " is-wrong" : "")}
+                  value={value ?? ""}
+                  disabled={locked}
+                  aria-label={`Câu ${qi + 1}`}
+                  onChange={e => onAnswer(qi, e.target.value)}
+                />
+                {view != null && r === false && <p className="vocab-answer-key">Đáp án đúng: {(q.acceptedAnswers ?? []).join(" / ")}</p>}
+              </div>
+            )}
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
 // revealAnswers=true CHỈ dùng cho Preview trong CMS (giáo viên xem đáp án). Học sinh luôn chỉ thấy số câu đúng/tổng.
 // page=true: màn học sinh làm bài toàn màn hình (KetPetPracticeTestRunner.jsx) — thêm cột "Danh sách câu hỏi" ghim
 // bên trái + hỏi lại trước khi nộp, giống ReadingRunner.jsx. Preview trong CMS không có 2 phần này.
-export default function KetPetPracticeTestQuiz({ groups, revealAnswers = false, limitMinutes, canRetry = true, onSubmitted, page = false }) {
+export default function KetPetPracticeTestQuiz({ groups, paper, revealAnswers = false, limitMinutes, canRetry = true, onSubmitted, page = false }) {
   const [answers, setAnswers] = useState({});
   const [result, setResult] = useState(null);
   const [confirmingSubmit, setConfirmingSubmit] = useState(false);
@@ -274,6 +332,45 @@ export default function KetPetPracticeTestQuiz({ groups, revealAnswers = false, 
   }
 
   if (!groups?.length) return <p className="vocab-empty">Chưa có câu hỏi nào.</p>;
+
+  const footer = (
+    <div className="vocab-footer">
+      {submitState ? (
+        <SubmitStatus error={submitState.error} onRetry={handleSubmit} />
+      ) : result == null ? (
+        <button type="button" className="btn btn-primary" onClick={page ? () => setConfirmingSubmit(true) : handleSubmit}>Nộp bài</button>
+      ) : (
+        <>
+          <p className="vocab-score">Điểm: {result.correct.toFixed(2).replace(/\.00$/, "")}/{result.total.toFixed(2).replace(/\.00$/, "")}</p>
+          {canRetry && <button type="button" className="btn btn-primary" onClick={handleRetry}>Làm lại</button>}
+        </>
+      )}
+    </div>
+  );
+  const confirmDialog = confirmingSubmit && (
+    <SubmitConfirmDialog
+      unansweredCount={groups.reduce((n, g, gi) => n + g.questions.filter((_, qi) => !isAnswered(answers[`${gi}-${qi}`])).length, 0)}
+      onCancel={() => setConfirmingSubmit(false)}
+      onConfirm={handleSubmit}
+    />
+  );
+
+  // Đề tải lên: đề bên trái, phiếu trả lời bên phải (điện thoại: đề trên, phiếu dưới).
+  if (paper) {
+    return (
+      <div className="vocab-runner ketpet-test paper-test">
+        {onSubmitted && <ExamTimer timer={timer} />}
+        <div className="paper-layout">
+          <div className="paper-doc"><PaperView paper={paper} /></div>
+          <div className="paper-sheet">
+            <AnswerSheet group={groups[0]} answers={answers} view={view} locked={result != null} onAnswer={(qi, v) => setAnswer(0, qi, v)} />
+            {footer}
+          </div>
+        </div>
+        {confirmDialog}
+      </div>
+    );
+  }
 
   return (
     <div className={page ? "reading-runner reading-runner-page ketpet-test" : "vocab-runner ketpet-test"}>
@@ -492,27 +589,10 @@ export default function KetPetPracticeTestQuiz({ groups, revealAnswers = false, 
           );
         })}
 
-        <div className="vocab-footer">
-          {submitState ? (
-            <SubmitStatus error={submitState.error} onRetry={handleSubmit} />
-          ) : result == null ? (
-            <button type="button" className="btn btn-primary" onClick={page ? () => setConfirmingSubmit(true) : handleSubmit}>Nộp bài</button>
-          ) : (
-            <>
-              <p className="vocab-score">Điểm: {result.correct.toFixed(2).replace(/\.00$/, "")}/{result.total.toFixed(2).replace(/\.00$/, "")}</p>
-              {canRetry && <button type="button" className="btn btn-primary" onClick={handleRetry}>Làm lại</button>}
-            </>
-          )}
-        </div>
+        {footer}
       </div>
 
-      {confirmingSubmit && (
-        <SubmitConfirmDialog
-          unansweredCount={groups.reduce((n, g, gi) => n + g.questions.filter((_, qi) => !isAnswered(answers[`${gi}-${qi}`])).length, 0)}
-          onCancel={() => setConfirmingSubmit(false)}
-          onConfirm={handleSubmit}
-        />
-      )}
+      {confirmDialog}
     </div>
   );
 }
