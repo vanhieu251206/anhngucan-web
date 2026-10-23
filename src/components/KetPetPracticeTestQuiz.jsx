@@ -165,15 +165,43 @@ export function PaperView({ paper }) {
   return null;
 }
 
-// Phiếu trả lời của đề tải lên: mỗi câu 1 hàng — số câu + nút A/B/C/D hoặc ô gõ.
-function AnswerSheet({ group, answers, view, locked, onAnswer }) {
+// Phiếu trả lời của đề tải lên: mỗi câu 1 hàng — số câu + nút A/B/C/D hoặc ô gõ. Audio theo đoạn câu (paper.audios):
+// khung "🎧 Nghe cho câu X–Y" + trình phát đặt ngay trên câu X, các câu X..Y có viền màu bên trái cùng khung đó.
+function AnswerSheet({ group, audios, answers, view, locked, onAnswer }) {
+  const clips = (audios ?? []).filter(a => a?.url && a.from).map(a => ({ ...a, to: Math.max(a.to || a.from, a.from) }));
+  const inClip = n => clips.some(a => n >= a.from && n <= a.to);
   return (
     <ol className="paper-key-list paper-answer-list">
       {group.questions.map((q, qi) => {
+        const starts = clips.filter(a => a.from === qi + 1);
+        const row = renderRow(q, qi, inClip(qi + 1) ? " paper-in-audio" : "");
+        return (
+          <Fragment key={qi}>
+            {starts.map((a, k) => (
+              <li key={`audio-${k}`} className="paper-audio-head">
+                <span className="paper-audio-label">🎧 Nghe cho {a.to > a.from ? `câu ${a.from}–${a.to}` : `câu ${a.from}`}</span>
+                <audio src={a.url} controls preload="none" controlsList="nodownload" />
+              </li>
+            ))}
+            {row}
+          </Fragment>
+        );
+      })}
+    </ol>
+  );
+
+  function renderRow(q, qi, extraClass) {
         const value = answers[`0-${qi}`];
         const r = view?.results?.[0]?.[qi];
+        if (q.skip) {
+          return (
+            <li key={qi} id={`kq-0-${qi}`} className={`paper-key-row is-skipped${extraClass}`}>
+              <span className="paper-skip-text">Câu {qi + 1}: không cần làm</span>
+            </li>
+          );
+        }
         return (
-          <li key={qi} id={`kq-0-${qi}`} className="paper-key-row">
+          <li key={qi} id={`kq-0-${qi}`} className={`paper-key-row${extraClass}`}>
             <span className="paper-key-num">{qi + 1}</span>
             {q.type === "multiple-choice" ? (
               <div className="paper-choice-row">
@@ -208,9 +236,7 @@ function AnswerSheet({ group, answers, view, locked, onAnswer }) {
             )}
           </li>
         );
-      })}
-    </ol>
-  );
+  }
 }
 
 // revealAnswers=true CHỈ dùng cho Preview trong CMS (giáo viên xem đáp án). Học sinh luôn chỉ thấy số câu đúng/tổng.
@@ -349,7 +375,7 @@ export default function KetPetPracticeTestQuiz({ groups, paper, revealAnswers = 
   );
   const confirmDialog = confirmingSubmit && (
     <SubmitConfirmDialog
-      unansweredCount={groups.reduce((n, g, gi) => n + g.questions.filter((_, qi) => !isAnswered(answers[`${gi}-${qi}`])).length, 0)}
+      unansweredCount={groups.reduce((n, g, gi) => n + g.questions.filter((q, qi) => !q.skip && !isAnswered(answers[`${gi}-${qi}`])).length, 0)}
       onCancel={() => setConfirmingSubmit(false)}
       onConfirm={handleSubmit}
     />
@@ -363,7 +389,7 @@ export default function KetPetPracticeTestQuiz({ groups, paper, revealAnswers = 
         <div className="paper-layout">
           <div className="paper-doc"><PaperView paper={paper} /></div>
           <div className="paper-sheet">
-            <AnswerSheet group={groups[0]} answers={answers} view={view} locked={result != null} onAnswer={(qi, v) => setAnswer(0, qi, v)} />
+            <AnswerSheet group={groups[0]} audios={paper.audios} answers={answers} view={view} locked={result != null} onAnswer={(qi, v) => setAnswer(0, qi, v)} />
             {footer}
           </div>
         </div>

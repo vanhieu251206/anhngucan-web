@@ -287,7 +287,13 @@ export function validatePaperTest(paper, groups) {
   if (!paper?.pages?.length && !paper?.html) out.push("Chưa tải đề lên.");
   const qs = groups?.[0]?.questions ?? [];
   if (!qs.length) out.push("Chưa có câu nào trong phiếu trả lời.");
+  (paper?.audios ?? []).forEach((a, i) => {
+    const w = `Audio ${i + 1}`;
+    if (!a.url) out.push(`${w}: chưa có file.`);
+    if (!a.from || (a.to && a.to < a.from) || a.from > qs.length || (a.to ?? 0) > qs.length) out.push(`${w}: khoảng câu chưa đúng.`);
+  });
   qs.forEach((q, i) => {
+    if (q.skip) return;
     const missing = q.type === "multiple-choice" ? q.answerIndex == null : !(q.acceptedAnswers ?? []).some(filled);
     if (missing) out.push(`Câu ${i + 1}: chưa có đáp án.`);
   });

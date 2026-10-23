@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useConfirm } from "./ConfirmDialog.jsx";
 import { PageHead, PageHeadSaveButton } from "./AdminPageHead.jsx";
 import CommaListInput from "./CommaListInput.jsx";
+import AudioUploadField from "./AudioUploadField.jsx";
 import KetPetPracticeTestQuiz, { PaperView } from "../KetPetPracticeTestQuiz.jsx";
 import { CHOICE_LETTERS, answerSheetGroup, blankSheetQuestion } from "../../lib/ketPetPracticeTest.js";
 import { validatePaperTest } from "../../lib/lessonValidation.js";
@@ -33,6 +34,10 @@ export default function KetPetPaperTestStudio({ accent, unitTitle, gradeTitle, t
   const [pasteOpen, setPasteOpen] = useState(false);
   const [pasteText, setPasteText] = useState("");
   const [previewOpen, setPreviewOpen] = useState(false);
+  // Audio theo ĐOẠN CÂU: paper.audios = [{ from, to, url }] — 1 file nghe dùng cho câu from..to.
+  const audios = paper?.audios ?? [];
+  const setAudios = list => onPaperChange({ ...paper, audios: list });
+  const updateAudio = (ai, patch) => setAudios(audios.map((a, k) => (k === ai ? { ...a, ...patch } : a)));
   const questions = groups[0]?.questions ?? [];
 
   const setQuestions = qs => onGroupsChange([answerSheetGroup(qs)]);
@@ -45,7 +50,8 @@ export default function KetPetPaperTestStudio({ accent, unitTitle, gradeTitle, t
     if (paper && !(await confirm("Thay đề hiện có bằng file này? Đáp án đã nhập vẫn giữ nguyên."))) return;
     setError("");
     try {
-      onPaperChange(await uploadPaper(file, setStage));
+      const next = await uploadPaper(file, setStage);
+      onPaperChange(audios.length ? { ...next, audios } : next);
     } catch (err) {
       setError(err.message || "Tải đề thất bại");
     } finally {
@@ -89,6 +95,7 @@ export default function KetPetPaperTestStudio({ accent, unitTitle, gradeTitle, t
 
       <div className="paper-layout paper-layout-studio">
         <div className="paper-doc">
+
           {paper ? <PaperView paper={paper} /> : <p className="paper-doc-empty">Chưa có đề — bấm "Tải đề (PDF / Word)".</p>}
         </div>
 
@@ -112,10 +119,27 @@ export default function KetPetPaperTestStudio({ accent, unitTitle, gradeTitle, t
             </div>
           )}
 
+          <div className="paper-audio-list">
+            {audios.map((a, ai) => (
+              <div key={ai} className="paper-audio-item">
+                <div className="admin-practice-option-row">
+                  <span style={{ whiteSpace: "nowrap", fontWeight: 700 }}>🎧 Audio câu</span>
+                  <input className="admin-input" type="number" min="1" style={{ maxWidth: 80 }} value={a.from ?? ""} onChange={e => updateAudio(ai, { from: Number(e.target.value) || null })} aria-label="Từ câu" />
+                  <span>→</span>
+                  <input className="admin-input" type="number" min="1" style={{ maxWidth: 80 }} value={a.to ?? ""} onChange={e => updateAudio(ai, { to: Number(e.target.value) || null })} aria-label="Tới câu" />
+                  <button type="button" className="admin-link-btn admin-pill-btn-danger" style={{ marginLeft: "auto" }} onClick={() => setAudios(audios.filter((_, k) => k !== ai))}>Xoá</button>
+                </div>
+                <AudioUploadField label="" value={a.url} onChange={url => updateAudio(ai, { url })} />
+              </div>
+            ))}
+            <button type="button" className="admin-link-btn" style={{ alignSelf: "flex-start" }} onClick={() => setAudios([...audios, { from: null, to: null, url: "" }])}>🎵 Chèn audio cho đoạn câu</button>
+          </div>
+
           <ol className="paper-key-list">
             {questions.map((q, i) => (
-              <li key={i} className="paper-key-row">
+              <li key={i} className={`paper-key-row${q.skip ? " is-skipped" : ""}`}>
                 <span className="paper-key-num">{i + 1}</span>
+                {q.skip ? <span className="paper-skip-text">Không cần làm</span> : (<>
                 <select
                   className="admin-input paper-key-type"
                   value={q.type === "multiple-choice" ? `mc${q.options.length}` : "text"}
@@ -154,6 +178,16 @@ export default function KetPetPaperTestStudio({ accent, unitTitle, gradeTitle, t
                     placeholder="Đáp án — nhiều cách viết ngăn bằng |"
                   />
                 )}
+                </>)}
+                <button
+                  type="button"
+                  className={`paper-skip-toggle${q.skip ? "" : " is-on"}`}
+                  title={q.skip ? "Bật lại câu này" : "Tắt câu này (học sinh không cần làm)"}
+                  aria-pressed={!q.skip}
+                  onClick={() => updateQuestion(i, { skip: q.skip ? undefined : true })}
+                >
+                  {q.skip ? "Tắt" : "Bật"}
+                </button>
               </li>
             ))}
           </ol>

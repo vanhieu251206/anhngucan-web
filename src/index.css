@@ -5354,3 +5354,26 @@ button.wizard-step:focus-visible { outline: 3px solid var(--color-secondary); ou
   .paper-doc { padding: 6px; }
   .paper-html { padding: 14px; }
 }
+.paper-key-row { align-items: center; }
+.paper-key-row.is-skipped { background: #f4f1ea; }
+.paper-skip-text { flex: 1; color: var(--color-muted); font-style: italic; padding: 6px 0; }
+.paper-skip-toggle {
+  flex: none; margin-left: auto; min-width: 52px; height: 32px; border-radius: var(--radius-pill); cursor: pointer;
+  border: 2px solid #ece6da; background: #fff; color: var(--color-muted); font: inherit; font-weight: 800; font-size: 0.85rem;
+}
+.paper-skip-toggle.is-on { border-color: var(--color-green); background: var(--color-green); color: #fff; }
+.paper-audio-list { display: flex; flex-direction: column; gap: 8px; }
+.paper-audio-item { border: 1px dashed #c4b5fd; border-radius: 10px; padding: 8px; display: flex; flex-direction: column; gap: 6px; background: #faf8ff; }
+.paper-audio-head {
+  display: flex; flex-direction: column; gap: 6px; margin-top: 6px; padding: 10px 12px;
+  border-radius: 10px; background: #ede9fe; border-left: 5px solid #8B5CF6;
+}
+.paper-audio-label { font-weight: 800; color: #6d28d9; }
+.paper-audio-head audio { width: 100%; }
+.paper-key-row.paper-in-audio { border-left: 5px solid #8B5CF6; }
+/* Trang soạn: số câu + kiểu câu + đáp án + nút Bật/Tắt nằm gọn 1 hàng. */
+.paper-layout-studio .paper-key-row { flex-wrap: nowrap; gap: 6px; }
+.paper-layout-studio .paper-key-type { max-width: 108px; padding-left: 8px; padding-right: 4px; }
+.paper-layout-studio .paper-choice-row { flex-wrap: nowrap; gap: 4px; flex: 1; min-width: 0; }
+.paper-layout-studio .paper-choice { width: 34px; flex: none; }
+.paper-layout-studio .paper-key-num { min-width: 24px; }

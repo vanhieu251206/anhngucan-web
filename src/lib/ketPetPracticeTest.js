@@ -96,7 +96,7 @@ export function blankSheetQuestion(type = "multiple-choice", optionCount = 4) {
 }
 
 export function answerSheetGroup(questions = []) {
-  return { type: "answer-sheet", totalPoints: questions.length, questions };
+  return { type: "answer-sheet", totalPoints: questions.filter(q => !q.skip).length, questions };
 }
 
 // 1 câu hỏi trong nhóm "split-reading" — có field `type` RIÊNG (khác các nhóm khác) vì mỗi câu tự
@@ -179,8 +179,10 @@ export function gradePracticeTestGroups(groups, answers) {
     if (g.type === "free-response" || count === 0) {
       return g.questions.map(() => null);
     }
-    const perQuestion = (Number(g.totalPoints) || 0) / count;
+    // Đề tải lên: mỗi câu 1 điểm; câu cô tắt (`skip`) không chấm, không tính vào tổng.
+    const perQuestion = g.type === "answer-sheet" ? 1 : (Number(g.totalPoints) || 0) / count;
     return g.questions.map((q, qi) => {
+      if (q.skip) return null;
       const userAnswer = answers?.[`${gi}-${qi}`];
       // "split-reading": mỗi câu tự chọn dạng con qua `q.type` (xem SPLIT_QUESTION_TYPES), khác các
       // nhóm khác dùng chung `g.type` cho cả nhóm.
