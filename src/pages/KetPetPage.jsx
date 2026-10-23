@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import Header from "../components/Header.jsx";
 import KetPetVocabularyRunner from "../components/KetPetVocabularyRunner.jsx";
 import KetPetPracticeTestRunner from "../components/KetPetPracticeTestRunner.jsx";
-import { KET_PET_GRADES, KET_PET_UNITS_PER_GRADE } from "../lib/yleData.js";
+import { KET_PET_GRADES } from "../lib/yleData.js";
+import { getKetPetFolders, parseUnitKey, unitEntries, unitLabel } from "../lib/ketPetFolders.js";
 import { useAuth } from "../lib/authContext.jsx";
 import { useOpeningGuard } from "../lib/useOpeningGuard.jsx";
 import { useClassBook } from "../lib/useClassBook.js";
@@ -21,6 +22,15 @@ export default function KetPetPage({ onNavigate }) {
   const [testNumber, setTestNumber] = useState(null);
   const { user, isStaff, isAdmin, profile } = useAuth();
   const { guardStart, checking, screen, activeOpening } = useOpeningGuard();
+  // Thư mục tự đặt tên chèn giữa các Unit (lib/ketPetFolders.js).
+  const [folders, setFolders] = useState([]);
+  useEffect(() => {
+    if (grade == null) return;
+    let cancelled = false;
+    getKetPetFolders(grade).then(list => { if (!cancelled) setFolders(list); }, () => {});
+    return () => { cancelled = true; };
+  }, [grade]);
+  const unitName = unitLabel(unit, folders);
 
   // Vào thẳng 1 bài từ chuông thông báo (AssignmentBell.jsx): ?level=<grade>&go=ketpet-vocab~unit5 | ketpet-test~unit5-test2.
   useEffect(() => {
@@ -29,17 +39,17 @@ export default function KetPetPage({ onNavigate }) {
     const g = Number(p.get("level"));
     if (!go) return;
     setParams({ go: null, level: null }, { replace: true });
-    const m = go.match(/^(ketpet-vocab|ketpet-test)~unit(\d+)(?:-test(\d+))?$/);
+    const m = go.match(/^(ketpet-vocab|ketpet-test)~unit([a-z0-9]+?)(?:-test(\d+))?$/);
     if (!m || !KET_PET_GRADES.includes(g)) return;
     const [, kind, u, t] = m;
     const testId = go.slice(kind.length + 1);
     setGrade(g);
-    setUnit(Number(u));
+    setUnit(parseUnitKey(u));
     if (kind === "ketpet-vocab") {
-      guardStart(kind, { id: testId, title: `Grade ${g} · Unit ${u} · Vocabulary` }, { seriesId: "ket-pet", level: g }, () => setVocabActive(true));
+      guardStart(kind, { id: testId, title: `Grade ${g} · ${/^\d+$/.test(u) ? `Unit ${u}` : "Thư mục"} · Vocabulary` }, { seriesId: "ket-pet", level: g }, () => setVocabActive(true));
     } else if (t) {
       setPracticeTestOpen(true);
-      guardStart(kind, { id: testId, title: `Grade ${g} · Unit ${u} · Test ${t}` }, { seriesId: "ket-pet", level: g }, () => setTestNumber(Number(t)));
+      guardStart(kind, { id: testId, title: `Grade ${g} · ${/^\d+$/.test(u) ? `Unit ${u}` : "Thư mục"} · Test ${t}` }, { seriesId: "ket-pet", level: g }, () => setTestNumber(Number(t)));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -60,6 +70,7 @@ export default function KetPetPage({ onNavigate }) {
       <KetPetVocabularyRunner
         grade={grade}
         unit={unit}
+        unitTitle={unitName}
         onNavigate={onNavigate}
         onBack={() => setVocabActive(false)}
         ctx={ctx}
@@ -72,6 +83,7 @@ export default function KetPetPage({ onNavigate }) {
       <KetPetPracticeTestRunner
         grade={grade}
         unit={unit}
+        unitTitle={unitName}
         testNumber={testNumber}
         onNavigate={onNavigate}
         onBack={() => setTestNumber(null)}
@@ -81,7 +93,7 @@ export default function KetPetPage({ onNavigate }) {
   }
 
   function backLabel() {
-    if (practiceTestOpen) return `Grade ${grade} — Unit ${unit}`;
+    if (practiceTestOpen) return `Grade ${grade} — ${unitName}`;
     if (unit != null) return `Grade ${grade}`;
     if (grade != null) return "KET / PET";
     return "Trang chủ";
@@ -100,10 +112,10 @@ export default function KetPetPage({ onNavigate }) {
     title = `Grade ${grade}`;
     subtitle = "Chọn Unit";
   } else if (grade != null && unit != null && !practiceTestOpen) {
-    title = `Grade ${grade} — Unit ${unit}`;
+    title = `Grade ${grade} — ${unitName}`;
     subtitle = "";
   } else if (practiceTestOpen) {
-    title = `Grade ${grade} — Unit ${unit} — Practice Test`;
+    title = `Grade ${grade} — ${unitName} — Practice Test`;
     subtitle = "Chọn Test";
   }
 
@@ -144,14 +156,14 @@ export default function KetPetPage({ onNavigate }) {
 
         {grade != null && unit == null && (
           <div className="content-grid ketpet-unit-grid">
-            {Array.from({ length: KET_PET_UNITS_PER_GRADE }, (_, i) => i + 1).map(u => (
+            {unitEntries(folders).map(en => (
               <button
-                key={u}
+                key={en.key}
                 className="content-card-v2 content-card-v2-center ielts-skill-tile"
                 style={{ "--accent": "#8B5CF6" }}
-                onClick={() => setUnit(u)}
+                onClick={() => setUnit(en.key)}
               >
-                <span className="ielts-skill-tile-label">{`Unit ${u}`}</span>
+                <span className="ielts-skill-tile-label">{en.folder ? `📁 ${en.label}` : en.label}</span>
               </button>
             ))}
           </div>
@@ -164,7 +176,7 @@ export default function KetPetPage({ onNavigate }) {
               className="content-card-v2 content-card-v2-center"
               style={{ "--accent": "#8B5CF6" }}
               disabled={checking}
-              onClick={() => guardStart("ketpet-vocab", { id: `unit${unit}`, title: `Grade ${grade} · Unit ${unit} · Vocabulary` }, { seriesId: "ket-pet", level: grade }, () => setVocabActive(true))}
+              onClick={() => guardStart("ketpet-vocab", { id: `unit${unit}`, title: `Grade ${grade} · ${unitName} · Vocabulary` }, { seriesId: "ket-pet", level: grade }, () => setVocabActive(true))}
             >
               <div className="card-banner-strip">
                 <span>Vocabulary</span>
@@ -198,7 +210,7 @@ export default function KetPetPage({ onNavigate }) {
                 className="content-card-v2 content-card-v2-center"
                 style={{ "--accent": "#8B5CF6" }}
                 disabled={checking}
-                onClick={() => guardStart("ketpet-test", { id: `unit${unit}-test${t}`, title: `Grade ${grade} · Unit ${unit} · Test ${t}` }, { seriesId: "ket-pet", level: grade }, () => setTestNumber(t))}
+                onClick={() => guardStart("ketpet-test", { id: `unit${unit}-test${t}`, title: `Grade ${grade} · ${unitName} · Test ${t}` }, { seriesId: "ket-pet", level: grade }, () => setTestNumber(t))}
               >
                 <div className="card-banner-strip">
                   <span>{`Test ${t}`}</span>

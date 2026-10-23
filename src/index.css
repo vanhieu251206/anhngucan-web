@@ -5377,3 +5377,10 @@ button.wizard-step:focus-visible { outline: 3px solid var(--color-secondary); ou
 .paper-layout-studio .paper-choice-row { flex-wrap: nowrap; gap: 4px; flex: 1; min-width: 0; }
 .paper-layout-studio .paper-choice { width: 34px; flex: none; }
 .paper-layout-studio .paper-key-num { min-width: 24px; }
+/* Thư mục tự đặt tên trong danh sách Unit KET/PET (KetPetContentPage.jsx) */
+.ketpet-unit-tile-wrap { position: relative; display: flex; }
+.ketpet-unit-tile-wrap > .admin-picker-tile { flex: 1; }
+.admin-picker-tile.is-folder { border-style: dashed; }
+.ketpet-folder-actions { position: absolute; top: 6px; right: 6px; display: flex; gap: 2px; }
+.ketpet-folder-form { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 14px; }
+.ketpet-folder-form .admin-input { flex: 1 1 200px; min-width: 0; }

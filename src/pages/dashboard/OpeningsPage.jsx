@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { YLE_SERIES, KET_PET_GRADES, KET_PET_UNITS_PER_GRADE, KIDS_GRADES } from "../../lib/yleData.js";
+import { YLE_SERIES, KET_PET_GRADES, KIDS_GRADES } from "../../lib/yleData.js";
+import { getKetPetFolders, parseUnitKey, unitEntries, unitLabel } from "../../lib/ketPetFolders.js";
 import { loadLevelContent } from "../../lib/lessons.js";
 import { listListeningExamTests } from "../../lib/adminLessons.js";
 import { listClassDocs, bookAllowsLevel, bookAllowsSeries, bookKeys, formatBook, formatSchedule } from "../../lib/classes.js";
@@ -74,6 +75,7 @@ export default function OpeningsPage() {
   const [levelNo, setLevelNo] = useState(1);
   const [kind, setKind] = useState("speaking");
   const [unit, setUnit] = useState(1);
+  const [ketFolders, setKetFolders] = useState([]);
   const [testChoice, setTestChoice] = useState("");
   const [choices, setChoices] = useState([]); // [{ id, title }]
   const [expiresAt, setExpiresAt] = useState("");
@@ -144,15 +146,25 @@ export default function OpeningsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [seriesId, levelKey]);
 
+  // Thư mục tự đặt tên của Grade KET/PET đang chọn (lib/ketPetFolders.js) — đổi Grade thì về Unit 1.
+  useEffect(() => {
+    if (!isKetPet || !levelNo) return;
+    let cancelled = false;
+    setUnit(1);
+    getKetPetFolders(levelNo).then(list => { if (!cancelled) setKetFolders(list); }, () => {});
+    return () => { cancelled = true; };
+  }, [isKetPet, levelNo]);
+
   // Nạp danh sách bài chọn được theo bộ đề/cấp/dạng.
   useEffect(() => {
     let cancelled = false;
     setTestChoice("");
     if (isKetPet) {
+      const u = unitLabel(unit, ketFolders);
       const list =
         kind === "ketpet-vocab"
-          ? [{ id: `unit${unit}`, title: `Grade ${levelNo} – Unit ${unit} – Vocabulary` }]
-          : [1, 2, 3, 4].map(n => ({ id: `unit${unit}-test${n}`, title: `Grade ${levelNo} – Unit ${unit} – Practice Test ${n}` }));
+          ? [{ id: `unit${unit}`, title: `Grade ${levelNo} – ${u} – Vocabulary` }]
+          : [1, 2, 3, 4].map(n => ({ id: `unit${unit}-test${n}`, title: `Grade ${levelNo} – ${u} – Practice Test ${n}` }));
       setChoices(list);
       setTestChoice(list[0].id);
       return;
@@ -179,7 +191,7 @@ export default function OpeningsPage() {
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [seriesId, levelNo, kind, unit]);
+  }, [seriesId, levelNo, kind, unit, ketFolders]);
 
   async function handleCreate(e) {
     e.preventDefault();
@@ -488,8 +500,8 @@ export default function OpeningsPage() {
           {isKetPet && (
             <label className="admin-mini-field opening-span-2">
               <span>Unit</span>
-              <select className="admin-input" value={unit} onChange={e => setUnit(Number(e.target.value))}>
-                {Array.from({ length: KET_PET_UNITS_PER_GRADE }, (_, i) => i + 1).map(n => <option key={n} value={n}>{n}</option>)}
+              <select className="admin-input" value={String(unit)} onChange={e => setUnit(parseUnitKey(e.target.value))}>
+                {unitEntries(ketFolders).map(en => <option key={en.key} value={String(en.key)}>{en.folder ? `📁 ${en.label}` : en.key}</option>)}
               </select>
             </label>
           )}

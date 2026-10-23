@@ -9,7 +9,7 @@ import { getKetPetPracticeTest } from "../lib/adminLessons.js";
 // KetPetVocabularyRunner.jsx: tải nội dung từ Firestore rồi giao phần tương tác cho
 // KetPetPracticeTestQuiz.jsx (dùng chung với Preview trong CMS). Cho làm lại thoải mái (không giới
 // hạn lượt, không qua attempts.js).
-export default function KetPetPracticeTestRunner({ grade, unit, testNumber, onBack, ctx }) {
+export default function KetPetPracticeTestRunner({ grade, unit, unitTitle, testNumber, onBack, ctx }) {
   const { isStaff, isTester } = useAuth();
   const canReview = isStaff || isTester; // hiện đáp án + cho làm lại: admin/giáo viên/tài khoản đặc biệt
   const [doc, setDoc] = useState(undefined); // undefined = đang tải, null = chưa có nội dung
@@ -25,7 +25,7 @@ export default function KetPetPracticeTestRunner({ grade, unit, testNumber, onBa
 
   const submitToServer = useTestSubmission({
     kind: "ketpet-test", seriesId: "ket-pet", level: grade, testId: `unit${unit}-test${testNumber}`, openingId: ctx?.openingId,
-    lessonLabel: `KET/PET Grade ${grade} · Unit ${unit} · Test ${testNumber}`, studentName: ctx?.studentName,
+    lessonLabel: `KET/PET Grade ${grade} · ${unitTitle ?? `Unit ${unit}`} · Test ${testNumber}`, studentName: ctx?.studentName,
   });
 
   // Máy chủ chấm + ghi kết quả + cộng lượt (lib/testSubmit.js). Học sinh: trả Promise điểm để quiz hiện; admin/giáo
@@ -46,7 +46,7 @@ export default function KetPetPracticeTestRunner({ grade, unit, testNumber, onBa
     <div className="reading-fullscreen">
       <div className="speaking-fullscreen-topbar">
         <button className="speaking-fullscreen-back" onClick={onBack}>⬅ Quay lại</button>
-        <span className="speaking-fullscreen-title">{`Grade ${grade} · Unit ${unit} · Practice Test ${testNumber}`}</span>
+        <span className="speaking-fullscreen-title">{`Grade ${grade} · ${unitTitle ?? `Unit ${unit}`} · Practice Test ${testNumber}`}</span>
       </div>
       <div className="speaking-fullscreen-body reading-fullscreen-body">
         {doc === undefined && <p className="ketpet-test-empty">Đang tải...</p>}

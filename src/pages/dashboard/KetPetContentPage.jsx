@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../../lib/authContext.jsx";
-import { KET_PET_GRADES, KET_PET_UNITS_PER_GRADE } from "../../lib/yleData.js";
+import { KET_PET_GRADES } from "../../lib/yleData.js";
+import { getKetPetFolders, newFolderId, saveKetPetFolders, unitEntries, unitLabel } from "../../lib/ketPetFolders.js";
 import { getVocabularyUnit, saveVocabularyUnit, getKetPetPracticeTest, saveKetPetPracticeTest } from "../../lib/adminLessons.js";
 import KetPetVocabularyStudio, { EMPTY_VOCAB_GROUPS } from "../../components/dashboard/KetPetVocabularyStudio.jsx";
 import KetPetPracticeTestStudio, { EMPTY_PRACTICE_TEST_GROUPS } from "../../components/dashboard/KetPetPracticeTestStudio.jsx";
@@ -11,7 +12,35 @@ import { levelAccessOf } from "../../lib/teacherScope.js";
 
 const ACCENT = "#8B5CF6";
 
-// CMS soạn KET/PET — Grade (6-9) → Unit (1-16) → Vocabulary/Practice Test (Test 1-4). Tách riêng khỏi
+// Thêm / sửa 1 thư mục: tên + vị trí (đứng sau Unit/thư mục nào). `entries` = danh sách hiện tại (bỏ chính nó khi sửa).
+function FolderForm({ initial, entries, onCancel, onSubmit }) {
+  const [name, setName] = useState(initial?.name ?? "");
+  const [after, setAfter] = useState(String(initial?.after ?? entries[entries.length - 1]?.key ?? 0));
+  const [busy, setBusy] = useState(false);
+  async function submit(e) {
+    e.preventDefault();
+    if (!name.trim()) return;
+    setBusy(true);
+    try {
+      await onSubmit({ name: name.trim(), after: /^\d+$/.test(after) ? Number(after) : after });
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <form className="ketpet-folder-form" onSubmit={submit}>
+      <input className="admin-input" autoFocus value={name} onChange={e => setName(e.target.value)} placeholder="Tên thư mục — VD: Ôn thi giữa kỳ" />
+      <select className="admin-input" value={after} onChange={e => setAfter(e.target.value)} aria-label="Vị trí">
+        <option value="0">Đầu danh sách</option>
+        {entries.map(en => <option key={en.key} value={String(en.key)}>{`Sau ${en.label}`}</option>)}
+      </select>
+      <button type="submit" className="admin-btn-secondary" disabled={busy || !name.trim()}>{busy ? "Đang lưu..." : "Lưu"}</button>
+      <button type="button" className="admin-link-btn" onClick={onCancel}>Huỷ</button>
+    </form>
+  );
+}
+
+// CMS soạn KET/PET — Grade (6-9) → Unit (1-16) + thư mục tự đặt tên (lib/ketPetFolders.js) → Vocabulary/Practice Test (Test 1-4). Tách riêng khỏi
 // CreateLessonPage.jsx vì KET/PET không đi theo Level/Test như các bộ khác (xem yleData.js, App.jsx
 // `ket-pet` branch).
 export default function KetPetContentPage() {
@@ -32,6 +61,34 @@ export default function KetPetContentPage() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [folders, setFolders] = useState([]);
+  const [folderForm, setFolderForm] = useState(null); // null | { id? } — đang thêm / sửa thư mục
+  const unitTitle = unitLabel(unit, folders);
+
+  useEffect(() => {
+    if (grade == null) return;
+    let cancelled = false;
+    setFolders([]);
+    getKetPetFolders(grade).then(list => { if (!cancelled) setFolders(list); });
+    return () => { cancelled = true; };
+  }, [grade]);
+
+  async function submitFolder(values) {
+    const next = folderForm.id
+      ? folders.map(f => (f.id === folderForm.id ? { ...f, ...values } : f))
+      : [...folders, { id: newFolderId(), ...values }];
+    await saveKetPetFolders(grade, next, user.uid);
+    setFolders(next);
+    setFolderForm(null);
+  }
+
+  async function removeFolder(f) {
+    if (!(await confirm(`Xoá thư mục "${f.name}"? Học sinh sẽ không thấy thư mục này nữa (các bài đã soạn bên trong vẫn được giữ, tạo lại thư mục không lấy lại được).`, { danger: true }))) return;
+    // Thư mục đứng sau thư mục bị xoá thì nối vào chỗ neo của nó, giữ nguyên thứ tự.
+    const next = folders.filter(x => x.id !== f.id).map(x => (x.after === f.id ? { ...x, after: f.after } : x));
+    await saveKetPetFolders(grade, next, user.uid);
+    setFolders(next);
+  }
 
   useEffect(() => {
     if (grade == null || unit == null || mode !== "vocabulary") return;
@@ -98,13 +155,32 @@ export default function KetPetContentPage() {
         <button type="button" className="admin-pill-btn" onClick={() => setGrade(null)}>← Chọn khối khác</button>
         <h2>{`Grade ${grade} — chọn Unit`}</h2>
         <div className="admin-picker-grid">
-          {Array.from({ length: KET_PET_UNITS_PER_GRADE }, (_, i) => i + 1).map(u => (
-            <button key={u} className="admin-picker-tile" style={{ "--accent": ACCENT }} onClick={() => { setUnit(u); setMode(null); setPracticeTest(null); }}>
-              <span className="admin-picker-tile-dot" />
-              <span className="admin-picker-tile-title">{`Unit ${u}`}</span>
-            </button>
+          {unitEntries(folders).map(en => (
+            <div key={en.key} className="ketpet-unit-tile-wrap">
+              <button className={`admin-picker-tile${en.folder ? " is-folder" : ""}`} style={{ "--accent": ACCENT }} onClick={() => { setUnit(en.key); setMode(null); setPracticeTest(null); }}>
+                <span className="admin-picker-tile-dot" />
+                <span className="admin-picker-tile-title">{en.folder ? `📁 ${en.label}` : en.label}</span>
+              </button>
+              {en.folder && (
+                <div className="ketpet-folder-actions">
+                  <button type="button" className="admin-link-btn" title="Sửa tên / vị trí" onClick={() => setFolderForm({ id: en.folder.id })}>✎</button>
+                  <button type="button" className="admin-link-btn admin-pill-btn-danger" title="Xoá thư mục" onClick={() => removeFolder(en.folder)}>🗑</button>
+                </div>
+              )}
+            </div>
           ))}
         </div>
+        {folderForm ? (
+          <FolderForm
+            key={folderForm.id ?? "new"}
+            initial={folders.find(f => f.id === folderForm.id)}
+            entries={unitEntries(folders).filter(en => en.key !== folderForm.id)}
+            onCancel={() => setFolderForm(null)}
+            onSubmit={submitFolder}
+          />
+        ) : (
+          <button type="button" className="admin-btn-secondary" style={{ marginTop: 14 }} onClick={() => setFolderForm({})}>📁 Thêm thư mục</button>
+        )}
       </div>
     );
   }
@@ -113,7 +189,7 @@ export default function KetPetContentPage() {
     return (
       <div className="admin-card">
         <button type="button" className="admin-pill-btn" onClick={() => setUnit(null)}>← Chọn Unit khác</button>
-        <h2>{`Grade ${grade} — Unit ${unit} — chọn dạng bài`}</h2>
+        <h2>{`Grade ${grade} — ${unitTitle} — chọn dạng bài`}</h2>
         <div className="admin-picker-grid">
           <button className="admin-picker-tile" style={{ "--accent": ACCENT }} onClick={() => setMode("vocabulary")}>
             <span className="admin-picker-tile-dot" />
@@ -132,7 +208,7 @@ export default function KetPetContentPage() {
     return (
       <div className="admin-card">
         <button type="button" className="admin-pill-btn" onClick={() => setMode(null)}>← Chọn dạng bài khác</button>
-        <h2>{`Grade ${grade} — Unit ${unit} — Practice Test — chọn Test`}</h2>
+        <h2>{`Grade ${grade} — ${unitTitle} — Practice Test — chọn Test`}</h2>
         <div className="admin-picker-grid">
           {[1, 2, 3, 4].map(t => (
             <button
@@ -164,7 +240,7 @@ export default function KetPetContentPage() {
 
   if (mode === "practice-test") {
     const common = {
-      accent: ACCENT, gradeTitle: `Grade ${grade}`, unitTitle: `Unit ${unit}`, testNumber: practiceTest,
+      accent: ACCENT, gradeTitle: `Grade ${grade}`, unitTitle, testNumber: practiceTest,
       onBack: () => setPracticeTest(null), onSave: handleSave, saving, saved, isAdmin: role === "admin",
     };
     return (
@@ -179,7 +255,7 @@ export default function KetPetContentPage() {
       <KetPetPracticeTestStudio
         accent={ACCENT}
         gradeTitle={`Grade ${grade}`}
-        unitTitle={`Unit ${unit}`}
+        unitTitle={unitTitle}
         testNumber={practiceTest}
         groups={groups}
         onGroupsChange={setGroups}
@@ -198,7 +274,7 @@ export default function KetPetContentPage() {
     <KetPetVocabularyStudio
       accent={ACCENT}
       gradeTitle={`Grade ${grade}`}
-      unitTitle={`Unit ${unit}`}
+      unitTitle={unitTitle}
       groups={vocabGroups}
       onGroupsChange={setVocabGroups}
       onBack={() => setMode(null)}

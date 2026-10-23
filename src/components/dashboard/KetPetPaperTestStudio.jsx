@@ -26,8 +26,8 @@ function parsePastedAnswers(text, questions) {
 }
 
 // Practice Test KET/PET — cách soạn "Đề tải lên" (2026-10-23, yêu cầu của cô): tải đề PDF/Word lên, bên phải là
-// phiếu trả lời 1..N ("Dán đáp án" chỉ admin — giáo viên nhập từng câu) — mỗi câu là nút chọn A/B/C/D hoặc ô gõ, cô chỉ nhập đáp án. Mỗi câu 1 điểm.
-export default function KetPetPaperTestStudio({ accent, unitTitle, gradeTitle, testNumber, paper, onPaperChange, groups, onGroupsChange, onBack, onSave, saving, saved, isAdmin = false }) {
+// phiếu trả lời 1..N — mỗi câu là nút chọn A/B/C/D hoặc ô gõ, cô chỉ nhập đáp án. Mỗi câu 1 điểm.
+export default function KetPetPaperTestStudio({ accent, unitTitle, gradeTitle, testNumber, paper, onPaperChange, groups, onGroupsChange, onBack, onSave, saving, saved }) {
   const confirm = useConfirm();
   const [stage, setStage] = useState("");
   const [error, setError] = useState("");
@@ -103,10 +103,10 @@ export default function KetPetPaperTestStudio({ accent, unitTitle, gradeTitle, t
           <div className="admin-practice-option-row">
             <label htmlFor="paper-count" style={{ whiteSpace: "nowrap" }}>Số câu:</label>
             <input id="paper-count" className="admin-input" type="number" min="0" max="200" style={{ maxWidth: 90 }} value={questions.length} onChange={e => setCount(e.target.value)} />
-            {isAdmin && <button type="button" className="admin-link-btn" onClick={() => setPasteOpen(o => !o)}>📋 Dán đáp án</button>}
+            <button type="button" className="admin-link-btn" onClick={() => setPasteOpen(o => !o)}>📋 Dán đáp án</button>
           </div>
 
-          {isAdmin && pasteOpen && (
+          {pasteOpen && (
             <div className="paper-paste">
               <textarea
                 className="admin-input"
