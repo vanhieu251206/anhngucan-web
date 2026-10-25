@@ -9,8 +9,11 @@ import { db } from "./firebase.js";
 
 export const REVIEWER_USERNAME = "phonglon";
 
-export function isReviewerProfile(profile) {
-  return profile?.role === "tester" && profile?.username === REVIEWER_USERNAME;
+// Theo username trên hồ sơ, hoặc email đăng nhập (hồ sơ tạo kiểu cũ có thể không có username).
+export function isReviewerProfile(profile, user) {
+  if (profile?.role !== "tester") return false;
+  const email = (user?.email || profile?.email || "").toLowerCase();
+  return profile?.username === REVIEWER_USERNAME || email === `${REVIEWER_USERNAME}@tester.local`;
 }
 
 export async function loadReviewMeta() {

@@ -63,7 +63,7 @@ let navSeq = 0;
 export default function App() {
   const [{ page, lessonSeriesId, key: navKey = 0 }, setNav] = useState(initialNavFromUrl);
   const { user, profile, isStaff, isAdmin, loading } = useAuth();
-  const reviewer = isReviewerProfile(profile);
+  const reviewer = isReviewerProfile(profile, user);
   function setPage(next) {
     setNav(n => ({ ...n, page: next }));
   }

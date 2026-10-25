@@ -46,7 +46,8 @@ function isStaff() {
 
 // Tài khoản đặc biệt duyệt số thửa (lib/duyetSo.js, 2026-10-25).
 function isReviewer() {
-  return role() == 'tester' && myProfile().get('username', '') == 'phonglon';
+  return role() == 'tester' && (myProfile().get('username', '') == 'phonglon'
+    || request.auth.token.get('email', '') == 'phonglon@tester.local');
 }
 
 // Giáo viên dạy ngắn hạn/vài lớp (chốt 2026-09-22): VẪN là role "teacher" bình thường, chỉ thêm
