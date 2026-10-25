@@ -15,6 +15,7 @@ import PrivacyPage from "./pages/PrivacyPage.jsx";
 import ChangePasswordPage from "./pages/ChangePasswordPage.jsx";
 import NotFoundPage from "./pages/NotFoundPage.jsx";
 import { trackPage } from "./lib/analytics.js";
+import { isReviewerProfile } from "./lib/duyetSo.js";
 
 // Dashboard (CMS quản trị) chỉ admin/teacher dùng, học sinh không bao giờ vào — tách thành chunk
 // riêng (React.lazy) để 100 học sinh không phải tải kèm code CMS lúc mở app (xem audit P2).
@@ -31,6 +32,9 @@ const DashboardPage = lazy(() =>
   )
 );
 
+// Duyệt số thửa (2026-10-25, lib/duyetSo.js): không liên quan bài học, chỉ tài khoản đặc biệt `phonglon` + admin — chunk riêng.
+const DuyetSoPage = lazy(() => import("./pages/DuyetSoPage.jsx"));
+
 // Tiêu đề tab riêng cho từng trang (SEO + dễ phân biệt khi mở nhiều tab). Trang không có trong danh sách = 404.
 const SITE_NAME = "Anh Ngữ C.A.N";
 const PAGE_TITLES = {
@@ -42,6 +46,7 @@ const PAGE_TITLES = {
   login: `Đăng nhập — ${SITE_NAME}`,
   privacy: `Chính sách bảo mật — ${SITE_NAME}`,
   "change-password": `Đổi mật khẩu — ${SITE_NAME}`,
+  "duyet-so": `Duyệt số thửa — ${SITE_NAME}`,
   dashboard: `Quản trị — ${SITE_NAME}`,
   settings: `Quản trị — ${SITE_NAME}`,
 };
@@ -57,7 +62,8 @@ let navSeq = 0;
 
 export default function App() {
   const [{ page, lessonSeriesId, key: navKey = 0 }, setNav] = useState(initialNavFromUrl);
-  const { user, profile, isStaff, loading } = useAuth();
+  const { user, profile, isStaff, isAdmin, loading } = useAuth();
+  const reviewer = isReviewerProfile(profile);
   function setPage(next) {
     setNav(n => ({ ...n, page: next }));
   }
@@ -108,6 +114,11 @@ export default function App() {
     }
   }, [page, loading, user, isStaff]);
 
+  // Tài khoản duyệt số: URL/tiêu đề tab luôn là trang Duyệt số thửa.
+  useEffect(() => {
+    if (reviewer && page !== "duyet-so") setPage("duyet-so");
+  }, [reviewer, page]);
+
   // Đăng nhập BẮT BUỘC cho TOÀN BỘ web (chốt 2026-10-10): người lạ chỉ thấy form đăng nhập, kể cả Trang chủ.
   // Chờ `loading` xong mới quyết định — Firebase Auth cần chút thời gian khôi phục phiên, tránh chớp qua
   // form đăng nhập lúc F5.
@@ -127,6 +138,16 @@ export default function App() {
   // nhánh Dashboard để giáo viên không đi vòng qua khu vực quản trị (lỗi 2026-09-27).
   if (profile?.mustChangePassword) {
     return <ForceChangePassword />;
+  }
+
+  // Tài khoản duyệt số (phonglon) chỉ dùng trang Duyệt số thửa: đăng nhập là vào thẳng, mọi trang khác cũng về đây.
+  // Admin mở qua ?page=duyet-so (nhập dữ liệu, xem tiến độ).
+  if (reviewer || (page === "duyet-so" && isAdmin)) {
+    return (
+      <Suspense fallback={null}>
+        <DuyetSoPage />
+      </Suspense>
+    );
   }
 
   // "Cài đặt" (đổi mật khẩu chung mở khoá bài học) đã BỎ HẲN cùng lối vào guest cũ (chốt

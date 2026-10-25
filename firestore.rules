@@ -44,6 +44,11 @@ function isStaff() {
   return role() == "admin" || role() == "teacher";
 }
 
+// Tài khoản đặc biệt duyệt số thửa (lib/duyetSo.js, 2026-10-25).
+function isReviewer() {
+  return role() == 'tester' && myProfile().get('username', '') == 'phonglon';
+}
+
 // Giáo viên dạy ngắn hạn/vài lớp (chốt 2026-09-22): VẪN là role "teacher" bình thường, chỉ thêm
 // field `restricted` trên hồ sơ để giới hạn phạm vi — KHÔNG có field này (hoặc = false) thì hoạt
 // động y hệt giáo viên full-time hiện tại (không phá tài khoản giáo viên cũ). Khi restricted=true:
@@ -282,6 +287,19 @@ service cloud.firestore {
     match /kidsBooks/{bookId} {
       allow read: if hasProfile();
       allow write: if isStaff();
+    }
+
+    // Duyệt số thửa (2026-10-25, lib/duyetSo.js — không liên quan bài học): dữ liệu ô + link ảnh chỉ admin ghi; kết quả
+    // gộp theo ảnh 20 ô (id "l7_04"), chỉ tài khoản đặc biệt `phonglon` + admin đọc/ghi.
+    match /duyetSo/{docId} {
+      allow read: if isAdmin() || isReviewer();
+      allow write: if isAdmin();
+    }
+    match /duyetSoKq/{sheetId} {
+      allow read: if isAdmin() || isReviewer();
+      allow create, update: if (isAdmin() || isReviewer()) && sheetId.matches('l[0-9]+_[0-9]+')
+        && request.resource.data.keys().size() <= 20;
+      allow delete: if isAdmin();
     }
 
     match /{document=**} {
