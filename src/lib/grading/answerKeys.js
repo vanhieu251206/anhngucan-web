@@ -141,7 +141,10 @@ function splitYleVocab(items, take, entries) {
       item.scrambled = scrambleWord(word);
       item.answerLength = word.length;
     }
+    if (Array.isArray(item?.answers)) item.boxCount = item.answers.length;
+    else delete item?.boxCount;
     take(item, "answer", ["items", i]);
+    take(item, "answers", ["items", i]);
   });
 }
 

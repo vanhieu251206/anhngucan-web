@@ -6,7 +6,7 @@ import { useAuth } from "../lib/authContext.jsx";
 import { useTestSubmission } from "../lib/testSubmit.js";
 import { optimizeImage } from "../lib/cloudinaryImage.js";
 import { scrambleWord } from "../lib/grading/reading.js";
-import { acceptedAnswers, gradeVocabItems, vocabItemReady, vocabTypeInfo } from "../lib/grading/vocab.js";
+import { acceptedAnswers, gradeVocabItems, isMultiBox, vocabBoxCount, vocabItemReady, vocabTypeInfo } from "../lib/grading/vocab.js";
 
 // Học sinh làm 1 bài Vocabulary (Starters/Movers/Flyers) — mọi câu trên 1 trang, nộp 1 lần, máy chủ chấm
 // (lib/grading/vocab.js). Học sinh chỉ thấy số câu đúng/tổng; admin/giáo viên/tester (đề có đáp án) thấy đúng/sai.
@@ -58,7 +58,12 @@ export default function VocabRunner({ items, totalPoints, onFinish, seriesId, le
     return <TestScoreReport correct={result.correct} total={result.total} elapsedMs={elapsedRef.current} onDone={onFinish} openingId={openingId} />;
   }
 
-  const answeredCount = shown.filter(({ i }) => String(answers[i] ?? "").trim()).length;
+  // Đếm theo ô — câu nhìn hình nhiều ô mỗi ô tính 1 câu.
+  const boxTotal = shown.reduce((n, { item }) => n + vocabBoxCount(item), 0);
+  const answeredCount = shown.reduce((n, { item, i }) => {
+    const vals = isMultiBox(item) ? answers[i] ?? [] : [answers[i]];
+    return n + vals.filter(v => String(v ?? "").trim()).length;
+  }, 0);
 
   return (
     <div className="vocab-runner yle-vocab-runner">
@@ -88,7 +93,7 @@ export default function VocabRunner({ items, totalPoints, onFinish, seriesId, le
         </div>
       ) : (
         <div className="yle-vocab-actions">
-          <span className="yle-vocab-progress">Đã làm {answeredCount}/{shown.length} câu</span>
+          <span className="yle-vocab-progress">Đã làm {answeredCount}/{boxTotal} câu</span>
           <button type="button" className="btn btn-primary" onClick={handleSubmit}>Nộp bài</button>
         </div>
       )}
@@ -98,17 +103,20 @@ export default function VocabRunner({ items, totalPoints, onFinish, seriesId, le
 
 function VocabQuestion({ number, item, value, onChange, locked, verdict }) {
   const info = vocabTypeInfo(item.type);
-  const stateClass = verdict === true ? " is-correct" : verdict === false ? " is-wrong" : "";
+  const multi = isMultiBox(item);
+  const stateClass = multi ? "" : verdict === true ? " is-correct" : verdict === false ? " is-wrong" : "";
   return (
     <div className={`vocab-question yle-vocab-question${stateClass}`}>
       <div className="reading-question-badge"><span className="reading-question-num">Question {number}</span></div>
-      <p className="vocab-group-instruction">{info.instruction}</p>
+      <p className="vocab-group-instruction">{multi ? "Look at the picture and write." : info.instruction}</p>
 
       {item.type === "picture" && <img className="yle-vocab-img" src={optimizeImage(item.imageUrl)} alt="" />}
       {item.type === "listen" && <audio className="vocab-audio" src={item.audioUrl} controls preload="none" />}
       {item.type === "definition" && <p className="vocab-passage">{item.definition}</p>}
 
-      {item.type === "scramble" ? (
+      {isMultiBox(item) ? (
+        <MultiBoxInput item={item} value={value} onChange={onChange} locked={locked} verdict={verdict} />
+      ) : item.type === "scramble" ? (
         <ScrambleInput item={item} value={value} onChange={onChange} locked={locked} />
       ) : (
         <input
@@ -123,9 +131,42 @@ function VocabQuestion({ number, item, value, onChange, locked, verdict }) {
         />
       )}
 
+      {multi && Array.isArray(verdict) && verdict.includes(false) && item.answers && (
+        <p className="yle-vocab-correct">Đáp án: {item.answers.map(a => acceptedAnswers(a).join(" / ")).join("; ")}</p>
+      )}
       {verdict === false && item.answer && (
         <p className="yle-vocab-correct">Đáp án: {acceptedAnswers(item.answer).join(" / ")}</p>
       )}
+    </div>
+  );
+}
+
+// Nhìn hình nhiều ô (từ hoặc câu tả tranh) — giá trị là mảng chuỗi theo ô, điền thứ tự nào cũng được.
+function MultiBoxInput({ item, value, onChange, locked, verdict }) {
+  const count = vocabBoxCount(item);
+  const vals = Array.isArray(value) ? value : [];
+  return (
+    <div className="yle-vocab-boxes">
+      {Array.from({ length: count }, (_, k) => {
+        const v = Array.isArray(verdict) ? verdict[k] : null;
+        return (
+          <input
+            key={k}
+            className={`dictation-input yle-vocab-input${v === true ? " is-correct" : v === false ? " is-wrong" : ""}`}
+            value={vals[k] ?? ""}
+            onChange={e => {
+              const next = Array.from({ length: count }, (_, j) => vals[j] ?? "");
+              next[k] = e.target.value;
+              onChange(next);
+            }}
+            disabled={locked}
+            autoCapitalize="off"
+            autoComplete="off"
+            spellCheck={false}
+            placeholder={`${k + 1}. Write a word or sentence...`}
+          />
+        );
+      })}
     </div>
   );
 }

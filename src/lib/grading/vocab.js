@@ -37,6 +37,47 @@ export function isVocabCorrect(userAnswer, answer) {
   return typed !== "" && acceptedAnswers(answer).some(a => normalizeWord(a) === typed);
 }
 
+// Dạng nhìn hình có thể có NHIỀU ô (2026-10-31, yêu cầu của cô): `answers` = mảng đáp án từng ô (mỗi ô vẫn nhiều cách
+// viết ngăn bằng `|`), không cần đúng thứ tự, mỗi ô tính 1 câu. Câu 1 ô (mọi bài cũ) giữ `answer` như trước.
+// Đề học sinh đã gỡ đáp án nên số ô nằm ở `boxCount`.
+export function isMultiBox(item) {
+  return item?.type === "picture" && (Array.isArray(item.answers) || Number(item.boxCount) > 1);
+}
+
+export function vocabBoxCount(item) {
+  if (!isMultiBox(item)) return 1;
+  return Array.isArray(item.answers) ? Math.max(item.answers.length, 1) : Number(item.boxCount);
+}
+
+// Ghép từng ô học sinh gõ với 1 đáp án chưa dùng (không theo thứ tự) — tìm cặp ghép lớn nhất để thứ tự gõ không làm
+// mất điểm khi các đáp án có cách viết trùng nhau. Trả về chỉ số đáp án đã ghép cho từng ô (-1 = sai).
+export function matchBoxes(typed, answers) {
+  const owner = answers.map(() => -1);
+  const fits = (b, a) => isVocabCorrect(typed[b], answers[a]);
+  function tryBox(b, seen) {
+    for (let a = 0; a < answers.length; a++) {
+      if (seen[a] || !fits(b, a)) continue;
+      seen[a] = true;
+      if (owner[a] < 0 || tryBox(owner[a], seen)) {
+        owner[a] = b;
+        return true;
+      }
+    }
+    return false;
+  }
+  typed.forEach((_, b) => tryBox(b, []));
+  const match = typed.map(() => -1);
+  owner.forEach((b, a) => {
+    if (b >= 0) match[b] = a;
+  });
+  return match;
+}
+
+function boxValues(raw, count) {
+  const arr = Array.isArray(raw) ? raw : [raw];
+  return Array.from({ length: count }, (_, k) => String(arr[k] ?? ""));
+}
+
 // Câu đủ dữ liệu để hiện cho học sinh (bỏ câu nháp thiếu hình/audio/định nghĩa). Đề học sinh không có `answer`
 // nên dạng xếp chữ nhận biết bằng `scrambled`.
 export function vocabItemReady(item) {
@@ -51,38 +92,45 @@ export function vocabItemReady(item) {
 // Điểm mỗi câu — bài có `totalPoints` (ô "Tổng điểm cả bài" trong CMS) thì chia đều cho các câu; để trống (bài cũ)
 // thì mỗi câu 1 điểm.
 export function vocabPointsPerItem(items, totalPoints) {
-  const count = (items ?? []).filter(vocabItemReady).length;
+  const count = (items ?? []).filter(vocabItemReady).reduce((n, item) => n + vocabBoxCount(item), 0);
   const n = Number(totalPoints);
   return n > 0 && count > 0 ? n / count : 1;
 }
 
-// raw: { [chỉ số câu]: chuỗi học sinh gõ }. Chỉ số theo mảng `items` gốc (kể cả câu nháp bị ẩn).
+// raw: { [chỉ số câu]: chuỗi học sinh gõ — câu nhiều ô thì là mảng chuỗi theo ô }. Chỉ số theo mảng `items` gốc
+// (kể cả câu nháp bị ẩn). `results[i]`: true/false, câu nhiều ô là mảng true/false theo ô.
 export function gradeVocabItems(items, raw, totalPoints) {
   const perItem = vocabPointsPerItem(items, totalPoints);
+  const round2 = n => Math.round(n * 100) / 100;
   let rightCount = 0;
   let count = 0;
-  const results = (items ?? []).map((item, i) => {
-    if (!vocabItemReady(item)) return null;
-    count += 1;
-    const ok = isVocabCorrect(raw?.[i], item.answer);
-    if (ok) rightCount += 1;
-    return ok;
-  });
-  const round2 = n => Math.round(n * 100) / 100;
-  const correct = round2(rightCount * perItem);
-  const total = round2(count * perItem);
   let qNumber = 0;
   const detail = [];
-  (items ?? []).forEach((item, i) => {
-    if (results[i] == null) return;
-    qNumber += 1;
-    detail.push({
-      qNumber,
-      prompt: item.type === "definition" ? String(item.definition).slice(0, 120) : vocabTypeInfo(item.type).label,
-      studentAnswer: String(raw?.[i] ?? ""),
-      correctAnswer: acceptedAnswers(item.answer).join(" / "),
-      isCorrect: results[i],
+  const results = (items ?? []).map((item, i) => {
+    if (!vocabItemReady(item)) return null;
+    const label = item.type === "definition" ? String(item.definition).slice(0, 120) : vocabTypeInfo(item.type).label;
+    if (!isMultiBox(item)) {
+      count += 1;
+      const ok = isVocabCorrect(raw?.[i], item.answer);
+      if (ok) rightCount += 1;
+      qNumber += 1;
+      detail.push({ qNumber, prompt: label, studentAnswer: String(raw?.[i] ?? ""), correctAnswer: acceptedAnswers(item.answer).join(" / "), isCorrect: ok });
+      return ok;
+    }
+    const answers = item.answers ?? [];
+    const typed = boxValues(raw?.[i], vocabBoxCount(item));
+    const match = matchBoxes(typed, answers);
+    // Ô sai lần lượt nhận các đáp án chưa ai ghép để hiện "đáp án đúng" cho từng ô.
+    const left = answers.map((_, a) => a).filter(a => !match.includes(a));
+    return typed.map((value, k) => {
+      const ok = match[k] >= 0;
+      count += 1;
+      if (ok) rightCount += 1;
+      qNumber += 1;
+      const shownAnswer = ok ? answers[match[k]] : answers[left.shift()];
+      detail.push({ qNumber, prompt: `${label} — ô ${k + 1}`, studentAnswer: value, correctAnswer: acceptedAnswers(shownAnswer).join(" / "), isCorrect: ok });
+      return ok;
     });
   });
-  return { correct, total, results, items: detail };
+  return { correct: round2(rightCount * perItem), total: round2(count * perItem), results, items: detail };
 }

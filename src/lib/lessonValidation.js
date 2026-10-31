@@ -133,6 +133,12 @@ export function validateVocabItems(items) {
     if (it.type === "picture" && !it.imageUrl) out.push(`${w}: chưa có hình.`);
     if (it.type === "listen" && !it.audioUrl) out.push(`${w}: chưa có audio.`);
     if (it.type === "definition" && blank(it.definition)) out.push(`${w}: chưa có định nghĩa.`);
+    if (it.type === "picture" && Array.isArray(it.answers)) {
+      it.answers.forEach((a, k) => {
+        if (!vocabAnswers(a).length) out.push(`${w}: ô ${k + 1} chưa có đáp án.`);
+      });
+      return;
+    }
     const answers = vocabAnswers(it.answer);
     if (!answers.length) out.push(`${w}: chưa có đáp án.`);
     else if (it.type === "scramble" && answers[0].length < 2) out.push(`${w}: từ quá ngắn để xáo chữ.`);

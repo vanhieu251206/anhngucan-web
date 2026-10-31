@@ -7,7 +7,7 @@
 import { SERVER_GRADED, gradeSubmission } from "./index.js";
 import { flattenPassages, flattenSections } from "./ielts.js";
 import { serverGrader } from "./listeningExam.js";
-import { vocabItemReady } from "./vocab.js";
+import { isMultiBox, vocabBoxCount, vocabItemReady } from "./vocab.js";
 import { questionType } from "../ketPetPracticeTest.js";
 
 const EMPTY_MARKS = new Set(["", "(để trống)", "(chưa trả lời)", "(chưa viết)"]);
@@ -85,11 +85,24 @@ function ketPetAnswers(test, items) {
 }
 
 function vocabAnswers(test, items) {
-  const ready = (test.items ?? []).map((item, i) => (vocabItemReady(item) ? i : -1)).filter(i => i >= 0);
+  // Mỗi số câu trong chi tiết = 1 ô; câu nhiều ô (dạng nhìn hình) chiếm nhiều số liên tiếp.
+  const slots = [];
+  (test.items ?? []).forEach((item, i) => {
+    if (!vocabItemReady(item)) return;
+    if (isMultiBox(item)) for (let k = 0; k < vocabBoxCount(item); k++) slots.push([i, k]);
+    else slots.push([i, null]);
+  });
   const answers = {};
   for (const it of items) {
-    const i = ready[Number(it.qNumber) - 1];
-    if (i != null) answers[i] = String(it.studentAnswer ?? "");
+    const slot = slots[Number(it.qNumber) - 1];
+    if (!slot) continue;
+    const [i, k] = slot;
+    const value = String(it.studentAnswer ?? "");
+    if (k == null) answers[i] = value;
+    else {
+      answers[i] = Array.isArray(answers[i]) ? answers[i] : [];
+      answers[i][k] = value;
+    }
   }
   return answers;
 }

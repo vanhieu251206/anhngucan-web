@@ -89,7 +89,7 @@ export default function VocabStudio({
             <div className="admin-dictation-row-fields">
               <label className="admin-dictation-text-label">
                 Dạng câu
-                <select className="admin-input" value={it.type} onChange={e => updateItem(i, { type: e.target.value })}>
+                <select className="admin-input" value={it.type} onChange={e => updateItem(i, changeType(it, e.target.value))}>
                   {VOCAB_TYPES.map(t => (
                     <option key={t.key} value={t.key}>{t.label}</option>
                   ))}
@@ -113,15 +113,19 @@ export default function VocabStudio({
                   />
                 </label>
               )}
-              <label className="admin-dictation-text-label">
-                {it.type === "scramble" ? "Từ đúng (hệ thống tự xáo chữ cái)" : "Đáp án"}
-                <input
-                  className="admin-input"
-                  value={it.answer ?? ""}
-                  onChange={e => updateItem(i, { answer: e.target.value })}
-                  placeholder={it.type === "scramble" ? "vd: chair" : "vd: chair | chairs"}
-                />
-              </label>
+              {it.type === "picture" ? (
+                <PictureAnswerInputs item={it} onChange={patch => updateItem(i, patch)} />
+              ) : (
+                <label className="admin-dictation-text-label">
+                  {it.type === "scramble" ? "Từ đúng (hệ thống tự xáo chữ cái)" : "Đáp án"}
+                  <input
+                    className="admin-input"
+                    value={it.answer ?? ""}
+                    onChange={e => updateItem(i, { answer: e.target.value })}
+                    placeholder={it.type === "scramble" ? "vd: chair" : "vd: chair | chairs"}
+                  />
+                </label>
+              )}
             </div>
             <div className="admin-scene-list-actions">
               <button type="button" className="admin-link-btn" onClick={() => moveItem(i, -1)} disabled={i === 0}>↑</button>
@@ -152,6 +156,43 @@ export default function VocabStudio({
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// Đổi khỏi dạng nhìn hình thì gộp các ô về 1 ô (giữ đáp án ô đầu).
+function changeType(item, type) {
+  if (type === "picture" || !Array.isArray(item.answers)) return { type };
+  return { type, answer: item.answers[0] ?? "", answers: undefined };
+}
+
+// Dạng nhìn hình: 1 hình nhiều ô (từ hoặc câu tả tranh) — `answers`, học sinh điền không cần đúng thứ tự, mỗi ô
+// 1 câu (lib/grading/vocab.js). Bớt còn 1 ô thì trở về dạng 1 ô `answer` như cũ.
+function PictureAnswerInputs({ item, onChange }) {
+  const boxes = Array.isArray(item.answers) ? item.answers : [item.answer ?? ""];
+  function setBoxes(next) {
+    if (next.length > 1) onChange({ answers: next, answer: "" });
+    else onChange({ answers: undefined, boxCount: undefined, answer: next[0] ?? "" });
+  }
+  return (
+    <div className="admin-dictation-text-label">
+      Đáp án
+      <div className="admin-blank-list">
+        {boxes.map((b, k) => (
+          <div className="admin-practice-option-row" key={k}>
+            <input
+              className="admin-input"
+              value={b}
+              onChange={e => setBoxes(boxes.map((v, j) => (j === k ? e.target.value : v)))}
+              placeholder={boxes.length > 1 ? `Ô ${k + 1} — vd: a big crocodile | a crocodile` : "vd: chair | chairs"}
+            />
+            {boxes.length > 1 && (
+              <button type="button" className="admin-link-btn admin-pill-btn-danger" onClick={() => setBoxes(boxes.filter((_, j) => j !== k))}>Bớt</button>
+            )}
+          </div>
+        ))}
+        <button type="button" className="admin-link-btn" style={{ alignSelf: "flex-start" }} onClick={() => setBoxes([...boxes, ""])}>+ Thêm ô</button>
+      </div>
     </div>
   );
 }
