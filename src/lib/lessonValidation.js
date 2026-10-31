@@ -287,21 +287,23 @@ export function validateKetPetGroups(groups) {
   return out;
 }
 
-// ---------- KET/PET Practice Test — đề tải lên (PDF/Word) ----------
-export function validatePaperTest(paper, groups) {
+// ---------- Đề tải lên (PDF/Word) — KET/PET Practice Test + IELTS Reading/Listening ----------
+// questions: phiếu trả lời; startNumber: số câu đầu (audio đoạn câu ghi theo số câu hiển thị).
+export function validatePaperTest(paper, questions, startNumber = 1) {
   const out = [];
   if (!paper?.pages?.length && !paper?.html) out.push("Chưa tải đề lên.");
-  const qs = groups?.[0]?.questions ?? [];
+  const qs = questions ?? [];
+  const last = startNumber + qs.length - 1;
   if (!qs.length) out.push("Chưa có câu nào trong phiếu trả lời.");
   (paper?.audios ?? []).forEach((a, i) => {
     const w = `Audio ${i + 1}`;
     if (!a.url) out.push(`${w}: chưa có file.`);
-    if (!a.from || (a.to && a.to < a.from) || a.from > qs.length || (a.to ?? 0) > qs.length) out.push(`${w}: khoảng câu chưa đúng.`);
+    if (!a.from || a.from < startNumber || (a.to && a.to < a.from) || a.from > last || (a.to ?? 0) > last) out.push(`${w}: khoảng câu chưa đúng.`);
   });
   qs.forEach((q, i) => {
     if (q.skip) return;
     const missing = q.type === "multiple-choice" ? q.answerIndex == null : !(q.acceptedAnswers ?? []).some(filled);
-    if (missing) out.push(`Câu ${i + 1}: chưa có đáp án.`);
+    if (missing) out.push(`Câu ${startNumber + i}: chưa có đáp án.`);
   });
   return out;
 }

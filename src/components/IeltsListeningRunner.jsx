@@ -5,6 +5,7 @@ import { useAuth } from "../lib/authContext.jsx";
 import { useTestSubmission } from "../lib/testSubmit.js";
 import SubmitStatus from "./SubmitStatus.jsx";
 import { flattenSections as flattenQuestions, isIeltsCorrect as isCorrect } from "../lib/grading/ielts.js";
+import { AnswerSheet, PaperView } from "./PaperAnswerSheet.jsx";
 
 // Màn làm bài IELTS Listening (Test 1-4 → Section 1-4) — mô phỏng cấu trúc IeltsPracticeRunner.jsx
 // (Reading): audio + câu hỏi cuộn riêng bên phải, tab chuyển Section, timer, nộp bài chấm điểm
@@ -13,7 +14,8 @@ import { flattenSections as flattenQuestions, isIeltsCorrect as isCorrect } from
 // Quy tắc chấm nằm ở lib/grading/ielts.js — dùng chung với Worker chấm bài phía máy chủ.
 
 // preview: nút "👁 Preview" trong CMS — làm thử như giáo viên (hiện đáp án khi nộp) nhưng không gửi máy chủ, không đếm giờ.
-export default function IeltsListeningRunner({ test, onBack, studentUid, studentName, studentClass, seriesId, level, openingId, preview = false }) {
+// part: chỉ số section học sinh làm trong cả Test (máy chủ chỉ chấm section đó); đề tải lên làm cả Test → null.
+export default function IeltsListeningRunner({ test, onBack, studentUid, studentName, studentClass, seriesId, level, openingId, part = null, preview = false }) {
   const flat = useMemo(() => flattenQuestions(test.sections), [test]);
   const [activeSection, setActiveSection] = useState(0);
   const [answers, setAnswers] = useState({});
@@ -24,7 +26,7 @@ export default function IeltsListeningRunner({ test, onBack, studentUid, student
   // Học sinh: máy chủ chấm (lib/testSubmit.js) → điểm trả về. submitState: { error? } khi đang nộp/lỗi.
   const [serverScore, setServerScore] = useState(null);
   const [submitState, setSubmitState] = useState(null);
-  const submitToServer = useTestSubmission({ kind: "ielts-listening", seriesId, level, testId: test.id, openingId, lessonLabel: test.title, studentName });
+  const submitToServer = useTestSubmission({ kind: "ielts-listening", seriesId, level, testId: test.id, part, openingId, lessonLabel: test.title, studentName });
   const timer = useExamTimer({ limitMinutes: preview ? null : test.timeLimitMinutes, running: !submitted && !submitState, onExpire: submitNow });
 
   function setAnswer(number, value) {
@@ -81,6 +83,9 @@ export default function IeltsListeningRunner({ test, onBack, studentUid, student
 
   const section = test.sections[activeSection];
   const sectionQuestions = flat.filter(e => e.sectionIndex === activeSection);
+  // Đề tải lên (PDF/Word, 2026-10-31, giống KET/PET): 1 file đề cho cả Test, phiếu trả lời + audio theo đoạn câu.
+  const paperTest = section?.groups?.[0]?.type === "answer-sheet";
+  const sheetEntry = qi => sectionQuestions.find(e => e.groupIndex === 0 && e.questionIndex === qi);
 
   return (
     <div className="ielts-practice-screen">
@@ -90,6 +95,7 @@ export default function IeltsListeningRunner({ test, onBack, studentUid, student
       </div>
 
       <div className="ielts-practice-body">
+        {!paperTest && (
         <div className="ielts-practice-passage-tabs">
           {test.sections.map((s, i) => (
             <button
@@ -102,9 +108,11 @@ export default function IeltsListeningRunner({ test, onBack, studentUid, student
             </button>
           ))}
         </div>
+        )}
 
         <div className="ielts-practice-columns">
           <div className="ielts-practice-passage-col">
+            {paperTest ? <div className="paper-doc"><PaperView paper={test.paper} /></div> : (<>
             <h2>{section.title}</h2>
             {section.audioUrl ? (
               <audio className="ielts-full-audio" src={section.audioUrl} controls />
@@ -112,10 +120,28 @@ export default function IeltsListeningRunner({ test, onBack, studentUid, student
               <p className="ielts-full-audio-empty">Chưa có audio cho section này.</p>
             )}
             {section.note && <p className="ielts-practice-note">{section.note}</p>}
+            </>)}
           </div>
 
           <div className="ielts-practice-questions-col">
-            {(section.groups ?? []).map((g, gi) => (
+            {paperTest && (
+              <AnswerSheet
+                questions={section.groups[0].questions ?? []}
+                audios={test.paper?.audios}
+                valueOf={qi => answers[sheetEntry(qi)?.number]}
+                resultOf={qi => {
+                  const e = sheetEntry(qi);
+                  return e && submitted && reveal ? isCorrect(e, answers[e.number]) : undefined;
+                }}
+                showKey={submitted && reveal}
+                locked={submitted}
+                onAnswer={(qi, v) => {
+                  const e = sheetEntry(qi);
+                  if (e) setAnswer(e.number, v);
+                }}
+              />
+            )}
+            {!paperTest && (section.groups ?? []).map((g, gi) => (
               <div className="ielts-practice-group" key={gi}>
                 {g.instruction && <p className="ielts-practice-instruction">{g.instruction}</p>}
                 {g.questions.map((q, qi) => {

@@ -243,13 +243,16 @@ export async function getIeltsListeningTest(seriesId, level, testId) {
 }
 
 export async function saveIeltsListeningTest(
-  seriesId, level, testId, { title, order, sections }, uid
+  seriesId, level, testId, { title, order, sections, paper = null }, uid
 ) {
+  // `paper` (tuỳ chọn, 2026-10-31): đề tải lên PDF/Word cho cả Test — `sections` khi đó là 1 section chứa phiếu trả
+  // lời (nhóm "answer-sheet"), audio theo đoạn câu nằm ở paper.audios (giống KET/PET).
   await saveWithAnswers(seriesId, lessonId(seriesId, level), "listeningTests", testId, {
     testId,
     title,
     order,
     sections,
+    paper,
     updatedAt: serverTimestamp(),
     updatedBy: uid,
   });

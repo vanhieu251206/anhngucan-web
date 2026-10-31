@@ -93,6 +93,17 @@ function ketPetDetail(g, q, qi, value) {
   return { prompt, studentAnswer: typed, correctAnswer: joinAnswers(q.acceptedAnswers) };
 }
 
+// Học sinh làm IELTS theo TỪNG passage/section (LessonsPage.jsx), câu đánh số lại từ 1 → chỉ chấm đúng phần đó.
+// `part` = chỉ số passage/section; null = cả Test. Trước 2026-10-31 Worker chấm cả Test nên làm Passage 2/3,
+// Section 2-4 bị đối chiếu nhầm với đáp án Passage/Section 1.
+export function testPart(kind, test, part) {
+  const i = Number(part);
+  if (part == null || part === "" || !Number.isInteger(i) || i < 0 || !test) return test;
+  if (kind === "ielts-reading" && test.passages?.[i]) return { ...test, passages: [test.passages[i]] };
+  if (kind === "ielts-listening" && test.sections?.[i]) return { ...test, sections: [test.sections[i]] };
+  return test;
+}
+
 // raw — dạng câu trả lời theo từng loại:
 //   reading: answers[partIndex][qIndex]        ielts-*: { [số câu]: giá trị }
 //   ketpet-*: { "gi-qi": giá trị }             listening-exam: { parts: { part1: { answers }, part4: { score } ... } }

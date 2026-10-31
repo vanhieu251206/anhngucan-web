@@ -8,6 +8,7 @@ import SceneRunner from "../components/SceneRunner.jsx";
 import ReadingRunner from "../components/ReadingRunner.jsx";
 import IeltsPracticeRunner from "../components/IeltsPracticeRunner.jsx";
 import IeltsListeningRunner from "../components/IeltsListeningRunner.jsx";
+import { firstQuestionNumbers } from "../lib/grading/ielts.js";
 import DictationRunner from "../components/DictationRunner.jsx";
 import VocabRunner from "../components/VocabRunner.jsx";
 import { checkOpening } from "../lib/openings.js";
@@ -286,7 +287,7 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
     } else if (go.kind === "ielts-listening") {
       setSelectedIeltsSkill("listening");
       const t = find(content.ieltsListeningTests);
-      if (t) guardStart("ielts-listening", { id: t.id, title: t.title }, () => setPickingListeningTest(t));
+      if (t) guardStart("ielts-listening", { id: t.id, title: t.title }, opening => startListeningTest(t, opening));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [level, content]);
@@ -433,6 +434,8 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
       <IeltsPracticeRunner
         test={activeIeltsPracticeTest}
         mode={activeIeltsPracticeMode}
+        part={activeIeltsPracticeTest.part ?? null}
+        firstNumber={activeIeltsPracticeTest.firstNumber ?? 1}
         openingId={activeOpening?.id}
         studentUid={!isStaff ? user?.uid : null}
         studentName={studentName}
@@ -450,6 +453,7 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
       <IeltsListeningRunner
         test={activeIeltsListeningTest}
         onBack={() => setActiveIeltsListeningTest(null)}
+        part={activeIeltsListeningTest.part ?? null}
         openingId={activeOpening?.id}
         studentUid={!isStaff ? user?.uid : null}
         studentName={studentName}
@@ -489,6 +493,7 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
                   timeLimitMinutes: activeOpening?.timeLimitMinutes ?? null,
                   title: `${pickingListeningTest.title} · Section ${n}`,
                   sections: [s],
+                  part: n - 1,
                 }),
             });
           })}
@@ -741,6 +746,13 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
   // hạn, còn lượt) và em nhập đúng mật khẩu vào bài (nếu có) — xem lib/openings.js. Lỗi mạng cũng chặn (không
   // cho qua khi không kiểm tra được). Admin/teacher và tài khoản tester vào thẳng, không cần mở.
   // kind: xem OPENING_KINDS; test: { id, title }; launch(opening|null): mở bài thật.
+  // IELTS Listening: Test soạn kiểu "Tải đề lên" (1 file đề cho cả Test, 2026-10-31) vào thẳng bài, không chọn Section.
+  function startListeningTest(t, opening) {
+    const isPaper = t.paper != null || t.sections?.[0]?.groups?.[0]?.type === "answer-sheet";
+    if (isPaper) setActiveIeltsListeningTest({ ...t, timeLimitMinutes: opening?.timeLimitMinutes ?? null, part: null });
+    else setPickingListeningTest(t);
+  }
+
   async function guardStart(kind, test, launch) {
     if (isStaff || isTester) {
       setActiveOpening(null);
@@ -922,6 +934,8 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
                   timeLimitMinutes: opening?.timeLimitMinutes ?? null,
                   title: `${test.title} · Passage ${n}`,
                   passages: [p],
+                  part: n - 1,
+                  firstNumber: firstQuestionNumbers(test.passages)[n - 1] ?? 1,
                 });
               };
               // "Đọc hiểu" chỉ là chế độ học (không chấm điểm) nên không cần mở; "Luyện đề" thì phải được giáo viên mở.
@@ -974,7 +988,7 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
               desc: "Nghe + câu hỏi chấm điểm, đủ dạng như đề thi thật",
               cta: t ? "Bắt đầu làm bài" : "Chưa có nội dung",
               disabled: !t,
-              onClick: () => guardStart("ielts-listening", { id: t.id, title: t.title }, () => setPickingListeningTest(t)),
+              onClick: () => guardStart("ielts-listening", { id: t.id, title: t.title }, opening => startListeningTest(t, opening)),
             });
           })}
         </div>

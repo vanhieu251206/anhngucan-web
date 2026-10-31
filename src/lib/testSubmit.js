@@ -51,7 +51,8 @@ export function fetchReview(openingId) {
 // Hook dùng trong mọi trang làm bài. Học sinh (có openingId): tự ghi giờ bắt đầu ở máy chủ ngay khi vào bài (đổi
 // `resetKey` = làm lượt mới). `submit({ answers, client, sessionId, elapsedMs })` → { correct, total, parts? }.
 //   answers: câu trả lời thô (dạng Worker tự chấm)   client: { correct, total, items } (dạng chấm ở trình duyệt)
-export function useTestSubmission({ kind, seriesId, level, testId, openingId, lessonLabel, studentName, resetKey }) {
+// part: chỉ số passage/section IELTS học sinh đang làm (máy chủ chỉ chấm phần đó, lib/grading/index.js `testPart`).
+export function useTestSubmission({ kind, seriesId, level, testId, part = null, openingId, lessonLabel, studentName, resetKey }) {
   const startRef = useRef(null);
   const meta = { kind, seriesId, level, testId: testId == null ? testId : String(testId), openingId: openingId ?? null };
 
@@ -77,7 +78,7 @@ export function useTestSubmission({ kind, seriesId, level, testId, openingId, le
   return useCallback(
     async ({ answers, client, sessionId, elapsedMs } = {}) => {
       const { startId } = (await startRef.current) ?? {};
-      const body = { ...meta, startId, answers, client, sessionId: sessionId ?? null, elapsedMs, lessonLabel, studentName, tabLeaves: getExamLeaves() };
+      const body = { ...meta, part, startId, answers, client, sessionId: sessionId ?? null, elapsedMs, lessonLabel, studentName, tabLeaves: getExamLeaves() };
       let lastErr;
       for (let i = 0; i < MAX_TRIES; i++) {
         try {

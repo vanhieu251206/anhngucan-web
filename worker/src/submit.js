@@ -4,15 +4,15 @@
 //
 //   POST /test/start  { kind, seriesId, level, testId, openingId }  → { startId }   (ghi giờ bắt đầu thật)
 //   POST /test/review { openingId }                                   → { deadline, results }  (chỉ SAU hạn chót)
-//   POST /test/submit { startId, kind, seriesId, level, testId, openingId, answers, client, sessionId, lessonLabel,
-//                       studentName, elapsedMs }                      → { correct, total, parts? }
+//   POST /test/submit { startId, kind, seriesId, level, testId, part?, openingId, answers, client, sessionId,
+//                       lessonLabel, studentName, elapsedMs }                      → { correct, total, parts? }
 //
 // `client` = { correct, total, items } — chỉ dùng cho dạng chấm ở trình duyệt (speaking, dictation; Listening Part
 // tô màu gửi điểm riêng trong answers.parts). Admin/giáo viên làm thử: không kiểm tra mở bài, kết quả ghi uid=null
 // như trước. Tài khoản đặc biệt (tester): chấm nhưng KHÔNG ghi gì.
 import { adminError, verifyIdToken } from "./admin.js";
 import { firestore, encodeFields, randomDocId } from "./firestore.js";
-import { SERVER_GRADED, gradeSubmission, testLocation } from "../../src/lib/grading/index.js";
+import { SERVER_GRADED, gradeSubmission, testLocation, testPart } from "../../src/lib/grading/index.js";
 import { answerKind, answerKeyDocId, mergeAnswers, parseEntries } from "../../src/lib/grading/answerKeys.js";
 import { regradeResult, gradingSignature } from "../../src/lib/grading/regrade.js";
 
@@ -186,7 +186,7 @@ export async function submitTest(request, env) {
   let gradedBy = "server";
   if (SERVER_GRADED.has(body.kind)) {
     if (!test) throw adminError(404, "test-not-found");
-    graded = gradeSubmission(body.kind, { ...test, seriesId: body.seriesId }, body.answers);
+    graded = gradeSubmission(body.kind, testPart(body.kind, { ...test, seriesId: body.seriesId }, body.part), body.answers);
   } else {
     gradedBy = "client";
     const { correct, total } = clampClientScore(body.client, clientGradedTotal(body.kind, test));
@@ -235,6 +235,8 @@ export async function submitTest(request, env) {
     seriesId: body.seriesId,
     level: body.level,
     testId: String(body.testId),
+    // Passage/section học sinh làm (IELTS) — chấm lại cũng chỉ chấm đúng phần này (grading/index.js `testPart`).
+    part: Number.isInteger(body.part) && body.part >= 0 ? body.part : null,
     lessonLabel: typeof body.lessonLabel === "string" ? body.lessonLabel.slice(0, 200) : null,
     studentName: isStudent ? caller.profile.displayName ?? null : String(body.studentName ?? "").slice(0, 100) || null,
     studentClass: isStudent ? caller.profile.className ?? null : "Admin",

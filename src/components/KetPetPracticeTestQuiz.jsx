@@ -1,4 +1,5 @@
 import { Fragment, useState } from "react";
+import { AnswerSheet, PaperView } from "./PaperAnswerSheet.jsx";
 import ExamTimer, { useExamTimer } from "./ExamTimer.jsx";
 import { blankCount, gradePracticeTestGroups, isChoiceAnswer, questionNumber, toRoman } from "../lib/ketPetPracticeTest.js";
 import { optimizeImage } from "../lib/cloudinaryImage.js";
@@ -155,90 +156,6 @@ function QuestionListSidebar({ groups, answers }) {
   );
 }
 
-// Đề tải lên (paper.pages = ảnh từng trang của PDF, paper.html = file Word đã đổi sang HTML — lib/paperUpload.js).
-export function PaperView({ paper }) {
-  if (paper?.pages?.length) {
-    return paper.pages.map((url, i) => <img key={i} className="paper-page" src={optimizeImage(url)} alt={`Trang ${i + 1}`} loading={i > 1 ? "lazy" : undefined} />);
-  }
-  // HTML đã lọc thẻ lúc tải lên (sanitizePaperHtml) — chỉ còn thẻ định dạng + ảnh.
-  if (paper?.html) return <div className="paper-html" dangerouslySetInnerHTML={{ __html: paper.html }} />;
-  return null;
-}
-
-// Phiếu trả lời của đề tải lên: mỗi câu 1 hàng — số câu + nút A/B/C/D hoặc ô gõ. Audio theo đoạn câu (paper.audios):
-// khung "🎧 Nghe cho câu X–Y" + trình phát đặt ngay trên câu X, các câu X..Y có viền màu bên trái cùng khung đó.
-function AnswerSheet({ group, audios, answers, view, locked, onAnswer }) {
-  const clips = (audios ?? []).filter(a => a?.url && a.from).map(a => ({ ...a, to: Math.max(a.to || a.from, a.from) }));
-  const inClip = n => clips.some(a => n >= a.from && n <= a.to);
-  return (
-    <ol className="paper-key-list paper-answer-list">
-      {group.questions.map((q, qi) => {
-        const starts = clips.filter(a => a.from === qi + 1);
-        const row = renderRow(q, qi, inClip(qi + 1) ? " paper-in-audio" : "");
-        return (
-          <Fragment key={qi}>
-            {starts.map((a, k) => (
-              <li key={`audio-${k}`} className="paper-audio-head">
-                <span className="paper-audio-label">🎧 Nghe cho {a.to > a.from ? `câu ${a.from}–${a.to}` : `câu ${a.from}`}</span>
-                <audio src={a.url} controls preload="none" controlsList="nodownload" />
-              </li>
-            ))}
-            {row}
-          </Fragment>
-        );
-      })}
-    </ol>
-  );
-
-  function renderRow(q, qi, extraClass) {
-        const value = answers[`0-${qi}`];
-        const r = view?.results?.[0]?.[qi];
-        if (q.skip) {
-          return (
-            <li key={qi} id={`kq-0-${qi}`} className={`paper-key-row is-skipped${extraClass}`}>
-              <span className="paper-skip-text">Câu {qi + 1}: không cần làm</span>
-            </li>
-          );
-        }
-        return (
-          <li key={qi} id={`kq-0-${qi}`} className={`paper-key-row${extraClass}`}>
-            <span className="paper-key-num">{qi + 1}</span>
-            {q.type === "multiple-choice" ? (
-              <div className="paper-choice-row">
-                {q.options.map((letter, oi) => {
-                  const picked = value === oi;
-                  const isRight = view != null && isChoiceAnswer(q, oi);
-                  return (
-                    <button
-                      key={oi}
-                      type="button"
-                      disabled={locked}
-                      aria-pressed={picked}
-                      className={"paper-choice" + (picked ? " is-picked" : "") + (isRight ? " is-correct" : "") + (view != null && picked && !isRight ? " is-wrong" : "")}
-                      onClick={() => onAnswer(qi, picked ? undefined : oi)}
-                    >
-                      {letter}
-                    </button>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="paper-text-cell">
-                <input
-                  className={"vocab-input" + (r === true ? " is-correct" : "") + (r === false ? " is-wrong" : "")}
-                  value={value ?? ""}
-                  disabled={locked}
-                  aria-label={`Câu ${qi + 1}`}
-                  onChange={e => onAnswer(qi, e.target.value)}
-                />
-                {view != null && r === false && <p className="vocab-answer-key">Đáp án đúng: {(q.acceptedAnswers ?? []).join(" / ")}</p>}
-              </div>
-            )}
-          </li>
-        );
-  }
-}
-
 // revealAnswers=true CHỈ dùng cho Preview trong CMS (giáo viên xem đáp án). Học sinh luôn chỉ thấy số câu đúng/tổng.
 // page=true: màn học sinh làm bài toàn màn hình (KetPetPracticeTestRunner.jsx) — thêm cột "Danh sách câu hỏi" ghim
 // bên trái + hỏi lại trước khi nộp, giống ReadingRunner.jsx. Preview trong CMS không có 2 phần này.
@@ -389,7 +306,16 @@ export default function KetPetPracticeTestQuiz({ groups, paper, revealAnswers = 
         <div className="paper-layout">
           <div className="paper-doc"><PaperView paper={paper} /></div>
           <div className="paper-sheet">
-            <AnswerSheet group={groups[0]} audios={paper.audios} answers={answers} view={view} locked={result != null} onAnswer={(qi, v) => setAnswer(0, qi, v)} />
+            <AnswerSheet
+              questions={groups[0].questions}
+              audios={paper.audios}
+              valueOf={qi => answers[`0-${qi}`]}
+              resultOf={qi => view?.results?.[0]?.[qi]}
+              showKey={view != null}
+              locked={result != null}
+              onAnswer={(qi, v) => setAnswer(0, qi, v)}
+              rowId={qi => `kq-0-${qi}`}
+            />
             {footer}
           </div>
         </div>

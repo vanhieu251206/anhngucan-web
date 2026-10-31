@@ -4,7 +4,7 @@
 // Lượt nộp từ 2026-10-05 có lưu câu trả lời thô (`rawAnswers`, chuỗi JSON) → chấm lại y như lúc nộp. Lượt nộp cũ
 // hơn chỉ còn `items` (chi tiết từng câu để hiển thị) → dựng lại câu trả lời thô từ đó (answersFromItems). Dạng
 // chấm ở trình duyệt (Speaking, Dictation, Part tô màu/nối tranh của Listening) không có gì để chấm lại → giữ nguyên.
-import { SERVER_GRADED, gradeSubmission } from "./index.js";
+import { SERVER_GRADED, gradeSubmission, testPart } from "./index.js";
 import { flattenPassages, flattenSections } from "./ielts.js";
 import { serverGrader } from "./listeningExam.js";
 import { isMultiBox, vocabBoxCount, vocabItemReady } from "./vocab.js";
@@ -14,7 +14,8 @@ const EMPTY_MARKS = new Set(["", "(để trống)", "(chưa trả lời)", "(ch�
 const typed = s => (s == null || EMPTY_MARKS.has(String(s)) ? undefined : String(s));
 // "B. nội dung" → 1
 function letterIndex(s) {
-  const m = /^([A-Z])\. /.exec(String(s ?? ""));
+  // "B. nội dung" — hoặc chỉ "B" (phiếu trả lời đề tải lên, lựa chọn chính là chữ cái).
+  const m = /^([A-Z])(?:\. |$)/.exec(String(s ?? ""));
   return m ? m[1].charCodeAt(0) - 65 : undefined;
 }
 
@@ -147,8 +148,9 @@ function regradeListeningFromItems(test, items) {
 }
 
 // result: 1 doc testResults. → { correct, total, items } theo đáp án hiện tại, hoặc null nếu không chấm lại được.
-export function regradeResult(kind, test, result) {
-  if (!SERVER_GRADED.has(kind) || !test) return null;
+export function regradeResult(kind, fullTest, result) {
+  if (!SERVER_GRADED.has(kind) || !fullTest) return null;
+  const test = testPart(kind, fullTest, result.part);
   const items = Array.isArray(result.items) ? result.items : [];
   let raw = null;
   if (typeof result.rawAnswers === "string") {

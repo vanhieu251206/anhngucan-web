@@ -10,17 +10,24 @@ export function normalizeIeltsAnswer(s) {
     .replace(/\s+/g, " ");
 }
 
-// IELTS Reading: mỗi chỗ trống bảng/đoạn văn/sơ đồ (table-diagram, diagram) cũng là 1 câu.
-export function flattenPassages(passages) {
+// Câu của 1 nhóm: mỗi chỗ trống bảng/đoạn văn/sơ đồ (table-diagram, diagram) cũng là 1 câu.
+function groupQuestions(group) {
+  if (group.type === "table-diagram") return deriveTableDiagramBlanks(group);
+  if (group.type === "diagram") return (group.diagramPoints ?? []).map(p => ({ acceptedAnswers: p.answer ?? "" }));
+  return group.questions ?? [];
+}
+
+// Đề tải lên (PDF/Word, 2026-10-31 — cùng kiểu KET/PET, lib/ketPetPracticeTest.js): nhóm "answer-sheet" = phiếu trả
+// lời, mỗi câu tự mang dạng (`q.type` "multiple-choice" A-E / "fill-blank" gõ chữ, `acceptedAnswers` là MẢNG). Câu
+// tắt (`q.skip`) vẫn giữ số thứ tự nhưng không tính điểm.
+function flattenContainers(containers, indexKey) {
   const flat = [];
   let n = 1;
-  (passages ?? []).forEach((passage, pi) => {
-    (passage.groups ?? []).forEach((group, gi) => {
-      const qs = group.type === "table-diagram" ? deriveTableDiagramBlanks(group)
-        : group.type === "diagram" ? (group.diagramPoints ?? []).map(p => ({ acceptedAnswers: p.answer ?? "" }))
-        : (group.questions ?? []);
-      qs.forEach((q, qi) => {
-        flat.push({ number: n, passageIndex: pi, groupIndex: gi, questionIndex: qi, type: group.type, q });
+  (containers ?? []).forEach((c, ci) => {
+    (c?.groups ?? []).forEach((group, gi) => {
+      const sheet = group.type === "answer-sheet";
+      groupQuestions(group).forEach((q, qi) => {
+        if (!(sheet && q?.skip)) flat.push({ number: n, [indexKey]: ci, groupIndex: gi, questionIndex: qi, type: sheet ? q.type : group.type, q });
         n++;
       });
     });
@@ -28,19 +35,31 @@ export function flattenPassages(passages) {
   return flat;
 }
 
-// IELTS Listening: chỉ có câu hỏi thường trong từng nhóm.
+export function flattenPassages(passages) {
+  return flattenContainers(passages, "passageIndex");
+}
+
 export function flattenSections(sections) {
-  const flat = [];
+  return flattenContainers(sections, "sectionIndex");
+}
+
+// Số câu đầu tiên của từng passage/section trong cả Test (Passage 2 bắt đầu từ câu 14...) — để phiếu trả lời đề tải
+// lên đánh số khớp với đề giấy khi học sinh làm riêng từng passage.
+export function firstQuestionNumbers(containers) {
+  const out = [];
   let n = 1;
-  (sections ?? []).forEach((section, si) => {
-    (section.groups ?? []).forEach((group, gi) => {
-      (group.questions ?? []).forEach((q, qi) => {
-        flat.push({ number: n, sectionIndex: si, groupIndex: gi, questionIndex: qi, type: group.type, q });
-        n++;
-      });
+  (containers ?? []).forEach(c => {
+    out.push(n);
+    (c?.groups ?? []).forEach(group => {
+      n += groupQuestions(group).length;
     });
   });
-  return flat;
+  return out;
+}
+
+function acceptedList(q) {
+  const raw = Array.isArray(q.acceptedAnswers) ? q.acceptedAnswers.join("|") : String(q.acceptedAnswers ?? "");
+  return raw.split("|").map(s => s.trim()).filter(Boolean);
 }
 
 export function isIeltsCorrect(entry, value) {
@@ -48,7 +67,7 @@ export function isIeltsCorrect(entry, value) {
   if (value == null || value === "") return false;
   if (type === "multiple-choice") return Number(value) === q.answerIndex;
   if (type === "tfng") return value === q.answer;
-  const accepted = String(q.acceptedAnswers ?? "").split("|").map(normalizeIeltsAnswer).filter(Boolean);
+  const accepted = acceptedList(q).map(normalizeIeltsAnswer).filter(Boolean);
   return accepted.includes(normalizeIeltsAnswer(value));
 }
 
@@ -61,13 +80,18 @@ export function gradeIelts(flat, answers) {
     const value = answers?.[entry.number];
     const q = entry.q ?? {};
     // Trắc nghiệm: ghi "B. nội dung" thay vì số thứ tự lựa chọn.
-    const option = i => (i == null || i === "" || q.options?.[Number(i)] == null ? "" : `${String.fromCharCode(65 + Number(i))}. ${q.options[Number(i)]}`);
+    // Phiếu đề tải lên: lựa chọn chính là chữ cái → chỉ ghi "B".
+    const option = i => {
+      if (i == null || i === "" || q.options?.[Number(i)] == null) return "";
+      const letter = String.fromCharCode(65 + Number(i));
+      return q.options[Number(i)] === letter ? letter : `${letter}. ${q.options[Number(i)]}`;
+    };
     const mc = entry.type === "multiple-choice";
     return {
       qNumber: entry.number,
       prompt: String(q.text ?? "").replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim().slice(0, 160),
       studentAnswer: mc ? option(value) : String(value ?? ""),
-      correctAnswer: mc ? option(q.answerIndex) : String(q.answer ?? q.acceptedAnswers ?? "").split("|").map(s => s.trim()).filter(Boolean).join(" / "),
+      correctAnswer: mc ? option(q.answerIndex) : q.answer != null ? String(q.answer) : acceptedList(q).join(" / "),
       isCorrect: ok,
     };
   });

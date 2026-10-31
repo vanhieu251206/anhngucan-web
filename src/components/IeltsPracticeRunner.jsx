@@ -4,7 +4,8 @@ import ExamTimer, { useExamTimer } from "./ExamTimer.jsx";
 import { useAuth } from "../lib/authContext.jsx";
 import { useTestSubmission } from "../lib/testSubmit.js";
 import SubmitStatus from "./SubmitStatus.jsx";
-import { flattenPassages as flattenQuestions, isIeltsCorrect as isCorrect, normalizeOptions } from "../lib/grading/ielts.js";
+import { firstQuestionNumbers, flattenPassages as flattenQuestions, isIeltsCorrect as isCorrect, normalizeOptions } from "../lib/grading/ielts.js";
+import { AnswerSheet, PaperView } from "./PaperAnswerSheet.jsx";
 import { deriveTableDiagramBlanks, normalizeBlankHolder, textBlankCount } from "../lib/tableDiagramBlanks.js";
 import { optimizeImage } from "../lib/cloudinaryImage.js";
 
@@ -450,7 +451,9 @@ export function StandardQuestionGroup({ g, gi, activePassage, flat, answers, sub
 // "Nộp bài" ngay từ đầu để hiện sẵn đáp án đúng cho giáo viên rà lại — không có đồng hồ đếm giờ/nút
 // Nộp bài/khung điểm (không có ý nghĩa khi chưa ai làm bài thật), chỉ còn nút "⬅ Quay lại" ở topbar
 // để đóng và về CMS (chốt 2026-09-12).
-export default function IeltsPracticeRunner({ test, onBack, mode = "practice", readOnly = false, studentUid, studentName, studentClass, seriesId, level, openingId }) {
+// part: chỉ số passage học sinh làm trong cả Test (máy chủ chỉ chấm passage đó). firstNumber: số câu đầu của passage
+// trong cả Test — phiếu đề tải lên đánh số khớp đề giấy (Passage 2 = câu 14...).
+export default function IeltsPracticeRunner({ test, onBack, mode = "practice", readOnly = false, studentUid, studentName, studentClass, seriesId, level, openingId, part = null, firstNumber = 1 }) {
   const isComprehension = mode === "comprehension";
   const flat = useMemo(() => flattenQuestions(test.passages), [test]);
   const [activePassage, setActivePassage] = useState(0);
@@ -466,7 +469,7 @@ export default function IeltsPracticeRunner({ test, onBack, mode = "practice", r
   // Học sinh: máy chủ chấm (lib/testSubmit.js) → điểm trả về. submitState: { error? } khi đang nộp/lỗi.
   const [serverScore, setServerScore] = useState(null);
   const [submitState, setSubmitState] = useState(null);
-  const submitToServer = useTestSubmission({ kind: "ielts-reading", seriesId, level, testId: test.id, openingId, lessonLabel: test.title, studentName });
+  const submitToServer = useTestSubmission({ kind: "ielts-reading", seriesId, level, testId: test.id, part, openingId, lessonLabel: test.title, studentName });
   const questionRefs = useRef({});
   // Đồng hồ chung (ExamTimer.jsx): hết giờ tự nộp bài. Chỉ chạy ở chế độ làm bài thật (không phải
   // đọc hiểu/preview).
@@ -536,13 +539,19 @@ export default function IeltsPracticeRunner({ test, onBack, mode = "practice", r
 
   const passage = test.passages[activePassage];
   const passageQuestions = flat.filter(e => e.passageIndex === activePassage);
+  // Đề tải lên (PDF/Word, 2026-10-31): Luyện đề = đề trái + phiếu trả lời phải; Đọc hiểu = chỉ xem file.
+  const paperPractice = !isComprehension && passage.groups?.[0]?.type === "answer-sheet";
+  const paperReading = isComprehension && passage.readingPaper ? passage.readingPaper : null;
+  const numOffset = firstNumber - 1;
+  const shownNumber = entry => (test.passages[entry.passageIndex]?.groups?.[0]?.type === "answer-sheet" ? entry.number + numOffset : entry.number);
+  const sheetEntry = qi => passageQuestions.find(e => e.groupIndex === 0 && e.questionIndex === qi);
 
   return (
     <div className="ielts-practice-screen">
       <div className="ielts-practice-topbar">
         <button className="speaking-fullscreen-back" onClick={onBack}>⬅ Quay lại</button>
         <h1 className="ielts-practice-title">{test.title}</h1>
-        {isComprehension && (
+        {isComprehension && !paperReading && (
           <>
             <div className="ielts-practice-readmode-toggle" role="group" aria-label="Chế độ đọc">
               <button type="button" className={`ielts-practice-readmode-btn${readMode === "plain" ? " is-active" : ""}`} onClick={() => setReadMode("plain")}>Đọc thường</button>
@@ -579,8 +588,8 @@ export default function IeltsPracticeRunner({ test, onBack, mode = "practice", r
               <p className="ielts-practice-passage-instruction">
                 You should spend about {test.timeLimitMinutes ? Math.round(test.timeLimitMinutes / test.passages.length) : 20} minutes on{" "}
                 <strong>
-                  Questions {passageQuestions[0].number}
-                  {passageQuestions.length > 1 ? `–${passageQuestions[passageQuestions.length - 1].number}` : ""}
+                  Questions {shownNumber(passageQuestions[0])}
+                  {passageQuestions.length > 1 ? `–${shownNumber(passageQuestions[passageQuestions.length - 1])}` : ""}
                 </strong>
                 , which are based on Reading Passage {activePassage + 1} below.
               </p>
@@ -588,7 +597,11 @@ export default function IeltsPracticeRunner({ test, onBack, mode = "practice", r
             <h2>{passage.title}</h2>
             {passage.titleVi && <p className="ielts-practice-title-vi">{passage.titleVi}</p>}
             {passage.audioUrl && <audio className="ielts-full-audio" src={passage.audioUrl} controls />}
-            {readMode === "plain" ? (
+            {paperPractice ? (
+              <div className="paper-doc"><PaperView paper={passage.paper} /></div>
+            ) : paperReading ? (
+              <div className="paper-doc"><PaperView paper={paperReading} /></div>
+            ) : readMode === "plain" ? (
               <HighlightablePassage
                 sentences={isComprehension ? passage.sentences : passage.practiceSentences ?? passage.sentences}
                 highlightOn={highlightOn}
@@ -600,7 +613,28 @@ export default function IeltsPracticeRunner({ test, onBack, mode = "practice", r
 
           {!isComprehension && (
           <div className="ielts-practice-questions-col">
-            {(passage.groups ?? []).map((g, gi) => (
+            {paperPractice && (
+              <AnswerSheet
+                questions={passage.groups[0].questions ?? []}
+                startNumber={firstQuestionNumbers(test.passages)[activePassage] + numOffset}
+                valueOf={qi => answers[sheetEntry(qi)?.number]}
+                resultOf={qi => {
+                  const e = sheetEntry(qi);
+                  return e && submitted && reveal ? isCorrect(e, answers[e.number]) : undefined;
+                }}
+                showKey={submitted && reveal}
+                locked={submitted}
+                onAnswer={(qi, v) => {
+                  const e = sheetEntry(qi);
+                  if (e) setAnswer(e.number, v);
+                }}
+                rowRef={(qi, el) => {
+                  const e = sheetEntry(qi);
+                  if (e) questionRefs.current[e.number] = el;
+                }}
+              />
+            )}
+            {!paperPractice && (passage.groups ?? []).map((g, gi) => (
               <div className="ielts-practice-group" key={gi}>
                 {g.instruction && String(g.instruction).split("\n").map((line, li) => (
                   <p className="ielts-practice-instruction" key={li}>{line}</p>
@@ -683,7 +717,7 @@ export default function IeltsPracticeRunner({ test, onBack, mode = "practice", r
               className={`ielts-practice-navbtn${answers[entry.number] != null && answers[entry.number] !== "" ? " is-answered" : ""}${(submitted && reveal) ? (isCorrect(entry, answers[entry.number]) ? " is-correct" : " is-wrong") : ""}`}
               onClick={() => jumpTo(entry.number)}
             >
-              {entry.number}
+              {shownNumber(entry)}
             </button>
           ))}
         </div>

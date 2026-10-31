@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { YLE_SERIES, LISTENING_PART_LABELS, buildListeningTitles as buildListeningTitlesShared } from "../../lib/yleData.js";
 import { useAuth } from "../../lib/authContext.jsx";
 import { levelAccessOf, seriesHasAccess } from "../../lib/teacherScope.js";
@@ -21,6 +21,13 @@ import ListeningTestStudio from "../../components/dashboard/ListeningTestStudio.
 import KetPetContentPage from "./KetPetContentPage.jsx";
 import KidsContentPage from "./KidsContentPage.jsx";
 import { useConfirm } from "../../components/dashboard/ConfirmDialog.jsx";
+import PaperTestStudio, { hasPaperFile } from "../../components/dashboard/PaperTestStudio.jsx";
+import AudioUploadField from "../../components/dashboard/AudioUploadField.jsx";
+import IeltsPracticeRunner from "../../components/IeltsPracticeRunner.jsx";
+import IeltsListeningRunner from "../../components/IeltsListeningRunner.jsx";
+import { answerSheetGroup } from "../../lib/ketPetPracticeTest.js";
+import { firstQuestionNumbers } from "../../lib/grading/ielts.js";
+import { validatePaperTest } from "../../lib/lessonValidation.js";
 import { readParams, setParams } from "../../lib/urlState.js";
 
 const MODE_INFO = {
@@ -929,6 +936,18 @@ function VocabEditor({ series, level, uid }) {
 // thẳng vào để soạn, không cho thêm/xoá Test ngoài 4 thẻ này.
 const IELTS_TEST_COUNT = 4;
 
+// Passage đang soạn theo kiểu "Tải đề lên (PDF / Word)" chưa (2026-10-31, giống KET/PET): Luyện đề = có đề hoặc phiếu
+// trả lời "answer-sheet"; Đọc hiểu = có file đọc `readingPaper`.
+function isPaperPassage(p, section) {
+  if (section === "comprehension") return p?.readingPaper != null;
+  return p?.paper != null || p?.groups?.[0]?.type === "answer-sheet";
+}
+
+// Test Listening soạn theo kiểu "Tải đề lên": 1 file đề cho cả Test, `sections` chỉ còn 1 section chứa phiếu trả lời.
+function isPaperListening(t) {
+  return t?.paper != null || t?.sections?.[0]?.groups?.[0]?.type === "answer-sheet";
+}
+
 function IeltsReadingEditor({ series, level, uid }) {
   const confirm = useConfirm();
   const [tests, setTests] = useState(null);
@@ -943,11 +962,20 @@ function IeltsReadingEditor({ series, level, uid }) {
   // Passage + phần (đọc hiểu/luyện đề) cần cuộn tới ngay khi mở Test — set khi bấm 1 trong 2 nút
   // trên thẻ Passage ở màn danh sách, đọc 1 lần rồi PracticeStudio tự xoá (xem prop `focusTarget`).
   const [focusTarget, setFocusTarget] = useState(null);
+  // Cách soạn passage đang mở: false = soạn từng câu/từng dòng, true = "Tải đề lên (PDF / Word)". Đổi qua lại thì cất
+  // phần của cách kia vào stash để quay lại không mất (chỉ lưu theo cách đang chọn lúc Xuất bản).
+  const [paperMode, setPaperMode] = useState(false);
+  const stashRef = useRef({});
 
   function reloadTests() {
     listPracticeTests(series.id, level.number).then(setTests);
   }
   useEffect(reloadTests, [series.id, level.number]);
+
+  function startEditing(nextPassages, focus) {
+    setPaperMode(focus ? isPaperPassage(nextPassages[focus.passageIndex], focus.section) : false);
+    stashRef.current = {};
+  }
 
   async function openTest(t, focus = null) {
     const full = await getPracticeTest(series.id, level.number, t.id);
@@ -965,6 +993,7 @@ function IeltsReadingEditor({ series, level, uid }) {
     setPassages(nextPassages);
     setSaved(false);
     setFocusTarget(focus);
+    startEditing(nextPassages, focus);
   }
 
   function openNewTestNumbered(n, focus = null) {
@@ -979,6 +1008,7 @@ function IeltsReadingEditor({ series, level, uid }) {
     setPassages(nextPassages);
     setSaved(false);
     setFocusTarget(focus);
+    startEditing(nextPassages, focus);
   }
 
   // Bấm nút "Đọc hiểu"/"Luyện đề" trên 1 thẻ Passage ở màn danh sách — mở đúng Test rồi cuộn
@@ -1045,8 +1075,109 @@ function IeltsReadingEditor({ series, level, uid }) {
       });
     }
     const testLabel = `Test ${openTestId.replace("test", "")} — Passage ${passageIndex + 1}`;
-    if (focusTarget.section === "comprehension") {
+    const isComprehension = focusTarget.section === "comprehension";
+
+    // Đổi cách soạn: cất phần của cách đang dùng vào stash, lấy lại phần của cách kia (nếu đã có trong phiên này).
+    async function switchMode(next) {
+      if (next === paperMode) return;
+      const msg = next
+        ? "Chuyển sang \"Tải đề lên\"? Khi xuất bản, phần này lưu theo file tải lên, phần soạn từng câu bị thay."
+        : "Chuyển sang \"Soạn từng câu\"? Khi xuất bản, phần này lưu theo các câu soạn, file tải lên bị thay.";
+      if (!(await confirm(msg))) return;
+      const stash = stashRef.current;
+      if (isComprehension) {
+        if (next) patchPassageAt({ readingPaper: stash.readingPaper ?? null });
+        else {
+          stash.readingPaper = passage.readingPaper;
+          patchPassageAt({ readingPaper: undefined });
+        }
+      } else if (next) {
+        stash.questionGroups = passage.groups;
+        patchPassageAt({ paper: stash.paper ?? null, groups: stash.paperGroups ?? [answerSheetGroup()] });
+      } else {
+        stash.paper = passage.paper;
+        stash.paperGroups = passage.groups;
+        patchPassageAt({ paper: undefined, groups: stash.questionGroups ?? [] });
+      }
+      setPaperMode(next);
+      setSaved(false);
+    }
+    const modeSwitch = (
+      <div className="admin-segmented paper-authoring-switch">
+        <button type="button" className={!paperMode ? "is-active" : ""} onClick={() => switchMode(false)}>Soạn từng câu</button>
+        <button type="button" className={paperMode ? "is-active" : ""} onClick={() => switchMode(true)}>Tải đề lên (PDF / Word)</button>
+      </div>
+    );
+
+    if (paperMode && isComprehension) {
       return (
+        <>
+          {modeSwitch}
+          <PaperTestStudio
+            accent={series.color}
+            label={`${testLabel} — Đọc hiểu`}
+            backLabel="← Quay lại danh sách Test"
+            onBack={() => setOpenTestId(null)}
+            paper={passage.readingPaper}
+            onPaperChange={readingPaper => patchPassageAt({ readingPaper })}
+            warnings={hasPaperFile(passage.readingPaper) ? [] : ["Chưa tải file lên."]}
+            extra={
+              <>
+                <label className="admin-dictation-text-label">
+                  Tên bài đọc
+                  <input className="admin-input" value={passage.title ?? ""} onChange={e => patchPassageAt({ title: e.target.value })} />
+                </label>
+                <AudioUploadField label="Audio bài đọc (tuỳ chọn)" value={passage.audioUrl} onChange={audioUrl => patchPassageAt({ audioUrl })} />
+              </>
+            }
+            renderPreview={onClose => (
+              <IeltsPracticeRunner test={{ title: `${testLabel} (xem trước)`, timeLimitMinutes: null, passages: [passage] }} mode="comprehension" readOnly onBack={onClose} />
+            )}
+            onSave={handleSaveTest}
+            saving={saving}
+            saved={saved}
+          />
+        </>
+      );
+    }
+    if (paperMode) {
+      const startNumber = firstQuestionNumbers(passages)[passageIndex] ?? 1;
+      const questions = passage.groups?.[0]?.questions ?? [];
+      return (
+        <>
+          {modeSwitch}
+          <PaperTestStudio
+            accent={series.color}
+            label={`${testLabel} — Luyện đề`}
+            backLabel="← Quay lại danh sách Test"
+            onBack={() => setOpenTestId(null)}
+            paper={passage.paper}
+            onPaperChange={paper => patchPassageAt({ paper })}
+            questions={questions}
+            onQuestionsChange={qs => patchPassageAt({ groups: [answerSheetGroup(qs)] })}
+            startNumber={startNumber}
+            warnings={validatePaperTest(passage.paper, questions, startNumber)}
+            renderPreview={onClose => (
+              <IeltsPracticeRunner
+                test={{ title: `${testLabel} (xem trước)`, timeLimitMinutes: null, passages: [passage] }}
+                mode="practice"
+                readOnly
+                firstNumber={startNumber}
+                onBack={onClose}
+              />
+            )}
+            onSave={handleSaveTest}
+            saving={saving}
+            saved={saved}
+          />
+        </>
+      );
+    }
+
+    if (isComprehension) {
+      return (
+        <>
+        {modeSwitch}
         <ComprehensionStudio
           accent={series.color}
           testLabel={testLabel}
@@ -1064,9 +1195,12 @@ function IeltsReadingEditor({ series, level, uid }) {
           saving={saving}
           saved={saved}
         />
+        </>
       );
     }
     return (
+      <>
+      {modeSwitch}
       <LuyenDePage
         accent={series.color}
         testLabel={testLabel}
@@ -1079,6 +1213,7 @@ function IeltsReadingEditor({ series, level, uid }) {
         saving={saving}
         saved={saved}
       />
+      </>
     );
   }
 
@@ -1155,6 +1290,11 @@ function IeltsListeningEditor({ series, level, uid }) {
   const [openTestId, setOpenTestId] = useState(null);
   const [title, setTitle] = useState("");
   const [sections, setSections] = useState([]);
+  // Cách soạn "Tải đề lên" (2026-10-31, giống KET/PET): 1 file đề + phiếu trả lời cho cả Test, audio theo đoạn câu.
+  // Giữ riêng nội dung 2 cách để đổi qua lại không mất — Xuất bản chỉ lưu theo cách đang chọn.
+  const [paperMode, setPaperMode] = useState(false);
+  const [paper, setPaper] = useState(null);
+  const [paperQuestions, setPaperQuestions] = useState([]);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
@@ -1165,9 +1305,13 @@ function IeltsListeningEditor({ series, level, uid }) {
 
   async function openTest(t) {
     const full = await getIeltsListeningTest(series.id, level.number, t.id);
+    const isPaper = isPaperListening(full);
     setOpenTestId(t.id);
     setTitle(full?.title ?? t.title ?? "");
-    setSections(full?.sections ?? []);
+    setSections(!isPaper ? full?.sections ?? [] : []);
+    setPaperMode(isPaper);
+    setPaper(full?.paper ?? null);
+    setPaperQuestions(isPaper ? full.sections?.[0]?.groups?.[0]?.questions ?? [] : []);
     setSaved(false);
   }
 
@@ -1175,6 +1319,19 @@ function IeltsListeningEditor({ series, level, uid }) {
     setOpenTestId(`test${n}`);
     setTitle(`${series.title} ${level.number} - Listening Test ${n}`);
     setSections([]);
+    setPaperMode(false);
+    setPaper(null);
+    setPaperQuestions([]);
+    setSaved(false);
+  }
+
+  async function switchMode(next) {
+    if (next === paperMode) return;
+    const msg = next
+      ? "Chuyển sang \"Tải đề lên\"? Khi xuất bản, Test lưu theo đề tải lên, phần soạn từng câu bị thay."
+      : "Chuyển sang \"Soạn từng câu\"? Khi xuất bản, Test lưu theo các câu soạn, đề tải lên bị thay.";
+    if (!(await confirm(msg))) return;
+    setPaperMode(next);
     setSaved(false);
   }
 
@@ -1192,7 +1349,10 @@ function IeltsListeningEditor({ series, level, uid }) {
     setSaved(false);
     try {
       const order = tests?.find(t => t.id === openTestId)?.order ?? Number(openTestId.replace("test", ""));
-      await saveIeltsListeningTest(series.id, level.number, openTestId, { title, order, sections }, uid);
+      const content = paperMode
+        ? { title, order, paper, sections: [{ title: "", audioUrl: "", groups: [answerSheetGroup(paperQuestions)] }] }
+        : { title, order, sections };
+      await saveIeltsListeningTest(series.id, level.number, openTestId, content, uid);
       setSaved(true);
       reloadTests();
     } catch (err) {
@@ -1203,7 +1363,50 @@ function IeltsListeningEditor({ series, level, uid }) {
   }
 
   if (openTestId) {
+    const modeSwitch = (
+      <div className="admin-segmented paper-authoring-switch">
+        <button type="button" className={!paperMode ? "is-active" : ""} onClick={() => switchMode(false)}>Soạn từng câu</button>
+        <button type="button" className={paperMode ? "is-active" : ""} onClick={() => switchMode(true)}>Tải đề lên (PDF / Word)</button>
+      </div>
+    );
+    if (paperMode) {
+      const paperSections = [{ title: "", audioUrl: "", groups: [answerSheetGroup(paperQuestions)] }];
+      return (
+        <>
+          {modeSwitch}
+          <PaperTestStudio
+            accent={series.color}
+            label={title || "Listening"}
+            backLabel="← Quay lại danh sách Test"
+            onBack={() => setOpenTestId(null)}
+            paper={paper}
+            onPaperChange={setPaper}
+            questions={paperQuestions}
+            onQuestionsChange={setPaperQuestions}
+            warnings={validatePaperTest(paper, paperQuestions)}
+            extra={
+              <label className="admin-dictation-text-label">
+                Tên Test
+                <input className="admin-input" value={title} onChange={e => setTitle(e.target.value)} />
+              </label>
+            }
+            renderPreview={onClose => (
+              <IeltsListeningRunner
+                test={{ id: "preview", title: `${title || "Listening"} (xem trước)`, timeLimitMinutes: null, paper, sections: paperSections }}
+                onBack={onClose}
+                preview
+              />
+            )}
+            onSave={handleSaveTest}
+            saving={saving}
+            saved={saved}
+          />
+        </>
+      );
+    }
     return (
+      <>
+      {modeSwitch}
       <ListeningTestStudio
         accent={series.color}
         title={title}
@@ -1215,6 +1418,7 @@ function IeltsListeningEditor({ series, level, uid }) {
         saving={saving}
         saved={saved}
       />
+      </>
     );
   }
 
@@ -1231,7 +1435,7 @@ function IeltsListeningEditor({ series, level, uid }) {
                 <button className="admin-test-card-main" onClick={() => (t ? openTest(t) : openNewTestNumbered(n))}>
                   <span className="admin-test-card-icon">🎧</span>
                   <span className="admin-test-card-title">{t?.title ?? `Test ${n}`}</span>
-                  <span className="admin-scene-count-badge">{t ? `${t.sections?.length ?? 0} section` : "Chưa soạn"}</span>
+                  <span className="admin-scene-count-badge">{!t ? "Chưa soạn" : isPaperListening(t) ? "Đề tải lên" : `${t.sections?.length ?? 0} section`}</span>
                 </button>
                 {t && (
                   <div className="admin-test-card-actions">
