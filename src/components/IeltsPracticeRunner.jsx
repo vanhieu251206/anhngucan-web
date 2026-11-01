@@ -457,6 +457,8 @@ export default function IeltsPracticeRunner({ test, onBack, mode = "practice", r
   const isComprehension = mode === "comprehension";
   const flat = useMemo(() => flattenQuestions(test.passages), [test]);
   const [activePassage, setActivePassage] = useState(0);
+  // Đề tải lên có file câu hỏi riêng (3 cột): trên điện thoại chỉ hiện 1 cột, chọn bằng tab.
+  const [mobilePane, setMobilePane] = useState("passage");
   const [answers, setAnswers] = useState({});
   const [highlightOn, setHighlightOn] = useState(false);
   // Chế độ đọc: "plain" = đọc liền mạch như đề thi thật (bấm chọn để highlight); "vocab" = chia
@@ -542,6 +544,8 @@ export default function IeltsPracticeRunner({ test, onBack, mode = "practice", r
   // Đề tải lên (PDF/Word, 2026-10-31): Luyện đề = đề trái + phiếu trả lời phải; Đọc hiểu = chỉ xem file.
   const paperPractice = !isComprehension && passage.groups?.[0]?.type === "answer-sheet";
   const paperReading = isComprehension && passage.readingPaper ? passage.readingPaper : null;
+  // Có file câu hỏi riêng (2026-11-01): 3 cột Đề bài 2/5 | Câu hỏi 2/5 | Phiếu 1/5.
+  const questionPaper = paperPractice && (passage.questionPaper?.pages?.length || passage.questionPaper?.html) ? passage.questionPaper : null;
   const numOffset = firstNumber - 1;
   const shownNumber = entry => (test.passages[entry.passageIndex]?.groups?.[0]?.type === "answer-sheet" ? entry.number + numOffset : entry.number);
   const sheetEntry = qi => passageQuestions.find(e => e.groupIndex === 0 && e.questionIndex === qi);
@@ -574,14 +578,24 @@ export default function IeltsPracticeRunner({ test, onBack, mode = "practice", r
               key={i}
               type="button"
               className={`ielts-practice-tab${activePassage === i ? " is-active" : ""}`}
-              onClick={() => setActivePassage(i)}
+              onClick={() => { setActivePassage(i); setMobilePane("passage"); }}
             >
               Passage {i + 1}
             </button>
           ))}
         </div>
 
-        <div className={`ielts-practice-columns${isComprehension ? " ielts-practice-columns-solo" : ""}`}>
+        {questionPaper && (
+          <div className="ielts-practice-pane-tabs" role="tablist">
+            {[["passage", "Đề bài"], ["questions", "Câu hỏi"], ["sheet", "Phiếu"]].map(([key, label]) => (
+              <button key={key} type="button" role="tab" aria-selected={mobilePane === key} className={`ielts-practice-tab${mobilePane === key ? " is-active" : ""}`} onClick={() => setMobilePane(key)}>
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        <div className={`ielts-practice-columns${isComprehension ? " ielts-practice-columns-solo" : ""}${questionPaper ? ` ielts-practice-columns-3 pane-${mobilePane}` : ""}`}>
           <div className="ielts-practice-passage-col">
             <p className="ielts-practice-passage-label">READING PASSAGE {activePassage + 1}</p>
             {!isComprehension && passageQuestions.length > 0 && (
@@ -610,6 +624,12 @@ export default function IeltsPracticeRunner({ test, onBack, mode = "practice", r
               (passage.sentences ?? []).map((s, i) => <SentenceVocabRow key={i} sentence={s} />)
             )}
           </div>
+
+          {questionPaper && (
+            <div className="ielts-practice-qpaper-col">
+              <div className="paper-doc"><PaperView paper={questionPaper} /></div>
+            </div>
+          )}
 
           {!isComprehension && (
           <div className="ielts-practice-questions-col">

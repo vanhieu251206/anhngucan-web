@@ -11,7 +11,7 @@ import ResultAnalysisPage, { fmtScore, fmtDuration, fmtWhen } from "./ResultAnal
 import { readParams, setParams } from "../../lib/urlState.js";
 import { regradeAllResults } from "../../lib/regradeAll.js";
 import { useConfirm } from "../../components/dashboard/ConfirmDialog.jsx";
-import { listOpenings, isExpired, attemptKey, activeExtensions } from "../../lib/openings.js";
+import { listOpenings, isExpired, isWatchOnly, attemptKey, activeExtensions } from "../../lib/openings.js";
 import ReopenDialog from "../../components/dashboard/ReopenDialog.jsx";
 import { listSubmittedUids } from "../../lib/attempts.js";
 import { deadlineInfo, kindLabel } from "../../lib/assignmentUtils.js";
@@ -418,7 +418,8 @@ function MissingPanel({ allowedClasses }) {
     let cancelled = false;
     (async () => {
       try {
-        const [students, openings] = await Promise.all([listStudents(), listOpenings()]);
+        // Bài chỉ xem video (Luyện nghe) không có nộp bài → không tính "chưa nộp".
+        const [students, openings] = await Promise.all([listStudents(), listOpenings().then(l => l.filter(o => !isWatchOnly(o.kind)))]);
         const submitted = await listSubmittedUids(openings.map(o => attemptKey(o.testId, o.id)));
         if (!cancelled) setData({ students, openings, submitted, now: Date.now() });
       } catch (e) {

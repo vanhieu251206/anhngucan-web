@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
-import { YLE_SERIES, KET_PET_GRADES, KIDS_GRADES } from "../../lib/yleData.js";
+import { YLE_SERIES, KET_PET_GRADES, KIDS_GRADES, listeningTestNumber } from "../../lib/yleData.js";
 import { getKetPetFolders, parseUnitKey, unitEntries, unitLabel } from "../../lib/ketPetFolders.js";
 import { loadLevelContent } from "../../lib/lessons.js";
 import { listListeningExamTests } from "../../lib/adminLessons.js";
 import { listClassDocs, bookAllowsLevel, bookAllowsSeries, bookKeys, formatBook, formatSchedule } from "../../lib/classes.js";
 import { listStudents } from "../../lib/adminUsers.js";
 import { listSubmittedUids } from "../../lib/attempts.js";
-import { OPENING_KINDS, listOpenings, createOpening, updateOpening, closeOpening, isExpired, activeExtensions, latestDeadlineMs, attemptKey } from "../../lib/openings.js";
+import { OPENING_KINDS, isWatchOnly, listOpenings, createOpening, updateOpening, closeOpening, isExpired, activeExtensions, latestDeadlineMs, attemptKey } from "../../lib/openings.js";
 import ReopenDialog from "../../components/dashboard/ReopenDialog.jsx";
 import { useAuth } from "../../lib/authContext.jsx";
 import { useConfirm } from "../../components/dashboard/ConfirmDialog.jsx";
@@ -19,7 +19,7 @@ function kindsFor(seriesId) {
   if (seriesId === "ket-pet") return ["ketpet-vocab", "ketpet-test"];
   if (seriesId === "ielts") return ["ielts-reading", "ielts-listening", "dictation"];
   const base = ["speaking", "reading", "dictation", "listening-exam"];
-  return ["starters", "movers", "flyers"].includes(seriesId) ? [...base, "yle-vocab"] : base;
+  return ["starters", "movers", "flyers"].includes(seriesId) ? [...base, "listening-practice", "yle-vocab"] : base;
 }
 
 function toLocalInput(date) {
@@ -178,7 +178,11 @@ export default function OpeningsPage() {
           const levelObj = series.levels.find(l => l.number === levelNo);
           // Kids Grade 5 chưa có cấp tương ứng trong dữ liệu bài học → chưa có bài để mở.
           const content = levelObj ? await loadLevelContent(series, levelObj) : {};
-          const src = { speaking: content.tests, reading: content.readingTests, dictation: content.dictationTests, "yle-vocab": content.vocabTests, "ielts-reading": content.practiceTests, "ielts-listening": content.ieltsListeningTests }[kind] ?? [];
+          // Luyện nghe: mở theo từng Test — chỉ Test đã có ít nhất 1 video.
+          const practiceTests = [...new Set((content.listening ?? []).filter(v => v.videoId?.trim()).map(v => listeningTestNumber(v.title)).filter(Boolean))]
+            .sort((a, b) => a - b)
+            .map(n => ({ id: `test${n}`, title: `Luyện nghe Test ${n}` }));
+          const src = { speaking: content.tests, reading: content.readingTests, dictation: content.dictationTests, "yle-vocab": content.vocabTests, "ielts-reading": content.practiceTests, "ielts-listening": content.ieltsListeningTests, "listening-practice": practiceTests }[kind] ?? [];
           list = src.map(t => ({ id: t.id, title: t.title ?? t.id }));
         }
       } catch (e) {
@@ -201,14 +205,15 @@ export default function OpeningsPage() {
     // Bắt buộc có hạn chót: kết quả bài làm chỉ giữ tới 48h sau hạn chót rồi bị xoá (lib/testResults.js).
     if (!expiresAt) return setError("Chọn hạn chót cho bài.");
     setSaving(true);
+    const watchOnly = isWatchOnly(kind);
     try {
       await createOpening(
         {
           className, seriesId, level: levelNo, kind, testId: test.id, testTitle: test.title,
           expiresAt: expiresAt ? new Date(expiresAt) : null,
-          maxAttempts: maxAttempts ? Number(maxAttempts) : null,
-          timeLimitMinutes: minutes ? Number(minutes) : null,
-          maxWrong: maxWrong === "" ? null : Number(maxWrong),
+          maxAttempts: maxAttempts && !watchOnly ? Number(maxAttempts) : null,
+          timeLimitMinutes: minutes && !watchOnly ? Number(minutes) : null,
+          maxWrong: maxWrong === "" || watchOnly ? null : Number(maxWrong),
         },
         user.uid
       );
@@ -337,6 +342,7 @@ export default function OpeningsPage() {
   }, [students]);
   // { done, total } của 1 lần mở bài; null = chưa nạp (bài hết hạn đã lâu).
   function progressOf(o) {
+    if (isWatchOnly(o.kind)) return null;
     const done = submitted.get(attemptKey(o.testId, o.id));
     if (!done) return null;
     const list = rosters[o.className] ?? [];
@@ -430,7 +436,7 @@ export default function OpeningsPage() {
                       </>
                     ) : "—"}
                   </td>
-                  <td>{o.maxAttempts ?? "∞"}</td>
+                  <td>{isWatchOnly(o.kind) ? "—" : o.maxAttempts ?? "∞"}</td>
                   <td>{o.timeLimitMinutes ?? "—"}</td>
                   <td>
                     {isExpired(o) ? <span className="opening-chip opening-chip-off">Hết hạn</span> : <span className="opening-chip opening-chip-on">Đang mở</span>}
@@ -438,7 +444,7 @@ export default function OpeningsPage() {
                   </td>
                   <td>
                     <div className="opening-actions">
-                      {isExpired(o) && <button className="opening-btn" onClick={() => { setError(""); setReopening(o); }}>↻ Mở lại</button>}
+                      {isExpired(o) && !isWatchOnly(o.kind) && <button className="opening-btn" onClick={() => { setError(""); setReopening(o); }}>↻ Mở lại</button>}
                       {/* Có em nộp là tải được ngay. Có em được mở lại thì kết quả giữ tới 48h sau hạn riêng → tải được tới lúc đó. */}
                       {submitted.get(attemptKey(o.testId, o.id))?.size > 0 && canDownloadSheets(latestDeadlineMs(o)) && (
                         <button className="opening-btn" disabled={!!downloadingId} onClick={() => handleSheets(o)}>
@@ -516,7 +522,7 @@ export default function OpeningsPage() {
             <span>Hạn chót</span>
             <input className="admin-input" type="datetime-local" required value={expiresAt} onChange={e => setExpiresAt(e.target.value)} />
           </label>
-          <div className="opening-row-3">
+          {!isWatchOnly(kind) && <div className="opening-row-3">
             <label className="admin-mini-field">
               <span>Số lượt</span>
               <input className="admin-input" type="number" min="1" placeholder="Không giới hạn" value={maxAttempts} onChange={e => setMaxAttempts(e.target.value)} />
@@ -529,7 +535,7 @@ export default function OpeningsPage() {
               <span>Sai tối đa (câu)</span>
               <input className="admin-input" type="number" min="0" placeholder="Không yêu cầu" value={maxWrong} onChange={e => setMaxWrong(e.target.value)} />
             </label>
-          </div>
+          </div>}
           <div className="opening-form-actions">
             {error && <p className="admin-error">{error}</p>}
             <button type="button" className="admin-pill-btn" onClick={() => setShowForm(false)}>Huỷ</button>
@@ -550,7 +556,7 @@ export default function OpeningsPage() {
                 <span>Hạn chót</span>
                 <input className="admin-input" type="datetime-local" required value={editing.expiresAt} onChange={e => setEditing({ ...editing, expiresAt: e.target.value })} />
               </label>
-              <div className="opening-row-3">
+              {!isWatchOnly(editing.kind) && <div className="opening-row-3">
                 <label className="admin-mini-field">
                   <span>Số lượt</span>
                   <input className="admin-input" type="number" min="1" placeholder="Không giới hạn" value={editing.maxAttempts} onChange={e => setEditing({ ...editing, maxAttempts: e.target.value })} />
@@ -563,7 +569,7 @@ export default function OpeningsPage() {
                   <span>Sai tối đa (câu)</span>
                   <input className="admin-input" type="number" min="0" placeholder="Không yêu cầu" value={editing.maxWrong} onChange={e => setEditing({ ...editing, maxWrong: e.target.value })} />
                 </label>
-              </div>
+              </div>}
               <div className="opening-form-actions">
                 {error && <p className="admin-error">{error}</p>}
                 <button type="button" className="admin-pill-btn" onClick={() => setEditing(null)}>Huỷ</button>

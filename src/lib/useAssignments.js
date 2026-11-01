@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { collection, onSnapshot, query, where } from "firebase/firestore";
 import { db } from "./firebase.js";
 import { useAuth } from "./authContext.jsx";
-import { attemptKey, openingForStudent } from "./openings.js";
+import { attemptKey, isWatchOnly, openingForStudent } from "./openings.js";
 import { getAttemptInfo } from "./attempts.js";
 
 // Bài giáo viên mở cho lớp của học sinh (chuông AssignmentBell.jsx + trang "Bài của con" MyWorkPage.jsx) — theo dõi
@@ -40,7 +40,8 @@ export function useAssignments() {
     const sorted = [...openings].sort((a, b) => deadline(a) - deadline(b));
     return {
       active: sorted.filter(o => deadline(o) > now),
-      expired: sorted.filter(o => deadline(o) <= now).reverse(),
+      // Bài chỉ xem (video Luyện nghe) hết hạn thì ẩn luôn, không có gì để "quá hạn".
+      expired: sorted.filter(o => deadline(o) <= now && !isWatchOnly(o.kind)).reverse(),
     };
   }, [openings, now]);
 

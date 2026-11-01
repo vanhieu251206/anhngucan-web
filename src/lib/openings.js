@@ -8,14 +8,15 @@ import { getAttemptCount } from "./attempts.js";
 // Mật khẩu vào bài đã BỎ HẲN (chốt 2026-09-25): đăng nhập + mở theo lớp + hạn chót + số lượt đã đủ kiểm soát. Lần
 // mở cũ còn field `passwordHash`/`hasPassword` thì bị bỏ qua (học sinh vào thẳng).
 //
-// kind: "speaking" | "reading" | "dictation" | "listening-exam" | "ielts-reading" | "ielts-listening" |
-//       "ketpet-vocab" | "ketpet-test" | "yle-vocab"
+// kind: "speaking" | "reading" | "dictation" | "listening-exam" | "listening-practice" | "ielts-reading" |
+//       "ielts-listening" | "ketpet-vocab" | "ketpet-test" | "yle-vocab"
 export const OPENING_KINDS = {
   speaking: "Speaking",
   reading: "Reading & Writing",
   dictation: "Dictation",
   "yle-vocab": "Vocabulary",
   "listening-exam": "Listening (Luyện đề)",
+  "listening-practice": "Listening (Luyện nghe)",
   "ielts-reading": "IELTS Reading",
   "ielts-listening": "IELTS Listening",
   "ketpet-vocab": "KET/PET Vocabulary",
@@ -23,6 +24,12 @@ export const OPENING_KINDS = {
 };
 
 const COL = "openings";
+
+// Dạng chỉ xem (video Luyện nghe YLE theo Test, 2026-11-01): không có nộp bài nên không có lượt/phút/sai tối đa/phiếu chấm,
+// học sinh thấy ở "Cần làm" tới hạn chót rồi ẩn luôn (không vào "Quá hạn").
+export function isWatchOnly(kind) {
+  return kind === "listening-practice";
+}
 
 
 export async function listOpenings() {
@@ -162,7 +169,10 @@ export async function checkOpening({ uid, className }, { seriesId, level, kind, 
   }
   const active = matches.filter(o => !isExpired(o));
   if (!active.length) {
-    return { ok: false, title: "Đã hết hạn 🐝", message: "Bài này đã quá hạn nộp — hỏi giáo viên nếu con cần làm nữa nhé." };
+    const message = isWatchOnly(kind)
+      ? "Bài này đã hết hạn xem — hỏi giáo viên nếu con cần xem lại nhé."
+      : "Bài này đã quá hạn nộp — hỏi giáo viên nếu con cần làm nữa nhé.";
+    return { ok: false, title: "Đã hết hạn 🐝", message };
   }
   // Nhiều lần mở trùng bài (hiếm): ưu tiên lần mở còn lượt.
   for (const o of active) {

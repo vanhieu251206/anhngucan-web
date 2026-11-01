@@ -4,7 +4,7 @@ import { migrateAnswerKeys } from "../../lib/answerMigration.js";
 import { exportAudio, importAudio, canRecompressAudio } from "../../lib/audioRecompress.js";
 import { listClassDocs, bookKeys, formatBook } from "../../lib/classes.js";
 import { listStudents } from "../../lib/adminUsers.js";
-import { listOpenings, isExpired, attemptKey } from "../../lib/openings.js";
+import { listOpenings, isExpired, isWatchOnly, attemptKey } from "../../lib/openings.js";
 import { listSubmittedUids } from "../../lib/attempts.js";
 import { listResultsForOpening, RESULT_KEEP_MS } from "../../lib/testResults.js";
 import { downloadClassResultSheets, canDownloadSheets } from "../../lib/resultSheetPdf.js";
@@ -164,9 +164,9 @@ export default function OverviewPage({ onGo }) {
       lockedCount: students.filter(s => s.disabled).length,
       liveRows,
       noBook: classNames.filter(name => !bookKeys(docs[name]?.book).length),
-      late: liveRows.filter(r => r.info.urgent && r.missing.length > 0),
+      late: liveRows.filter(r => r.info.urgent && r.missing.length > 0 && !isWatchOnly(r.o.kind)),
       sheets: openings
-        .filter(o => o.expiresAt && now >= o.expiresAt.toMillis() && canDownloadSheets(o.expiresAt.toMillis(), now))
+        .filter(o => !isWatchOnly(o.kind) && o.expiresAt && now >= o.expiresAt.toMillis() && canDownloadSheets(o.expiresAt.toMillis(), now))
         .sort((a, b) => a.expiresAt.toMillis() - b.expiresAt.toMillis()),
       schedule: nextTeachingDay(classDocs, new Date(now)),
       tuitionRows,
@@ -279,8 +279,12 @@ export default function OverviewPage({ onGo }) {
                       {info.left && <span className={`opening-chip ${info.urgent ? "opening-chip-wait" : "opening-chip-on"}`}>{info.left}</span>}
                     </td>
                     <td>
-                      <div className="overview-progress-label">{done}/{total}</div>
-                      <div className="overview-progress"><span style={{ width: `${total ? (done / total) * 100 : 0}%` }} /></div>
+                      {isWatchOnly(o.kind) ? "—" : (
+                        <>
+                          <div className="overview-progress-label">{done}/{total}</div>
+                          <div className="overview-progress"><span style={{ width: `${total ? (done / total) * 100 : 0}%` }} /></div>
+                        </>
+                      )}
                     </td>
                   </tr>
                 ))}

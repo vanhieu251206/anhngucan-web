@@ -5,6 +5,7 @@ import { useAssignments } from "../lib/useAssignments.js";
 import { useNextClass } from "../lib/useNextClass.js";
 import { deadlineInfo, kindLabel, levelLabel, needsWork, openAssignment, scoreText } from "../lib/assignmentUtils.js";
 import ResultReviewModal from "../components/ResultReviewModal.jsx";
+import { isWatchOnly } from "../lib/openings.js";
 
 // Trang "Bài của con" (học sinh, 2026-09-30): toàn bộ bài giáo viên mở cho lớp, chia 3 tab.
 //   Cần làm: còn hạn, chưa nộp lượt nào — hạn gần nhất lên đầu
@@ -43,7 +44,7 @@ function WorkRow({ o, row, now, tab, onReview }) {
           <>
             {o.reopened && <span className="work-row-note">Cô mở lại</span>}
             {o.maxAttempts && <span className="work-row-note">{count > 0 ? `còn ${o.maxAttempts - count} lượt` : `${o.maxAttempts} lượt`}</span>}
-            <button type="button" className="btn btn-primary work-row-btn" onClick={() => openAssignment(o)}>Làm bài</button>
+            <button type="button" className="btn btn-primary work-row-btn" onClick={() => openAssignment(o)}>{isWatchOnly(o.kind) ? "Xem video" : "Làm bài"}</button>
           </>
         )}
         {tab === "done" && (

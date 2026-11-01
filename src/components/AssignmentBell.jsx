@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { useAssignments } from "../lib/useAssignments.js";
 import { deadlineInfo, kindLabel, levelLabel, needsWork, openAssignment, reminderStage } from "../lib/assignmentUtils.js";
 import { navigateApp } from "../lib/urlState.js";
+import { isWatchOnly } from "../lib/openings.js";
 
 // Chuông thông báo bài cần làm (học sinh, 2026-09-30): giáo viên mở bài cho lớp → chuông lắc + có số + thông báo nổi
 // "Có bài mới"; bài CHƯA LÀM còn < 24 giờ → thông báo nổi "Sắp hết hạn", còn < 1 giờ → chuông lắc lại. Bấm chuông hiện
@@ -22,6 +23,7 @@ function writeStore(key, value) {
 }
 
 function statusOf(o, row) {
+  if (isWatchOnly(o.kind)) return { label: "Xem video", tone: "todo" };
   if (!row) return null;
   if (o.maxAttempts && row.count >= o.maxAttempts) return { label: "Hết lượt", tone: "done", locked: true };
   if (row.count === 0) return { label: "Chưa làm", tone: "todo" };
@@ -53,9 +55,9 @@ export default function AssignmentBell() {
   }, [uid]);
 
   const unseen = active.filter(o => !seen.includes(o.id));
-  // Chỉ nhắc bài đã biết chắc là chưa làm (đã đọc xong số lượt).
+  // Chỉ nhắc bài đã biết chắc là chưa làm (đã đọc xong số lượt). Bài chỉ xem video không nhắc hạn.
   const reminders = active
-    .filter(o => needsWork(o, info[o.id]))
+    .filter(o => !isWatchOnly(o.kind) && needsWork(o, info[o.id]))
     .map(o => ({ o, stage: reminderStage(o, now) }))
     .filter(({ o, stage }) => stage && reminded[o.id] !== stage && reminded[o.id] !== "1h");
   const alertKey = [...unseen.map(o => o.id), ...reminders.map(r => `${r.o.id}:${r.stage}`)].join(",");

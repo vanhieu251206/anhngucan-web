@@ -33,6 +33,8 @@ export function hasPaperFile(paper) {
 // gõ, cô chỉ nhập đáp án, mỗi câu 1 điểm.
 // questions = null: chỉ tải file để học sinh xem (IELTS Đọc hiểu), không có phiếu. startNumber: số câu đầu (IELTS
 // Passage 2 = 14...). extra: nội dung thêm đầu cột phải (vd ô audio). renderPreview(onClose): màn xem trước.
+// onQuestionPaperChange (chỉ IELTS Reading Luyện đề, 2026-11-01, yêu cầu của cô): cho tải thêm 1 file CÂU HỎI riêng
+// (tuỳ chọn) — có file thì chia 3 cột Đề bài | Câu hỏi | Phiếu, không có thì 2 cột như cũ.
 export default function PaperTestStudio({
   accent,
   label,
@@ -40,6 +42,8 @@ export default function PaperTestStudio({
   onBack,
   paper,
   onPaperChange,
+  questionPaper = null,
+  onQuestionPaperChange = null,
   questions = null,
   onQuestionsChange,
   startNumber = 1,
@@ -80,6 +84,28 @@ export default function PaperTestStudio({
     }
   }
 
+  async function handleQuestionFile(e) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (hasPaperFile(questionPaper) && !(await confirm("Thay file câu hỏi hiện có bằng file này?"))) return;
+    setError("");
+    try {
+      onQuestionPaperChange(await uploadPaper(file, setStage));
+    } catch (err) {
+      setError(err.message || "Tải file câu hỏi thất bại");
+    } finally {
+      setStage("");
+    }
+  }
+
+  async function removeQuestionPaper() {
+    if (!(await confirm("Bỏ file câu hỏi? Học sinh sẽ thấy 2 cột (đề + phiếu) như cũ.", { danger: true }))) return;
+    onQuestionPaperChange(null);
+  }
+
+  const threeCol = !!onQuestionPaperChange && hasPaperFile(questionPaper);
+
   async function setCount(value) {
     const n = Math.max(0, Math.min(200, Number(value) || 0));
     if (n < questions.length) {
@@ -107,6 +133,13 @@ export default function PaperTestStudio({
           {hasPaperFile(paper) ? "⬆ Tải đề khác" : "⬆ Tải đề (PDF / Word)"}
           <input type="file" accept=".pdf,.docx,.doc,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden disabled={!!stage} onChange={handleFile} />
         </label>
+        {onQuestionPaperChange && (
+          <label className="admin-pill-btn">
+            {hasPaperFile(questionPaper) ? "⬆ Tải câu hỏi khác" : "⬆ Tải câu hỏi (tuỳ chọn)"}
+            <input type="file" accept=".pdf,.docx,.doc,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden disabled={!!stage} onChange={handleQuestionFile} />
+          </label>
+        )}
+        {threeCol && <button type="button" className="admin-pill-btn admin-pill-btn-danger" onClick={removeQuestionPaper}>Bỏ file câu hỏi</button>}
         {renderPreview && <button type="button" className="admin-pill-btn admin-preview-trigger" onClick={() => setPreviewOpen(true)}>👁 Preview</button>}
         <PageHeadSaveButton onSave={onSave} saving={saving || !!stage} saved={saved} warnings={warnings} />
       </PageHead>
@@ -114,10 +147,11 @@ export default function PaperTestStudio({
       {stage && <p className="paper-studio-stage">{stage}</p>}
       {error && <p className="admin-error">{error}</p>}
 
-      <div className="paper-layout paper-layout-studio">
+      <div className={`paper-layout paper-layout-studio${threeCol ? " paper-layout-3" : ""}`}>
         <div className="paper-doc">
           {hasPaperFile(paper) ? <PaperView paper={paper} /> : <p className="paper-doc-empty">Chưa có đề — bấm "Tải đề (PDF / Word)".</p>}
         </div>
+        {threeCol && <div className="paper-doc"><PaperView paper={questionPaper} /></div>}
 
         <div className="paper-sheet">
           {extra}

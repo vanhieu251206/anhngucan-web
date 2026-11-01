@@ -1093,11 +1093,12 @@ function IeltsReadingEditor({ series, level, uid }) {
         }
       } else if (next) {
         stash.questionGroups = passage.groups;
-        patchPassageAt({ paper: stash.paper ?? null, groups: stash.paperGroups ?? [answerSheetGroup()] });
+        patchPassageAt({ paper: stash.paper ?? null, questionPaper: stash.questionPaper ?? undefined, groups: stash.paperGroups ?? [answerSheetGroup()] });
       } else {
         stash.paper = passage.paper;
+        stash.questionPaper = passage.questionPaper;
         stash.paperGroups = passage.groups;
-        patchPassageAt({ paper: undefined, groups: stash.questionGroups ?? [] });
+        patchPassageAt({ paper: undefined, questionPaper: undefined, groups: stash.questionGroups ?? [] });
       }
       setPaperMode(next);
       setSaved(false);
@@ -1153,6 +1154,8 @@ function IeltsReadingEditor({ series, level, uid }) {
             onBack={() => setOpenTestId(null)}
             paper={passage.paper}
             onPaperChange={paper => patchPassageAt({ paper })}
+            questionPaper={passage.questionPaper}
+            onQuestionPaperChange={questionPaper => patchPassageAt({ questionPaper: questionPaper ?? undefined })}
             questions={questions}
             onQuestionsChange={qs => patchPassageAt({ groups: [answerSheetGroup(qs)] })}
             startNumber={startNumber}

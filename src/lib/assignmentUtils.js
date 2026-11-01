@@ -1,4 +1,4 @@
-import { OPENING_KINDS } from "./openings.js";
+import { OPENING_KINDS, isWatchOnly } from "./openings.js";
 import { YLE_SERIES } from "./yleData.js";
 import { navigateApp } from "./urlState.js";
 
@@ -46,8 +46,10 @@ export function reminderStage(o, now = Date.now()) {
 }
 
 // Bài CẦN LÀM của học sinh: chưa nộp lượt nào, hoặc được giáo viên mở lại riêng (lib/openings.js) mà chưa nộp lượt
-// nào kể từ lúc mở lại. row = info[o.id] của useAssignments().
+// nào kể từ lúc mở lại. Bài chỉ xem (video Luyện nghe) không có nộp → luôn ở "Cần làm" tới hạn chót.
+// row = info[o.id] của useAssignments().
 export function needsWork(o, row) {
+  if (isWatchOnly(o.kind)) return true;
   if (!row) return false;
   if (row.count === 0) return true;
   const reopenedAt = o.reopenedAt?.toMillis?.();

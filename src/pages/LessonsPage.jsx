@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import Header from "../components/Header.jsx";
-import { YLE_SERIES } from "../lib/yleData.js";
+import { YLE_SERIES, LISTENING_PART_LABELS, listeningTestNumber } from "../lib/yleData.js";
 import { stopCurrent } from "../lib/speech.js";
 import { loadLevelContent } from "../lib/lessons.js";
 import ListeningMode from "../components/ListeningMode.jsx";
@@ -171,6 +171,11 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
   // Luyện đề Listening (chỉ Starters có dữ liệu, xem StartersListeningExamStudio.jsx) — null = chưa tải.
   const [examTests, setExamTests] = useState(null);
   const [activeExamTest, setActiveExamTest] = useState(null);
+  // Luyện nghe Starters/Movers/Flyers khoá theo từng Test (Mở bài kind "listening-practice", 2026-11-01) — số Test
+  // đang xem video, null = màn chọn Test.
+  const [activePracticeTest, setActivePracticeTest] = useState(null);
+  // Bộ đề khác (tiêu đề video tự do, không chia Test) vẫn xem Luyện nghe tự do.
+  const practiceLocked = !!LISTENING_PART_LABELS[series.id];
   // Test IELTS Reading đang XEM DANH SÁCH PASSAGE (đã bấm vào thẻ Test, chưa chọn Passage cụ thể)
   // — đúng cây điều hướng Test → Passage giáo viên yêu cầu (chốt 2026-09-11), KHÁC với mở thẳng
   // cả Test nhiều passage cùng lúc như trước.
@@ -276,7 +281,11 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
     else if (go.kind === "reading") startIn("reading", "reading", content.readingTests);
     else if (go.kind === "dictation") startIn("dictation", "dictation", content.dictationTests);
     else if (go.kind === "yle-vocab") startIn("vocabulary", "yle-vocab", content.vocabTests);
-    else if (go.kind === "listening-exam") {
+    else if (go.kind === "listening-practice") {
+      setListeningTab("practice");
+      setListeningActive(true);
+      startPracticeTest(Number(String(go.testId).replace(/\D/g, "")));
+    } else if (go.kind === "listening-exam") {
       pendingExamIdRef.current = go.testId;
       setListeningTab("test");
       setListeningActive(true);
@@ -311,6 +320,7 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
     setDictationActive(false);
     setActiveVocabTest(null);
     setListeningActive(false);
+    setActivePracticeTest(null);
     setActiveIeltsPracticeTest(null);
     setPickingListeningTest(null);
     setActiveIeltsListeningTest(null);
@@ -358,6 +368,7 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
     setListeningActive(false);
     setListeningTab("practice");
     setActiveExamTest(null);
+    setActivePracticeTest(null);
   }
 
   // Cho phép bấm vào 1 bước ĐÃ hoàn thành trên thanh tiến trình (WizardSteps) để nhảy thẳng
@@ -678,7 +689,7 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
               key={t.key}
               type="button"
               className={`ielts-testpicker-tab${listeningTab === t.key ? " is-active" : ""}`}
-              onClick={() => setListeningTab(t.key)}
+              onClick={() => { setListeningTab(t.key); setActivePracticeTest(null); }}
             >
               {t.label}
             </button>
@@ -686,10 +697,32 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
         </div>
         <div className="listening-view-body">
         {listeningTab === "practice" ? (
-          content?.listening?.length ? (
-            <ListeningMode listening={content.listening} />
-          ) : (
+          !content?.listening?.length ? (
             <InfoCard text="Bài luyện nghe cấp độ này chưa có video." />
+          ) : !practiceLocked ? (
+            <ListeningMode listening={content.listening} />
+          ) : activePracticeTest ? (
+            <>
+              <button type="button" className="btn btn-secondary" style={{ marginBottom: 12 }} onClick={() => setActivePracticeTest(null)}>⬅ Chọn Test khác</button>
+              <ListeningMode listening={practiceVideos(activePracticeTest)} />
+            </>
+          ) : (
+            <div className="content-grid content-grid-4 yle-skill-grid yle-skill-grid-3">
+              {[1, 2, 3].map(n => {
+                const ready = practiceVideos(n).length > 0;
+                return (
+                  <button
+                    key={`listening-practice-test${n}`}
+                    className="content-card-v2 content-card-v2-center ielts-skill-tile"
+                    disabled={!ready || checkingAttempts}
+                    onClick={() => startPracticeTest(n)}
+                    style={{ "--accent": series.color, ...(ready ? {} : { opacity: 0.55, cursor: "default" }) }}
+                  >
+                    <span className="ielts-skill-tile-label">Test {n}</span>
+                  </button>
+                );
+              })}
+            </div>
           )
         ) : (
           <div className="content-grid content-grid-4 yle-skill-grid yle-skill-grid-3">
@@ -751,6 +784,14 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
     const isPaper = t.paper != null || t.sections?.[0]?.groups?.[0]?.type === "answer-sheet";
     if (isPaper) setActiveIeltsListeningTest({ ...t, timeLimitMinutes: opening?.timeLimitMinutes ?? null, part: null });
     else setPickingListeningTest(t);
+  }
+
+  function practiceVideos(n) {
+    return (content?.listening ?? []).filter(v => v.videoId?.trim() && listeningTestNumber(v.title) === n);
+  }
+  function startPracticeTest(n) {
+    if (!practiceVideos(n).length) return;
+    guardStart("listening-practice", { id: `test${n}`, title: `Luyện nghe Test ${n}` }, () => setActivePracticeTest(n));
   }
 
   async function guardStart(kind, test, launch) {

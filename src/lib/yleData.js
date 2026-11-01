@@ -25,6 +25,13 @@ export function buildListeningTitles(seriesId, seriesTitle, levelNumber) {
   return titles;
 }
 
+// Số Test của 1 video Luyện nghe theo tiêu đề cố định ở trên ("Starters 1 - Test 2 - Part 3 & 4" → 2), null nếu
+// tiêu đề tự do. Mở bài Luyện nghe theo từng Test (testId "test2", lib/openings.js).
+export function listeningTestNumber(title) {
+  const match = / - Test (\d+) - /.exec(title ?? "");
+  return match ? Number(match[1]) : null;
+}
+
 function buildLevel(seriesId, seriesTitle, number) {
   const fixedTitles = buildListeningTitles(seriesId, seriesTitle, number);
   return {
