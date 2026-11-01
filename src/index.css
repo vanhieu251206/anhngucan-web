@@ -4363,6 +4363,9 @@ button.wizard-step:focus-visible { outline: 3px solid var(--color-secondary); ou
 .ielts-practice-timer { display: flex; flex-direction: column; gap: 4px; }
 .ielts-practice-timer strong { font-family: var(--font-display); font-size: 1.5rem; }
 .ielts-practice-submit { width: 100%; }
+.ielts-practice-sheet-submit { margin: 20px 0 8px; }
+.ielts-practice-columns.ielts-practice-columns-paper { grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr); }
+.ielts-practice-columns-paper .ielts-practice-passage-col .paper-doc { max-height: none; overflow: visible; }
 .ielts-practice-score { font-weight: 800; font-size: 1.1rem; text-align: center; }
 .ielts-practice-navgrid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
 .ielts-practice-navbtn {

@@ -652,8 +652,12 @@ export function LuyenDePage({
   onSave,
   saving,
   saved,
+  autoStartNumber = 1,
 }) {
   const confirm = useConfirm();
+  // Số câu đầu tiên của passage: cô tự gõ (`passage.firstNumber`, vd Passage 2 = 14 như đề sách) hoặc để trống = tự nối
+  // tiếp các passage trước (autoStartNumber). Chỉ để hiển thị, chấm bài không đổi.
+  const startNumber = Number(passage.firstNumber) > 0 ? Number(passage.firstNumber) : autoStartNumber;
   // true = đang mở overlay Preview (xem toàn bộ nhóm câu hỏi của passage) — xem nút "👁 Preview"
   // cố định trên đầu trang (PageHead, chốt 2026-09-12 để không bị cuộn mất theo từng nhóm).
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -810,6 +814,18 @@ export function LuyenDePage({
       </label>
 
       <SectionBanner icon="❓">Phần câu hỏi</SectionBanner>
+      <label className="admin-practice-option-row">
+        <span style={{ whiteSpace: "nowrap", fontWeight: 700 }}>Số câu đầu tiên:</span>
+        <input
+          className="admin-input"
+          type="number"
+          min="1"
+          style={{ maxWidth: 140 }}
+          value={passage.firstNumber ?? ""}
+          placeholder={`Tự động: ${autoStartNumber}`}
+          onChange={e => update({ firstNumber: Number(e.target.value) > 0 ? Number(e.target.value) : undefined })}
+        />
+      </label>
       {(passage.groups ?? []).map((g, gi) => (
         <Fragment key={gi}>
         {gi > 0 && <InsertRow label="＋ Chèn nhóm câu hỏi vào đây" onClick={() => addGroup(gi)} />}
@@ -836,13 +852,13 @@ export function LuyenDePage({
             <TableDiagramEditor
               group={g}
               onChange={patch => updateGroup(gi, patch)}
-              startNumber={passage.groups.slice(0, gi).reduce((sum, prev) => sum + groupQuestionCount(prev), 0)}
+              startNumber={startNumber - 1 + passage.groups.slice(0, gi).reduce((sum, prev) => sum + groupQuestionCount(prev), 0)}
             />
           ) : g.type === "diagram" ? (
             <DiagramEditor
               group={g}
               onChange={patch => updateGroup(gi, patch)}
-              startNumber={passage.groups.slice(0, gi).reduce((sum, prev) => sum + groupQuestionCount(prev), 0)}
+              startNumber={startNumber - 1 + passage.groups.slice(0, gi).reduce((sum, prev) => sum + groupQuestionCount(prev), 0)}
             />
           ) : g.type === "matching" ? (
             <MatchingEditor group={g} onChange={patch => updateGroup(gi, patch)} />
@@ -956,6 +972,7 @@ export function LuyenDePage({
           test={{ title: title || "Xem trước", timeLimitMinutes: null, passages: [{ ...passage, practiceSentences: parsePracticeText(bulkText) }] }}
           mode="practice"
           readOnly
+          firstNumber={startNumber}
           onBack={() => setPreviewOpen(false)}
         />
       )}

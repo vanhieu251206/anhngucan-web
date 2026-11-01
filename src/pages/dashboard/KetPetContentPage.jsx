@@ -1,8 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../../lib/authContext.jsx";
 import { KET_PET_GRADES } from "../../lib/yleData.js";
 import { getKetPetFolders, newFolderId, saveKetPetFolders, unitEntries, unitLabel } from "../../lib/ketPetFolders.js";
-import { getVocabularyUnit, saveVocabularyUnit, getKetPetPracticeTest, saveKetPetPracticeTest } from "../../lib/adminLessons.js";
+import {
+  getVocabularyUnit, saveVocabularyUnit, getKetPetPracticeTest, saveKetPetPracticeTest,
+  listKetPetSkillTests, getKetPetSkillTest, saveKetPetSkillTest, deleteKetPetSkillTest,
+} from "../../lib/adminLessons.js";
+import { ReadingTestsEditor } from "../../components/dashboard/IeltsSkillEditors.jsx";
 import KetPetVocabularyStudio, { EMPTY_VOCAB_GROUPS } from "../../components/dashboard/KetPetVocabularyStudio.jsx";
 import KetPetPracticeTestStudio, { EMPTY_PRACTICE_TEST_GROUPS } from "../../components/dashboard/KetPetPracticeTestStudio.jsx";
 import KetPetPaperTestStudio from "../../components/dashboard/KetPetPaperTestStudio.jsx";
@@ -48,7 +52,7 @@ export default function KetPetContentPage() {
   const grades = KET_PET_GRADES.filter(g => levelAccessOf(profile, role, "ket-pet", g) === "edit");
   const [grade, setGrade] = useState(null);
   const [unit, setUnit] = useState(null);
-  const [mode, setMode] = useState(null); // "vocabulary" | "practice-test"
+  const [mode, setMode] = useState(null); // "vocabulary" | "practice-test" | "reading"
   const [practiceTest, setPracticeTest] = useState(null); // 1-4
   const [vocabGroups, setVocabGroups] = useState(EMPTY_VOCAB_GROUPS);
   const [groups, setGroups] = useState(EMPTY_PRACTICE_TEST_GROUPS);
@@ -64,6 +68,19 @@ export default function KetPetContentPage() {
   const [folders, setFolders] = useState([]);
   const [folderForm, setFolderForm] = useState(null); // null | { id? } — đang thêm / sửa thư mục
   const unitTitle = unitLabel(unit, folders);
+  // Reading kiểu IELTS (2026-11-02): Test tự thêm, id "unit{u}-test{n}" (lib/adminLessons.js listKetPetSkillTests).
+  const readingSource = useMemo(() => ({
+    key: `${grade}-${unit}`,
+    heading: `Grade ${grade} — ${unitTitle} — Reading`,
+    accent: ACCENT,
+    list: () => listKetPetSkillTests("reading", grade, unit),
+    get: id => getKetPetSkillTest("reading", grade, id),
+    save: (id, content) => saveKetPetSkillTest("reading", grade, unit, id, content, user.uid),
+    remove: id => deleteKetPetSkillTest("reading", grade, id),
+    testIdOf: n => `unit${unit}-test${n}`,
+    testNumberOf: id => Number(/-test(\d+)$/.exec(id)?.[1] ?? 0),
+    newTestTitle: n => `Grade ${grade} – ${unitTitle} – Reading Test ${n}`,
+  }), [grade, unit, unitTitle, user.uid]);
 
   useEffect(() => {
     if (grade == null) return;
@@ -199,8 +216,21 @@ export default function KetPetContentPage() {
             <span className="admin-picker-tile-dot" />
             <span className="admin-picker-tile-title">Practice Test</span>
           </button>
+          <button className="admin-picker-tile" style={{ "--accent": ACCENT }} onClick={() => setMode("reading")}>
+            <span className="admin-picker-tile-dot" />
+            <span className="admin-picker-tile-title">Reading</span>
+          </button>
         </div>
       </div>
+    );
+  }
+
+  if (mode === "reading") {
+    return (
+      <>
+        <button type="button" className="admin-pill-btn" style={{ marginBottom: 12 }} onClick={() => setMode(null)}>← Chọn dạng bài khác</button>
+        <ReadingTestsEditor source={readingSource} />
+      </>
     );
   }
 

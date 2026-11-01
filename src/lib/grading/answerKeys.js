@@ -12,7 +12,8 @@ import { scrambleWord } from "./reading.js";
 
 // Loại bài theo (collection, lessonId) — practiceTests dùng chung tên collection cho IELTS Reading và KET/PET.
 export function answerKind(collection, lessonId) {
-  if (collection === "readingTests") return "reading";
+  // KET/PET Reading (readingTests dưới lessons/ket-pet-*) cùng cấu trúc IELTS Reading → tách đáp án như IELTS.
+  if (collection === "readingTests") return String(lessonId).startsWith("ket-pet") ? "ielts-reading" : "reading";
   if (collection === "listeningTests") return "ielts-listening";
   if (collection === "vocabularyUnits") return "ketpet-vocab";
   if (collection === "listeningExamTests") return "listening-exam";

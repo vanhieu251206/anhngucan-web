@@ -19,7 +19,7 @@ import { regradeResult, gradingSignature } from "../../src/lib/grading/regrade.j
 const RESULT_KEEP_MS = 48 * 60 * 60 * 1000; // kết quả giữ tới 48h sau hạn chót (lib/testResults.js)
 const NO_START_GRACE_MS = 5 * 60 * 1000; // không có mốc bắt đầu (lỗi mạng lúc vào bài): cho nộp trễ tối đa 5 phút
 const TIME_LIMIT_GRACE_MS = 2 * 60 * 1000; // độ trễ mạng/đồng hồ khi hết giờ tự nộp
-const KINDS = new Set(["speaking", "reading", "dictation", "listening-exam", "ielts-reading", "ielts-listening", "ketpet-vocab", "ketpet-test", "yle-vocab"]);
+const KINDS = new Set(["speaking", "reading", "dictation", "listening-exam", "ielts-reading", "ielts-listening", "ketpet-vocab", "ketpet-test", "yle-vocab", "ketpet-reading", "ketpet-listening"]);
 
 function attemptKey(testId, openingId) {
   return openingId ? `${testId}@${openingId}` : testId;

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { YLE_SERIES, LISTENING_PART_LABELS, buildListeningTitles as buildListeningTitlesShared } from "../../lib/yleData.js";
 import { useAuth } from "../../lib/authContext.jsx";
 import { levelAccessOf, seriesHasAccess } from "../../lib/teacherScope.js";
@@ -14,19 +14,15 @@ import TestStudio from "../../components/dashboard/TestStudio.jsx";
 import ReadingStudio from "../../components/dashboard/ReadingStudio.jsx";
 import DictationStudio from "../../components/dashboard/DictationStudio.jsx";
 import VocabStudio from "../../components/dashboard/VocabStudio.jsx";
-import { LuyenDePage } from "../../components/dashboard/PracticeStudio.jsx";
-import ComprehensionStudio from "../../components/dashboard/ComprehensionStudio.jsx";
 import StartersListeningExamStudio from "../../components/dashboard/StartersListeningExamStudio.jsx";
 import ListeningTestStudio from "../../components/dashboard/ListeningTestStudio.jsx";
+import { ReadingTestsEditor } from "../../components/dashboard/IeltsSkillEditors.jsx";
 import KetPetContentPage from "./KetPetContentPage.jsx";
 import KidsContentPage from "./KidsContentPage.jsx";
 import { useConfirm } from "../../components/dashboard/ConfirmDialog.jsx";
-import PaperTestStudio, { hasPaperFile } from "../../components/dashboard/PaperTestStudio.jsx";
-import AudioUploadField from "../../components/dashboard/AudioUploadField.jsx";
-import IeltsPracticeRunner from "../../components/IeltsPracticeRunner.jsx";
+import PaperTestStudio from "../../components/dashboard/PaperTestStudio.jsx";
 import IeltsListeningRunner from "../../components/IeltsListeningRunner.jsx";
 import { answerSheetGroup } from "../../lib/ketPetPracticeTest.js";
-import { firstQuestionNumbers } from "../../lib/grading/ielts.js";
 import { validatePaperTest } from "../../lib/lessonValidation.js";
 import { readParams, setParams } from "../../lib/urlState.js";
 
@@ -936,356 +932,30 @@ function VocabEditor({ series, level, uid }) {
 // thẳng vào để soạn, không cho thêm/xoá Test ngoài 4 thẻ này.
 const IELTS_TEST_COUNT = 4;
 
-// Passage đang soạn theo kiểu "Tải đề lên (PDF / Word)" chưa (2026-10-31, giống KET/PET): Luyện đề = có đề hoặc phiếu
-// trả lời "answer-sheet"; Đọc hiểu = có file đọc `readingPaper`.
-function isPaperPassage(p, section) {
-  if (section === "comprehension") return p?.readingPaper != null;
-  return p?.paper != null || p?.groups?.[0]?.type === "answer-sheet";
+function IeltsReadingEditor({ series, level, uid }) {
+  const source = useMemo(() => ({
+    key: `${series.id}-${level.number}`,
+    heading: `${series.title} ${level.number} — Reading`,
+    accent: series.color,
+    fixedTests: IELTS_TEST_COUNT,
+    fixedPassages: 3,
+    list: () => listPracticeTests(series.id, level.number),
+    get: id => getPracticeTest(series.id, level.number, id),
+    save: (id, content) => savePracticeTest(series.id, level.number, id, content, uid),
+    remove: id => deletePracticeTest(series.id, level.number, id),
+    testIdOf: n => `test${n}`,
+    testNumberOf: id => Number(String(id).replace(/\D/g, "")),
+    newTestTitle: n => `${series.title} ${level.number} - Reading Test ${n}`,
+  }), [series, level, uid]);
+  return <ReadingTestsEditor source={source} />;
 }
+
 
 // Test Listening soạn theo kiểu "Tải đề lên": 1 file đề cho cả Test, `sections` chỉ còn 1 section chứa phiếu trả lời.
 function isPaperListening(t) {
   return t?.paper != null || t?.sections?.[0]?.groups?.[0]?.type === "answer-sheet";
 }
 
-function IeltsReadingEditor({ series, level, uid }) {
-  const confirm = useConfirm();
-  const [tests, setTests] = useState(null);
-  // Tab Test 1-4 đang xem trên màn danh sách (không chuyển trang) — cùng cơ chế gộp Test+Passage
-  // học sinh đang dùng ở LessonsPage.jsx (chốt 2026-09-11 để CMS khớp đúng luồng học sinh thấy).
-  const [selectedTestN, setSelectedTestN] = useState(1);
-  const [openTestId, setOpenTestId] = useState(null);
-  const [title, setTitle] = useState("");
-  const [passages, setPassages] = useState([]);
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-  // Passage + phần (đọc hiểu/luyện đề) cần cuộn tới ngay khi mở Test — set khi bấm 1 trong 2 nút
-  // trên thẻ Passage ở màn danh sách, đọc 1 lần rồi PracticeStudio tự xoá (xem prop `focusTarget`).
-  const [focusTarget, setFocusTarget] = useState(null);
-  // Cách soạn passage đang mở: false = soạn từng câu/từng dòng, true = "Tải đề lên (PDF / Word)". Đổi qua lại thì cất
-  // phần của cách kia vào stash để quay lại không mất (chỉ lưu theo cách đang chọn lúc Xuất bản).
-  const [paperMode, setPaperMode] = useState(false);
-  const stashRef = useRef({});
-
-  function reloadTests() {
-    listPracticeTests(series.id, level.number).then(setTests);
-  }
-  useEffect(reloadTests, [series.id, level.number]);
-
-  function startEditing(nextPassages, focus) {
-    setPaperMode(focus ? isPaperPassage(nextPassages[focus.passageIndex], focus.section) : false);
-    stashRef.current = {};
-  }
-
-  async function openTest(t, focus = null) {
-    const full = await getPracticeTest(series.id, level.number, t.id);
-    let nextPassages = full?.passages ?? [];
-    // Bấm thẳng "Đọc hiểu"/"Luyện đề" của 1 Passage chưa soạn (vd Passage 2 khi mới có Passage 1)
-    // — tự thêm sẵn các passage rỗng còn thiếu tới đúng vị trí đó để có chỗ cuộn tới + soạn luôn.
-    if (focus && nextPassages.length <= focus.passageIndex) {
-      nextPassages = [...nextPassages];
-      while (nextPassages.length <= focus.passageIndex) {
-        nextPassages.push({ title: "", titleVi: "", audioUrl: "", sentences: [], groups: [] });
-      }
-    }
-    setOpenTestId(t.id);
-    setTitle(full?.title ?? t.title ?? "");
-    setPassages(nextPassages);
-    setSaved(false);
-    setFocusTarget(focus);
-    startEditing(nextPassages, focus);
-  }
-
-  function openNewTestNumbered(n, focus = null) {
-    setOpenTestId(`test${n}`);
-    setTitle(`${series.title} ${level.number} - Reading Test ${n}`);
-    const nextPassages = [];
-    if (focus) {
-      while (nextPassages.length <= focus.passageIndex) {
-        nextPassages.push({ title: "", titleVi: "", audioUrl: "", sentences: [], groups: [] });
-      }
-    }
-    setPassages(nextPassages);
-    setSaved(false);
-    setFocusTarget(focus);
-    startEditing(nextPassages, focus);
-  }
-
-  // Bấm nút "Đọc hiểu"/"Luyện đề" trên 1 thẻ Passage ở màn danh sách — mở đúng Test rồi cuộn
-  // thẳng tới đúng passage + đúng phần trong PracticeStudio, đỡ phải tự cuộn tìm giữa nhiều passage.
-  function openPassageSection(n, passageIndex, section) {
-    const t = tests.find(t => t.id === `test${n}`);
-    const focus = { passageIndex, section };
-    if (t) openTest(t, focus);
-    else openNewTestNumbered(n, focus);
-  }
-
-  async function handleDeleteTest(id) {
-    if (!(await confirm("Xoá nội dung Test này? Không hoàn tác được.", { danger: true }))) return;
-    try {
-      await deletePracticeTest(series.id, level.number, id);
-      reloadTests();
-    } catch (err) {
-      alert(`Không xoá được: ${err.message}`);
-    }
-  }
-  // overridePassage (LuyenDePage): passage vừa gộp text dán ngay lúc bấm Xuất bản — dùng trực tiếp
-  // thay vì đọc `passages` state, vì setPassages là bất đồng bộ nên state có thể chưa kịp cập nhật
-  // đúng lúc save (xem PracticeStudio.jsx `handleSaveClick`).
-  async function handleSaveTest(overridePassage) {
-    setSaving(true);
-    setSaved(false);
-    try {
-      const order = tests?.find(t => t.id === openTestId)?.order ?? Number(openTestId.replace("test", ""));
-      let finalPassages = passages;
-      // Một số nút gắn thẳng onSave vào onClick nên tham số có thể là SyntheticEvent — chỉ nhận passage thật
-      if (overridePassage && Object.getPrototypeOf(overridePassage) === Object.prototype && focusTarget) {
-        finalPassages = passages.map((p, i) => (i === focusTarget.passageIndex ? overridePassage : p));
-      }
-      // Bài cũ (trước khi tách Luyện đề/Đọc hiểu, 2026-09-30) chưa có `practiceSentences` — chép bài đọc hiện tại sang
-      // để từ nay sửa Đọc hiểu không kéo theo bài đọc của Luyện đề.
-      finalPassages = finalPassages.map(p =>
-        p.practiceSentences ? p : { ...p, practiceSentences: (p.sentences ?? []).map(s => ({ en: s.en ?? "", newParagraph: Boolean(s.newParagraph) })) }
-      );
-      setPassages(finalPassages);
-      await savePracticeTest(series.id, level.number, openTestId, { title, order, passages: finalPassages }, uid);
-      setSaved(true);
-      reloadTests();
-    } catch (err) {
-      alert(`Không xuất bản được: ${err.message}`);
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  if (openTestId && focusTarget) {
-    const passageIndex = focusTarget.passageIndex;
-    const passage = passages[passageIndex] ?? { title: "", titleVi: "", audioUrl: "", sentences: [], groups: [] };
-    function updatePassageAt(nextPassage) {
-      const next = [...passages];
-      next[passageIndex] = nextPassage;
-      setPassages(next);
-    }
-    // Ghép PATCH vào bản mới nhất — dùng cho giá trị tới muộn (upload audio xong sau khi cô đã sửa chỗ khác).
-    function patchPassageAt(patch) {
-      setPassages(prev => {
-        const next = [...prev];
-        next[passageIndex] = { ...(prev[passageIndex] ?? passage), ...patch };
-        return next;
-      });
-    }
-    const testLabel = `Test ${openTestId.replace("test", "")} — Passage ${passageIndex + 1}`;
-    const isComprehension = focusTarget.section === "comprehension";
-
-    // Đổi cách soạn: cất phần của cách đang dùng vào stash, lấy lại phần của cách kia (nếu đã có trong phiên này).
-    async function switchMode(next) {
-      if (next === paperMode) return;
-      const msg = next
-        ? "Chuyển sang \"Tải đề lên\"? Khi xuất bản, phần này lưu theo file tải lên, phần soạn từng câu bị thay."
-        : "Chuyển sang \"Soạn từng câu\"? Khi xuất bản, phần này lưu theo các câu soạn, file tải lên bị thay.";
-      if (!(await confirm(msg))) return;
-      const stash = stashRef.current;
-      if (isComprehension) {
-        if (next) patchPassageAt({ readingPaper: stash.readingPaper ?? null });
-        else {
-          stash.readingPaper = passage.readingPaper;
-          patchPassageAt({ readingPaper: undefined });
-        }
-      } else if (next) {
-        stash.questionGroups = passage.groups;
-        patchPassageAt({ paper: stash.paper ?? null, questionPaper: stash.questionPaper ?? undefined, groups: stash.paperGroups ?? [answerSheetGroup()] });
-      } else {
-        stash.paper = passage.paper;
-        stash.questionPaper = passage.questionPaper;
-        stash.paperGroups = passage.groups;
-        patchPassageAt({ paper: undefined, questionPaper: undefined, groups: stash.questionGroups ?? [] });
-      }
-      setPaperMode(next);
-      setSaved(false);
-    }
-    const modeSwitch = (
-      <div className="admin-segmented paper-authoring-switch">
-        <button type="button" className={!paperMode ? "is-active" : ""} onClick={() => switchMode(false)}>Soạn từng câu</button>
-        <button type="button" className={paperMode ? "is-active" : ""} onClick={() => switchMode(true)}>Tải đề lên (PDF / Word)</button>
-      </div>
-    );
-
-    if (paperMode && isComprehension) {
-      return (
-        <>
-          {modeSwitch}
-          <PaperTestStudio
-            accent={series.color}
-            label={`${testLabel} — Đọc hiểu`}
-            backLabel="← Quay lại danh sách Test"
-            onBack={() => setOpenTestId(null)}
-            paper={passage.readingPaper}
-            onPaperChange={readingPaper => patchPassageAt({ readingPaper })}
-            warnings={hasPaperFile(passage.readingPaper) ? [] : ["Chưa tải file lên."]}
-            extra={
-              <>
-                <label className="admin-dictation-text-label">
-                  Tên bài đọc
-                  <input className="admin-input" value={passage.title ?? ""} onChange={e => patchPassageAt({ title: e.target.value })} />
-                </label>
-                <AudioUploadField label="Audio bài đọc (tuỳ chọn)" value={passage.audioUrl} onChange={audioUrl => patchPassageAt({ audioUrl })} />
-              </>
-            }
-            renderPreview={onClose => (
-              <IeltsPracticeRunner test={{ title: `${testLabel} (xem trước)`, timeLimitMinutes: null, passages: [passage] }} mode="comprehension" readOnly onBack={onClose} />
-            )}
-            onSave={handleSaveTest}
-            saving={saving}
-            saved={saved}
-          />
-        </>
-      );
-    }
-    if (paperMode) {
-      const startNumber = firstQuestionNumbers(passages)[passageIndex] ?? 1;
-      const questions = passage.groups?.[0]?.questions ?? [];
-      return (
-        <>
-          {modeSwitch}
-          <PaperTestStudio
-            accent={series.color}
-            label={`${testLabel} — Luyện đề`}
-            backLabel="← Quay lại danh sách Test"
-            onBack={() => setOpenTestId(null)}
-            paper={passage.paper}
-            onPaperChange={paper => patchPassageAt({ paper })}
-            questionPaper={passage.questionPaper}
-            onQuestionPaperChange={questionPaper => patchPassageAt({ questionPaper: questionPaper ?? undefined })}
-            questions={questions}
-            onQuestionsChange={qs => patchPassageAt({ groups: [answerSheetGroup(qs)] })}
-            startNumber={startNumber}
-            warnings={validatePaperTest(passage.paper, questions, startNumber)}
-            renderPreview={onClose => (
-              <IeltsPracticeRunner
-                test={{ title: `${testLabel} (xem trước)`, timeLimitMinutes: null, passages: [passage] }}
-                mode="practice"
-                readOnly
-                firstNumber={startNumber}
-                onBack={onClose}
-              />
-            )}
-            onSave={handleSaveTest}
-            saving={saving}
-            saved={saved}
-          />
-        </>
-      );
-    }
-
-    if (isComprehension) {
-      return (
-        <>
-        {modeSwitch}
-        <ComprehensionStudio
-          accent={series.color}
-          testLabel={testLabel}
-          titleEn={passage.title}
-          onTitleEnChange={title => patchPassageAt({ title })}
-          titleVi={passage.titleVi}
-          onTitleViChange={titleVi => patchPassageAt({ titleVi })}
-          audioUrl={passage.audioUrl}
-          onAudioUrlChange={audioUrl => patchPassageAt({ audioUrl })}
-          sentences={passage.sentences}
-          onSentencesChange={sentences => patchPassageAt({ sentences })}
-          practiceSentences={passage.practiceSentences}
-          onBack={() => setOpenTestId(null)}
-          onSave={handleSaveTest}
-          saving={saving}
-          saved={saved}
-        />
-        </>
-      );
-    }
-    return (
-      <>
-      {modeSwitch}
-      <LuyenDePage
-        accent={series.color}
-        testLabel={testLabel}
-        title={title}
-        onTitleChange={setTitle}
-        passage={passage}
-        onPassageChange={updatePassageAt}
-        onBack={() => setOpenTestId(null)}
-        onSave={handleSaveTest}
-        saving={saving}
-        saved={saved}
-      />
-      </>
-    );
-  }
-
-  const selectedTest = tests?.find(t => t.id === `test${selectedTestN}`) ?? null;
-
-  return (
-    <div className="admin-card">
-      <h2>{series.title} {level.number} — Reading</h2>
-      {tests === null && <LoadingCard inline />}
-      {tests && (
-        <>
-          <div className="ielts-testpicker-tabs admin-testpicker-tabs">
-            {Array.from({ length: IELTS_TEST_COUNT }, (_, i) => i + 1).map(n => {
-              const t = tests.find(t => t.id === `test${n}`);
-              return (
-                <button
-                  key={n}
-                  type="button"
-                  className={`ielts-testpicker-tab${selectedTestN === n ? " is-active" : ""}${!t ? " is-empty" : ""}`}
-                  onClick={() => setSelectedTestN(n)}
-                >
-                  Test {n}
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="admin-test-grid">
-            {Array.from({ length: 3 }, (_, i) => i + 1).map(n => {
-              const p = selectedTest?.passages?.[n - 1];
-              return (
-                <div key={n} className="admin-test-card" style={{ "--accent": series.color }}>
-                  <div className="admin-test-card-main">
-                    <span className="admin-test-card-icon">📖</span>
-                    <span className="admin-test-card-title">{p?.title || `Passage ${n}`}</span>
-                  </div>
-                  <div className="admin-test-card-actions">
-                    <button
-                      className="admin-link-btn"
-                      onClick={() => openPassageSection(selectedTestN, n - 1, "comprehension")}
-                    >
-                      Đọc hiểu
-                    </button>
-                    <button
-                      className="admin-link-btn"
-                      onClick={() => openPassageSection(selectedTestN, n - 1, "practice")}
-                    >
-                      Luyện đề
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {selectedTest && (
-            <button
-              type="button"
-              className="admin-link-btn admin-pill-btn-danger admin-test-delete-link"
-              onClick={() => handleDeleteTest(selectedTest.id)}
-            >
-              Xoá nội dung Test {selectedTestN}
-            </button>
-          )}
-        </>
-      )}
-    </div>
-  );
-}
 
 function IeltsListeningEditor({ series, level, uid }) {
   const confirm = useConfirm();

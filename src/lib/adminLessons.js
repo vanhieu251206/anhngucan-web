@@ -1,4 +1,4 @@
-import { doc, setDoc, deleteDoc, getDoc, getDocs, collection, serverTimestamp } from "firebase/firestore";
+import { doc, setDoc, deleteDoc, getDoc, getDocs, collection, query, where, serverTimestamp } from "firebase/firestore";
 import { db } from "./firebase.js";
 import { deleteWithAnswers, saveWithAnswers, withAnswers, withAnswersAll } from "./answerStore.js";
 
@@ -302,6 +302,43 @@ export async function saveKetPetPracticeTest(grade, unit, testNumber, groups, ui
     updatedAt: serverTimestamp(),
     updatedBy: uid,
   });
+}
+
+// KET/PET READING / LISTENING (2026-11-02, "làm như IELTS"): mỗi Unit (hoặc thư mục, `unit` = số Unit hoặc id `f…`)
+// có danh sách Test, cấu trúc y hệt IELTS Reading (`passages`) / IELTS Listening (`sections`, `paper`). Lưu ở
+// lessons/ket-pet-{grade}/readingTests | listeningTests, docId "unit{u}-test{n}", field `unit` để lọc theo Unit.
+// Tên collection trùng tên đã có trong firestore.rules nên không cần sửa rules.
+const KET_SKILL_COLLECTION = { reading: "readingTests", listening: "listeningTests" };
+
+export async function listKetPetSkillTests(skill, grade, unit) {
+  const col = KET_SKILL_COLLECTION[skill];
+  const lid = lessonId("ket-pet", grade);
+  const snap = await getDocs(query(collection(db, "lessons", lid, col), where("unit", "==", String(unit))));
+  const list = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  return withAnswersAll(lid, col, list);
+}
+
+export async function getKetPetSkillTest(skill, grade, testId) {
+  const col = KET_SKILL_COLLECTION[skill];
+  const lid = lessonId("ket-pet", grade);
+  const snap = await getDoc(doc(db, "lessons", lid, col, testId));
+  return snap.exists() ? withAnswers(lid, col, { id: snap.id, ...snap.data() }) : null;
+}
+
+// content: Reading { title, order, passages } — Listening { title, order, sections, paper }.
+export async function saveKetPetSkillTest(skill, grade, unit, testId, content, uid) {
+  const col = KET_SKILL_COLLECTION[skill];
+  await saveWithAnswers("ket-pet", lessonId("ket-pet", grade), col, testId, {
+    testId,
+    unit: String(unit),
+    ...content,
+    updatedAt: serverTimestamp(),
+    updatedBy: uid,
+  });
+}
+
+export async function deleteKetPetSkillTest(skill, grade, testId) {
+  await deleteWithAnswers(lessonId("ket-pet", grade), KET_SKILL_COLLECTION[skill], testId);
 }
 
 // ---------- Listening "Luyện đề" của YLE (chỉ Starters có, xem StartersListeningExamStudio.jsx) ----------

@@ -96,7 +96,7 @@ function InlineBlankInput({ entry, value, submitted, reveal = true, onChange, nu
   const correct = (submitted && reveal) ? isCorrect(entry, value) : null;
   return (
     <span className="ielts-practice-inline-blank" ref={numberRef}>
-      <span className="ielts-practice-qnum-inline">{entry.number}</span>
+      <span className="ielts-practice-qnum-inline">{entry.label ?? entry.number}</span>
       <input
         className={`ielts-practice-inline-input${(submitted && reveal) ? (correct ? " is-correct" : " is-wrong") : ""}`}
         value={value ?? ""}
@@ -200,7 +200,7 @@ export function DiagramGroup({ g, gi, activePassage, flat, answers, submitted, r
             if (!entry || isCorrect(entry, answers[entry.number])) return null;
             return (
               <p key={pi} className="ielts-practice-correct-answer">
-                Câu {entry.number}: {String(p.answer ?? "").split("|")[0]}
+                Câu {entry.label ?? entry.number}: {String(p.answer ?? "").split("|")[0]}
               </p>
             );
           })}
@@ -275,7 +275,7 @@ export function TableDiagramGroup({ g, gi, activePassage, flat, answers, submitt
             if (!entry || isCorrect(entry, answers[entry.number])) return null;
             return (
               <p key={qi} className="ielts-practice-correct-answer">
-                Câu {entry.number}: {String(q.acceptedAnswers ?? "").split("|")[0]}
+                Câu {entry.label ?? entry.number}: {String(q.acceptedAnswers ?? "").split("|")[0]}
               </p>
             );
           })}
@@ -315,7 +315,7 @@ export function MatchingGroup({ g, gi, activePassage, flat, answers, submitted, 
             key={ii}
             ref={el => (questionRefs.current[number] = el)}
           >
-            <span className="ielts-practice-qnum">{number}</span>
+            <span className="ielts-practice-qnum">{entry.label ?? number}</span>
             <div className="ielts-practice-qbody">
               <p>{it.label}</p>
               <div className="ielts-practice-click-options">
@@ -359,7 +359,7 @@ export function StandardQuestionGroup({ g, gi, activePassage, flat, answers, sub
         key={qi}
         ref={el => questionRefs && (questionRefs.current[number] = el)}
       >
-        <span className="ielts-practice-qnum">{number}</span>
+        <span className="ielts-practice-qnum">{entry.label ?? number}</span>
         <div className="ielts-practice-qbody">
           {g.type === "multiple-choice" && (
             <>
@@ -453,9 +453,21 @@ export function StandardQuestionGroup({ g, gi, activePassage, flat, answers, sub
 // để đóng và về CMS (chốt 2026-09-12).
 // part: chỉ số passage học sinh làm trong cả Test (máy chủ chỉ chấm passage đó). firstNumber: số câu đầu của passage
 // trong cả Test — phiếu đề tải lên đánh số khớp đề giấy (Passage 2 = câu 14...).
-export default function IeltsPracticeRunner({ test, onBack, mode = "practice", readOnly = false, studentUid, studentName, studentClass, seriesId, level, openingId, part = null, firstNumber = 1 }) {
+export default function IeltsPracticeRunner({ test, onBack, mode = "practice", readOnly = false, studentUid, studentName, studentClass, seriesId, level, openingId, part = null, firstNumber = null, kind = "ielts-reading" }) {
   const isComprehension = mode === "comprehension";
-  const flat = useMemo(() => flattenQuestions(test.passages), [test]);
+  // Số câu HIỂN THỊ (`label`) theo số câu đầu của từng passage (firstQuestionNumbers — cô tự gõ hoặc tự nối tiếp), dời
+  // sao cho passage đầu bắt đầu đúng `firstNumber` (học sinh làm riêng Passage 2 → 14...). `number` giữ nguyên làm khoá
+  // câu trả lời / chấm bài.
+  const starts = useMemo(() => firstQuestionNumbers(test.passages), [test]);
+  const numOffset = firstNumber != null ? firstNumber - (starts[0] ?? 1) : 0;
+  const flat = useMemo(() => {
+    // Số nội bộ của câu đầu mỗi passage (đếm cả câu tắt `skip`, giống flattenQuestions).
+    const rawStarts = firstQuestionNumbers(test.passages.map(p => ({ ...p, firstNumber: undefined })));
+    return flattenQuestions(test.passages).map(e => ({
+      ...e,
+      label: (starts[e.passageIndex] ?? 1) + numOffset + (e.number - rawStarts[e.passageIndex]),
+    }));
+  }, [test, starts, numOffset]);
   const [activePassage, setActivePassage] = useState(0);
   // Đề tải lên có file câu hỏi riêng (3 cột): trên điện thoại chỉ hiện 1 cột, chọn bằng tab.
   const [mobilePane, setMobilePane] = useState("passage");
@@ -471,7 +483,7 @@ export default function IeltsPracticeRunner({ test, onBack, mode = "practice", r
   // Học sinh: máy chủ chấm (lib/testSubmit.js) → điểm trả về. submitState: { error? } khi đang nộp/lỗi.
   const [serverScore, setServerScore] = useState(null);
   const [submitState, setSubmitState] = useState(null);
-  const submitToServer = useTestSubmission({ kind: "ielts-reading", seriesId, level, testId: test.id, part, openingId, lessonLabel: test.title, studentName });
+  const submitToServer = useTestSubmission({ kind, seriesId, level, testId: test.id, part, openingId, lessonLabel: test.title, studentName });
   const questionRefs = useRef({});
   // Đồng hồ chung (ExamTimer.jsx): hết giờ tự nộp bài. Chỉ chạy ở chế độ làm bài thật (không phải
   // đọc hiểu/preview).
@@ -546,8 +558,18 @@ export default function IeltsPracticeRunner({ test, onBack, mode = "practice", r
   const paperReading = isComprehension && passage.readingPaper ? passage.readingPaper : null;
   // Có file câu hỏi riêng (2026-11-01): 3 cột Đề bài 2/5 | Câu hỏi 2/5 | Phiếu 1/5.
   const questionPaper = paperPractice && (passage.questionPaper?.pages?.length || passage.questionPaper?.html) ? passage.questionPaper : null;
-  const numOffset = firstNumber - 1;
-  const shownNumber = entry => (test.passages[entry.passageIndex]?.groups?.[0]?.type === "answer-sheet" ? entry.number + numOffset : entry.number);
+  const shownNumber = entry => entry.label;
+  const submitBlock = submitState ? (
+    <SubmitStatus error={submitState.error} onRetry={submitNow} />
+  ) : !submitted ? (
+    <button type="button" className="btn btn-primary ielts-practice-submit" onClick={submitNow}>
+      NỘP BÀI
+    </button>
+  ) : (
+    <div className="ielts-practice-score">
+      Điểm: {score?.correct}/{score?.total}
+    </div>
+  );
   const sheetEntry = qi => passageQuestions.find(e => e.groupIndex === 0 && e.questionIndex === qi);
 
   return (
@@ -571,7 +593,7 @@ export default function IeltsPracticeRunner({ test, onBack, mode = "practice", r
         )}
       </div>
 
-      <div className={`ielts-practice-body${isComprehension || readOnly ? " ielts-practice-body-solo" : ""}`}>
+      <div className={`ielts-practice-body${isComprehension || readOnly || paperPractice ? " ielts-practice-body-solo" : ""}`}>
         <div className="ielts-practice-passage-tabs">
           {test.passages.map((p, i) => (
             <button
@@ -636,7 +658,7 @@ export default function IeltsPracticeRunner({ test, onBack, mode = "practice", r
             {paperPractice && (
               <AnswerSheet
                 questions={passage.groups[0].questions ?? []}
-                startNumber={firstQuestionNumbers(test.passages)[activePassage] + numOffset}
+                startNumber={(starts[activePassage] ?? 1) + numOffset}
                 valueOf={qi => answers[sheetEntry(qi)?.number]}
                 resultOf={qi => {
                   const e = sheetEntry(qi);
@@ -654,6 +676,7 @@ export default function IeltsPracticeRunner({ test, onBack, mode = "practice", r
                 }}
               />
             )}
+            {paperPractice && !readOnly && <div className="ielts-practice-sheet-submit">{submitBlock}</div>}
             {!paperPractice && (passage.groups ?? []).map((g, gi) => (
               <div className="ielts-practice-group" key={gi}>
                 {g.instruction && String(g.instruction).split("\n").map((line, li) => (
@@ -715,20 +738,13 @@ export default function IeltsPracticeRunner({ test, onBack, mode = "practice", r
         </div>
       </div>
 
-      {!isComprehension && !readOnly && (
+      {/* Đề tải lên (2026-11-01, yêu cầu của cô): bỏ cột bên phải cho rộng chỗ đọc — phiếu đã có số câu, nút Nộp bài
+          nằm cuối phiếu trả lời; đồng hồ là khung nổi cố định nên vẫn hiện. */}
+      {!isComprehension && !readOnly && paperPractice && <ExamTimer timer={timer} />}
+      {!isComprehension && !readOnly && !paperPractice && (
       <div className="ielts-practice-sidebar">
         <ExamTimer timer={timer} />
-        {submitState ? (
-          <SubmitStatus error={submitState.error} onRetry={submitNow} />
-        ) : !submitted ? (
-          <button type="button" className="btn btn-primary ielts-practice-submit" onClick={submitNow}>
-            NỘP BÀI
-          </button>
-        ) : (
-          <div className="ielts-practice-score">
-            Điểm: {score?.correct}/{score?.total}
-          </div>
-        )}
+        {submitBlock}
         <div className="ielts-practice-navgrid">
           {flat.map(entry => (
             <button

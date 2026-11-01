@@ -4,7 +4,7 @@
 // Lượt nộp từ 2026-10-05 có lưu câu trả lời thô (`rawAnswers`, chuỗi JSON) → chấm lại y như lúc nộp. Lượt nộp cũ
 // hơn chỉ còn `items` (chi tiết từng câu để hiển thị) → dựng lại câu trả lời thô từ đó (answersFromItems). Dạng
 // chấm ở trình duyệt (Speaking, Dictation, Part tô màu/nối tranh của Listening) không có gì để chấm lại → giữ nguyên.
-import { SERVER_GRADED, gradeSubmission, testPart } from "./index.js";
+import { SERVER_GRADED, baseKind, gradeSubmission, testPart } from "./index.js";
 import { flattenPassages, flattenSections } from "./ielts.js";
 import { serverGrader } from "./listeningExam.js";
 import { isMultiBox, vocabBoxCount, vocabItemReady } from "./vocab.js";
@@ -109,7 +109,8 @@ function vocabAnswers(test, items) {
 }
 
 // Câu trả lời thô dựng lại từ chi tiết đã lưu. null = không dựng lại được (dữ liệu quá cũ, thiếu vị trí câu).
-export function answersFromItems(kind, test, items) {
+export function answersFromItems(rawKind, test, items) {
+  const kind = baseKind(rawKind);
   if (kind === "reading") return readingAnswers(test, items);
   if (kind === "ielts-reading") return ieltsAnswers(flattenPassages(test.passages), items);
   if (kind === "ielts-listening") return ieltsAnswers(flattenSections(test.sections), items);

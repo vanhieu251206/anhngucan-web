@@ -10,7 +10,13 @@ import { gradeVocabItems } from "./vocab.js";
 
 // Dạng bài Worker tự chấm từ câu trả lời thô. Các dạng còn lại (speaking, dictation) chấm ngay trong lúc làm ở
 // trình duyệt (phản hồi đúng/sai từng câu) nên Worker chỉ nhận điểm, kẹp hợp lệ, và kiểm soát lượt/hạn/thời gian.
-export const SERVER_GRADED = new Set(["reading", "ielts-reading", "ielts-listening", "ketpet-vocab", "ketpet-test", "listening-exam", "yle-vocab"]);
+export const SERVER_GRADED = new Set(["reading", "ielts-reading", "ielts-listening", "ketpet-vocab", "ketpet-test", "listening-exam", "yle-vocab", "ketpet-reading", "ketpet-listening"]);
+
+// KET/PET Reading/Listening (2026-11-02, "làm như IELTS"): cùng cấu trúc đề + cách chấm với IELTS, chỉ khác nơi lưu.
+const SAME_AS = { "ketpet-reading": "ielts-reading", "ketpet-listening": "ielts-listening" };
+export function baseKind(kind) {
+  return SAME_AS[kind] ?? kind;
+}
 
 // Vị trí đề trong Firestore theo loại bài (mode lưu ở testResults/attempts).
 export function testLocation(kind, seriesId, level, testId) {
@@ -21,6 +27,8 @@ export function testLocation(kind, seriesId, level, testId) {
     "ielts-listening": "listeningTests",
     "ketpet-vocab": "vocabularyUnits",
     "ketpet-test": "practiceTests",
+    "ketpet-reading": "readingTests",
+    "ketpet-listening": "listeningTests",
     "listening-exam": "listeningExamTests",
     dictation: "dictationTests",
     "yle-vocab": "vocabTests",
@@ -96,7 +104,8 @@ function ketPetDetail(g, q, qi, value) {
 // Học sinh làm IELTS theo TỪNG passage/section (LessonsPage.jsx), câu đánh số lại từ 1 → chỉ chấm đúng phần đó.
 // `part` = chỉ số passage/section; null = cả Test. Trước 2026-10-31 Worker chấm cả Test nên làm Passage 2/3,
 // Section 2-4 bị đối chiếu nhầm với đáp án Passage/Section 1.
-export function testPart(kind, test, part) {
+export function testPart(rawKind, test, part) {
+  const kind = baseKind(rawKind);
   const i = Number(part);
   if (part == null || part === "" || !Number.isInteger(i) || i < 0 || !test) return test;
   if (kind === "ielts-reading" && test.passages?.[i]) return { ...test, passages: [test.passages[i]] };
@@ -107,7 +116,8 @@ export function testPart(kind, test, part) {
 // raw — dạng câu trả lời theo từng loại:
 //   reading: answers[partIndex][qIndex]        ielts-*: { [số câu]: giá trị }
 //   ketpet-*: { "gi-qi": giá trị }             listening-exam: { parts: { part1: { answers }, part4: { score } ... } }
-export function gradeSubmission(kind, test, raw) {
+export function gradeSubmission(rawKind, test, raw) {
+  const kind = baseKind(rawKind);
   if (kind === "reading") {
     const r = gradeReading(test.parts ?? [], raw, test.seriesId);
     return { correct: r.earnedPoints, total: r.totalPoints, items: r.items };

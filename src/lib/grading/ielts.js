@@ -44,11 +44,13 @@ export function flattenSections(sections) {
 }
 
 // Số câu đầu tiên của từng passage/section trong cả Test (Passage 2 bắt đầu từ câu 14...) — để phiếu trả lời đề tải
-// lên đánh số khớp với đề giấy khi học sinh làm riêng từng passage.
+// lên đánh số khớp với đề giấy khi học sinh làm riêng từng passage. `firstNumber` của passage (cô tự gõ trong trang
+// soạn, 2026-11-01) đè số tự tính, các passage sau nối tiếp từ đó. CHỈ để hiển thị — chấm bài không dùng.
 export function firstQuestionNumbers(containers) {
   const out = [];
   let n = 1;
   (containers ?? []).forEach(c => {
+    if (Number(c?.firstNumber) > 0) n = Number(c.firstNumber);
     out.push(n);
     (c?.groups ?? []).forEach(group => {
       n += groupQuestions(group).length;

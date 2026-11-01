@@ -15,7 +15,7 @@ import { AnswerSheet, PaperView } from "./PaperAnswerSheet.jsx";
 
 // preview: nút "👁 Preview" trong CMS — làm thử như giáo viên (hiện đáp án khi nộp) nhưng không gửi máy chủ, không đếm giờ.
 // part: chỉ số section học sinh làm trong cả Test (máy chủ chỉ chấm section đó); đề tải lên làm cả Test → null.
-export default function IeltsListeningRunner({ test, onBack, studentUid, studentName, studentClass, seriesId, level, openingId, part = null, preview = false }) {
+export default function IeltsListeningRunner({ test, onBack, studentUid, studentName, studentClass, seriesId, level, openingId, part = null, preview = false, kind = "ielts-listening" }) {
   const flat = useMemo(() => flattenQuestions(test.sections), [test]);
   const [activeSection, setActiveSection] = useState(0);
   const [answers, setAnswers] = useState({});
@@ -26,7 +26,7 @@ export default function IeltsListeningRunner({ test, onBack, studentUid, student
   // Học sinh: máy chủ chấm (lib/testSubmit.js) → điểm trả về. submitState: { error? } khi đang nộp/lỗi.
   const [serverScore, setServerScore] = useState(null);
   const [submitState, setSubmitState] = useState(null);
-  const submitToServer = useTestSubmission({ kind: "ielts-listening", seriesId, level, testId: test.id, part, openingId, lessonLabel: test.title, studentName });
+  const submitToServer = useTestSubmission({ kind, seriesId, level, testId: test.id, part, openingId, lessonLabel: test.title, studentName });
   const timer = useExamTimer({ limitMinutes: preview ? null : test.timeLimitMinutes, running: !submitted && !submitState, onExpire: submitNow });
 
   function setAnswer(number, value) {
@@ -85,6 +85,17 @@ export default function IeltsListeningRunner({ test, onBack, studentUid, student
   const sectionQuestions = flat.filter(e => e.sectionIndex === activeSection);
   // Đề tải lên (PDF/Word, 2026-10-31, giống KET/PET): 1 file đề cho cả Test, phiếu trả lời + audio theo đoạn câu.
   const paperTest = section?.groups?.[0]?.type === "answer-sheet";
+  const submitBlock = submitState ? (
+    <SubmitStatus error={submitState.error} onRetry={submitNow} />
+  ) : !submitted ? (
+    <button type="button" className="btn btn-primary ielts-practice-submit" onClick={submitNow}>
+      NỘP BÀI
+    </button>
+  ) : (
+    <div className="ielts-practice-score">
+      Điểm: {score?.correct}/{score?.total}
+    </div>
+  );
   const sheetEntry = qi => sectionQuestions.find(e => e.groupIndex === 0 && e.questionIndex === qi);
 
   return (
@@ -94,7 +105,7 @@ export default function IeltsListeningRunner({ test, onBack, studentUid, student
         <h1 className="ielts-practice-title">{test.title}</h1>
       </div>
 
-      <div className="ielts-practice-body">
+      <div className={`ielts-practice-body${paperTest ? " ielts-practice-body-solo" : ""}`}>
         {!paperTest && (
         <div className="ielts-practice-passage-tabs">
           {test.sections.map((s, i) => (
@@ -110,7 +121,7 @@ export default function IeltsListeningRunner({ test, onBack, studentUid, student
         </div>
         )}
 
-        <div className="ielts-practice-columns">
+        <div className={`ielts-practice-columns${paperTest ? " ielts-practice-columns-paper" : ""}`}>
           <div className="ielts-practice-passage-col">
             {paperTest ? <div className="paper-doc"><PaperView paper={test.paper} /></div> : (<>
             <h2>{section.title}</h2>
@@ -141,6 +152,7 @@ export default function IeltsListeningRunner({ test, onBack, studentUid, student
                 }}
               />
             )}
+            {paperTest && <div className="ielts-practice-sheet-submit">{submitBlock}</div>}
             {!paperTest && (section.groups ?? []).map((g, gi) => (
               <div className="ielts-practice-group" key={gi}>
                 {g.instruction && <p className="ielts-practice-instruction">{g.instruction}</p>}
@@ -211,19 +223,13 @@ export default function IeltsListeningRunner({ test, onBack, studentUid, student
         </div>
       </div>
 
+      {/* Đề tải lên (2026-11-02, yêu cầu của cô): bỏ cột số câu bên phải, đề 2/3 – phiếu 1/3, Nộp bài cuối phiếu;
+          đồng hồ là khung nổi cố định nên vẫn hiện. */}
+      {paperTest && <ExamTimer timer={timer} />}
+      {!paperTest && (
       <div className="ielts-practice-sidebar">
         <ExamTimer timer={timer} />
-        {submitState ? (
-          <SubmitStatus error={submitState.error} onRetry={submitNow} />
-        ) : !submitted ? (
-          <button type="button" className="btn btn-primary ielts-practice-submit" onClick={submitNow}>
-            NỘP BÀI
-          </button>
-        ) : (
-          <div className="ielts-practice-score">
-            Điểm: {score?.correct}/{score?.total}
-          </div>
-        )}
+        {submitBlock}
         <div className="ielts-practice-navgrid">
           {flat.map(entry => (
             <button
@@ -237,6 +243,7 @@ export default function IeltsListeningRunner({ test, onBack, studentUid, student
           ))}
         </div>
       </div>
+      )}
     </div>
   );
 }

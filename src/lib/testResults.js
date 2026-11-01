@@ -23,6 +23,8 @@ export const RESULT_MODE_LABEL = {
   "ielts-listening": "IELTS Listening",
   "ketpet-vocab": "KET/PET Vocabulary",
   "ketpet-test": "KET/PET Practice Test",
+  "ketpet-reading": "KET/PET Reading",
+  "ketpet-listening": "KET/PET Listening",
 };
 
 // Mọi lượt nộp của 1 lần mở bài (tải phiếu chấm cả lớp — lib/resultSheetPdf.js).

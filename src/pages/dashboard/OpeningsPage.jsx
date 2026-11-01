@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { YLE_SERIES, KET_PET_GRADES, KIDS_GRADES, listeningTestNumber } from "../../lib/yleData.js";
 import { getKetPetFolders, parseUnitKey, unitEntries, unitLabel } from "../../lib/ketPetFolders.js";
 import { loadLevelContent } from "../../lib/lessons.js";
-import { listListeningExamTests } from "../../lib/adminLessons.js";
+import { listListeningExamTests, listKetPetSkillTests } from "../../lib/adminLessons.js";
 import { listClassDocs, bookAllowsLevel, bookAllowsSeries, bookKeys, formatBook, formatSchedule } from "../../lib/classes.js";
 import { listStudents } from "../../lib/adminUsers.js";
 import { listSubmittedUids } from "../../lib/attempts.js";
@@ -16,7 +16,7 @@ import { assignmentLink, deadlineInfo } from "../../lib/assignmentUtils.js";
 
 // Dạng bài mở được theo từng bộ đề.
 function kindsFor(seriesId) {
-  if (seriesId === "ket-pet") return ["ketpet-vocab", "ketpet-test"];
+  if (seriesId === "ket-pet") return ["ketpet-vocab", "ketpet-test", "ketpet-reading"];
   if (seriesId === "ielts") return ["ielts-reading", "ielts-listening", "dictation"];
   const base = ["speaking", "reading", "dictation", "listening-exam"];
   return ["starters", "movers", "flyers"].includes(seriesId) ? [...base, "listening-practice", "yle-vocab"] : base;
@@ -159,6 +159,20 @@ export default function OpeningsPage() {
   useEffect(() => {
     let cancelled = false;
     setTestChoice("");
+    if (isKetPet && kind === "ketpet-reading") {
+      // Reading kiểu IELTS: Test do cô tự thêm trong Unit (lib/adminLessons.js listKetPetSkillTests), mở theo từng Test.
+      const u = unitLabel(unit, ketFolders);
+      listKetPetSkillTests("reading", levelNo, unit).then(
+        tests => {
+          if (cancelled) return;
+          const list = tests.map(t => ({ id: t.id, title: `Grade ${levelNo} – ${u} – Reading Test ${/-test(\d+)$/.exec(t.id)?.[1] ?? ""}` }));
+          setChoices(list);
+          setTestChoice(list[0]?.id ?? "");
+        },
+        e => { if (!cancelled) setError(e.message); },
+      );
+      return () => { cancelled = true; };
+    }
     if (isKetPet) {
       const u = unitLabel(unit, ketFolders);
       const list =
