@@ -6,6 +6,7 @@ import AudioUploadField from "./AudioUploadField.jsx";
 import { PaperView } from "../PaperAnswerSheet.jsx";
 import { CHOICE_LETTERS, blankSheetQuestion } from "../../lib/ketPetPracticeTest.js";
 import { uploadPaper } from "../../lib/paperUpload.js";
+import { useAuth } from "../../lib/authContext.jsx";
 
 // Dán cả dãy đáp án 1 lần, mỗi dòng 1 câu ("1. B", "2) went | has gone"...): 1 chữ cái A-E = câu chọn, còn lại = câu
 // gõ (nhiều cách viết ngăn bằng |). Dòng trống giữ nguyên câu đó.
@@ -56,6 +57,8 @@ export default function PaperTestStudio({
   saved,
 }) {
   const confirm = useConfirm();
+  // "Dán đáp án" chỉ admin (người dùng chốt 2026-11-06 — công cụ soạn nhanh, giáo viên nhập tay từng câu).
+  const canPaste = useAuth().role === "admin";
   const [stage, setStage] = useState("");
   const [error, setError] = useState("");
   const [pasteOpen, setPasteOpen] = useState(false);
@@ -159,11 +162,11 @@ export default function PaperTestStudio({
             <div className="admin-practice-option-row">
               <label htmlFor="paper-count" style={{ whiteSpace: "nowrap" }}>Số câu:</label>
               <input id="paper-count" className="admin-input" type="number" min="0" max="200" style={{ maxWidth: 90 }} value={questions.length} onChange={e => setCount(e.target.value)} />
-              <button type="button" className="admin-link-btn" onClick={() => setPasteOpen(o => !o)}>📋 Dán đáp án</button>
+              {canPaste && <button type="button" className="admin-link-btn" onClick={() => setPasteOpen(o => !o)}>📋 Dán đáp án</button>}
             </div>
           )}
 
-          {withSheet && pasteOpen && (
+          {withSheet && canPaste && pasteOpen && (
             <div className="paper-paste">
               <textarea
                 className="admin-input"

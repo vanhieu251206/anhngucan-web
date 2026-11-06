@@ -167,11 +167,26 @@ function splitListeningExam(parts, take, entries) {
 
 // Tách đáp án. `data` là object sẽ ghi vào Firestore (có thể chứa serverTimestamp() — chỉ field nội dung được clone
 // sâu qua JSON, các field khác giữ nguyên tham chiếu). Trả về { data: đề công khai, entries }.
+// Phiếu trả lời CHUNG của "Tải đề lên" (2026-11-06, mọi dạng bài): field `sheet` ở gốc đề = mảng câu
+// { type, options, answerIndex, acceptedAnswers, skip } — tách đáp án y như nhau cho mọi loại bài.
+function splitSheet(data, entries) {
+  if (!Array.isArray(data?.sheet)) return data;
+  const sheet = JSON.parse(JSON.stringify(data.sheet));
+  const take = makeTaker(entries);
+  sheet.forEach((q, qi) => {
+    take(q, "answerIndex", ["sheet", qi]);
+    take(q, "acceptedAnswers", ["sheet", qi]);
+  });
+  return { ...data, sheet };
+}
+
 export function splitAnswers(kind, data) {
   const field = CONTENT_FIELD[kind];
-  if (!field || data?.[field] == null) return { data, entries: [] };
-  const content = JSON.parse(JSON.stringify(data[field]));
+  if (!field) return { data, entries: [] };
   const entries = [];
+  data = splitSheet(data, entries);
+  if (data?.[field] == null) return { data: entries.length ? { ...data, answersSplit: true } : data, entries };
+  const content = JSON.parse(JSON.stringify(data[field]));
   const take = makeTaker(entries);
   if (kind === "reading") splitReading(content, take, entries);
   else if (kind === "ielts-reading") splitIeltsContainers(content, "passages", take, entries);
@@ -198,9 +213,13 @@ function setAtPath(root, path, value) {
 // chấm theo `correctPos`.
 export function mergeAnswers(kind, data, entries, { restoreOrder = false } = {}) {
   const field = CONTENT_FIELD[kind];
-  if (!field || !data?.[field] || !entries?.length) return data;
-  const wrapped = { [field]: JSON.parse(JSON.stringify(data[field])) };
-  entries.forEach(([path, value]) => setAtPath(wrapped, path, value));
+  if (!field || !entries?.length) return data;
+  const wrapped = {};
+  if (data?.[field]) wrapped[field] = JSON.parse(JSON.stringify(data[field]));
+  if (Array.isArray(data?.sheet)) wrapped.sheet = JSON.parse(JSON.stringify(data.sheet));
+  entries.forEach(([path, value]) => {
+    if (path[0] in wrapped) setAtPath(wrapped, path, value);
+  });
   if (restoreOrder && kind === "ketpet-vocab") {
     (wrapped.groups ?? []).forEach(g => {
       if (g.type !== "reorder" || !g.questions?.some(q => q.correctPos != null)) return;
@@ -209,7 +228,7 @@ export function mergeAnswers(kind, data, entries, { restoreOrder = false } = {})
         .map(({ correctPos: _drop, ...q }) => q);
     });
   }
-  return { ...data, [field]: wrapped[field] };
+  return { ...data, ...wrapped };
 }
 
 export function parseEntries(keyDoc) {

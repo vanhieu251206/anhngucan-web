@@ -113,11 +113,17 @@ export function testPart(rawKind, test, part) {
   return test;
 }
 
+export function isPaperTest(test) {
+  return Boolean(test?.paperMode && Array.isArray(test.sheet));
+}
+
 // raw — dạng câu trả lời theo từng loại:
 //   reading: answers[partIndex][qIndex]        ielts-*: { [số câu]: giá trị }
 //   ketpet-*: { "gi-qi": giá trị }             listening-exam: { parts: { part1: { answers }, part4: { score } ... } }
 export function gradeSubmission(rawKind, test, raw) {
   const kind = baseKind(rawKind);
+  // "Tải đề lên" dùng chung mọi dạng (2026-11-06): đề có `paperMode` + `sheet` → chấm phiếu, raw = { [số câu]: giá trị }.
+  if (isPaperTest(test)) return gradeIelts(flattenPassages([{ groups: [{ type: "answer-sheet", questions: test.sheet }] }]), raw);
   if (kind === "reading") {
     const r = gradeReading(test.parts ?? [], raw, test.seriesId);
     return { correct: r.earnedPoints, total: r.totalPoints, items: r.items };

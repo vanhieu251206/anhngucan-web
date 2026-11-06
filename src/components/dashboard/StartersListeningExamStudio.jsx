@@ -8,6 +8,7 @@ import { Part4Editor, Part4Preview, blankPart4, normalizePart4, validatePart4, p
 import { Part3Editor, Part3Preview, blankPart3, normalizePart3, validatePart3, part3HasContent } from "./StartersListeningPart3Editor.jsx";
 import { Part2Editor, Part2Preview, blankPart2, normalizePart2, validatePart2, part2HasContent } from "./StartersListeningPart2Editor.jsx";
 import { MoversPart3Editor, MoversPart3Preview, blankMoversPart3, normalizeMoversPart3, validateMoversPart3 } from "./MoversListeningPart3Editor.jsx";
+import PaperModeGate, { usePaperDraft } from "./PaperModeGate.jsx";
 import { listListeningExamTests, getListeningExamTest, saveListeningExamTest } from "../../lib/adminLessons.js";
 import { uploadToCloudinary } from "../../lib/cloudinaryUpload.js";
 import { useAuth } from "../../lib/authContext.jsx";
@@ -204,6 +205,7 @@ function TestEditor({ series, level, testId, uid, onBack }) {
   const [openPart, setOpenPart] = useState(1);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const paperDraft = usePaperDraft();
   const [bulkUploading, setBulkUploading] = useState(false);
   const [bulkProgress, setBulkProgress] = useState(null);
 
@@ -376,6 +378,7 @@ function TestEditor({ series, level, testId, uid, onBack }) {
     getListeningExamTest(series.id, level.number, testId)
       .then(t => {
         if (t?.title) setTitle(t.title);
+        paperDraft.load(t);
         if (t?.parts?.part1) setPart1(normalizePart(t.parts.part1));
         if (t?.parts?.part2) setPart2(normalizePart2(t.parts.part2, moversLike));
         if (t?.parts?.part3) setPart3(moversLike ? normalizeMoversPart3(t.parts.part3) : normalizePart3(t.parts.part3));
@@ -408,7 +411,7 @@ function TestEditor({ series, level, testId, uid, onBack }) {
 
   async function handlePublish() {
     const { has1, has2, has3, has4, has5 } = collectWarnings();
-    if (!(await confirm(publishWarningText(warnings, "Bài này sẽ hiển thị ngay trên website cho học sinh. Vẫn xuất bản?") ?? "Bài này sẽ hiển thị ngay trên website cho học sinh. Xuất bản?"))) return;
+    if (!paperDraft.paperMode && !(await confirm(publishWarningText(warnings, "Bài này sẽ hiển thị ngay trên website cho học sinh. Vẫn xuất bản?") ?? "Bài này sẽ hiển thị ngay trên website cho học sinh. Xuất bản?"))) return;
     setSaving(true);
     setSaved(false);
     try {
@@ -416,7 +419,7 @@ function TestEditor({ series, level, testId, uid, onBack }) {
       // (StartersListeningTestRunner.jsx PARTS[].has) nên không lộ Part dở dang.
       const keep = { part1: has1, part2: has2, part3: has3, part4: has4, part5: has5 };
       const all = { part1, part2, part3, part4, part5 };
-      await saveListeningExamTest(series.id, level.number, testId, { title, parts: moversLike ? Object.fromEntries(Object.entries(all).filter(([k, v]) => keep[k] || !!v.audioUrl)) : { part1, part2, part3, part4 } }, uid);
+      await saveListeningExamTest(series.id, level.number, testId, { title, parts: moversLike ? Object.fromEntries(Object.entries(all).filter(([k, v]) => keep[k] || !!v.audioUrl)) : { part1, part2, part3, part4 }, ...paperDraft.fields() }, uid);
       setSaved(true);
     } catch (e) {
       alert(`Không xuất bản được: ${e.message}`);
@@ -428,6 +431,7 @@ function TestEditor({ series, level, testId, uid, onBack }) {
   if (loading) return <div className="admin-card"><p className="admin-muted-text">Đang tải...</p></div>;
 
   return (
+    <PaperModeGate draft={paperDraft} kind="listening-exam" accent={series.color} label={title || "Listening"} backLabel="← Quay lại" onBack={onBack} title={title} onTitleChange={setTitle} onSave={handlePublish} saving={saving} saved={saved}>
     <div className="studio-shell" style={{ "--accent": series.color }}>
       {cropFrame && <ScreenCropOverlay frame={cropFrame} nextLabel={nextCropLabel} onCrop={handleCrop} onClose={() => setCropFrame(null)} />}
       <div className="studio-topbar">
@@ -481,6 +485,7 @@ function TestEditor({ series, level, testId, uid, onBack }) {
         {openPart === 5 ? <Part4Preview part={part5} onChange={setPart5} activeId={activeId5} onActiveId={setActiveId5} /> : openPart === 4 ? (moversLike ? <Part3Preview part={part4} /> : <Part4Preview part={part4} onChange={setPart4} activeId={activeId4} onActiveId={setActiveId4} />) : openPart === 3 ? (moversLike ? <MoversPart3Preview part={part3} /> : <Part3Preview part={part3} />) : openPart === 2 ? <Part2Preview part={part2} /> : <Part1Preview part={part1} onChange={setPart1} activeSlot={activeSlot} onActiveSlot={setActiveSlot} />}
       </div>
     </div>
+    </PaperModeGate>
   );
 }
 

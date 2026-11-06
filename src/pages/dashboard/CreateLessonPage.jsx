@@ -21,6 +21,7 @@ import KetPetContentPage from "./KetPetContentPage.jsx";
 import KidsContentPage from "./KidsContentPage.jsx";
 import { useConfirm } from "../../components/dashboard/ConfirmDialog.jsx";
 import PaperTestStudio from "../../components/dashboard/PaperTestStudio.jsx";
+import PaperModeGate, { usePaperDraft } from "../../components/dashboard/PaperModeGate.jsx";
 import IeltsListeningRunner from "../../components/IeltsListeningRunner.jsx";
 import { answerSheetGroup } from "../../lib/ketPetPracticeTest.js";
 import { validatePaperTest } from "../../lib/lessonValidation.js";
@@ -583,6 +584,7 @@ function ReadingEditor({ series, level, uid }) {
   const [testTitle, setTestTitle] = useState("");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const paperDraft = usePaperDraft();
 
   function reloadTests() {
     listReadingTests(series.id, level.number).then(setTests);
@@ -594,6 +596,7 @@ function ReadingEditor({ series, level, uid }) {
     setOpenTestId(t.id);
     setTestTitle(full?.title ?? t.title ?? "");
     setParts(full?.parts ?? []);
+    paperDraft.load(full);
     setSaved(false);
   }
 
@@ -602,6 +605,7 @@ function ReadingEditor({ series, level, uid }) {
     setOpenTestId(`test${nextOrder}`);
     setTestTitle(`Test ${nextOrder}`);
     setParts([]);
+    paperDraft.reset();
     setSaved(false);
   }
 
@@ -609,6 +613,7 @@ function ReadingEditor({ series, level, uid }) {
     setOpenTestId(`test${n}`);
     setTestTitle(`Test ${n}`);
     setParts([]);
+    paperDraft.reset();
     setSaved(false);
   }
 
@@ -631,7 +636,7 @@ function ReadingEditor({ series, level, uid }) {
     setSaved(false);
     try {
       const order = tests?.find(t => t.id === openTestId)?.order ?? (tests?.length ?? 0) + 1;
-      await saveReadingTest(series.id, level.number, openTestId, { title: testTitle, order, parts }, uid);
+      await saveReadingTest(series.id, level.number, openTestId, { title: testTitle, order, parts, ...paperDraft.fields() }, uid);
       setSaved(true);
       reloadTests();
     } catch (err) {
@@ -645,6 +650,7 @@ function ReadingEditor({ series, level, uid }) {
 
   if (openTestId) {
     return (
+      <PaperModeGate draft={paperDraft} kind="reading" accent={series.color} label={testTitle || "Reading"} backLabel="← Quay lại danh sách Test" onBack={() => setOpenTestId(null)} title={testTitle} onTitleChange={setTestTitle} onSave={handleSaveTest} saving={saving} saved={saved}>
       <ReadingStudio
         accent={series.color}
         seriesId={series.id}
@@ -657,6 +663,7 @@ function ReadingEditor({ series, level, uid }) {
         saving={saving}
         saved={saved}
       />
+      </PaperModeGate>
     );
   }
 
@@ -831,6 +838,7 @@ function VocabEditor({ series, level, uid }) {
   const [totalPoints, setTotalPoints] = useState("");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const paperDraft = usePaperDraft();
 
   function reloadTests() {
     listVocabTests(series.id, level.number).then(setTests);
@@ -843,6 +851,7 @@ function VocabEditor({ series, level, uid }) {
     setTestTitle(full?.title ?? t.title ?? "");
     setItems(full?.items ?? []);
     setTotalPoints(full?.totalPoints ?? "");
+    paperDraft.load(full);
     setSaved(false);
   }
 
@@ -853,6 +862,7 @@ function VocabEditor({ series, level, uid }) {
     setTestTitle(`Vocabulary ${(tests?.length ?? 0) + 1}`);
     setItems([]);
     setTotalPoints("");
+    paperDraft.reset();
     setSaved(false);
   }
 
@@ -870,7 +880,7 @@ function VocabEditor({ series, level, uid }) {
     setSaved(false);
     try {
       const order = tests?.find(t => t.id === openTestId)?.order ?? Math.max(0, ...(tests ?? []).map(t => t.order ?? 0)) + 1;
-      await saveVocabTest(series.id, level.number, openTestId, { title: testTitle, order, items, totalPoints }, uid);
+      await saveVocabTest(series.id, level.number, openTestId, { title: testTitle, order, items, totalPoints, ...paperDraft.fields() }, uid);
       setSaved(true);
       reloadTests();
     } catch (err) {
@@ -882,6 +892,7 @@ function VocabEditor({ series, level, uid }) {
 
   if (openTestId) {
     return (
+      <PaperModeGate draft={paperDraft} kind="yle-vocab" accent={series.color} label={testTitle || "Vocabulary"} backLabel="← Quay lại danh sách bài" onBack={() => setOpenTestId(null)} title={testTitle} onTitleChange={setTestTitle} onSave={handleSaveTest} saving={saving} saved={saved}>
       <VocabStudio
         accent={series.color}
         title={testTitle}
@@ -895,6 +906,7 @@ function VocabEditor({ series, level, uid }) {
         saving={saving}
         saved={saved}
       />
+      </PaperModeGate>
     );
   }
 

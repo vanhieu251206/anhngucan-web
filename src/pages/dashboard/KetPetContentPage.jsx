@@ -7,6 +7,7 @@ import {
   listKetPetSkillTests, getKetPetSkillTest, saveKetPetSkillTest, deleteKetPetSkillTest,
 } from "../../lib/adminLessons.js";
 import { ReadingTestsEditor } from "../../components/dashboard/IeltsSkillEditors.jsx";
+import PaperModeGate, { usePaperDraft } from "../../components/dashboard/PaperModeGate.jsx";
 import KetPetVocabularyStudio, { EMPTY_VOCAB_GROUPS } from "../../components/dashboard/KetPetVocabularyStudio.jsx";
 import KetPetPracticeTestStudio, { EMPTY_PRACTICE_TEST_GROUPS } from "../../components/dashboard/KetPetPracticeTestStudio.jsx";
 import KetPetPaperTestStudio from "../../components/dashboard/KetPetPaperTestStudio.jsx";
@@ -107,6 +108,7 @@ export default function KetPetContentPage() {
     setFolders(next);
   }
 
+  const vocabPaper = usePaperDraft();
   useEffect(() => {
     if (grade == null || unit == null || mode !== "vocabulary") return;
     let cancelled = false;
@@ -115,6 +117,7 @@ export default function KetPetContentPage() {
     getVocabularyUnit(grade, unit).then(doc => {
       if (cancelled) return;
       setVocabGroups(doc?.groups?.length ? doc.groups : EMPTY_VOCAB_GROUPS);
+      vocabPaper.load(doc);
       setLoading(false);
     });
     return () => { cancelled = true; };
@@ -144,7 +147,7 @@ export default function KetPetContentPage() {
       if (authoring === "paper") await saveKetPetPracticeTest(grade, unit, practiceTest, paperGroups, user.uid, paper);
       else await saveKetPetPracticeTest(grade, unit, practiceTest, groups, user.uid);
     } else {
-      await saveVocabularyUnit(grade, unit, vocabGroups, user.uid);
+      await saveVocabularyUnit(grade, unit, vocabGroups, user.uid, vocabPaper.fields());
     }
     setSaving(false);
     setSaved(true);
@@ -301,6 +304,7 @@ export default function KetPetContentPage() {
   }
 
   return (
+    <PaperModeGate draft={vocabPaper} kind="ketpet-vocab" accent={ACCENT} label={`${unitTitle} — Vocabulary`} backLabel={`← Quay lại Grade ${grade}`} onBack={() => setMode(null)} onSave={handleSave} saving={saving} saved={saved}>
     <KetPetVocabularyStudio
       accent={ACCENT}
       gradeTitle={`Grade ${grade}`}
@@ -312,5 +316,6 @@ export default function KetPetContentPage() {
       saving={saving}
       saved={saved}
     />
+    </PaperModeGate>
   );
 }

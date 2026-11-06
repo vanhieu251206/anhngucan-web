@@ -71,13 +71,19 @@ export async function getReadingTest(seriesId, level, testId) {
 }
 
 // parts PHẢI đã resolve hết ảnh thành URL đầy đủ (Cloudinary) trước khi gọi hàm này, giống saveTest.
-export async function saveReadingTest(seriesId, level, testId, { title, order, parts }, uid) {
+// Field "Tải đề lên" dùng chung (components/dashboard/PaperModeGate.jsx) — chỉ ghi khi trình soạn có gửi lên.
+function paperFields(c) {
+  return c && "paperMode" in c ? { paperMode: Boolean(c.paperMode), paper: c.paper ?? null, sheet: c.sheet ?? [] } : {};
+}
+
+export async function saveReadingTest(seriesId, level, testId, { title, order, parts, ...rest }, uid) {
   // Tách đáp án ra answerKeys (lib/answerStore.js) — học sinh tải đề không thấy đáp án.
   await saveWithAnswers(seriesId, lessonId(seriesId, level), "readingTests", testId, {
     testId,
     title,
     order,
     parts,
+    ...paperFields(rest),
     updatedAt: serverTimestamp(),
     updatedBy: uid,
   });
@@ -136,13 +142,14 @@ export async function getVocabTest(seriesId, level, testId) {
 }
 
 // totalPoints: tổng điểm cả bài, chia đều cho các câu; null = mỗi câu 1 điểm.
-export async function saveVocabTest(seriesId, level, testId, { title, order, items, totalPoints }, uid) {
+export async function saveVocabTest(seriesId, level, testId, { title, order, items, totalPoints, ...rest }, uid) {
   await saveWithAnswers(seriesId, lessonId(seriesId, level), "vocabTests", testId, {
     testId,
     title,
     order,
     items,
     totalPoints: Number(totalPoints) > 0 ? Number(totalPoints) : null,
+    ...paperFields(rest),
     updatedAt: serverTimestamp(),
     updatedBy: uid,
   });
@@ -275,9 +282,10 @@ export async function getVocabularyUnit(grade, unit) {
   return snap.exists() ? withAnswers(lessonId("ket-pet", grade), "vocabularyUnits", { id: snap.id, ...snap.data() }) : null;
 }
 
-export async function saveVocabularyUnit(grade, unit, groups, uid) {
+export async function saveVocabularyUnit(grade, unit, groups, uid, paper = null) {
   await saveWithAnswers("ket-pet", lessonId("ket-pet", grade), "vocabularyUnits", `unit${unit}`, {
     groups,
+    ...paperFields(paper),
     updatedAt: serverTimestamp(),
     updatedBy: uid,
   });
@@ -355,13 +363,13 @@ export async function listListeningExamTests(seriesId, level) {
   return withAnswersAll(lessonId(seriesId, level), "listeningExamTests", snap.docs.map(d => ({ id: d.id, ...d.data() })));
 }
 
-export async function saveListeningExamTest(seriesId, level, testId, { title, parts }, uid) {
+export async function saveListeningExamTest(seriesId, level, testId, { title, parts, ...rest }, uid) {
   await saveWithAnswers(
     seriesId,
     lessonId(seriesId, level),
     "listeningExamTests",
     testId,
-    { testId, title, parts, updatedAt: serverTimestamp(), updatedBy: uid },
+    { testId, title, parts, ...paperFields(rest), updatedAt: serverTimestamp(), updatedBy: uid },
     { merge: true },
   );
 }

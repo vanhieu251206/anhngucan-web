@@ -5,6 +5,8 @@ import { useAuth } from "../lib/authContext.jsx";
 import { useTestSubmission } from "../lib/testSubmit.js";
 import KetPetVocabularyQuiz from "./KetPetVocabularyQuiz.jsx";
 import { getVocabularyUnit } from "../lib/adminLessons.js";
+import PaperSheetRunner from "./PaperSheetRunner.jsx";
+import { isPaperTest } from "../lib/grading/index.js";
 
 // Màn học sinh làm Vocabulary 1 Unit KET/PET — tải nội dung từ Firestore rồi giao phần tương tác
 // cho KetPetVocabularyQuiz.jsx (dùng chung với Preview trong CMS). Cho làm lại thoải mái (không
@@ -18,7 +20,7 @@ export default function KetPetVocabularyRunner({ grade, unit, unitTitle, onNavig
   useEffect(() => {
     let cancelled = false;
     getVocabularyUnit(grade, unit).then(d => {
-      if (!cancelled) setDoc(d?.groups?.length ? d : null);
+      if (!cancelled) setDoc(d?.groups?.length || isPaperTest(d) ? d : null);
     });
     return () => { cancelled = true; };
   }, [grade, unit]);
@@ -59,7 +61,21 @@ export default function KetPetVocabularyRunner({ grade, unit, unitTitle, onNavig
         {doc === undefined && <p className="vocab-empty">Đang tải...</p>}
         {doc === null && <p className="vocab-empty">Chưa có nội dung — quay lại sau nhé.</p>}
         {doc && submittedOk && <SubmittedNotice openingId={ctx.openingId} onDone={onBack} />}
-        {doc && !submittedOk && <KetPetVocabularyQuiz groups={doc.groups} limitMinutes={ctx?.limitMinutes} canRetry={!ctx?.studentUid || canReview} revealAnswers={canReview} onSubmitted={ctx ? handleSubmitted : undefined} />}
+        {doc && !submittedOk && isPaperTest(doc) && (
+          <PaperSheetRunner
+            test={doc}
+            kind="ketpet-vocab"
+            limitMinutes={ctx?.limitMinutes}
+            openingId={ctx?.openingId}
+            submit={args => {
+              const pending = submitToServer(args);
+              if (ctx?.openingId && !canReview) pending.then(() => setSubmittedOk(true), () => {});
+              return pending;
+            }}
+            onFinish={onBack}
+          />
+        )}
+        {doc && !submittedOk && !isPaperTest(doc) && <KetPetVocabularyQuiz groups={doc.groups} limitMinutes={ctx?.limitMinutes} canRetry={!ctx?.studentUid || canReview} revealAnswers={canReview} onSubmitted={ctx ? handleSubmitted : undefined} />}
       </div>
     </div>
   );

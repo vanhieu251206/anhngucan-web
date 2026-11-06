@@ -11,6 +11,8 @@ import IeltsListeningRunner from "../components/IeltsListeningRunner.jsx";
 import { firstQuestionNumbers } from "../lib/grading/ielts.js";
 import DictationRunner from "../components/DictationRunner.jsx";
 import VocabRunner from "../components/VocabRunner.jsx";
+import PaperSheetRunner from "../components/PaperSheetRunner.jsx";
+import { isPaperTest } from "../lib/grading/index.js";
 import { checkOpening } from "../lib/openings.js";
 import StartersListeningTestRunner, { testHasContent } from "../components/StartersListeningTestRunner.jsx";
 import { listListeningExamTests } from "../lib/adminLessons.js";
@@ -546,6 +548,38 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
     );
   }
 
+  // ---------- Đề "Tải đề lên" (mọi dạng, PaperSheetRunner) — thêm dạng mới: thêm 1 dòng vào đây ----------
+  const paperRun =
+    readingActive && isPaperTest(activeReadingTest) ? { kind: "reading", test: activeReadingTest, exit: exitReading }
+    : isPaperTest(activeVocabTest) ? { kind: "yle-vocab", test: activeVocabTest, exit: exitVocab }
+    : listeningActive && isPaperTest(activeExamTest) ? { kind: "listening-exam", test: activeExamTest, exit: () => setActiveExamTest(null) }
+    : null;
+  if (paperRun) {
+    const label = `${series.title} ${level.number} · ${paperRun.test.title ?? ""}`;
+    return (
+      <div className="reading-fullscreen">
+        <div className="speaking-fullscreen-topbar">
+          <button className="speaking-fullscreen-back" onClick={paperRun.exit}>⬅ Quay lại</button>
+          <span className="speaking-fullscreen-title">{label}</span>
+        </div>
+        <div className="speaking-fullscreen-body reading-fullscreen-body">
+          <PaperSheetRunner
+            test={paperRun.test}
+            kind={paperRun.kind}
+            seriesId={series.id}
+            level={level.number}
+            testId={paperRun.test.id}
+            limitMinutes={activeOpening?.timeLimitMinutes ?? null}
+            openingId={activeOpening?.id}
+            studentName={studentName}
+            lessonLabel={label}
+            onFinish={paperRun.exit}
+          />
+        </div>
+      </div>
+    );
+  }
+
   // ---------- Bài Reading & Writing toàn màn hình (ReadingRunner) ----------
   if (readingActive && activeReadingTest?.parts?.length) {
     return (
@@ -862,8 +896,8 @@ export default function LessonsPage({ initialSeriesId, onNavigate }) {
       banner: "Đọc & Viết",
       title: t.title,
       desc: "Đọc & viết theo đúng đề thi Cambridge YLE",
-      cta: !t.parts?.length ? "Chưa có Part" : checkingAttempts ? "Đang kiểm tra..." : "Bắt đầu làm bài",
-      disabled: !t.parts?.length || checkingAttempts,
+      cta: !t.parts?.length && !isPaperTest(t) ? "Chưa có Part" : checkingAttempts ? "Đang kiểm tra..." : "Bắt đầu làm bài",
+      disabled: (!t.parts?.length && !isPaperTest(t)) || checkingAttempts,
       onClick: () => requestStart("reading", t),
     });
   }

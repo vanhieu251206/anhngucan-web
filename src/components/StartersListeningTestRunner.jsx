@@ -1,3 +1,4 @@
+import { isPaperTest } from "../lib/grading/index.js";
 import { useEffect, useRef, useState } from "react";
 import SubmittedNotice from "./SubmittedNotice.jsx";
 import StartersListeningPart1Runner from "./StartersListeningPart1Runner.jsx";
@@ -27,7 +28,7 @@ const PARTS = [
 ];
 
 // Test có ít nhất 1 Part đã soạn thì mở được (dùng cho thẻ Test ở LessonsPage).
-export const testHasContent = test => PARTS.some(p => p.has(test?.parts?.[p.key]));
+export const testHasContent = test => isPaperTest(test) || PARTS.some(p => p.has(test?.parts?.[p.key]));
 
 export default function StartersListeningTestRunner({ test, studentUid, studentName, studentClass, seriesId, level, lessonLabel, openingId }) {
   const { isStaff, isTester } = useAuth();
